@@ -262,6 +262,7 @@ def main():
                 {
                     "type": "results",
                     "results": results,
+                    "inputMode": "realtime",
                     "placeholder": "Search files...",
                 }
             )
@@ -293,6 +294,7 @@ def main():
                 {
                     "type": "results",
                     "results": results,
+                    "inputMode": "realtime",
                     "placeholder": "Search files...",
                 }
             )

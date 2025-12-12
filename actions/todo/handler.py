@@ -97,11 +97,13 @@ def respond(
     clear_input: bool = False,
     context: str = "",
     placeholder: str = "Search tasks or type to add...",
+    input_mode: str = "realtime",
 ):
     """Send a results response"""
     response = {
         "type": "results",
         "results": results,
+        "inputMode": input_mode,
         "placeholder": placeholder,
     }
     if clear_input:
@@ -130,7 +132,7 @@ def main():
 
     # Search: filter todos or prepare to add
     if step == "search":
-        # Add mode: show add option with encoded query
+        # Add mode: show add option with encoded query (submit mode)
         if context == "__add_mode__":
             if query:
                 encoded = base64.b64encode(query.encode()).decode()
@@ -153,10 +155,15 @@ def main():
                         "description": "Start typing to add a new task",
                     },
                 ]
-            respond(results, placeholder="Type new task...", context="__add_mode__")
+            respond(
+                results,
+                placeholder="Type new task... (Enter to add)",
+                context="__add_mode__",
+                input_mode="submit",
+            )
             return
 
-        # Edit mode: show save option
+        # Edit mode: show save option (submit mode)
         if context.startswith("__edit__:"):
             todo_idx = int(context.split(":")[1])
             if 0 <= todo_idx < len(todos):
@@ -172,7 +179,10 @@ def main():
                     },
                 ]
                 respond(
-                    results, placeholder="Type new task content...", context=context
+                    results,
+                    placeholder="Type new task content... (Enter to save)",
+                    context=context,
+                    input_mode="submit",
                 )
             return
 
@@ -225,7 +235,7 @@ def main():
             respond(get_todo_results(todos), clear_input=True)
             return
 
-        # Enter add mode
+        # Enter add mode (submit mode)
         if item_id == "__add__":
             results = [
                 {"id": "__back__", "name": "Cancel", "icon": "arrow_back"},
@@ -238,9 +248,10 @@ def main():
             ]
             respond(
                 results,
-                placeholder="Type new task...",
+                placeholder="Type new task... (Enter to add)",
                 clear_input=True,
                 context="__add_mode__",
+                input_mode="submit",
             )
             return
 
@@ -310,9 +321,10 @@ def main():
                     ]
                     respond(
                         results,
-                        placeholder="Type new content...",
+                        placeholder="Type new content... (Enter to save)",
                         clear_input=True,
                         context=f"__edit__:{todo_idx}",
+                        input_mode="submit",
                     )
                 return
 

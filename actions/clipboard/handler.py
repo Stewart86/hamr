@@ -14,7 +14,11 @@ from pathlib import Path
 
 
 # Cache directory for image thumbnails
-CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "hamr" / "clipboard-thumbs"
+CACHE_DIR = (
+    Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+    / "hamr"
+    / "clipboard-thumbs"
+)
 # Max thumbnail size (width or height)
 MAX_THUMB_SIZE = 256
 
@@ -64,34 +68,40 @@ def get_image_thumbnail(entry: str) -> str | None:
     """Get or create thumbnail for image entry, return path or None"""
     if not is_image(entry):
         return None
-    
+
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    
+
     # Use entry hash as filename
     entry_hash = hashlib.md5(entry.encode()).hexdigest()[:16]
     thumb_path = CACHE_DIR / f"{entry_hash}.png"
-    
+
     # Return cached thumbnail if exists
     if thumb_path.exists():
         return str(thumb_path)
-    
+
     # Decode and save thumbnail
     try:
         decode_proc = subprocess.run(
             ["cliphist", "decode"],
-            input=entry.encode('utf-8'),
+            input=entry.encode("utf-8"),
             capture_output=True,
             timeout=5,
         )
         if decode_proc.returncode != 0 or not decode_proc.stdout:
             return None
-        
+
         # Check if we need to resize (use ImageMagick if available)
         dims = get_image_dimensions(entry)
         if dims and (dims[0] > MAX_THUMB_SIZE or dims[1] > MAX_THUMB_SIZE):
             # Resize with ImageMagick convert
             resize_proc = subprocess.run(
-                ["magick", "-", "-thumbnail", f"{MAX_THUMB_SIZE}x{MAX_THUMB_SIZE}>", str(thumb_path)],
+                [
+                    "magick",
+                    "-",
+                    "-thumbnail",
+                    f"{MAX_THUMB_SIZE}x{MAX_THUMB_SIZE}>",
+                    str(thumb_path),
+                ],
                 input=decode_proc.stdout,
                 capture_output=True,
                 timeout=10,
@@ -99,14 +109,14 @@ def get_image_thumbnail(entry: str) -> str | None:
             if resize_proc.returncode == 0 and thumb_path.exists():
                 return str(thumb_path)
             # Fall back to saving full size if resize fails
-        
+
         # Save as-is if small or resize failed
         thumb_path.write_bytes(decode_proc.stdout)
         return str(thumb_path)
-        
+
     except (subprocess.TimeoutExpired, Exception) as e:
         print(f"Error decoding image: {e}", file=sys.stderr)
-    
+
     return None
 
 
@@ -129,7 +139,7 @@ def delete_entry(entry: str):
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    
+
     # Also remove thumbnail if exists
     entry_hash = hashlib.md5(entry.encode()).hexdigest()[:16]
     thumb_path = CACHE_DIR / f"{entry_hash}.png"
@@ -187,7 +197,7 @@ def get_entry_results(entries: list[str], query: str = "") -> list[dict]:
 
         display = clean_entry(entry)
         is_img = is_image(entry)
-        
+
         # For images, show dimensions
         if is_img:
             dims = get_image_dimensions(entry)
@@ -213,7 +223,7 @@ def get_entry_results(entries: list[str], query: str = "") -> list[dict]:
                 {"id": "delete", "name": "Delete", "icon": "delete"},
             ],
         }
-        
+
         if thumbnail:
             result["thumbnail"] = thumbnail
 
@@ -237,6 +247,7 @@ def respond(results: list[dict], **kwargs):
     response = {
         "type": "results",
         "results": results,
+        "inputMode": "realtime",
         "placeholder": kwargs.get("placeholder", "Search clipboard..."),
     }
     if kwargs.get("clear_input"):

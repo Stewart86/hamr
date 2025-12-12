@@ -107,14 +107,18 @@ def main():
     if step == "initial":
         images = find_images()
         results = get_image_list_results(images)
-        print(json.dumps({"type": "results", "results": results}))
+        print(
+            json.dumps({"type": "results", "results": results, "inputMode": "realtime"})
+        )
         return
 
     # Search: filter image list
     if step == "search":
         images = find_images(query)
         results = get_image_list_results(images)
-        print(json.dumps({"type": "results", "results": results}))
+        print(
+            json.dumps({"type": "results", "results": results, "inputMode": "realtime"})
+        )
         return
 
     # Action: handle item click or action button
@@ -243,7 +247,11 @@ def main():
         # Default click on image - show detail view (multi-turn!)
         if Path(item_id).exists():
             results = get_image_detail_results(item_id)
-            print(json.dumps({"type": "results", "results": results}))
+            print(
+                json.dumps(
+                    {"type": "results", "results": results, "inputMode": "realtime"}
+                )
+            )
             return
 
         # Unknown action

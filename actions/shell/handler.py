@@ -116,7 +116,9 @@ def main():
             for cmd in commands
         ]
 
-        print(json.dumps({"type": "results", "results": results}))
+        print(
+            json.dumps({"type": "results", "results": results, "inputMode": "realtime"})
+        )
         return
 
     if step == "search":
@@ -141,7 +143,9 @@ def main():
             for cmd in filtered
         ]
 
-        print(json.dumps({"type": "results", "results": results}))
+        print(
+            json.dumps({"type": "results", "results": results, "inputMode": "realtime"})
+        )
         return
 
     if step == "action":

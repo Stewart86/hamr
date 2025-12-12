@@ -71,7 +71,9 @@ def main():
 
     if step == "search":
         if not query:
-            print(json.dumps({"type": "results", "results": []}))
+            print(
+                json.dumps({"type": "results", "results": [], "inputMode": "realtime"})
+            )
             return
 
         # Look up the word
@@ -108,6 +110,7 @@ def main():
                                 ],
                             }
                         ],
+                        "inputMode": "realtime",
                         "_definition": content,  # Store for action
                     }
                 )
@@ -125,6 +128,7 @@ def main():
                                 "icon": "search_off",
                             }
                         ],
+                        "inputMode": "realtime",
                     }
                 )
             )

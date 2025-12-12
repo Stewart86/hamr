@@ -27,6 +27,7 @@ def main():
     # The image browser handles its own search, so we just open it
     if step in ("initial", "search"):
         # Open image browser with wallpaper-specific actions
+        # inputMode doesn't apply to imageBrowser, but include for consistency
         print(
             json.dumps(
                 {

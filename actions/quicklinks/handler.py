@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Quicklinks workflow handler - search the web with predefined quicklinks
-Reads quicklinks from ~/.config/illogical-impulse/quicklinks.json
+Reads quicklinks from ~/.config/hamr/quicklinks.json
 
 Features:
 - Browse and search quicklinks
@@ -16,7 +16,7 @@ import sys
 import urllib.parse
 from pathlib import Path
 
-QUICKLINKS_PATH = Path.home() / ".config/illogical-impulse/quicklinks.json"
+QUICKLINKS_PATH = Path.home() / ".config/hamr/quicklinks.json"
 
 
 def load_quicklinks() -> list[dict]:
@@ -139,6 +139,7 @@ def main():
                 {
                     "type": "results",
                     "results": results,
+                    "inputMode": "realtime",
                     "placeholder": "Search quicklinks...",
                 }
             )
@@ -147,7 +148,7 @@ def main():
 
     # ===== SEARCH: Context-dependent search =====
     if step == "search":
-        # Adding new quicklink - step 1: entering name
+        # Adding new quicklink - step 1: entering name (submit mode)
         if selected_id == "__add__":
             if query:
                 # Check if name already exists
@@ -157,7 +158,8 @@ def main():
                         json.dumps(
                             {
                                 "type": "results",
-                                "placeholder": "Enter quicklink name",
+                                "inputMode": "submit",
+                                "placeholder": "Enter quicklink name (Enter to confirm)",
                                 "results": [
                                     {
                                         "id": "__back__",
@@ -179,7 +181,8 @@ def main():
                         json.dumps(
                             {
                                 "type": "results",
-                                "placeholder": "Enter quicklink name",
+                                "inputMode": "submit",
+                                "placeholder": "Enter quicklink name (Enter to confirm)",
                                 "results": [
                                     {
                                         "id": f"__add_name__:{query}",
@@ -202,7 +205,8 @@ def main():
                     json.dumps(
                         {
                             "type": "results",
-                            "placeholder": "Enter quicklink name",
+                            "inputMode": "submit",
+                            "placeholder": "Enter quicklink name (Enter to confirm)",
                             "results": [
                                 {"id": "__back__", "name": "Back", "icon": "arrow_back"}
                             ],
@@ -211,7 +215,7 @@ def main():
                 )
             return
 
-        # Editing quicklink URL
+        # Editing quicklink URL (submit mode)
         if selected_id.startswith("__edit__:"):
             name = selected_id.split(":", 1)[1]
             link = next((l for l in quicklinks if l["name"] == name), None)
@@ -225,7 +229,8 @@ def main():
                     json.dumps(
                         {
                             "type": "results",
-                            "placeholder": f"Edit URL for '{name}'",
+                            "inputMode": "submit",
+                            "placeholder": f"Edit URL for '{name}' (Enter to save)",
                             "results": [
                                 {
                                     "id": f"__edit_save__:{name}:{query}",
@@ -250,7 +255,8 @@ def main():
                     json.dumps(
                         {
                             "type": "results",
-                            "placeholder": f"Edit URL for '{name}'",
+                            "inputMode": "submit",
+                            "placeholder": f"Edit URL for '{name}' (Enter to save)",
                             "results": [
                                 {
                                     "id": "__current_url__",
@@ -269,7 +275,7 @@ def main():
                 )
             return
 
-        # Adding new quicklink - step 2: entering URL
+        # Adding new quicklink - step 2: entering URL (submit mode)
         if selected_id.startswith("__add_name__:"):
             name = selected_id.split(":", 1)[1]
             if query:
@@ -281,7 +287,8 @@ def main():
                     json.dumps(
                         {
                             "type": "results",
-                            "placeholder": "Enter URL (use {query} for search)",
+                            "inputMode": "submit",
+                            "placeholder": "Enter URL (Enter to save)",
                             "results": [
                                 {
                                     "id": f"__add_save__:{name}:{query}",
@@ -305,7 +312,8 @@ def main():
                     json.dumps(
                         {
                             "type": "results",
-                            "placeholder": "Enter URL (use {query} for search)",
+                            "inputMode": "submit",
+                            "placeholder": "Enter URL (Enter to save)",
                             "results": [
                                 {"id": "__back__", "name": "Back", "icon": "arrow_back"}
                             ],
@@ -314,15 +322,16 @@ def main():
                 )
             return
 
-        # Search mode for a quicklink with {query}
+        # Search mode for a quicklink with {query} (submit mode for search input)
         link = is_quicklink_with_query(selected_id, quicklinks)
         if link:
-            search_placeholder = f"Search {link['name']}..."
+            search_placeholder = f"Search {link['name']}... (Enter to search)"
             if query:
                 print(
                     json.dumps(
                         {
                             "type": "results",
+                            "inputMode": "submit",
                             "placeholder": search_placeholder,
                             "results": [
                                 {
@@ -346,6 +355,7 @@ def main():
                     json.dumps(
                         {
                             "type": "results",
+                            "inputMode": "submit",
                             "placeholder": search_placeholder,
                             "results": [
                                 {
@@ -359,12 +369,13 @@ def main():
                 )
             return
 
-        # Normal quicklink filtering
+        # Normal quicklink filtering (realtime mode)
         results = get_main_menu(quicklinks, query)
         print(
             json.dumps(
                 {
                     "type": "results",
+                    "inputMode": "realtime",
                     "results": results,
                     "placeholder": "Search quicklinks...",
                 }
@@ -382,6 +393,7 @@ def main():
                     {
                         "type": "results",
                         "results": results,
+                        "inputMode": "realtime",
                         "clearInput": True,
                         "placeholder": "Search quicklinks...",
                     }
@@ -397,7 +409,7 @@ def main():
         if selected_id == "__current_url__":
             return
 
-        # Edit action on a quicklink - enter edit mode
+        # Edit action on a quicklink - enter edit mode (submit mode)
         if action == "edit":
             link_name = selected_id
             link = next((l for l in quicklinks if l["name"] == link_name), None)
@@ -407,9 +419,10 @@ def main():
                     json.dumps(
                         {
                             "type": "results",
+                            "inputMode": "submit",
                             "clearInput": True,
                             "context": f"__edit__:{link_name}",  # Set context for search calls
-                            "placeholder": f"Edit URL for '{link_name}'",
+                            "placeholder": f"Edit URL for '{link_name}' (Enter to save)",
                             "results": [
                                 {
                                     "id": "__current_url__",
@@ -438,6 +451,7 @@ def main():
                         {
                             "type": "results",
                             "results": get_main_menu(quicklinks),
+                            "inputMode": "realtime",
                             "clearInput": True,
                             "placeholder": "Search quicklinks...",
                         }
@@ -451,14 +465,15 @@ def main():
                 )
             return
 
-        # Start adding new quicklink
+        # Start adding new quicklink (submit mode)
         if selected_id == "__add__":
             print(
                 json.dumps(
                     {
                         "type": "results",
+                        "inputMode": "submit",
                         "clearInput": True,
-                        "placeholder": "Enter quicklink name",
+                        "placeholder": "Enter quicklink name (Enter to confirm)",
                         "results": [
                             {"id": "__back__", "name": "Back", "icon": "arrow_back"}
                         ],
@@ -467,14 +482,15 @@ def main():
             )
             return
 
-        # Confirm quicklink name, move to URL input
+        # Confirm quicklink name, move to URL input (submit mode)
         if selected_id.startswith("__add_name__:"):
             print(
                 json.dumps(
                     {
                         "type": "results",
+                        "inputMode": "submit",
                         "clearInput": True,
-                        "placeholder": "Enter URL (use {query} for search)",
+                        "placeholder": "Enter URL (Enter to save)",
                         "results": [
                             {"id": "__back__", "name": "Back", "icon": "arrow_back"}
                         ],
@@ -506,6 +522,7 @@ def main():
                         {
                             "type": "results",
                             "results": get_main_menu(quicklinks),
+                            "inputMode": "realtime",
                             "clearInput": True,
                             "placeholder": "Search quicklinks...",
                         }
@@ -541,6 +558,7 @@ def main():
                         {
                             "type": "results",
                             "results": get_main_menu(quicklinks),
+                            "inputMode": "realtime",
                             "clearInput": True,
                             "placeholder": "Search quicklinks...",
                         }
@@ -590,14 +608,15 @@ def main():
 
         url_template = link.get("url", "")
 
-        # If URL has {query} placeholder, enter search mode
+        # If URL has {query} placeholder, enter search mode (submit mode)
         if "{query}" in url_template:
             print(
                 json.dumps(
                     {
                         "type": "results",
+                        "inputMode": "submit",
                         "clearInput": True,
-                        "placeholder": f"Search {link['name']}...",
+                        "placeholder": f"Search {link['name']}... (Enter to search)",
                         "results": [
                             {
                                 "id": "__back__",
