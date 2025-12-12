@@ -48,7 +48,14 @@ Scope {
                 windows: [root]
                 property bool canBeActive: root.monitorIsFocused
                 active: false
-                // Don't use onCleared - it fires incorrectly when clicking inside the window
+                onCleared: {
+                    // Re-grab focus if launcher should still be open.
+                    // Do not re-grab while the ImageBrowser overlay is open,
+                    // otherwise it can immediately get its grab cleared and close.
+                    if (GlobalStates.launcherOpen && canBeActive && !GlobalStates.imageBrowserOpen) {
+                        delayedGrabTimer.restart();
+                    }
+                }
             }
 
             Connections {
@@ -57,6 +64,7 @@ Scope {
                     if (!GlobalStates.launcherOpen) {
                         searchWidget.disableExpandAnimation();
                         launcherScope.dontAutoCancelSearch = false;
+                        grab.active = false;
                         // Clear workflow state when closing
                         if (WorkflowRunner.isActive()) {
                             LauncherSearch.closeWorkflow();
@@ -65,7 +73,9 @@ Scope {
                         if (!launcherScope.dontAutoCancelSearch) {
                             searchWidget.cancelSearch();
                         }
-                        delayedGrabTimer.start();
+                        if (!GlobalStates.imageBrowserOpen) {
+                            delayedGrabTimer.start();
+                        }
                         // Refresh workflows to detect newly added ones (workaround for symlink detection)
                         WorkflowRunner.refreshWorkflows();
                     }
@@ -83,12 +93,26 @@ Scope {
                 }
             }
 
+            // Pause launcher focus grab while ImageBrowser is open
+            Connections {
+                target: GlobalStates
+                function onImageBrowserOpenChanged() {
+                    if (GlobalStates.imageBrowserOpen) {
+                        grab.active = false;
+                    } else if (GlobalStates.launcherOpen) {
+                        delayedGrabTimer.start();
+                    }
+                }
+            }
+
             Timer {
                 id: delayedGrabTimer
                 interval: 20 // Race condition delay
                 repeat: false
                 onTriggered: {
                     if (!grab.canBeActive)
+                        return;
+                    if (GlobalStates.imageBrowserOpen)
                         return;
                     grab.active = GlobalStates.launcherOpen;
                 }

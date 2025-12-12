@@ -36,10 +36,12 @@ Singleton {
     property bool workflowBusy: false  // True while waiting for script response
     property string workflowError: ""  // Last error message
     property var lastSelectedItem: null // Last selected item (persisted across search calls)
+    property string workflowContext: ""  // Custom context string for multi-step flows
     
     // Input mode: "realtime" (every keystroke) or "submit" (only on Enter)
     // Handler controls this via response - allows different modes per step
     property string inputMode: "realtime"
+    
     
     // Replay mode: when true, workflow is running a replay action (no UI needed)
     // Process should complete even if launcher closes
@@ -196,7 +198,10 @@ Singleton {
     
     // Send search query to active workflow
     function search(query) {
-        if (!root.activeWorkflow) return;
+        if (!root.activeWorkflow) {
+            console.log("[WorkflowRunner] sendToWorkflow: No active workflow");
+            return;
+        }
         
         // Don't clear card here - it should persist until new response arrives
         
@@ -209,6 +214,11 @@ Singleton {
         // Include last selected item for context (useful for multi-step workflows)
         if (root.lastSelectedItem) {
             input.selected = { id: root.lastSelectedItem };
+        }
+        
+        // Include workflow context if set (for multi-step flows like search mode, edit mode)
+        if (root.workflowContext) {
+            input.context = root.workflowContext;
         }
         
         sendToWorkflow(input);
@@ -247,6 +257,7 @@ Singleton {
         root.workflowPrompt = "";
         root.workflowPlaceholder = "";
         root.lastSelectedItem = null;
+        root.workflowContext = "";
         root.workflowError = "";
         root.workflowBusy = false;
         root.inputMode = "realtime";
@@ -362,7 +373,7 @@ Singleton {
                 }
                 // Allow handler to set the context for subsequent search calls
                 if (response.context !== undefined) {
-                    root.lastSelectedItem = response.context;
+                    root.workflowContext = response.context ?? "";
                 }
                 // Set input mode from response (defaults to realtime)
                 root.inputMode = response.inputMode ?? "realtime";

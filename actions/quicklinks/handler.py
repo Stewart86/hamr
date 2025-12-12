@@ -130,6 +130,8 @@ def main():
 
     quicklinks = load_quicklinks()
     selected_id = selected.get("id", "")
+    # Context can override selected_id for multi-step flows (e.g., edit mode, search mode)
+    context = input_data.get("context", "")
 
     # ===== INITIAL: Show all quicklinks + add option =====
     if step == "initial":
@@ -148,8 +150,8 @@ def main():
 
     # ===== SEARCH: Context-dependent search =====
     if step == "search":
-        # Adding new quicklink - step 1: entering name (submit mode)
-        if selected_id == "__add__":
+        # Adding new quicklink - step 1: entering name (submit mode) - check context first
+        if context == "__add__" or selected_id == "__add__":
             if query:
                 # Check if name already exists
                 exists = any(l["name"] == query for l in quicklinks)
@@ -159,6 +161,7 @@ def main():
                             {
                                 "type": "results",
                                 "inputMode": "submit",
+                                "context": "__add__",
                                 "placeholder": "Enter quicklink name (Enter to confirm)",
                                 "results": [
                                     {
@@ -177,25 +180,21 @@ def main():
                         )
                     )
                 else:
+                    # Move directly to URL entry on Enter (single press)
                     print(
                         json.dumps(
                             {
                                 "type": "results",
                                 "inputMode": "submit",
-                                "placeholder": "Enter quicklink name (Enter to confirm)",
+                                "clearInput": True,
+                                "context": f"__add_name__:{query}",
+                                "placeholder": f"Enter URL for '{query}' (Enter to save)",
                                 "results": [
-                                    {
-                                        "id": f"__add_name__:{query}",
-                                        "name": f"Create '{query}'",
-                                        "description": "Next: enter URL",
-                                        "icon": "add_circle",
-                                        "verb": "Next",
-                                    },
                                     {
                                         "id": "__back__",
                                         "name": "Back",
                                         "icon": "arrow_back",
-                                    },
+                                    }
                                 ],
                             }
                         )
@@ -206,6 +205,7 @@ def main():
                         {
                             "type": "results",
                             "inputMode": "submit",
+                            "context": "__add__",
                             "placeholder": "Enter quicklink name (Enter to confirm)",
                             "results": [
                                 {"id": "__back__", "name": "Back", "icon": "arrow_back"}
@@ -215,40 +215,45 @@ def main():
                 )
             return
 
-        # Editing quicklink URL (submit mode)
-        if selected_id.startswith("__edit__:"):
-            name = selected_id.split(":", 1)[1]
+        # Editing quicklink URL (submit mode) - check context first
+        edit_context = context if context.startswith("__edit__:") else None
+        if edit_context or selected_id.startswith("__edit__:"):
+            # Get name from context or selected_id
+            name = (edit_context or selected_id).split(":", 1)[1]
             link = next((l for l in quicklinks if l["name"] == name), None)
             current_url = link.get("url", "") if link else ""
 
             if query:
-                has_placeholder = "{query}" in query
-                display_url = query if query.startswith("http") else f"https://{query}"
+                # Save directly on Enter (single press)
+                url = query
+                if not url.startswith("http://") and not url.startswith("https://"):
+                    url = "https://" + url
 
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "inputMode": "submit",
-                            "placeholder": f"Edit URL for '{name}' (Enter to save)",
-                            "results": [
-                                {
-                                    "id": f"__edit_save__:{name}:{query}",
-                                    "name": f"Save '{name}'",
-                                    "description": display_url
-                                    + (" (with search)" if has_placeholder else ""),
-                                    "icon": "save",
-                                    "verb": "Save",
-                                },
-                                {
-                                    "id": "__back__",
-                                    "name": "Cancel",
-                                    "icon": "arrow_back",
-                                },
-                            ],
-                        }
+                for link in quicklinks:
+                    if link["name"] == name:
+                        link["url"] = url
+                        break
+
+                if save_quicklinks(quicklinks):
+                    quicklinks = load_quicklinks()
+                    print(
+                        json.dumps(
+                            {
+                                "type": "results",
+                                "results": get_main_menu(quicklinks),
+                                "inputMode": "realtime",
+                                "clearInput": True,
+                                "context": "",
+                                "placeholder": "Search quicklinks...",
+                            }
+                        )
                     )
-                )
+                else:
+                    print(
+                        json.dumps(
+                            {"type": "error", "message": "Failed to save quicklinks"}
+                        )
+                    )
             else:
                 # Show current URL as hint
                 print(
@@ -256,6 +261,7 @@ def main():
                         {
                             "type": "results",
                             "inputMode": "submit",
+                            "context": f"__edit__:{name}",
                             "placeholder": f"Edit URL for '{name}' (Enter to save)",
                             "results": [
                                 {
@@ -275,44 +281,46 @@ def main():
                 )
             return
 
-        # Adding new quicklink - step 2: entering URL (submit mode)
-        if selected_id.startswith("__add_name__:"):
-            name = selected_id.split(":", 1)[1]
+        # Adding new quicklink - step 2: entering URL (submit mode) - check context first
+        add_url_context = context if context.startswith("__add_name__:") else None
+        if add_url_context or selected_id.startswith("__add_name__:"):
+            name = (add_url_context or selected_id).split(":", 1)[1]
             if query:
-                has_placeholder = "{query}" in query
-                # Show URL with https:// prefix if not present
-                display_url = query if query.startswith("http") else f"https://{query}"
+                # Save directly on Enter (single press)
+                url = query
+                if not url.startswith("http://") and not url.startswith("https://"):
+                    url = "https://" + url
 
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "inputMode": "submit",
-                            "placeholder": "Enter URL (Enter to save)",
-                            "results": [
-                                {
-                                    "id": f"__add_save__:{name}:{query}",
-                                    "name": f"Save '{name}'",
-                                    "description": display_url
-                                    + (" (with search)" if has_placeholder else ""),
-                                    "icon": "save",
-                                    "verb": "Save",
-                                },
-                                {
-                                    "id": "__back__",
-                                    "name": "Back",
-                                    "icon": "arrow_back",
-                                },
-                            ],
-                        }
+                new_link = {"name": name, "url": url, "icon": "link"}
+                quicklinks.append(new_link)
+
+                if save_quicklinks(quicklinks):
+                    quicklinks = load_quicklinks()
+                    print(
+                        json.dumps(
+                            {
+                                "type": "results",
+                                "results": get_main_menu(quicklinks),
+                                "inputMode": "realtime",
+                                "clearInput": True,
+                                "context": "",
+                                "placeholder": "Search quicklinks...",
+                            }
+                        )
                     )
-                )
+                else:
+                    print(
+                        json.dumps(
+                            {"type": "error", "message": "Failed to save quicklinks"}
+                        )
+                    )
             else:
                 print(
                     json.dumps(
                         {
                             "type": "results",
                             "inputMode": "submit",
+                            "context": f"__add_name__:{name}",
                             "placeholder": "Enter URL (Enter to save)",
                             "results": [
                                 {"id": "__back__", "name": "Back", "icon": "arrow_back"}
@@ -323,46 +331,56 @@ def main():
             return
 
         # Search mode for a quicklink with {query} (submit mode for search input)
-        link = is_quicklink_with_query(selected_id, quicklinks)
+        # Check context first (set when entering search mode), then fall back to selected_id
+        search_context = context if context.startswith("__search__:") else None
+        if search_context:
+            link_name = search_context.split(":", 1)[1]
+            link = next((l for l in quicklinks if l["name"] == link_name), None)
+        else:
+            link = is_quicklink_with_query(selected_id, quicklinks)
+            link_name = selected_id if link else None
+
         if link:
             search_placeholder = f"Search {link['name']}... (Enter to search)"
             if query:
+                # Execute search directly on Enter (single press)
+                url = link["url"].replace("{query}", urllib.parse.quote(query))
                 print(
                     json.dumps(
                         {
-                            "type": "results",
-                            "inputMode": "submit",
-                            "placeholder": search_placeholder,
-                            "results": [
-                                {
-                                    "id": f"__execute__:{selected_id}:{query}",
-                                    "name": query,
-                                    "description": f"Search {link['name']}",
-                                    "icon": link.get("icon", "search"),
-                                    "verb": "Search",
-                                },
-                                {
-                                    "id": "__back__",
-                                    "name": "Back to quicklinks",
-                                    "icon": "arrow_back",
-                                },
-                            ],
+                            "type": "execute",
+                            "execute": {
+                                "command": ["xdg-open", url],
+                                "name": f"{link['name']}: {query}",
+                                "icon": link.get("icon", "search"),
+                                "close": True,
+                            },
                         }
                     )
                 )
             else:
+                # Empty input - allow opening the link directly (without query)
+                base_url = link.get("url", "").replace("{query}", "")
                 print(
                     json.dumps(
                         {
                             "type": "results",
                             "inputMode": "submit",
+                            "context": f"__search__:{link_name}",
                             "placeholder": search_placeholder,
                             "results": [
+                                {
+                                    "id": f"__open_direct__:{link_name}",
+                                    "name": f"Open {link['name']}",
+                                    "description": base_url,
+                                    "icon": link.get("icon", "link"),
+                                    "verb": "Open",
+                                },
                                 {
                                     "id": "__back__",
                                     "name": "Back to quicklinks",
                                     "icon": "arrow_back",
-                                }
+                                },
                             ],
                         }
                     )
@@ -395,6 +413,7 @@ def main():
                         "results": results,
                         "inputMode": "realtime",
                         "clearInput": True,
+                        "context": "",  # Clear context when going back
                         "placeholder": "Search quicklinks...",
                     }
                 )
@@ -473,6 +492,7 @@ def main():
                         "type": "results",
                         "inputMode": "submit",
                         "clearInput": True,
+                        "context": "__add__",  # Set context for name entry
                         "placeholder": "Enter quicklink name (Enter to confirm)",
                         "results": [
                             {"id": "__back__", "name": "Back", "icon": "arrow_back"}
@@ -484,12 +504,14 @@ def main():
 
         # Confirm quicklink name, move to URL input (submit mode)
         if selected_id.startswith("__add_name__:"):
+            name = selected_id.split(":", 1)[1]
             print(
                 json.dumps(
                     {
                         "type": "results",
                         "inputMode": "submit",
                         "clearInput": True,
+                        "context": f"__add_name__:{name}",  # Set context for URL entry
                         "placeholder": "Enter URL (Enter to save)",
                         "results": [
                             {"id": "__back__", "name": "Back", "icon": "arrow_back"}
@@ -572,6 +594,28 @@ def main():
                 )
             return
 
+        # Open link directly (without query parameter)
+        if selected_id.startswith("__open_direct__:"):
+            link_name = selected_id.split(":", 1)[1]
+            link = next((l for l in quicklinks if l["name"] == link_name), None)
+            if link:
+                # Remove {query} placeholder for direct open
+                url = link["url"].replace("{query}", "")
+                print(
+                    json.dumps(
+                        {
+                            "type": "execute",
+                            "execute": {
+                                "command": ["xdg-open", url],
+                                "name": f"Open {link_name}",
+                                "icon": link.get("icon", "link"),
+                                "close": True,
+                            },
+                        }
+                    )
+                )
+            return
+
         # Execute search
         if selected_id.startswith("__execute__:"):
             parts = selected_id.split(":", 2)
@@ -610,19 +654,28 @@ def main():
 
         # If URL has {query} placeholder, enter search mode (submit mode)
         if "{query}" in url_template:
+            base_url = url_template.replace("{query}", "")
             print(
                 json.dumps(
                     {
                         "type": "results",
                         "inputMode": "submit",
                         "clearInput": True,
+                        "context": f"__search__:{link['name']}",  # Set context for search mode
                         "placeholder": f"Search {link['name']}... (Enter to search)",
                         "results": [
+                            {
+                                "id": f"__open_direct__:{link['name']}",
+                                "name": f"Open {link['name']}",
+                                "description": base_url,
+                                "icon": link.get("icon", "link"),
+                                "verb": "Open",
+                            },
                             {
                                 "id": "__back__",
                                 "name": "Back to quicklinks",
                                 "icon": "arrow_back",
-                            }
+                            },
                         ],
                     }
                 )

@@ -176,8 +176,10 @@ Singleton {
 
 **Input to handler (stdin):**
 ```json
-{"step": "initial|search|action", "query": "...", "selected": {"id": "..."}, "action": "...", "session": "..."}
+{"step": "initial|search|action", "query": "...", "selected": {"id": "..."}, "action": "...", "context": "...", "session": "..."}
 ```
+
+- `context`: Custom context string set by handler via response (persists across search calls)
 
 **Output from handler (stdout):**
 ```json
@@ -185,7 +187,7 @@ Singleton {
 // inputMode: "realtime" (default) = search on every keystroke
 //            "submit" = search only when user presses Enter (for text input, AI chat)
 // Optional: placeholder = custom search bar placeholder, clearInput = clear search text
-// Optional: context = set lastSelectedItem for subsequent search calls (useful for edit modes)
+// Optional: context = set workflow context for subsequent search calls (useful for multi-step flows like edit/search modes)
 {"type": "results", "results": [...], "inputMode": "realtime", "placeholder": "Search...", "clearInput": true, "context": "__edit__:itemId"}
 
 // Show card (stays open)
@@ -271,6 +273,8 @@ if step == "search" and context == "chat":
 **Visual indication:** Use placeholder text to hint at the mode:
 - Realtime: "Search files..." 
 - Submit: "Type your message... (Enter to send)"
+
+**Key insight for submit mode:** When user presses Enter, execute the action directly in the `step: "search"` handler - don't return results that require another Enter press. Single Enter = action executed.
 
 ### Multi-Turn Flow
 1. User clicks item → `selectItem(id, action)` → handler receives `step: "action"`

@@ -132,58 +132,47 @@ def main():
 
     # Search: filter todos or prepare to add
     if step == "search":
-        # Add mode: show add option with encoded query (submit mode)
+        # Add mode (submit mode)
+        # In submit mode, Enter should perform the action directly (single press).
         if context == "__add_mode__":
             if query:
-                encoded = base64.b64encode(query.encode()).decode()
-                results = [
-                    {"id": "__back__", "name": "Cancel", "icon": "arrow_back"},
-                    {
-                        "id": f"__add__:{encoded}",
-                        "name": f"Add: {query}",
-                        "icon": "add_circle",
-                        "description": "Press Enter to add this task",
-                    },
-                ]
+                todos.append({"content": query, "done": False})
+                save_todos(todos)
+                respond(get_todo_results(todos), refresh_ui=True, clear_input=True)
             else:
-                results = [
-                    {"id": "__back__", "name": "Cancel", "icon": "arrow_back"},
-                    {
-                        "id": "__add__:",
-                        "name": "Type a task...",
-                        "icon": "add_circle",
-                        "description": "Start typing to add a new task",
-                    },
-                ]
-            respond(
-                results,
-                placeholder="Type new task... (Enter to add)",
-                context="__add_mode__",
-                input_mode="submit",
-            )
+                respond(
+                    [{"id": "__back__", "name": "Cancel", "icon": "arrow_back"}],
+                    placeholder="Type new task... (Enter to add)",
+                    context="__add_mode__",
+                    input_mode="submit",
+                )
             return
 
-        # Edit mode: show save option (submit mode)
+        # Edit mode (submit mode)
+        # In submit mode, Enter should save directly (single press).
         if context.startswith("__edit__:"):
             todo_idx = int(context.split(":")[1])
             if 0 <= todo_idx < len(todos):
                 old_content = todos[todo_idx].get("content", "")
-                encoded = base64.b64encode(query.encode()).decode() if query else ""
-                results = [
-                    {"id": "__back__", "name": "Cancel", "icon": "arrow_back"},
-                    {
-                        "id": f"__save__:{todo_idx}:{encoded}",
-                        "name": f"Save: {query}" if query else "Type new content...",
-                        "icon": "save",
-                        "description": f"Original: {old_content}",
-                    },
-                ]
-                respond(
-                    results,
-                    placeholder="Type new task content... (Enter to save)",
-                    context=context,
-                    input_mode="submit",
-                )
+                if query:
+                    todos[todo_idx]["content"] = query
+                    save_todos(todos)
+                    respond(get_todo_results(todos), refresh_ui=True, clear_input=True)
+                else:
+                    respond(
+                        [
+                            {"id": "__back__", "name": "Cancel", "icon": "arrow_back"},
+                            {
+                                "id": "__current__",
+                                "name": f"Current: {old_content}",
+                                "icon": "info",
+                                "description": "Type new content above",
+                            },
+                        ],
+                        placeholder="Type new task content... (Enter to save)",
+                        context=context,
+                        input_mode="submit",
+                    )
             return
 
         # Normal search: filter + add option
@@ -288,6 +277,10 @@ def main():
                     except Exception:
                         pass
             respond(get_todo_results(todos), clear_input=True)
+            return
+
+        # Info-only items - ignore
+        if item_id == "__current__":
             return
 
         # Empty state - ignore

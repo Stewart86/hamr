@@ -160,11 +160,16 @@ Item { // Wrapper
                     }
                 }
                 onSelectCurrent: {
-                    // If workflow is active in submit mode with user input,
-                    // submit the query to the workflow handler
+                    // If workflow is active in submit mode with user input:
+                    // - Default: Enter submits the query
+                    // - Exception: if user navigated to a non-first result, Enter selects it
                     if (WorkflowRunner.isActive() && WorkflowRunner.inputMode === "submit" && root.searchingText.trim() !== "") {
-                        LauncherSearch.submitWorkflowQuery();
-                        return;
+                        if (appResults.count > 0 && appResults.currentIndex > 0) {
+                            // Fall through to select current item
+                        } else {
+                            LauncherSearch.submitWorkflowQuery();
+                            return;
+                        }
                     }
                     
                     if (appResults.count > 0 && appResults.currentIndex >= 0) {

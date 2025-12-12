@@ -85,9 +85,12 @@ Interactive workflows with multiple steps, navigation, and rich UI.
   "query": "user search text",
   "selected": {"id": "selected-item-id"},
   "action": "action-button-id",
+  "context": "workflow-context-string",
   "session": "unique-session-id"
 }
 ```
+
+- `context`: Custom context string set by handler via response (persists across search calls)
 
 **Output (stdout) - one of:**
 
@@ -479,15 +482,54 @@ Users can navigate workflows with:
 {
     "type": "results",
     "results": [...],
+    "inputMode": "realtime",                 # Optional: "realtime" (default) or "submit"
     "placeholder": "Custom placeholder...",  # Optional: search bar placeholder text
     "clearInput": True,                      # Optional: clear search input
-    "context": "__edit__:item-id"            # Optional: set context for search calls
+    "context": "__search__:item-id"          # Optional: set context for search calls
 }
 ```
 
+- **inputMode**: Controls when search queries are sent to handler:
+  - `"realtime"` (default): Every keystroke triggers `step: "search"`
+  - `"submit"`: Only Enter key triggers `step: "search"` (for text input, forms)
 - **placeholder**: Custom placeholder text for search bar (e.g., "Enter URL...", "Search files...")
 - **clearInput**: Clear the search input (useful when entering new mode)
-- **context**: Set `lastSelectedItem` for subsequent search calls. Useful when entering edit mode - the search handler can check this context to know what item is being edited.
+- **context**: Custom context string sent back in subsequent `step: "search"` calls. Useful for multi-step flows like edit mode or search mode where the handler needs to know the current state.
+
+### Input Mode Best Practices
+
+For `submit` mode workflows (like quicklink search):
+
+```python
+# When user enters search mode (e.g., selecting a quicklink with {query})
+if step == "action" and is_search_quicklink(selected_id):
+    print(json.dumps({
+        "type": "results",
+        "inputMode": "submit",
+        "context": f"__search__:{selected_id}",  # Track which quicklink
+        "placeholder": f"Search {name}... (Enter to search)",
+        "clearInput": True,
+        "results": [
+            {"id": "__back__", "name": "Back", "icon": "arrow_back"}
+        ]
+    }))
+
+# When user submits query (presses Enter)
+if step == "search" and context.startswith("__search__:"):
+    link_name = context.split(":", 1)[1]
+    # Execute search directly (single Enter press)
+    url = get_url(link_name).replace("{query}", urllib.parse.quote(query))
+    print(json.dumps({
+        "type": "execute",
+        "execute": {
+            "command": ["xdg-open", url],
+            "name": f"{link_name}: {query}",
+            "close": True
+        }
+    }))
+```
+
+**Key insight:** In `submit` mode, execute directly on the search step - don't return results that require another Enter press.
 
 ### Image Browser Response
 
