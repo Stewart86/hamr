@@ -1,0 +1,5 @@
+{
+  "name": "Bitwarden",
+  "description": "Search and copy credentials from Bitwarden vault",
+  "icon": "key"
+}
