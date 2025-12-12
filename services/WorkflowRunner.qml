@@ -461,7 +461,8 @@ Singleton {
                         title: response.imageBrowser.title ?? root.activeWorkflow?.manifest?.name ?? "Select Image",
                         extensions: response.imageBrowser.extensions ?? null,
                         actions: response.imageBrowser.actions ?? [],
-                        workflowId: root.activeWorkflow?.id ?? ""
+                        workflowId: root.activeWorkflow?.id ?? "",
+                        enableOcr: response.imageBrowser.enableOcr ?? false
                     };
                     GlobalStates.openImageBrowserForWorkflow(config);
                 }

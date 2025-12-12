@@ -40,6 +40,7 @@ Hamr is extracted and adapted from [end-4's illogical-impulse](https://github.co
 | `quicklinks` | `/quicklinks` | Web search with customizable quicklinks |
 | `dict` | `/dict` | Dictionary lookup with definitions |
 | `pictures` | `/pictures` | Browse images with thumbnails |
+| `screenshot` | `/screenshot` | Browse screenshots with OCR text search |
 | `snippet` | `/snippet` | Text snippets for quick insertion |
 | `todo` | `/todo` | Simple todo list manager |
 | `wallpaper` | `/wallpaper` | Wallpaper selector (illogical-impulse) |
@@ -49,7 +50,7 @@ Hamr is extracted and adapted from [end-4's illogical-impulse](https://github.co
 
 | Action | Description |
 |--------|-------------|
-| `screenshot` | Take screenshot with grim + satty |
+| `screenshot-snip` | Take screenshot with grim + satty |
 | `dark` | Switch to dark mode (illogical-impulse) |
 | `light` | Switch to light mode (illogical-impulse) |
 | `accentcolor` | Set accent color (illogical-impulse) |
@@ -61,7 +62,7 @@ Hamr is extracted and adapted from [end-4's illogical-impulse](https://github.co
 - [Hyprland](https://hyprland.org/) (required)
 - [Quickshell](https://quickshell.outfoxxed.me/)
 - Optional: [illogical-impulse](https://github.com/end-4/dots-hyprland) for full theme integration
-- Optional: `fd`, `fzf`, `cliphist`, `wl-clipboard`, `bw` (Bitwarden CLI) for respective plugins
+- Optional: `fd`, `fzf`, `cliphist`, `wl-clipboard`, `bw` (Bitwarden CLI), `tesseract` (OCR) for respective plugins
 
 ### Steps
 
@@ -123,6 +124,7 @@ Plugins live in `~/.config/hamr/actions/`. Each plugin is either:
 | **Image thumbnails** | Show image previews in result lists |
 | **Action buttons** | Add context actions per item (copy, delete, open folder) |
 | **Image browser** | Full image browser UI with directory navigation |
+| **OCR text search** | Search images by text content (requires tesseract) |
 | **Execute commands** | Run any shell command, optionally save to history |
 | **Custom placeholders** | Change search bar placeholder text per step |
 | **Live search** | Filter results as user types |
@@ -250,10 +252,13 @@ Type `/hello` to try it!
   "imageBrowser": {
     "directory": "~/Pictures",
     "title": "Select Image",
+    "enableOcr": true,
     "actions": [{"id": "set_wallpaper", "name": "Set Wallpaper", "icon": "wallpaper"}]
   }
 }
 ```
+
+Set `enableOcr: true` to enable background OCR indexing for text search within images (requires tesseract).
 
 #### Input Modes
 

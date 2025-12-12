@@ -16,12 +16,13 @@ MouseArea {
     property real previewCellAspectRatio: 4 / 3
     
     // Workflow configuration
-    property var config: null  // { directory, title, extensions, actions, workflowId }
+    property var config: null  // { directory, title, extensions, actions, workflowId, enableOcr }
     
     // Computed properties based on config
     readonly property string title: config?.title ?? "Browse Images"
     readonly property var customActions: config?.actions ?? []
     readonly property string initialDirectory: config?.directory ?? ""
+    readonly property bool enableOcr: config?.enableOcr ?? false
 
     Component.onCompleted: {
         if (initialDirectory) {
@@ -29,6 +30,8 @@ MouseArea {
             const expandedPath = initialDirectory.replace(/^~/, Directories.home.replace("file://", ""));
             FolderBrowser.setDirectory(expandedPath);
         }
+        // Enable OCR if configured
+        FolderBrowser.ocrEnabled = enableOcr;
     }
 
     function updateThumbnails() {
@@ -36,11 +39,19 @@ MouseArea {
         const thumbnailSizeName = Images.thumbnailSizeNameForDimensions(grid.cellWidth - totalImageMargin, grid.cellHeight - totalImageMargin)
         FolderBrowser.generateThumbnail(thumbnailSizeName)
     }
+    
+    function startOcrIndexing() {
+        if (root.enableOcr && !FolderBrowser.ocrIndexingRunning) {
+            FolderBrowser.generateOcrIndex();
+        }
+    }
 
     Connections {
         target: FolderBrowser
         function onDirectoryChanged() {
             root.updateThumbnails()
+            // Start OCR indexing when directory changes (if enabled)
+            root.startOcrIndexing()
         }
     }
 
@@ -322,6 +333,7 @@ MouseArea {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
+                    // Progress bar for thumbnail generation
                     StyledIndeterminateProgressBar {
                         id: indeterminateProgressBar
                         visible: FolderBrowser.thumbnailGenerationRunning && value == 0
@@ -339,10 +351,25 @@ MouseArea {
                         value: FolderBrowser.thumbnailGenerationProgress
                         anchors.fill: indeterminateProgressBar
                     }
+                    
+                    // Secondary progress bar for OCR indexing
+                    StyledProgressBar {
+                        visible: root.enableOcr && FolderBrowser.ocrIndexingRunning
+                        value: FolderBrowser.ocrIndexingProgress
+                        anchors {
+                            bottom: indeterminateProgressBar.top
+                            left: parent.left
+                            right: parent.right
+                            leftMargin: 4
+                            rightMargin: 4
+                            bottomMargin: 2
+                        }
+                        height: 2
+                    }
 
                     GridView {
                         id: grid
-                        visible: FolderBrowser.folderModel.count > 0
+                        visible: FolderBrowser.filteredModel.count > 0
 
                         readonly property int columns: root.columns
                         readonly property int rows: Math.max(1, Math.ceil(count / columns))
@@ -360,6 +387,7 @@ MouseArea {
 
                         Component.onCompleted: {
                             root.updateThumbnails()
+                            root.startOcrIndexing()
                         }
 
                         function moveSelection(delta) {
@@ -368,16 +396,16 @@ MouseArea {
                         }
 
                         function activateCurrent() {
-                            const filePath = grid.model.get(currentIndex, "filePath");
-                            const isDir = grid.model.get(currentIndex, "fileIsDir");
-                            if (isDir) {
-                                FolderBrowser.setDirectory(filePath);
+                            const item = FolderBrowser.filteredModel.get(currentIndex);
+                            if (!item) return;
+                            if (item.fileIsDir) {
+                                FolderBrowser.setDirectory(item.filePath);
                             } else {
-                                root.selectFilePath(filePath);
+                                root.selectFilePath(item.filePath);
                             }
                         }
 
-                        model: FolderBrowser.folderModel
+                        model: FolderBrowser.filteredModel
                         onModelChanged: currentIndex = 0
                         delegate: ImageBrowserItem {
                             required property var modelData
@@ -427,9 +455,9 @@ MouseArea {
                                 implicitWidth: height
                                 text: modelData.icon ?? "play_arrow"
                                 onClicked: {
-                                    const filePath = grid.model.get(grid.currentIndex, "filePath");
-                                    if (filePath) {
-                                        root.selectFileWithAction(filePath, modelData.id);
+                                    const item = FolderBrowser.filteredModel.get(grid.currentIndex);
+                                    if (item?.filePath) {
+                                        root.selectFileWithAction(item.filePath, modelData.id);
                                     }
                                 }
                                 StyledToolTip {
@@ -440,7 +468,9 @@ MouseArea {
 
                         ToolbarTextField {
                             id: filterField
-                            placeholderText: focus ? "Search images" : "Hit \"/\" to search"
+                            placeholderText: root.enableOcr 
+                                ? (focus ? "Search images or text..." : "Hit \"/\" to search")
+                                : (focus ? "Search images" : "Hit \"/\" to search")
 
                             // Style
                             clip: true
