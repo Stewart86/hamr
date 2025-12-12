@@ -35,9 +35,13 @@ Hamr is extracted and adapted from [end-4's illogical-impulse](https://github.co
 | `files` | `~` | File search with fd + fzf, thumbnails for images |
 | `clipboard` | `;` | Clipboard history with image support |
 | `shell` | `!` | Shell command history (zsh/bash/fish) |
+| `bitwarden` | `/bitwarden` | Password manager with local caching |
 | `quicklinks` | `/quicklinks` | Web search with customizable quicklinks |
 | `dict` | `/dict` | Dictionary lookup with definitions |
+| `pictures` | `/pictures` | Browse images with thumbnails |
+| `todo` | `/todo` | Simple todo list manager |
 | `wallpaper` | `/wallpaper` | Wallpaper selector (illogical-impulse) |
+| `create-plugin` | `/create-plugin` | AI helper to create new plugins (requires [OpenCode](https://opencode.ai)) |
 
 ## Installation
 
@@ -46,7 +50,7 @@ Hamr is extracted and adapted from [end-4's illogical-impulse](https://github.co
 - [Hyprland](https://hyprland.org/) (required)
 - [Quickshell](https://quickshell.outfoxxed.me/)
 - Optional: [illogical-impulse](https://github.com/end-4/dots-hyprland) for full theme integration
-- Optional: `fd`, `fzf`, `cliphist`, `wl-clipboard` for respective plugins
+- Optional: `fd`, `fzf`, `cliphist`, `wl-clipboard`, `bw` (Bitwarden CLI) for respective plugins
 
 ### Steps
 
@@ -111,6 +115,7 @@ Plugins live in `~/.config/hamr/actions/`. Each plugin is either:
 | **Execute commands** | Run any shell command, optionally save to history |
 | **Custom placeholders** | Change search bar placeholder text per step |
 | **Live search** | Filter results as user types |
+| **Submit mode** | Wait for Enter before processing (for text input, chat) |
 
 <details>
 <summary><strong>Quick Start: Hello World Plugin</strong></summary>
@@ -202,7 +207,8 @@ Type `/hello` to try it!
       "actions": [{"id": "copy", "name": "Copy", "icon": "content_copy"}]
     }
   ],
-  "placeholder": "Custom placeholder..."
+  "placeholder": "Custom placeholder...",
+  "inputMode": "realtime"
 }
 ```
 
@@ -237,6 +243,15 @@ Type `/hello` to try it!
   }
 }
 ```
+
+#### Input Modes
+
+| Mode | Behavior | Use Case |
+|------|----------|----------|
+| `realtime` | Search on every keystroke (default) | Fuzzy filtering, file search |
+| `submit` | Search only on Enter | Text input, AI chat, adding items |
+
+Set `"inputMode": "submit"` in results/card response to wait for Enter.
 
 </details>
 
