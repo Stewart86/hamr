@@ -118,11 +118,23 @@ RippleButton {
 
             if (deleteAction) {
                 deleteAction.execute()
+                event.accepted = true
             }
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             root.keyboardDown = true
             root.clicked()
-            event.accepted = true;
+            event.accepted = true
+        } else if (event.key >= Qt.Key_1 && event.key <= Qt.Key_4) {
+            // Number keys 1-4 trigger action buttons
+            const index = event.key - Qt.Key_1
+            const actions = root.entry.actions ?? []
+            if (index < actions.length) {
+                LauncherSearch.skipNextAutoFocus = true
+                const listView = root.ListView.view
+                if (listView) listView.currentIndex = -1
+                actions[index].execute()
+                event.accepted = true
+            }
         }
     }
     Keys.onReleased: (event) => {
@@ -264,8 +276,10 @@ RippleButton {
                 delegate: Item {
                     id: actionButton
                     required property var modelData
+                    required property int index
                     property var iconType: modelData.iconType
                     property string iconName: modelData.iconName ?? ""
+                    property string keyHint: (index + 1).toString()
                     implicitHeight: 34
                     implicitWidth: 34
 
@@ -315,7 +329,7 @@ RippleButton {
                     }
 
                     StyledToolTip {
-                        text: actionButton.modelData.name
+                        text: `${actionButton.modelData.name} (${actionButton.keyHint})`
                         extraVisibleCondition: actionMouse.containsMouse
                     }
                 }

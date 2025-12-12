@@ -43,12 +43,21 @@ Singleton {
     // Load user action scripts from ~/.config/hamr/actions/
     // Uses FolderListModel to auto-reload when scripts are added/removed
     // Note: Workflow folders (containing manifest.json) are handled by WorkflowRunner
+    // Excludes text/config files like .md, .txt, .json, .yaml, etc.
+    readonly property var excludedActionExtensions: [".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".log", ".csv"]
+    
     property var userActionScripts: {
         const actions = [];
         for (let i = 0; i < userActionsFolder.count; i++) {
             const fileName = userActionsFolder.get(i, "fileName");
             const filePath = userActionsFolder.get(i, "filePath");
             if (fileName && filePath) {
+                // Skip text/config files
+                const lowerName = fileName.toLowerCase();
+                if (root.excludedActionExtensions.some(ext => lowerName.endsWith(ext))) {
+                    continue;
+                }
+                
                 const actionName = fileName.replace(/\.[^/.]+$/, ""); // strip extension
                 const scriptPath = filePath.toString().replace("file://", "");
                 actions.push({

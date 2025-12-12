@@ -169,29 +169,56 @@ Item { // Wrapper
                 }
             }
 
-            // Hint bar - shows prefix shortcuts when query is empty
+            // Hint bar - shows prefix shortcuts when query is empty, navigation hints when results shown
             RowLayout {
                 id: hintBar
-                visible: root.searchingText === "" && !WorkflowRunner.isActive()
+                visible: !WorkflowRunner.isActive()
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
                 Layout.bottomMargin: 8
                 spacing: 16
                 
+                // Prefix hints (always shown when no workflow active)
                 Repeater {
                     model: [
-                        { prefix: "~", label: "files" },
-                        { prefix: ";", label: "clipboard" },
-                        { prefix: "/", label: "actions" },
-                        { prefix: "!", label: "shell" },
-                        { prefix: "=", label: "math" },
-                        { prefix: ":", label: "emoji" },
+                        { key: "~", label: "files" },
+                        { key: ";", label: "clipboard" },
+                        { key: "/", label: "actions" },
+                        { key: "!", label: "shell" },
+                        { key: "=", label: "math" },
+                        { key: ":", label: "emoji" },
                     ]
                     
                     Text {
                         required property var modelData
-                        text: `<font color="${Appearance.colors.colPrimary}">${modelData.prefix}</font> ${modelData.label}`
+                        text: `<font color="${Appearance.colors.colPrimary}">${modelData.key}</font> ${modelData.label}`
+                        textFormat: Text.RichText
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: Appearance.m3colors.m3outline
+                    }
+                }
+                
+                // Separator
+                Text {
+                    visible: root.showResults
+                    text: "|"
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colOutlineVariant
+                }
+                
+                // Navigation hints (shown when results are displayed)
+                Repeater {
+                    model: root.showResults ? [
+                        { key: "^J", label: "down" },
+                        { key: "^K", label: "up" },
+                        { key: "^L", label: "select" },
+                        { key: "1-4", label: "actions" },
+                    ] : []
+                    
+                    Text {
+                        required property var modelData
+                        text: `<font color="${Appearance.colors.colPrimary}">${modelData.key}</font> ${modelData.label}`
                         textFormat: Text.RichText
                         font.pixelSize: Appearance.font.pixelSize.smaller
                         color: Appearance.m3colors.m3outline
