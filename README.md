@@ -65,6 +65,9 @@ ln -s ~/.config/quickshell/hamr/actions ~/.config/hamr/actions
 
 # 4. Start Quickshell
 qs -c hamr
+
+# 5. (Optional) Auto-start with Hyprland (~/.config/hypr/hyprland.conf)
+# exec-once = qs -c hamr
 ```
 
 <details>

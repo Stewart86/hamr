@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Wayland
+import qs.modules.common
 
 Scope {
 	id: root
@@ -37,7 +38,7 @@ Scope {
 
 			exclusiveZone: 0
 			anchors.top: true
-			margins.top: 0
+			margins.top: 10
 
 			implicitWidth: rect.width + shadow.radius * 2
 			implicitHeight: rect.height + shadow.radius * 2
@@ -50,11 +51,11 @@ Scope {
 			Rectangle {
 				id: rect
 				anchors.centerIn: parent
-				color: failed ?  "#ffe99195" : "#ffD1E8D5"
+				color: root.failed ? Appearance.m3colors.m3errorContainer : Appearance.m3colors.m3successContainer
 
-				implicitHeight: layout.implicitHeight + 30
-				implicitWidth: layout.implicitWidth + 30
-				radius: 12
+				implicitHeight: layout.implicitHeight + 24
+				implicitWidth: layout.implicitWidth + 40
+				radius: Appearance.rounding.full
 
 				// Fills the whole area of the rectangle, making any clicks go to it,
 				// which dismiss the popup.
@@ -72,29 +73,31 @@ Scope {
 
 				ColumnLayout {
 					id: layout
-					spacing: 10
+					spacing: 8
 					anchors {
 						top: parent.top
-						topMargin: 10
+						topMargin: 12
 						horizontalCenter: parent.horizontalCenter
 					}
 
 					Text {
 						renderType: Text.NativeRendering
-						font.family: "Google Sans Flex"
-						font.pointSize: 14
-						text: root.failed ? "Quickshell: Reload failed" : "Quickshell reloaded"
-						color: failed ? "#ff93000A" : "#ff0C1F13"
+						font.family: Appearance.font.family.main
+						font.pixelSize: Appearance.font.pixelSize.normal
+						text: root.failed ? "hamr got hammered" : "hamr time"
+						color: root.failed ? Appearance.m3colors.m3onErrorContainer : Appearance.m3colors.m3onSuccessContainer
+						Layout.alignment: Qt.AlignHCenter
 					}
 
 					Text {
 						renderType: Text.NativeRendering
-						font.family: "JetBrains Mono NF"
-						font.pointSize: 11
+						font.family: Appearance.font.family.monospace
+						font.pixelSize: Appearance.font.pixelSize.smaller
 						text: root.errorString
-						color: failed ? "#ff93000A" : "#ff0C1F13"
+						color: root.failed ? Appearance.m3colors.m3onErrorContainer : Appearance.m3colors.m3onSuccessContainer
 						// When visible is false, it also takes up no space.
 						visible: root.errorString != ""
+						Layout.alignment: Qt.AlignHCenter
 					}
 				}
 
@@ -103,20 +106,20 @@ Scope {
 				Rectangle {
 					z: 2
 					id: bar
-					color: failed ? "#ff93000A" : "#ff0C1F13"
+					color: root.failed ? Appearance.m3colors.m3error : Appearance.m3colors.m3success
 					anchors.bottom: parent.bottom
-					anchors.left: parent.left
-					anchors.margins: 10
-					height: 5
-					radius: 9999
+					anchors.horizontalCenter: parent.horizontalCenter
+					anchors.margins: 8
+					height: 4
+					radius: Appearance.rounding.full
 
 					PropertyAnimation {
 						id: anim
 						target: bar
 						property: "width"
-						from: rect.width - bar.anchors.margins * 2
+						from: rect.width - 16
 						to: 0
-						duration: failed ? 10000 : 1000
+						duration: root.failed ? 10000 : 1500
 						onFinished: popupLoader.active = false
 
 						// Pause the animation when the mouse is hovering over the popup,
@@ -129,13 +132,13 @@ Scope {
 				Rectangle {
 					z: 1
 					id: bar_bg
-					color: failed ? "#30af1b25" : "#4027643e"
+					color: root.failed ? Qt.rgba(Appearance.m3colors.m3error.r, Appearance.m3colors.m3error.g, Appearance.m3colors.m3error.b, 0.3) : Qt.rgba(Appearance.m3colors.m3success.r, Appearance.m3colors.m3success.g, Appearance.m3colors.m3success.b, 0.3)
 					anchors.bottom: parent.bottom
-					anchors.left: parent.left
-					anchors.margins: 10
-					height: 5
-					radius: 9999
-					width: rect.width - bar.anchors.margins * 2
+					anchors.horizontalCenter: parent.horizontalCenter
+					anchors.margins: 8
+					height: 4
+					radius: Appearance.rounding.full
+					width: rect.width - 16
 				}
 
 				// We could set `running: true` inside the animation, but the width of the
@@ -149,10 +152,10 @@ Scope {
 				id: shadow
                 anchors.fill: rect
                 horizontalOffset: 0
-                verticalOffset: 2
-                radius: 6
-                samples: radius * 2 + 1 // Ideally should be 2 * radius + 1, see qt docs
-                color: "#44000000"
+                verticalOffset: 3
+                radius: 8
+                samples: radius * 2 + 1
+                color: Appearance.colors.colShadow
                 source: rect
             }
 		}

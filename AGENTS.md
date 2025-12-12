@@ -1,29 +1,23 @@
-# AGENTS.md - LauncherSearch Development
+# AGENTS.md - Hamr Launcher Development
 
 ## Project Scope
 
-This directory (`~/.config/quickshell/ii/`) is a **testing/debugging location** for developing the LauncherSearch (search bar) feature. 
+This is the **hamr** launcher - a standalone search bar / launcher for Quickshell.
 
-**Important**: We are ONLY working on LauncherSearch-related files. Do not modify other parts of the codebase.
+## Repository
 
-## Actual Repository
-
-The actual repository lives at:
+This repo lives at:
 ```
-~/.cache/dots-hyprland/
+~/Projects/Personal/Qml/hamr/
 ```
 
-The quickshell config in the actual repo is at:
-```
-~/.cache/dots-hyprland/dots/.config/quickshell/ii/
-```
+Symlinked to `~/.config/quickshell/` for testing.
 
 ## Workflow
 
-1. **Develop & Test**: Make changes in `~/.config/quickshell/ii/` (this directory)
-2. **Test**: Reload quickshell with `Ctrl + Super + R` or `pkill qs && qs -c ii`
-3. **When confident**: Copy changes to `~/.cache/dots-hyprland/dots/.config/quickshell/ii/`
-4. **Commit & PR**: Create commits and PRs from the actual repo
+1. **Develop & Test**: Make changes in this directory
+2. **Test**: Reload with `pkill -f 'qs -c hamr' && qs -c hamr`
+3. **Commit**: Commit directly to this repo
 
 ## Commit History (Our Progress)
 

@@ -14,7 +14,7 @@ import Quickshell.Hyprland
 Scope {
     id: launcherScope
     property bool dontAutoCancelSearch: false
-    
+
     Variants {
         id: launcherVariants
         model: Quickshell.screens
@@ -25,7 +25,7 @@ Scope {
             readonly property HyprlandMonitor monitor: Hyprland.monitorFor(root.screen)
             property bool monitorIsFocused: (Hyprland.focusedMonitor?.id == monitor?.id)
             screen: modelData
-            visible: GlobalStates.launcherOpen
+            visible: GlobalStates.launcherOpen && monitorIsFocused
 
             WlrLayershell.namespace: "quickshell:hamr"
             WlrLayershell.layer: WlrLayer.Overlay
@@ -104,7 +104,7 @@ Scope {
             Item {
                 id: fullScreenBackground
                 anchors.fill: parent
-                
+
                 // Background MouseArea to close when clicking outside search widget
                 MouseArea {
                     anchors.fill: parent
@@ -113,7 +113,7 @@ Scope {
                         // Check if click is outside the search widget content
                         const content = searchWidget.contentItem;
                         const mapped = content.mapToItem(fullScreenBackground, 0, 0);
-                        
+
                         if (mouse.x < mapped.x || mouse.x > mapped.x + content.width ||
                             mouse.y < mapped.y || mouse.y > mapped.y + content.height) {
                             // Click is outside - close
