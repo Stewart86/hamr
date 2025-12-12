@@ -195,8 +195,11 @@ Singleton {
 // Execute command (close: true = close overview)
 {"type": "execute", "execute": {"command": ["cmd", "arg"], "notify": "message", "close": true}}
 
-// Execute with history tracking (action becomes fuzzy-searchable)
+// Execute with history tracking - Simple (direct command replay)
 {"type": "execute", "execute": {"command": ["cmd", "arg"], "name": "Action Name", "icon": "icon", "thumbnail": "/path", "close": true}}
+
+// Execute with history tracking - Complex (workflow replay via entryPoint)
+{"type": "execute", "execute": {"name": "Action Name", "entryPoint": {"step": "action", "selected": {"id": "item_id"}, "action": "do_something"}, "icon": "icon", "close": true}}
 
 // Open image browser (for image/wallpaper selection)
 {"type": "imageBrowser", "imageBrowser": {"directory": "~/Pictures", "title": "Select Image", "actions": [{"id": "action_id", "name": "Action Name", "icon": "icon"}]}}
@@ -330,14 +333,29 @@ def main():
 4. Reload quickshell to detect new workflow folder
 
 ### Workflow Execution History
-When a workflow action includes `name` in the execute response, it's saved to search history:
+
+When a workflow action includes `name` in the execute response, it's saved to search history and becomes fuzzy-searchable.
+
+#### Hybrid Replay System
+
+The history system supports two replay strategies:
+
+| Strategy | Field | Behavior | Use Case |
+|----------|-------|----------|----------|
+| **Simple** | `command` | Direct shell execution | File open, clipboard copy, simple commands |
+| **Complex** | `entryPoint` | Re-invokes workflow handler | Actions requiring handler logic, API calls, state |
+
+**Replay priority:** `command` (if non-empty) > `entryPoint` (if provided)
+
+#### Simple Replay (Direct Command)
+
+For actions that can be replayed with a simple shell command:
 
 ```python
-# This action will be saved and fuzzy-searchable
 print(json.dumps({
     "type": "execute",
     "execute": {
-        "command": ["xdg-open", "/path/to/file.png"],
+        "command": ["xdg-open", "/path/to/file.png"],  # Stored for direct replay
         "name": "Open file.png",        # Required for history
         "icon": "image",                 # Optional
         "thumbnail": "/path/to/file.png", # Optional
@@ -346,21 +364,129 @@ print(json.dumps({
 }))
 ```
 
-**How it works:**
-- Fuzzy search matches against `"WorkflowName ActionName"` (e.g., "Pictures Open file.png")
-- Type "pic" or "file" to find previously executed workflow actions
-- Clicking re-executes the stored command directly (no workflow steps needed)
-- Frecency ranking applies (frequently used actions rank higher)
+**On replay:** Executes `["xdg-open", "/path/to/file.png"]` directly via shell.
 
-**When to use:**
-- File operations (open, copy, move)
-- Frequently repeated actions
-- Actions users might want to quickly repeat
+#### Complex Replay (via entryPoint)
 
-**When NOT to use:**
-- One-time operations
-- AI chat responses
-- Actions with side effects that shouldn't be repeated blindly
+For actions that need workflow handler logic (API calls, dynamic data, etc.):
+
+```python
+print(json.dumps({
+    "type": "execute",
+    "execute": {
+        "name": "Copy password for GitHub",
+        "entryPoint": {                  # Stored for workflow replay
+            "step": "action",
+            "selected": {"id": "item_abc123"},
+            "action": "copy_password"
+        },
+        "icon": "key",
+        "close": True
+        # No "command" field - forces entryPoint replay
+    }
+}))
+```
+
+**On replay:** 
+1. Starts the workflow
+2. Sends the stored `entryPoint` as input to handler
+3. Handler receives: `{"step": "action", "selected": {"id": "item_abc123"}, "action": "copy_password", "replay": true, "session": "..."}`
+4. Handler processes and returns response (execute, results, etc.)
+
+#### entryPoint Structure
+
+```python
+{
+    "step": "action",           # Required: step type to send
+    "selected": {"id": "..."},  # Optional: selected item context
+    "action": "...",            # Optional: action ID
+    "query": "..."              # Optional: search query (for step: "search")
+}
+```
+
+The `replay: true` flag is added automatically to help handlers distinguish replay from normal flow.
+
+#### Example: Bitwarden Password Manager
+
+```python
+def main():
+    input_data = json.load(sys.stdin)
+    step = input_data.get("step", "initial")
+    selected = input_data.get("selected", {})
+    action = input_data.get("action", "")
+    is_replay = input_data.get("replay", False)
+    
+    # Handle copy password action
+    if step == "action" and action == "copy_password":
+        item_id = selected.get("id", "")
+        
+        # Fetch password from Bitwarden API (can't store in command!)
+        password = bw_get_password(item_id)
+        item_name = bw_get_item_name(item_id)
+        
+        # Copy to clipboard
+        subprocess.run(["wl-copy", password])
+        
+        print(json.dumps({
+            "type": "execute",
+            "execute": {
+                "name": f"Copy password for {item_name}",
+                "entryPoint": {  # For replay - re-fetches password
+                    "step": "action",
+                    "selected": {"id": item_id},
+                    "action": "copy_password"
+                },
+                "icon": "key",
+                "notify": "Password copied",
+                "close": True
+                # No command - password shouldn't be stored in history!
+            }
+        }))
+```
+
+#### Search History JSON Structure
+
+```json
+{
+  "history": [
+    {
+      "type": "workflowExecution",
+      "key": "bitwarden:Copy password for GitHub",
+      "name": "Copy password for GitHub",
+      "workflowId": "bitwarden",
+      "workflowName": "Bitwarden",
+      "command": [],
+      "entryPoint": {
+        "step": "action",
+        "selected": {"id": "item_abc123"},
+        "action": "copy_password"
+      },
+      "icon": "key",
+      "thumbnail": "",
+      "count": 5,
+      "lastUsed": 1765514312774
+    }
+  ]
+}
+```
+
+#### When to Use Each Strategy
+
+| Use Simple (`command`) | Use Complex (`entryPoint`) |
+|------------------------|---------------------------|
+| Opening files | API calls (passwords, tokens) |
+| Copying static text | Dynamic data fetching |
+| Running shell commands | Actions with side effects |
+| Setting wallpapers | Multi-step confirmations |
+| Any idempotent action | State-dependent actions |
+
+#### Best Practices
+
+1. **Prefer `command` when possible** - Direct execution is faster and works offline
+2. **Use `entryPoint` for sensitive data** - Never store passwords/tokens in command
+3. **Always provide `name`** - Required for history tracking
+4. **Include `icon`/`thumbnail`** - Better visual recognition in search results
+5. **Handle `replay: true`** - Skip confirmations, go straight to action
 
 ## Built-in Workflows
 

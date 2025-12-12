@@ -40,6 +40,13 @@ Singleton {
     // Input mode: "realtime" (every keystroke) or "submit" (only on Enter)
     // Handler controls this via response - allows different modes per step
     property string inputMode: "realtime"
+    
+    // Replay mode: when true, workflow is running a replay action (no UI needed)
+    // Process should complete even if launcher closes
+    property bool replayMode: false
+    
+    // Store workflow info for replay mode (activeWorkflow may be cleared before response)
+    property var replayWorkflowInfo: null
 
     // Signal when workflow produces results
     signal resultsReady(var results)
@@ -49,7 +56,9 @@ Singleton {
     signal clearInputRequested()  // Signal to clear the search input
     
     // Signal when a trackable action is executed (has name field)
-    // Payload: { name, command, icon, thumbnail, workflowId, workflowName }
+    // Payload: { name, command, entryPoint, icon, thumbnail, workflowId, workflowName }
+    // - command: Direct shell command for simple replay (optional)
+    // - entryPoint: Workflow step to replay for complex actions (optional)
     signal actionExecuted(var actionInfo)
 
     // ==================== WORKFLOW DISCOVERY ====================
@@ -226,7 +235,12 @@ Singleton {
     }
     
     // Close active workflow
+    // If in replay mode, let the process finish (notification needs to be sent)
     function closeWorkflow() {
+        // In replay mode, don't kill the process - let it complete for notification
+        if (!root.replayMode) {
+            workflowProcess.running = false;
+        }
         root.activeWorkflow = null;
         root.workflowResults = [];
         root.workflowCard = null;
@@ -236,7 +250,6 @@ Singleton {
         root.workflowError = "";
         root.workflowBusy = false;
         root.inputMode = "realtime";
-        workflowProcess.running = false;
         root.workflowClosed();
     }
     
@@ -248,6 +261,58 @@ Singleton {
     // Get workflow by ID
     function getWorkflow(id) {
         return root.workflows.find(w => w.id === id) ?? null;
+    }
+    
+    // Replay a saved action using entryPoint
+    // Used for history items that need workflow logic instead of direct command
+    // Returns true if replay was initiated, false if workflow not found
+    function replayAction(workflowId, entryPoint) {
+        const workflow = root.workflows.find(w => w.id === workflowId);
+        if (!workflow || !workflow.manifest || !entryPoint) {
+            return false;
+        }
+        
+        const session = generateSessionId();
+        
+        root.activeWorkflow = {
+            id: workflow.id,
+            path: workflow.path,
+            manifest: workflow.manifest,
+            session: session
+        };
+        root.workflowResults = [];
+        root.workflowCard = null;
+        root.workflowPrompt = "";
+        root.workflowPlaceholder = "";
+        root.workflowError = "";
+        root.inputMode = "realtime";
+        root.replayMode = true;  // Don't kill process when launcher closes
+        root.replayWorkflowInfo = {
+            id: workflow.id,
+            name: workflow.manifest.name,
+            icon: workflow.manifest.icon
+        };
+        
+        // Build replay input from entryPoint
+        const input = {
+            step: entryPoint.step ?? "action",
+            session: session,
+            replay: true  // Signal to handler this is a replay
+        };
+        
+        if (entryPoint.selected) {
+            input.selected = entryPoint.selected;
+            root.lastSelectedItem = entryPoint.selected.id ?? null;
+        }
+        if (entryPoint.action) {
+            input.action = entryPoint.action;
+        }
+        if (entryPoint.query) {
+            input.query = entryPoint.query;
+        }
+        
+        sendToWorkflow(input);
+        return true;
     }
     
     // ==================== INTERNAL ====================
@@ -275,7 +340,7 @@ Singleton {
         workflowProcess.running = true;
     }
     
-    function handleWorkflowResponse(response) {
+    function handleWorkflowResponse(response, wasReplayMode = false) {
         root.workflowBusy = false;
         
         if (!response || !response.type) {
@@ -323,25 +388,44 @@ Singleton {
             case "execute":
                 if (response.execute) {
                     const exec = response.execute;
+                    
+                    // In replay mode, activeWorkflow may be cleared - use replayWorkflowInfo
+                    const workflowName = root.activeWorkflow?.manifest?.name 
+                        ?? root.replayWorkflowInfo?.name 
+                        ?? "Workflow";
+                    const workflowIcon = root.activeWorkflow?.manifest?.icon 
+                        ?? root.replayWorkflowInfo?.icon 
+                        ?? "play_arrow";
+                    const workflowId = root.activeWorkflow?.id 
+                        ?? root.replayWorkflowInfo?.id 
+                        ?? "";
+                    
                     if (exec.command) {
                         Quickshell.execDetached(exec.command);
                     }
                     if (exec.notify) {
-                        Quickshell.execDetached(["notify-send", root.activeWorkflow?.manifest?.name ?? "Workflow", exec.notify, "-a", "Shell"]);
+                        Quickshell.execDetached(["notify-send", workflowName, exec.notify, "-a", "Shell"]);
                     }
                     // If handler provides name, emit for history tracking
+                    // Include entryPoint for complex actions that need workflow replay
                     if (exec.name) {
                         root.actionExecuted({
                             name: exec.name,
                             command: exec.command ?? [],
-                            icon: exec.icon ?? root.activeWorkflow?.manifest?.icon ?? "play_arrow",
+                            entryPoint: exec.entryPoint ?? null,  // For workflow replay
+                            icon: exec.icon ?? workflowIcon,
                             thumbnail: exec.thumbnail ?? "",
-                            workflowId: root.activeWorkflow?.id ?? "",
-                            workflowName: root.activeWorkflow?.manifest?.name ?? ""
+                            workflowId: workflowId,
+                            workflowName: workflowName
                         });
                     }
                     if (exec.close) {
                         root.executeCommand(exec);
+                    }
+                    
+                    // Clear replay info after use
+                    if (wasReplayMode) {
+                        root.replayWorkflowInfo = null;
                     }
                 }
                 break;
@@ -409,6 +493,8 @@ Singleton {
             id: workflowStdout
             onStreamFinished: {
                 root.workflowBusy = false;
+                const wasReplayMode = root.replayMode;
+                root.replayMode = false;  // Reset replay mode after process completes
                 
                 const output = workflowStdout.text.trim();
                 if (!output) {
@@ -418,7 +504,7 @@ Singleton {
                 
                 try {
                     const response = JSON.parse(output);
-                    root.handleWorkflowResponse(response);
+                    root.handleWorkflowResponse(response, wasReplayMode);
                 } catch (e) {
                     root.workflowError = `Failed to parse workflow output: ${e}`;
                     console.warn(`[WorkflowRunner] Parse error: ${e}, output: ${output}`);
@@ -431,6 +517,8 @@ Singleton {
         }
         
         onExited: (exitCode, exitStatus) => {
+            root.replayMode = false;
+            root.replayWorkflowInfo = null;
             if (exitCode !== 0) {
                 root.workflowBusy = false;
                 root.workflowError = `Workflow exited with code ${exitCode}`;

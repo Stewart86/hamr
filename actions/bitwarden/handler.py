@@ -344,20 +344,36 @@ def respond_card(title: str, content: str, **kwargs):
 
 
 def respond_execute(
-    command: list[str],
+    command: list[str] | None = None,
     close: bool = True,
     notify: str = "",
     name: str = "",
     icon: str = "",
+    entry_point: dict | None = None,
 ):
-    """Send execute response"""
-    execute = {"command": command, "close": close}
+    """Send execute response.
+
+    Args:
+        command: Shell command to run (optional if using entry_point)
+        close: Whether to close the launcher
+        notify: Notification message to show
+        name: Action name for history tracking (required for history)
+        icon: Material icon for history entry
+        entry_point: Workflow entry point for complex replay (re-invokes handler)
+                    Used instead of command when action needs handler logic
+                    (e.g., fetching fresh credentials from API)
+    """
+    execute: dict = {"close": close}
+    if command:
+        execute["command"] = command
     if notify:
         execute["notify"] = notify
     if name:
         execute["name"] = name
     if icon:
         execute["icon"] = icon
+    if entry_point:
+        execute["entryPoint"] = entry_point
     print(json.dumps({"type": "execute", "execute": execute}))
 
 
@@ -491,49 +507,82 @@ def main():
         name = item.get("name", "Unknown")
 
         # Copy username (from cache - instant)
-        # Note: Don't pass 'name' to avoid storing credentials in history
+        # Uses entryPoint for history so credentials aren't stored in command
         if action == "copy_username" and username:
             subprocess.run(["wl-copy", username], check=False)
             respond_execute(
-                ["true"],
                 notify=f"Username copied: {username[:30]}{'...' if len(username) > 30 else ''}",
+                name=f"Copy username: {name}",
+                icon="person",
+                entry_point={
+                    "step": "action",
+                    "selected": {"id": item_id},
+                    "action": "copy_username",
+                },
             )
             return
 
         # Copy password (from cache - instant)
+        # Uses entryPoint - password is NEVER stored in history
         if action == "copy_password" and password:
             subprocess.run(["wl-copy", password], check=False)
             respond_execute(
-                ["true"],
                 notify="Password copied to clipboard",
+                name=f"Copy password: {name}",
+                icon="key",
+                entry_point={
+                    "step": "action",
+                    "selected": {"id": item_id},
+                    "action": "copy_password",
+                },
             )
             return
 
         # Copy TOTP (must fetch live - changes every 30s)
+        # Uses entryPoint - TOTP must always be fetched fresh
         if action == "copy_totp":
             totp = get_totp(item_id, session)
             if totp:
                 subprocess.run(["wl-copy", totp], check=False)
                 respond_execute(
-                    ["true"],
                     notify=f"TOTP copied: {totp}",
+                    name=f"Copy TOTP: {name}",
+                    icon="schedule",
+                    entry_point={
+                        "step": "action",
+                        "selected": {"id": item_id},
+                        "action": "copy_totp",
+                    },
                 )
             else:
                 respond_card("Error", "Failed to get TOTP code")
             return
 
         # Default: copy password or username (from cache - instant)
+        # Uses entryPoint for history tracking
         if password:
             subprocess.run(["wl-copy", password], check=False)
             respond_execute(
-                ["true"],
                 notify="Password copied to clipboard",
+                name=f"Copy password: {name}",
+                icon="key",
+                entry_point={
+                    "step": "action",
+                    "selected": {"id": item_id},
+                    "action": "copy_password",
+                },
             )
         elif username:
             subprocess.run(["wl-copy", username], check=False)
             respond_execute(
-                ["true"],
                 notify=f"Username copied: {username[:30]}...",
+                name=f"Copy username: {name}",
+                icon="person",
+                entry_point={
+                    "step": "action",
+                    "selected": {"id": item_id},
+                    "action": "copy_username",
+                },
             )
         else:
             respond_card("Error", "No credentials to copy")

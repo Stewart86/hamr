@@ -99,8 +99,14 @@ Interactive workflows with multiple steps, navigation, and rich UI.
 # Show rich card content (stays open)
 {"type": "card", "card": {"title": "...", "content": "...", "markdown": true}}
 
-# Execute command (with optional history tracking)
-{"type": "execute", "execute": {"command": ["cmd", "arg"], "notify": "message", "close": true, "name": "Action Name", "icon": "icon", "thumbnail": "/path"}}
+# Execute command (simple, no history)
+{"type": "execute", "execute": {"command": ["cmd", "arg"], "notify": "message", "close": true}}
+
+# Execute with history - simple replay (stores command)
+{"type": "execute", "execute": {"command": ["cmd", "arg"], "name": "Action Name", "icon": "icon", "close": true}}
+
+# Execute with history - complex replay (stores entryPoint for workflow re-invocation)
+{"type": "execute", "execute": {"name": "Action Name", "entryPoint": {"step": "action", "selected": {"id": "..."}, "action": "..."}, "icon": "icon", "close": true}}
 
 # Open image browser UI (for image/wallpaper selection)
 {"type": "imageBrowser", "imageBrowser": {"directory": "~/Pictures", "title": "Select Image", "actions": [{"id": "set_dark", "name": "Set Dark", "icon": "dark_mode"}]}}
@@ -233,16 +239,42 @@ print(json.dumps({
 ### Execute Options
 
 ```python
+# Simple execution (no history)
 {
     "type": "execute",
     "execute": {
         "command": ["cmd", "arg1", "arg2"],  # Command to run
         "notify": "Success message",          # Optional notification
-        "close": True,                        # True = close launcher, False = stay open
-        # History tracking (optional - if provided, action becomes fuzzy-searchable)
-        "name": "Open document.pdf",          # Display name for history
-        "icon": "description",                # Material icon for history entry
-        "thumbnail": "/path/to/preview.png"   # Thumbnail for history entry
+        "close": True                         # True = close launcher, False = stay open
+    }
+}
+
+# With history tracking - Simple replay (direct command)
+{
+    "type": "execute",
+    "execute": {
+        "command": ["xdg-open", "/path/to/file"],  # Stored for replay
+        "name": "Open document.pdf",               # Required for history
+        "icon": "description",                     # Optional: Material icon
+        "thumbnail": "/path/to/preview.png",       # Optional: image preview
+        "close": True
+    }
+}
+
+# With history tracking - Complex replay (via workflow)
+{
+    "type": "execute",
+    "execute": {
+        "name": "Copy password for GitHub",        # Required for history
+        "entryPoint": {                            # Stored for workflow replay
+            "step": "action",
+            "selected": {"id": "item_123"},
+            "action": "copy_password"
+        },
+        "icon": "key",
+        "notify": "Copied!",
+        "close": True
+        # No command - entryPoint will be used on replay
     }
 }
 ```
@@ -251,22 +283,138 @@ print(json.dumps({
 
 When `name` is provided in an `execute` response, the action is saved to search history and becomes fuzzy-searchable. Users can type part of the action name to quickly repeat it.
 
-**When to use history tracking:**
-- File operations: "Open document.pdf", "Copy path: ~/Downloads/file.txt"
-- Shell commands: "Run: git status", "Run: docker ps"
-- Searches: "Search Google: quickshell", "Define: serendipity"
-- Media actions: "Set wallpaper: sunset.png", "Play: favorite-song.mp3"
+#### Replay Strategies
 
-**When NOT to use history tracking:**
+The history system supports two replay strategies:
+
+| Strategy | Field | Behavior | Use Case |
+|----------|-------|----------|----------|
+| **Simple** | `command` | Direct shell execution | File open, clipboard copy, shell commands |
+| **Complex** | `entryPoint` | Re-invokes workflow handler | API calls, dynamic data, sensitive info |
+
+**Replay priority:** `command` (if non-empty) > `entryPoint` (if provided)
+
+#### Simple Replay (Direct Command)
+
+For actions that can be replayed with a simple shell command:
+
+```python
+print(json.dumps({
+    "type": "execute",
+    "execute": {
+        "command": ["xdg-open", "/path/to/file.png"],  # Stored for direct replay
+        "name": "Open file.png",        # Required for history
+        "icon": "image",                # Optional
+        "thumbnail": "/path/to/file.png", # Optional
+        "close": True
+    }
+}))
+```
+
+On replay: Runs `["xdg-open", "/path/to/file.png"]` directly (fast, no workflow).
+
+#### Complex Replay (via entryPoint)
+
+For actions that need workflow handler logic (API calls, fetching dynamic data, etc.):
+
+```python
+print(json.dumps({
+    "type": "execute",
+    "execute": {
+        "name": "Copy password for GitHub",
+        "entryPoint": {                  # Stored for workflow replay
+            "step": "action",
+            "selected": {"id": "item_abc123"},
+            "action": "copy_password"
+        },
+        "icon": "key",
+        "notify": "Password copied",
+        "close": True
+        # No "command" - forces entryPoint replay
+    }
+}))
+```
+
+On replay:
+1. Starts the workflow
+2. Sends the stored `entryPoint` as input to handler
+3. Handler receives: `{"step": "action", "selected": {"id": "item_abc123"}, "action": "copy_password", "replay": true, ...}`
+4. Handler processes and returns response
+
+#### entryPoint Structure
+
+```python
+{
+    "step": "action",           # Required: step type to send
+    "selected": {"id": "..."},  # Optional: selected item context
+    "action": "...",            # Optional: action ID
+    "query": "..."              # Optional: search query (for step: "search")
+}
+```
+
+The `replay: true` flag is added automatically so handlers can distinguish replay from normal flow.
+
+#### Example: Password Manager Workflow
+
+```python
+def main():
+    input_data = json.load(sys.stdin)
+    step = input_data.get("step", "initial")
+    selected = input_data.get("selected", {})
+    action = input_data.get("action", "")
+    is_replay = input_data.get("replay", False)
+    
+    # Handle copy password action (works for both normal and replay)
+    if step == "action" and action == "copy_password":
+        item_id = selected.get("id", "")
+        
+        # Fetch password from API (can't store in command!)
+        password = api_get_password(item_id)
+        item_name = api_get_item_name(item_id)
+        
+        # Copy to clipboard
+        subprocess.run(["wl-copy", password])
+        
+        print(json.dumps({
+            "type": "execute",
+            "execute": {
+                "name": f"Copy password for {item_name}",
+                "entryPoint": {  # For replay - re-fetches password
+                    "step": "action",
+                    "selected": {"id": item_id},
+                    "action": "copy_password"
+                },
+                "icon": "key",
+                "notify": "Password copied",
+                "close": True
+                # No command - password shouldn't be stored in history!
+            }
+        }))
+```
+
+#### When to Use Each Strategy
+
+| Use Simple (`command`) | Use Complex (`entryPoint`) |
+|------------------------|---------------------------|
+| Opening files | API calls (passwords, tokens) |
+| Copying static text | Dynamic data fetching |
+| Running shell commands | Actions with side effects |
+| Setting wallpapers | State-dependent actions |
+| Any idempotent action | Sensitive information |
+
+#### Best Practices
+
+1. **Prefer `command` when possible** - Direct execution is faster and works offline
+2. **Use `entryPoint` for sensitive data** - Never store passwords/tokens in command
+3. **Always provide `name`** - Required for history tracking
+4. **Include `icon`/`thumbnail`** - Better visual recognition in search results
+5. **Handle `replay: true`** - Skip confirmations, go straight to action on replay
+
+#### When NOT to use history tracking
+
 - CRUD operations on stateful data (todo add/toggle/delete - state is ephemeral)
 - One-time confirmations (wipe clipboard, delete all)
 - AI chat responses (not repeatable)
-
-**Best practices:**
-- Keep `name` concise but descriptive: "Open: file.txt" not "Opening the file file.txt"
-- Include the action verb: "Run:", "Copy:", "Open:", "Define:", "Search:"
-- Truncate long content: `name[:50] + "..."` for commands/text
-- Use appropriate icons that match the action type
 
 ## Material Icons
 

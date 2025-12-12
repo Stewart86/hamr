@@ -335,7 +335,11 @@ Singleton {
         searchHistoryFileView.setText(JSON.stringify({ history: newHistory }, null, 2));
     }
     
-    // Record a workflow execution (stores command for replay)
+    // Record a workflow execution (stores command and/or entryPoint for replay)
+    // Hybrid approach:
+    //   - command: Direct shell command for simple replay (fast, no workflow needed)
+    //   - entryPoint: Workflow step for complex actions (invokes handler logic)
+    // On replay: prefers command if available, falls back to entryPoint
     function recordWorkflowExecution(actionInfo) {
         const now = Date.now();
         // Use name + workflowId as unique key
@@ -356,6 +360,7 @@ Singleton {
                 workflowId: existing.workflowId,
                 workflowName: existing.workflowName,
                 command: actionInfo.command,
+                entryPoint: actionInfo.entryPoint ?? null,
                 icon: actionInfo.icon,
                 thumbnail: actionInfo.thumbnail,
                 count: existing.count + 1,
@@ -370,6 +375,7 @@ Singleton {
                 workflowId: actionInfo.workflowId,
                 workflowName: actionInfo.workflowName,
                 command: actionInfo.command,
+                entryPoint: actionInfo.entryPoint ?? null,
                 icon: actionInfo.icon,
                 thumbnail: actionInfo.thumbnail,
                 count: 1,
@@ -1138,14 +1144,19 @@ Singleton {
                                 root.recordWorkflowExecution({
                                     name: item.name,
                                     command: item.command,
+                                    entryPoint: item.entryPoint,
                                     icon: item.icon,
                                     thumbnail: item.thumbnail,
                                     workflowId: item.workflowId,
                                     workflowName: item.workflowName
                                 });
-                                // Execute stored command directly
+                                // Hybrid replay: prefer command, fallback to entryPoint
                                 if (item.command && item.command.length > 0) {
+                                    // Direct command execution (fast path)
                                     Quickshell.execDetached(item.command);
+                                } else if (item.entryPoint && item.workflowId) {
+                                    // Workflow replay via entryPoint (complex actions)
+                                    WorkflowRunner.replayAction(item.workflowId, item.entryPoint);
                                 }
                             }
                         });
@@ -1570,13 +1581,19 @@ Singleton {
                             root.recordWorkflowExecution({
                                 name: item.name,
                                 command: item.command,
+                                entryPoint: item.entryPoint,
                                 icon: item.icon,
                                 thumbnail: item.thumbnail,
                                 workflowId: item.workflowId,
                                 workflowName: item.workflowName
                             });
+                            // Hybrid replay: prefer command, fallback to entryPoint
                             if (item.command && item.command.length > 0) {
+                                // Direct command execution (fast path)
                                 Quickshell.execDetached(item.command);
+                            } else if (item.entryPoint && item.workflowId) {
+                                // Workflow replay via entryPoint (complex actions)
+                                WorkflowRunner.replayAction(item.workflowId, item.entryPoint);
                             }
                         }
                     })
