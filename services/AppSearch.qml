@@ -46,8 +46,9 @@ Singleton {
             ))
     )
     
+    // Combine name + keywords for fuzzy matching (e.g., "whatsapp" -> ZapZap)
     readonly property var preppedNames: list.map(a => ({
-        name: Fuzzy.prepare(`${a.name} `),
+        name: Fuzzy.prepare(`${a.name} ${(a.keywords ?? []).join(' ')}`),
         entry: a
     }))
 
