@@ -1,7 +1,7 @@
 /**
- * WorkflowCard - Displays a card response from a workflow handler
+ * PluginCard - Displays a card response from a plugin handler
  * 
- * Used for workflows that return rich content (e.g., dictionary definitions,
+ * Used for plugins that return rich content (e.g., dictionary definitions,
  * AI responses, documentation lookups) rather than a list of selectable results.
  */
 import qs
@@ -17,8 +17,8 @@ import Quickshell
 Rectangle {
     id: root
     
-    // Card data from WorkflowRunner.workflowCard
-    // { title: string, content: string, markdown: bool }
+     // Card data from PluginRunner.pluginCard
+     // { title: string, content: string, markdown: bool }
     property var card: null
 
     // When true, show inline loading indicator (keeps content visible)
@@ -58,22 +58,22 @@ Rectangle {
             wrapMode: Text.Wrap
         }
         
-        // Inline workflow busy indicator (keeps card visible)
-        RowLayout {
-            visible: root.busy
-            Layout.fillWidth: true
-            spacing: 10
+         // Inline plugin busy indicator (keeps card visible)
+         RowLayout {
+             visible: root.busy
+             Layout.fillWidth: true
+             spacing: 10
 
-            StyledIndeterminateProgressBar {
-                Layout.fillWidth: true
-            }
+             StyledIndeterminateProgressBar {
+                 Layout.fillWidth: true
+             }
 
-            StyledText {
-                text: "Processing..."
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colSubtext
-            }
-        }
+             StyledText {
+                 text: "Processing..."
+                 font.pixelSize: Appearance.font.pixelSize.small
+                 color: Appearance.colors.colSubtext
+             }
+         }
 
         // Separator
         Rectangle {

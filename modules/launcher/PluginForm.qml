@@ -1,7 +1,7 @@
 /**
- * WorkflowForm - Displays a form with multiple input fields from a workflow handler
+ * PluginForm - Displays a form with multiple input fields from a plugin handler
  * 
- * Used for workflows that need multiple inputs (e.g., notes with title+content,
+ * Used for plugins that need multiple inputs (e.g., notes with title+content,
  * settings, multi-field submissions) rather than sequential single-line prompts.
  * 
  * Field types supported:
@@ -24,8 +24,8 @@ import Quickshell
 Rectangle {
     id: root
     
-    // Form data from WorkflowRunner.workflowForm
-    // { title: string, submitLabel: string, cancelLabel: string, fields: [...] }
+     // Form data from PluginRunner.pluginForm
+     // { title: string, submitLabel: string, cancelLabel: string, fields: [...] }
     property var form: null
     
     // Emitted when form is submitted with all field values

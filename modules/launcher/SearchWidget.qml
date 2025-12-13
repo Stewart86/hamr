@@ -16,8 +16,8 @@ Item { // Wrapper
     readonly property string xdgConfigHome: Directories.config
     property string searchingText: LauncherSearch.query
     property bool showResults: searchingText != "" || LauncherSearch.results.length > 0
-    property bool showCard: WorkflowRunner.workflowCard !== null
-    property bool showForm: WorkflowRunner.workflowForm !== null
+    property bool showCard: PluginRunner.pluginCard !== null
+    property bool showForm: PluginRunner.pluginForm !== null
     // Include the full visual height (content + offset)
     implicitWidth: searchWidgetContent.implicitWidth + Appearance.sizes.elevationMargin * 2
     implicitHeight: searchWidgetContent.implicitHeight + searchWidgetContent.anchors.topMargin + Appearance.sizes.elevationMargin * 2
@@ -171,14 +171,14 @@ Item { // Wrapper
                     }
                 }
                 onSelectCurrent: {
-                    // If workflow is active in submit mode with user input:
+                    // If plugin is active in submit mode with user input:
                     // - Default: Enter submits the query
                     // - Exception: if user navigated to a non-first result, Enter selects it
-                    if (WorkflowRunner.isActive() && WorkflowRunner.inputMode === "submit" && root.searchingText.trim() !== "") {
+                    if (PluginRunner.isActive() && PluginRunner.inputMode === "submit" && root.searchingText.trim() !== "") {
                         if (appResults.count > 0 && appResults.currentIndex > 0) {
                             // Fall through to select current item
                         } else {
-                            LauncherSearch.submitWorkflowQuery();
+                            LauncherSearch.submitPluginQuery();
                             return;
                         }
                     }
@@ -221,7 +221,7 @@ Item { // Wrapper
             // Hint bar - shows prefix shortcuts when query is empty, navigation hints when results shown
             RowLayout {
                 id: hintBar
-                visible: !WorkflowRunner.isActive()
+                visible: !PluginRunner.isActive()
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
@@ -233,7 +233,7 @@ Item { // Wrapper
                     model: [
                         { key: "~", label: "files" },
                         { key: ";", label: "clipboard" },
-                        { key: "/", label: "actions" },
+                        { key: "/", label: "plugins" },
                         { key: "!", label: "shell" },
                         { key: "=", label: "math" },
                         { key: ":", label: "emoji" },
@@ -277,16 +277,16 @@ Item { // Wrapper
 
             Rectangle {
                 // Separator
-                visible: root.showResults || root.showCard || root.showForm || WorkflowRunner.workflowBusy
+                visible: root.showResults || root.showCard || root.showForm || PluginRunner.pluginBusy
                 Layout.fillWidth: true
                 height: 1
                 color: Appearance.colors.colOutlineVariant
             }
 
-            // Loading indicator when workflow is processing and no card is shown.
-            // For card-based workflows (chat), the card itself shows its busy state.
+            // Loading indicator when plugin is processing and no card is shown.
+            // For card-based plugins (chat), the card itself shows its busy state.
             RowLayout {
-                visible: WorkflowRunner.workflowBusy && !root.showCard
+                visible: PluginRunner.pluginBusy && !root.showCard
                 Layout.fillWidth: true
                 Layout.margins: 20
                 spacing: 12
@@ -302,17 +302,17 @@ Item { // Wrapper
                 }
             }
 
-            // Workflow card display (shown instead of results when card is present)
-            // Use WorkflowRichCard when handler returns block-based cards (chat/timeline).
+            // Plugin card display (shown instead of results when card is present)
+            // Use PluginRichCard when handler returns block-based cards (chat/timeline).
             Loader {
-                id: workflowCardLoader
+                id: pluginCardLoader
                 visible: root.showCard
                 Layout.fillWidth: true
 
-                property var currentCard: WorkflowRunner.workflowCard
+                property var currentCard: PluginRunner.pluginCard
 
                 sourceComponent: {
-                    const c = workflowCardLoader.currentCard
+                    const c = pluginCardLoader.currentCard
                     if (c === null || c === undefined) return null
                     if ((c.kind ?? "") === "blocks" || c.blocks !== undefined) return richCardComponent
                     return simpleCardComponent
@@ -321,39 +321,39 @@ Item { // Wrapper
 
             Component {
                 id: richCardComponent
-                WorkflowRichCard {
-                    card: workflowCardLoader.currentCard
-                    busy: WorkflowRunner.workflowBusy
+                PluginRichCard {
+                    card: pluginCardLoader.currentCard
+                    busy: PluginRunner.pluginBusy
                 }
             }
 
             Component {
                 id: simpleCardComponent
-                WorkflowCard {
-                    card: workflowCardLoader.currentCard
-                    busy: WorkflowRunner.workflowBusy
+                PluginCard {
+                    card: pluginCardLoader.currentCard
+                    busy: PluginRunner.pluginBusy
                 }
             }
 
-            // Workflow form display (shown when form response received)
-            WorkflowForm {
-                id: workflowFormView
+            // Plugin form display (shown when form response received)
+            PluginForm {
+                id: pluginFormView
                 visible: root.showForm
                 Layout.fillWidth: true
                 Layout.leftMargin: 6
                 Layout.rightMargin: 6
                 Layout.bottomMargin: 6
                 
-                form: WorkflowRunner.workflowForm
+                form: PluginRunner.pluginForm
                 
                 onSubmitted: formData => {
-                    WorkflowRunner.submitForm(formData);
+                    PluginRunner.submitForm(formData);
                     // Return focus to search bar after form submission
                     root.focusSearchInput();
                 }
                 
                 onCancelled: {
-                    WorkflowRunner.cancelForm();
+                    PluginRunner.cancelForm();
                     // Return focus to search bar after form cancel
                     root.focusSearchInput();
                 }
@@ -362,7 +362,7 @@ Item { // Wrapper
             // Results container with recessed background
             Rectangle {
                 id: resultsContainer
-                visible: root.showResults && !root.showCard && !root.showForm && !WorkflowRunner.workflowBusy
+                visible: root.showResults && !root.showCard && !root.showForm && !PluginRunner.pluginBusy
                 Layout.fillWidth: true
                 Layout.leftMargin: 6
                 Layout.rightMargin: 6

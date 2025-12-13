@@ -61,9 +61,9 @@ Scope {
                         searchWidget.disableExpandAnimation();
                         launcherScope.dontAutoCancelSearch = false;
                         grab.active = false;
-                        // Clear workflow state when closing
-                        if (WorkflowRunner.isActive()) {
-                            LauncherSearch.closeWorkflow();
+                        // Clear plugin state when closing
+                        if (PluginRunner.isActive()) {
+                            LauncherSearch.closePlugin();
                         }
                         // Clear exclusive mode when closing
                         if (LauncherSearch.isInExclusiveMode()) {
@@ -76,18 +76,18 @@ Scope {
                         if (!GlobalStates.imageBrowserOpen) {
                             delayedGrabTimer.start();
                         }
-                        // Refresh workflows to detect newly added ones (workaround for symlink detection)
-                        WorkflowRunner.refreshWorkflows();
+                        // Refresh plugins to detect newly added ones (workaround for symlink detection)
+                        PluginRunner.refreshPlugins();
                     }
                 }
             }
 
-            // Handle workflow execute with close
+            // Handle plugin execute with close
             Connections {
-                target: WorkflowRunner
+                target: PluginRunner
                 function onExecuteCommand(command) {
                     if (command.close) {
-                        LauncherSearch.closeWorkflow();
+                        LauncherSearch.closePlugin();
                         GlobalStates.launcherOpen = false;
                     }
                 }
@@ -144,8 +144,8 @@ Scope {
                         if (mouse.x < mapped.x || mouse.x > mapped.x + content.width ||
                             mouse.y < mapped.y || mouse.y > mapped.y + content.height) {
                             // Click is outside - close
-                            if (WorkflowRunner.isActive()) {
-                                LauncherSearch.closeWorkflow();
+                            if (PluginRunner.isActive()) {
+                                LauncherSearch.closePlugin();
                             }
                             GlobalStates.launcherOpen = false;
                         }
@@ -164,9 +164,9 @@ Scope {
 
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) {
-                        // Priority: workflow > exclusive mode > close launcher
-                        if (WorkflowRunner.isActive()) {
-                            LauncherSearch.exitWorkflow();
+                        // Priority: plugin > exclusive mode > close launcher
+                        if (PluginRunner.isActive()) {
+                            LauncherSearch.exitPlugin();
                         } else if (LauncherSearch.isInExclusiveMode()) {
                             LauncherSearch.exitExclusiveMode();
                         } else {

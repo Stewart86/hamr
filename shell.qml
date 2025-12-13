@@ -24,7 +24,7 @@ ShellRoot {
     Component.onCompleted: {
         MaterialThemeLoader.reapplyTheme()
         ShellHistory.refresh()
-        WorkflowRunner.loadWorkflows()
+        PluginRunner.loadPlugins()
     }
 
     // Main launcher components
@@ -57,11 +57,11 @@ ShellRoot {
             // TODO: Set the search prefix
         }
 
-        function workflow(name: string) {
-            // Start a specific workflow directly
-            GlobalStates.launcherOpen = true
-            LauncherSearch.startWorkflow(name)
-        }
+         function plugin(name: string) {
+             // Start a specific plugin directly
+             GlobalStates.launcherOpen = true
+             LauncherSearch.startPlugin(name)
+         }
     }
 
     // Global shortcuts for hamr

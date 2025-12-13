@@ -174,14 +174,14 @@ RippleButton {
     }
 
     onClicked: {
-        // For workflow results, don't auto-close - let the handler decide via execute.close
-        // For workflow entry (starting a workflow), keep open
+        // For plugin results, don't auto-close - let the handler decide via execute.close
+        // For plugin entry (starting a plugin), keep open
         // For everything else (apps, actions, scripts), close first to release HyprlandFocusGrab.
         // This fixes region selectors like `slurp` (screenshot) not receiving pointer input.
-        const isWorkflow = entry?.resultType === LauncherSearchResult.ResultType.WorkflowEntry ||
-                          entry?.resultType === LauncherSearchResult.ResultType.WorkflowResult;
+        const isPlugin = entry?.resultType === LauncherSearchResult.ResultType.PluginEntry ||
+                          entry?.resultType === LauncherSearchResult.ResultType.PluginResult;
 
-        if (isWorkflow) {
+        if (isPlugin) {
             root.itemExecute()
             return
         }

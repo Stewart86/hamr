@@ -4,7 +4,7 @@ import Quickshell
 QtObject {
     enum IconType { Material, Text, System, None }
     enum FontType { Normal, Monospace }
-    enum ResultType { Standard, WorkflowEntry, WorkflowResult, Card }
+    enum ResultType { Standard, PluginEntry, PluginResult, Card }
 
     // Unique key for ScriptModel identity (prevents flicker on updates)
     property string key: id || name || ""
@@ -38,22 +38,22 @@ QtObject {
     // Extra stuff to allow for more flexibility
     property string category: type
     
-    // ==================== WORKFLOW SUPPORT ====================
-    // Result type for different rendering modes
-    property var resultType: LauncherSearchResult.ResultType.Standard
-    
-    // Workflow identification (for workflow results)
-    property string workflowId: ""      // ID of the workflow this result belongs to
-    property string workflowItemId: ""  // ID of the item within workflow results
-    
-    // Card display (for ResultType.Card)
-    property string cardTitle: ""
-    property string cardContent: ""
-    property bool cardMarkdown: false
-    
-    // Workflow actions (from workflow result's actions array)
-    // Each action: { id, name, icon }
-    property var workflowActions: []
+     // ==================== PLUGIN SUPPORT ====================
+     // Result type for different rendering modes
+     property var resultType: LauncherSearchResult.ResultType.Standard
+     
+     // Plugin identification (for plugin results)
+     property string pluginId: ""      // ID of the plugin this result belongs to
+     property string pluginItemId: ""  // ID of the item within plugin results
+     
+     // Card display (for ResultType.Card)
+     property string cardTitle: ""
+     property string cardContent: ""
+     property bool cardMarkdown: false
+     
+     // Plugin actions (from plugin result's actions array)
+     // Each action: { id, name, icon }
+     property var pluginActions: []
     
      // Thumbnail image path (for workflow results with images)
      property string thumbnail: ""

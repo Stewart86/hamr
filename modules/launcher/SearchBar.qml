@@ -18,8 +18,8 @@ RowLayout {
     property alias searchInput: searchInput
     property string searchingText
     
-    // Custom placeholder from active workflow or exclusive mode
-    readonly property string workflowPlaceholder: WorkflowRunner.isActive() ? WorkflowRunner.workflowPlaceholder : ""
+    // Custom placeholder from active plugin or exclusive mode
+    readonly property string pluginPlaceholder: PluginRunner.isActive() ? PluginRunner.pluginPlaceholder : ""
     readonly property string exclusiveModePlaceholder: {
         switch (LauncherSearch.exclusiveMode) {
             case "action": return "Search actions...";
@@ -89,7 +89,7 @@ RowLayout {
         implicitHeight: 40
         focus: GlobalStates.launcherOpen
         font.pixelSize: Appearance.font.pixelSize.small
-        placeholderText: root.workflowPlaceholder !== "" ? root.workflowPlaceholder : 
+        placeholderText: root.pluginPlaceholder !== "" ? root.pluginPlaceholder : 
                          root.exclusiveModePlaceholder !== "" ? root.exclusiveModePlaceholder : "It's hamr time!"
         implicitWidth: Appearance.sizes.searchWidth
 

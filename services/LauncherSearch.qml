@@ -23,7 +23,7 @@ Singleton {
     property bool quicklinksLoaded: false
     
     // ==================== EXCLUSIVE MODE ====================
-    // Exclusive mode is for prefix-based filtering (/, :, =) that doesn't use workflows
+    // Exclusive mode is for prefix-based filtering (/, :, =) that doesn't use plugins
     // but should still allow Escape to exit back to normal search
     property string exclusiveMode: ""  // "", "action", "emoji", "math"
     property bool exclusiveModeStarting: false  // Flag to prevent re-triggering on query clear
@@ -80,9 +80,9 @@ Singleton {
         return acc;
     }, []).sort()
 
-    // Load user action scripts from ~/.config/hamr/actions/
+    // Load user action scripts from ~/.config/hamr/plugins/
     // Uses FolderListModel to auto-reload when scripts are added/removed
-    // Note: Workflow folders (containing manifest.json) are handled by WorkflowRunner
+    // Note: Plugin folders (containing manifest.json) are handled by PluginRunner
     // Excludes text/config files like .md, .txt, .json, .yaml, etc.
     readonly property var excludedActionExtensions: [".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".log", ".csv"]
     
@@ -114,61 +114,61 @@ Singleton {
 
     FolderListModel {
         id: userActionsFolder
-        folder: `file://${Directories.userActions}`
+        folder: `file://${Directories.userPlugins}`
         showDirs: false
         showHidden: false
         sortField: FolderListModel.Name
     }
     
-    // ==================== WORKFLOW INTEGRATION ====================
-    // Active workflow state - when a workflow is active, results come from WorkflowRunner
-    property bool workflowActive: WorkflowRunner.activeWorkflow !== null
-    property string activeWorkflowId: WorkflowRunner.activeWorkflow?.id ?? ""
+    // ==================== PLUGIN INTEGRATION ====================
+    // Active plugin state - when a plugin is active, results come from PluginRunner
+    property bool pluginActive: PluginRunner.activePlugin !== null
+    property string activePluginId: PluginRunner.activePlugin?.id ?? ""
     
-    // Start a workflow by ID
-    function startWorkflow(workflowId) {
-        const success = WorkflowRunner.startWorkflow(workflowId);
+    // Start a plugin by ID
+    function startPlugin(pluginId) {
+        const success = PluginRunner.startPlugin(pluginId);
         if (success) {
-            // Clear query for fresh workflow input
-            root.workflowStarting = true;
+            // Clear query for fresh plugin input
+            root.pluginStarting = true;
             root.query = "";
-            root.workflowStarting = false;
+            root.pluginStarting = false;
         }
         return success;
     }
     
-    // Close active workflow
-    function closeWorkflow() {
-        WorkflowRunner.closeWorkflow();
+    // Close active plugin
+    function closePlugin() {
+        PluginRunner.closePlugin();
     }
     
-    // Check if we should exit workflow mode (called when query becomes empty)
-    function checkWorkflowExit() {
-        if (WorkflowRunner.isActive() && root.query === "") {
-            WorkflowRunner.closeWorkflow();
+    // Check if we should exit plugin mode (called when query becomes empty)
+    function checkPluginExit() {
+        if (PluginRunner.isActive() && root.query === "") {
+            PluginRunner.closePlugin();
         }
     }
     
-    // Listen for workflow executions to record in history
+    // Listen for plugin executions to record in history
     Connections {
-        target: WorkflowRunner
+        target: PluginRunner
         function onActionExecuted(actionInfo) {
             root.recordWorkflowExecution(actionInfo);
         }
         function onClearInputRequested() {
-            root.workflowClearing = true;
+            root.pluginClearing = true;
             root.query = "";
-            root.workflowClearing = false;
+            root.pluginClearing = false;
         }
     }
     
-    // Convert workflow results to LauncherSearchResult objects
-    function workflowResultsToSearchResults(workflowResults: var): var {
-        return workflowResults.map(item => {
+    // Convert plugin results to LauncherSearchResult objects
+    function pluginResultsToSearchResults(pluginResults: var): var {
+        return pluginResults.map(item => {
             // Store item.id in local const to ensure closure captures value
             const itemId = item.id;
             
-            // Convert workflow actions to LauncherSearchResult action objects
+            // Convert plugin actions to LauncherSearchResult action objects
             const itemActions = (item.actions ?? []).map(action => {
                 // Store action.id in local const to ensure closure captures value
                 const actionId = action.id;
@@ -177,15 +177,15 @@ Singleton {
                     iconName: action.icon ?? 'play_arrow',
                     iconType: LauncherSearchResult.IconType.Material,
                     execute: () => {
-                        WorkflowRunner.selectItem(itemId, actionId);
+                        PluginRunner.selectItem(itemId, actionId);
                     }
                 });
             });
             
-            // Detect icon type based on iconType field from workflow, or auto-detect
-            // If workflow explicitly sets iconType: "system" or "material", use that
-            // Otherwise, default to Material icons (most workflow icons are material symbols)
-            const iconName = item.icon ?? WorkflowRunner.activeWorkflow?.manifest?.icon ?? 'extension';
+            // Detect icon type based on iconType field from plugin, or auto-detect
+            // If plugin explicitly sets iconType: "system" or "material", use that
+            // Otherwise, default to Material icons (most plugin icons are material symbols)
+            const iconName = item.icon ?? PluginRunner.activePlugin?.manifest?.icon ?? 'extension';
             let isSystemIcon;
             if (item.iconType === "system") {
                 isSystemIcon = true;
@@ -201,25 +201,25 @@ Singleton {
                 name: item.name,
                 comment: item.description ?? "",
                 verb: item.verb ?? "Select",
-                type: WorkflowRunner.activeWorkflow?.manifest?.name ?? "Workflow",
+                type: PluginRunner.activePlugin?.manifest?.name ?? "Plugin",
                 iconName: iconName,
                 iconType: isSystemIcon ? LauncherSearchResult.IconType.System : LauncherSearchResult.IconType.Material,
-                resultType: LauncherSearchResult.ResultType.WorkflowResult,
-                workflowId: WorkflowRunner.activeWorkflow?.id ?? "",
-                workflowItemId: itemId,
-                workflowActions: item.actions ?? [],
+                resultType: LauncherSearchResult.ResultType.PluginResult,
+                pluginId: PluginRunner.activePlugin?.id ?? "",
+                pluginItemId: itemId,
+                pluginActions: item.actions ?? [],
                 thumbnail: item.thumbnail ?? "",
                 actions: itemActions,
                 execute: () => {
                     // Default action: select without specific action
-                    WorkflowRunner.selectItem(itemId, "");
+                    PluginRunner.selectItem(itemId, "");
                 }
             });
         });
     }
     
-    // Prepared workflows for fuzzy search (from WorkflowRunner)
-    property var preppedWorkflows: WorkflowRunner.preppedWorkflows
+    // Prepared plugins for fuzzy search (from PluginRunner)
+    property var preppedPlugins: PluginRunner.preppedPlugins
 
     // Load quicklinks from config file
     property var quicklinks: []
@@ -309,16 +309,16 @@ Singleton {
         return items;
     }
     
-    // Prepared workflow history terms for fuzzy search
-    // Allows finding workflows by previously used search terms (e.g., "q" -> QuickLinks)
-    property var preppedWorkflowHistoryTerms: {
+    // Prepared plugin history terms for fuzzy search
+    // Allows finding plugins by previously used search terms (e.g., "q" -> QuickLinks)
+    property var preppedPluginHistoryTerms: {
         const items = [];
         for (const historyItem of searchHistoryData) {
             if (historyItem.type === "workflow" && historyItem.recentSearchTerms) {
                 for (const term of historyItem.recentSearchTerms) {
                     items.push({
                         name: Fuzzy.prepare(term),
-                        workflowId: historyItem.name,
+                        pluginId: historyItem.name,
                         searchTerm: term,
                         historyItem: historyItem
                     });
@@ -364,9 +364,9 @@ Singleton {
         return items;
     }
     
-    // Prepared workflow execution history for fuzzy search
-    // Indexes both the action name and workflow name for matching
-    property var preppedWorkflowExecutions: {
+    // Prepared plugin execution history for fuzzy search
+    // Indexes both the action name and plugin name for matching
+    property var preppedPluginExecutions: {
         return searchHistoryData
             .filter(item => item.type === "workflowExecution")
             .map(item => ({
@@ -375,9 +375,9 @@ Singleton {
             }));
     }
     
-    // Prepared workflow execution history terms for fuzzy search
-    // Allows finding workflow executions by previously used search terms
-    property var preppedWorkflowExecutionHistoryTerms: {
+    // Prepared plugin execution history terms for fuzzy search
+    // Allows finding plugin executions by previously used search terms
+    property var preppedPluginExecutionHistoryTerms: {
         const items = [];
         for (const historyItem of searchHistoryData) {
             if (historyItem.type === "workflowExecution" && historyItem.recentSearchTerms) {
@@ -800,8 +800,8 @@ Singleton {
         APP: "app",
         ACTION: "action",
         QUICKLINK: "quicklink",
-        WORKFLOW: "workflow",
-        WORKFLOW_EXECUTION: "workflow_execution",
+        PLUGIN: "plugin",
+        PLUGIN_EXECUTION: "plugin_execution",
         URL_DIRECT: "url_direct",
         URL_HISTORY: "url_history",
         EMOJI: "emoji",
@@ -839,9 +839,9 @@ Singleton {
         const competingCategories = [
             root.category.APP,
             root.category.ACTION,
-            root.category.WORKFLOW,
+            root.category.PLUGIN,
             root.category.QUICKLINK,
-            root.category.WORKFLOW_EXECUTION,
+            root.category.PLUGIN_EXECUTION,
             root.category.URL_HISTORY,
             root.category.URL_DIRECT,
             root.category.EMOJI,
@@ -1097,37 +1097,37 @@ Singleton {
         }
     }
     
-    // Track if we're intentionally clearing query for workflow start
-    property bool workflowStarting: false
+    // Track if we're intentionally clearing query for plugin start
+    property bool pluginStarting: false
     // Track if we're clearing input after receiving a response (don't trigger search)
-    property bool workflowClearing: false
+    property bool pluginClearing: false
     
-    // Trigger workflow search when query changes
+    // Trigger plugin search when query changes
     onQueryChanged: {
-        if (WorkflowRunner.isActive()) {
-            // Don't exit workflow on empty query - let user use Escape to exit
+        if (PluginRunner.isActive()) {
+            // Don't exit plugin on empty query - let user use Escape to exit
             // Skip if we're programmatically clearing input after a response
-            if (!root.workflowStarting && !root.workflowClearing) {
+            if (!root.pluginStarting && !root.pluginClearing) {
                 // Only send search if inputMode is "realtime"
                 // For "submit" mode, wait for Enter key
-                if (WorkflowRunner.inputMode === "realtime") {
-                    workflowSearchTimer.restart();
+                if (PluginRunner.inputMode === "realtime") {
+                    pluginSearchTimer.restart();
                 }
             }
         } else if (root.isInExclusiveMode()) {
             // Already in exclusive mode, just let the query filter results
             // (no special handling needed)
         } else if (!root.exclusiveModeStarting) {
-            // Check for prefix triggers (not in workflow or exclusive mode)
+            // Check for prefix triggers (not in plugin or exclusive mode)
             if (root.query === root.filePrefix) {
-                // Start files workflow when ~ is typed
-                root.startWorkflow("files");
+                // Start files plugin when ~ is typed
+                root.startPlugin("files");
             } else if (root.query === Config.options.search.prefix.clipboard) {
-                // Start clipboard workflow when ; is typed
-                root.startWorkflow("clipboard");
+                // Start clipboard plugin when ; is typed
+                root.startPlugin("clipboard");
             } else if (root.query === Config.options.search.prefix.shellHistory) {
-                // Start shell workflow when ! is typed
-                root.startWorkflow("shell");
+                // Start shell plugin when ! is typed
+                root.startPlugin("shell");
             } else if (root.query === Config.options.search.prefix.action) {
                 // Enter exclusive action mode when / is typed
                 root.enterExclusiveMode("action");
@@ -1141,28 +1141,28 @@ Singleton {
         }
     }
     
-    // Submit workflow query (called on Enter key in submit mode)
-    function submitWorkflowQuery() {
-        if (WorkflowRunner.isActive() && WorkflowRunner.inputMode === "submit") {
-            WorkflowRunner.search(root.query);
+    // Submit plugin query (called on Enter key in submit mode)
+    function submitPluginQuery() {
+        if (PluginRunner.isActive() && PluginRunner.inputMode === "submit") {
+            PluginRunner.search(root.query);
         }
     }
     
-    // Exit workflow mode - should be called on Escape key
-    function exitWorkflow() {
-        if (WorkflowRunner.isActive()) {
-            WorkflowRunner.closeWorkflow();
+    // Exit plugin mode - should be called on Escape key
+    function exitPlugin() {
+        if (PluginRunner.isActive()) {
+            PluginRunner.closePlugin();
             root.query = "";
         }
     }
     
-    // Debounce timer for workflow search
+    // Debounce timer for plugin search
     Timer {
-        id: workflowSearchTimer
+        id: pluginSearchTimer
         interval: 150
         onTriggered: {
-            if (WorkflowRunner.isActive()) {
-                WorkflowRunner.search(root.query);
+            if (PluginRunner.isActive()) {
+                PluginRunner.search(root.query);
             }
         }
     }
@@ -1279,20 +1279,20 @@ Singleton {
     property list<var> results: {
         // Search results are handled here
         
-        ////////////////// Workflow mode - show workflow results //////////////////
+        ////////////////// Plugin mode - show plugin results //////////////////
         // Use property access (not function call) to ensure proper QML binding
-        const _workflowActive = WorkflowRunner.activeWorkflow !== null;
-        const _workflowResults = WorkflowRunner.workflowResults;
-        if (_workflowActive) {
-            // Convert workflow results to LauncherSearchResult objects
-            return root.workflowResultsToSearchResults(_workflowResults);
+        const _pluginActive = PluginRunner.activePlugin !== null;
+        const _pluginResults = PluginRunner.pluginResults;
+        if (_pluginActive) {
+            // Convert plugin results to LauncherSearchResult objects
+            return root.pluginResultsToSearchResults(_pluginResults);
         }
         
         ////////////////// Empty query - show recent history //////////////////
         if (root.query == "") {
             // Loading guard: wait for all async data sources to load before showing results
             // This prevents flickering where list populates incrementally
-            if (!root.historyLoaded || !root.quicklinksLoaded || !WorkflowRunner.workflowsLoaded) return [];
+            if (!root.historyLoaded || !root.quicklinksLoaded || !PluginRunner.pluginsLoaded) return [];
             
             // Force dependency on quicklinks and allActions for re-evaluation
             const _quicklinksLoaded = root.quicklinks.length;
@@ -1359,19 +1359,19 @@ Singleton {
                             }
                         });
                     } else if (item.type === "workflow") {
-                        const workflow = WorkflowRunner.getWorkflow(item.name);
-                        if (!workflow) return null;
+                        const plugin = PluginRunner.getPlugin(item.name);
+                        if (!plugin) return null;
                         return resultComp.createObject(null, {
                             type: "Recent",
-                            name: workflow.manifest?.name || item.name,
-                            iconName: workflow.manifest?.icon || 'extension',
+                            name: plugin.manifest?.name || item.name,
+                            iconName: plugin.manifest?.icon || 'extension',
                             iconType: LauncherSearchResult.IconType.Material,
-                            resultType: LauncherSearchResult.ResultType.WorkflowEntry,
+                            resultType: LauncherSearchResult.ResultType.PluginEntry,
                             verb: "Open",
                             actions: [makeRemoveAction("workflow", item.name)],
                             execute: () => {
                                 root.recordSearch("workflow", item.name, "");
-                                root.startWorkflow(item.name);
+                                root.startPlugin(item.name);
                             }
                         });
                     } else if (item.type === "quicklink") {
@@ -1450,8 +1450,8 @@ Singleton {
                                     // Direct command execution (fast path)
                                     Quickshell.execDetached(item.command);
                                 } else if (item.entryPoint && item.workflowId) {
-                                    // Workflow replay via entryPoint (complex actions)
-                                    WorkflowRunner.replayAction(item.workflowId, item.entryPoint);
+                                    // Plugin replay via entryPoint (complex actions)
+                                    PluginRunner.replayAction(item.workflowId, item.entryPoint);
                                 }
                             }
                         });
@@ -1501,7 +1501,7 @@ Singleton {
 
         ///////////// Special cases (exclusive - return early) ///////////////
         
-        // Actions/Workflows in exclusive mode - show only actions and workflows
+        // Actions/Plugins in exclusive mode - show only actions and plugins
         if (root.exclusiveMode === "action") {
             const searchString = root.query.split(" ")[0];
             const actionArgs = root.query.split(" ").slice(1).join(" ");
@@ -1526,27 +1526,27 @@ Singleton {
                 });
             });
             
-            // Get workflows
-            const workflowMatches = searchString === ""
-                ? WorkflowRunner.workflows.slice(0, 20)
-                : Fuzzy.go(searchString, root.preppedWorkflows, { key: "name", limit: 20 }).map(r => r.obj.workflow);
+            // Get plugins
+            const pluginMatches = searchString === ""
+                ? PluginRunner.plugins.slice(0, 20)
+                : Fuzzy.go(searchString, root.preppedPlugins, { key: "name", limit: 20 }).map(r => r.obj.plugin);
             
-            const workflowItems = workflowMatches.map(workflow => {
+            const pluginItems = pluginMatches.map(plugin => {
                 return resultComp.createObject(null, {
-                    name: workflow.manifest?.name || workflow.id,
-                    comment: workflow.manifest?.description || "",
+                    name: plugin.manifest?.name || plugin.id,
+                    comment: plugin.manifest?.description || "",
                     verb: "Open",
-                    type: "Workflow",
-                    iconName: workflow.manifest?.icon || 'extension',
+                    type: "Plugin",
+                    iconName: plugin.manifest?.icon || 'extension',
                     iconType: LauncherSearchResult.IconType.Material,
                     execute: () => {
-                        root.recordSearch("workflow", workflow.id, root.query);
-                        root.startWorkflow(workflow.id);
+                        root.recordSearch("workflow", plugin.id, root.query);
+                        root.startPlugin(plugin.id);
                     }
                 });
             });
             
-            return [...workflowItems, ...actionItems].filter(Boolean);
+            return [...pluginItems, ...actionItems].filter(Boolean);
         }
         
         // Emojis in exclusive mode - show full emoji results
@@ -1602,7 +1602,7 @@ Singleton {
         const categoryLimits = {
             [root.category.APP]: 8,
             [root.category.ACTION]: 5,
-            [root.category.WORKFLOW]: 5,
+            [root.category.PLUGIN]: 5,
             [root.category.QUICKLINK]: 5,
             [root.category.URL_DIRECT]: 1,
             [root.category.URL_HISTORY]: 3,
@@ -1727,83 +1727,83 @@ Singleton {
         
         categorized[root.category.ACTION] = actionResults.sort(root.compareResults);
         
-        // ========== WORKFLOWS ==========
-        // Multi-step action workflows from ~/.config/hamr/actions/
-        const seenWorkflows = new Set();
-        const workflowResults = Fuzzy.go(actionQuery, root.preppedWorkflows, { key: "name", limit: 10 })
+        // ========== PLUGINS ==========
+        // Multi-step action plugins from ~/.config/hamr/plugins/
+        const seenPlugins = new Set();
+        const pluginResults = Fuzzy.go(actionQuery, root.preppedPlugins, { key: "name", limit: 10 })
             .filter(result => {
-                const id = result.obj.workflow.id;
-                if (seenWorkflows.has(id)) return false;
-                seenWorkflows.add(id);
+                const id = result.obj.plugin.id;
+                if (seenPlugins.has(id)) return false;
+                seenPlugins.add(id);
                 return true;
             })
             .map(result => {
-                const workflow = result.obj.workflow;
-                const manifest = workflow.manifest;
-                const frecency = root.getHistoryBoost("workflow", workflow.id);
-                const historyItem = root.searchHistoryData.find(h => h.type === "workflow" && h.name === workflow.id);
+                const plugin = result.obj.plugin;
+                const manifest = plugin.manifest;
+                const frecency = root.getHistoryBoost("workflow", plugin.id);
+                const historyItem = root.searchHistoryData.find(h => h.type === "workflow" && h.name === plugin.id);
                 const recentTerms = historyItem?.recentSearchTerms || [];
                 const resultMatchType = root.getTermMatchBoost(recentTerms, actionQuery) > 0 
                     ? root.matchType.EXACT 
-                    : root.getMatchType(actionQuery, workflow.id);
+                    : root.getMatchType(actionQuery, plugin.id);
                 
                 return {
                     matchType: resultMatchType,
                     fuzzyScore: result._score,
                     frecency: frecency,
                     result: resultComp.createObject(null, {
-                        name: manifest.name ?? workflow.id,
+                        name: manifest.name ?? plugin.id,
                         comment: manifest.description ?? "",
                         verb: "Start",
-                        type: "Workflow",
+                        type: "Plugin",
                         iconName: manifest.icon ?? 'extension',
                         iconType: LauncherSearchResult.IconType.Material,
-                        resultType: LauncherSearchResult.ResultType.WorkflowEntry,
-                        workflowId: workflow.id,
+                        resultType: LauncherSearchResult.ResultType.PluginEntry,
+                        pluginId: plugin.id,
                         acceptsArguments: true,
-                        completionText: workflow.id + " ",
+                        completionText: plugin.id + " ",
                         execute: () => {
-                            root.recordSearch("workflow", workflow.id, root.query);
-                            root.startWorkflow(workflow.id);
+                            root.recordSearch("workflow", plugin.id, root.query);
+                            root.startPlugin(plugin.id);
                         }
                     })
                 };
             });
         
-        // Add workflow history term matches (e.g., "q" -> QuickLinks if user previously typed "q" to find it)
-        const workflowHistoryTermResults = Fuzzy.go(actionQuery, root.preppedWorkflowHistoryTerms, { key: "name", limit: 5 });
+        // Add plugin history term matches (e.g., "q" -> QuickLinks if user previously typed "q" to find it)
+        const pluginHistoryTermResults = Fuzzy.go(actionQuery, root.preppedPluginHistoryTerms, { key: "name", limit: 5 });
         
-        workflowHistoryTermResults
-            .filter(result => !seenWorkflows.has(result.obj.workflowId))
+        pluginHistoryTermResults
+            .filter(result => !seenPlugins.has(result.obj.pluginId))
             .forEach(result => {
-                const workflow = WorkflowRunner.getWorkflow(result.obj.workflowId);
-                if (!workflow) return;
-                seenWorkflows.add(result.obj.workflowId);
-                const manifest = workflow.manifest;
-                workflowResults.push({
+                const plugin = PluginRunner.getPlugin(result.obj.pluginId);
+                if (!plugin) return;
+                seenPlugins.add(result.obj.pluginId);
+                const manifest = plugin.manifest;
+                pluginResults.push({
                     matchType: root.matchType.EXACT, // Term match = treated as exact
                     fuzzyScore: result._score,
                     frecency: root.getFrecencyScore(result.obj.historyItem),
                     result: resultComp.createObject(null, {
-                        name: manifest?.name ?? workflow.id,
+                        name: manifest?.name ?? plugin.id,
                         comment: manifest?.description ?? "",
                         verb: "Start",
-                        type: "Workflow",
+                        type: "Plugin",
                         iconName: manifest?.icon ?? 'extension',
                         iconType: LauncherSearchResult.IconType.Material,
-                        resultType: LauncherSearchResult.ResultType.WorkflowEntry,
-                        workflowId: workflow.id,
+                        resultType: LauncherSearchResult.ResultType.PluginEntry,
+                        pluginId: plugin.id,
                         acceptsArguments: true,
-                        completionText: workflow.id + " ",
+                        completionText: plugin.id + " ",
                         execute: () => {
-                            root.recordSearch("workflow", workflow.id, root.query);
-                            root.startWorkflow(workflow.id);
+                            root.recordSearch("workflow", plugin.id, root.query);
+                            root.startPlugin(plugin.id);
                         }
                     })
                 });
             });
         
-        categorized[root.category.WORKFLOW] = workflowResults.sort(root.compareResults).slice(0, 3);
+        categorized[root.category.PLUGIN] = pluginResults.sort(root.compareResults).slice(0, 3);
         
         // ========== QUICKLINKS ==========
         const queryParts = root.query.split(" ");
@@ -2028,19 +2028,19 @@ Singleton {
         
         categorized[root.category.URL_HISTORY] = urlHistoryResults.sort(root.compareResults);
         
-        // ========== WORKFLOW EXECUTIONS ==========
-        const seenWorkflowExecutions = new Set();
-        const workflowExecResults = Fuzzy.go(root.query, root.preppedWorkflowExecutions, { key: "name", limit: 5 })
+        // ========== PLUGIN EXECUTIONS ==========
+        const seenPluginExecutions = new Set();
+        const pluginExecResults = Fuzzy.go(root.query, root.preppedPluginExecutions, { key: "name", limit: 5 })
             .map(result => {
                 const item = result.obj.historyItem;
-                seenWorkflowExecutions.add(item.key);
+                seenPluginExecutions.add(item.key);
                 const recentTerms = item.recentSearchTerms || [];
                 const resultMatchType = root.getTermMatchBoost(recentTerms, root.query) > 0 
                     ? root.matchType.EXACT 
                     : root.matchType.FUZZY;
                 
                 // Determine icon type from stored value
-                const wfIconType = item.iconType === "system" 
+                const pluginIconType = item.iconType === "system" 
                     ? LauncherSearchResult.IconType.System 
                     : LauncherSearchResult.IconType.Material;
                 return {
@@ -2051,7 +2051,7 @@ Singleton {
                         type: item.workflowName || "Recent",
                         name: item.name,
                         iconName: item.icon || 'play_arrow',
-                        iconType: wfIconType,
+                        iconType: pluginIconType,
                         thumbnail: item.thumbnail || "",
                         verb: "Run",
                         execute: ((capturedQuery) => () => {
@@ -2070,28 +2070,28 @@ Singleton {
                                 // Direct command execution (fast path)
                                 Quickshell.execDetached(item.command);
                             } else if (item.entryPoint && item.workflowId) {
-                                // Workflow replay via entryPoint (complex actions)
-                                WorkflowRunner.replayAction(item.workflowId, item.entryPoint);
+                                // Plugin replay via entryPoint (complex actions)
+                                PluginRunner.replayAction(item.workflowId, item.entryPoint);
                             }
                         })(root.query)
                     })
                 };
             });
         
-        // Add workflow execution history term matches
-        const workflowExecHistoryTermResults = Fuzzy.go(root.query, root.preppedWorkflowExecutionHistoryTerms, { key: "name", limit: 5 });
+        // Add plugin execution history term matches
+        const pluginExecHistoryTermResults = Fuzzy.go(root.query, root.preppedPluginExecutionHistoryTerms, { key: "name", limit: 5 });
         
-        workflowExecHistoryTermResults
-            .filter(result => !seenWorkflowExecutions.has(result.obj.executionKey))
+        pluginExecHistoryTermResults
+            .filter(result => !seenPluginExecutions.has(result.obj.executionKey))
             .forEach(result => {
                 const item = result.obj.historyItem;
-                seenWorkflowExecutions.add(item.key);
+                seenPluginExecutions.add(item.key);
                 
                 // Determine icon type from stored value
                 const termIconType = item.iconType === "system" 
                     ? LauncherSearchResult.IconType.System 
                     : LauncherSearchResult.IconType.Material;
-                workflowExecResults.push({
+                pluginExecResults.push({
                     matchType: root.matchType.EXACT, // Term match = treated as exact
                     fuzzyScore: result._score,
                     frecency: root.getFrecencyScore(item),
@@ -2116,14 +2116,14 @@ Singleton {
                             if (item.command && item.command.length > 0) {
                                 Quickshell.execDetached(item.command);
                             } else if (item.entryPoint && item.workflowId) {
-                                WorkflowRunner.replayAction(item.workflowId, item.entryPoint);
+                                PluginRunner.replayAction(item.workflowId, item.entryPoint);
                             }
                         })(root.query)
                     })
                 });
             });
         
-        categorized[root.category.WORKFLOW_EXECUTION] = workflowExecResults.sort(root.compareResults);
+        categorized[root.category.PLUGIN_EXECUTION] = pluginExecResults.sort(root.compareResults);
         
         // ========== EMOJI ==========
         const emojiResults = Fuzzy.go(root.query, Emojis.preparedEntries, { key: "name", limit: 3 }).map(result => {

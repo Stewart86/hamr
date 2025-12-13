@@ -1,8 +1,8 @@
 /**
- * WorkflowRichCard - Displays a rich, block-based workflow card
+ * PluginRichCard - Displays a rich, block-based plugin card
  *
- * This is designed for long-running conversational workflows (AI chat), but is
- * generic enough for other “timeline” style outputs: separators, pills (dates),
+ * This is designed for long-running conversational plugins (AI chat), but is
+ * generic enough for other "timeline" style outputs: separators, pills (dates),
  * messages, and expandable detail sections (tool calls, thinking, artifacts).
  *
  * Expected card shape (all optional unless noted):
@@ -132,7 +132,7 @@ Rectangle {
             }
         }
 
-        // Inline workflow busy indicator (keeps card visible)
+        // Inline plugin busy indicator (keeps card visible)
         RowLayout {
             visible: root.busy
             Layout.fillWidth: true

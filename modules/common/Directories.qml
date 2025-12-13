@@ -31,7 +31,7 @@ Singleton {
     property string generatedMaterialThemePath: FileUtils.trimFileProtocol(`${Directories.externalThemeState}/generated/colors.json`)
     
     // Hamr data paths
-    property string userActions: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/actions`)
+    property string userPlugins: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/plugins`)
     property string quicklinksConfig: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/quicklinks.json`)
     property string searchHistory: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/search-history.json`)
     property string shellConfigPath: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/config.json`)
@@ -43,7 +43,7 @@ Singleton {
     // Initialize directories on startup
     Component.onCompleted: {
         Quickshell.execDetached(["mkdir", "-p", hamrConfig])
-        Quickshell.execDetached(["mkdir", "-p", userActions])
+        Quickshell.execDetached(["mkdir", "-p", userPlugins])
         Quickshell.execDetached(["mkdir", "-p", favicons])
     }
 }
