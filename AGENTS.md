@@ -75,12 +75,12 @@ Symlinked to `~/.config/quickshell/` for testing.
 - `services/ShellHistory.qml` - Shell command history service (zsh/bash/fish support)
 - `services/WorkflowRunner.qml` - Multi-step workflow execution service
 
-### Overview UI Files
-- `modules/ii/overview/SearchWidget.qml` - Search results container, shows card or list
-- `modules/ii/overview/SearchItem.qml` - Individual search result item
-- `modules/ii/overview/SearchBar.qml` - Search input field
-- `modules/ii/overview/WorkflowCard.qml` - Rich card display for workflow responses
-- `modules/ii/overview/Overview.qml` - Main overview panel
+### Launcher UI Files
+- `modules/launcher/SearchWidget.qml` - Search results container, shows card or list
+- `modules/launcher/SearchItem.qml` - Individual search result item
+- `modules/launcher/SearchBar.qml` - Search input field
+- `modules/launcher/WorkflowCard.qml` - Rich card display for workflow responses
+- `modules/launcher/Launcher.qml` - Main launcher panel
 
 ### Supporting Files (may need minor edits)
 - `modules/common/Config.qml` - Configuration options (search prefixes, shellHistory settings)
@@ -204,7 +204,7 @@ Singleton {
 {"type": "execute", "execute": {"name": "Action Name", "entryPoint": {"step": "action", "selected": {"id": "item_id"}, "action": "do_something"}, "icon": "icon", "close": true}}
 
 // Open image browser (for image/wallpaper selection)
-{"type": "imageBrowser", "imageBrowser": {"directory": "~/Pictures", "title": "Select Image", "actions": [{"id": "action_id", "name": "Action Name", "icon": "icon"}]}}
+{"type": "imageBrowser", "imageBrowser": {"directory": "~/Pictures", "title": "Select Image", "enableOcr": false, "actions": [{"id": "action_id", "name": "Action Name", "icon": "icon"}]}}
 
 // Show prompt
 {"type": "prompt", "prompt": {"text": "Enter something..."}}
@@ -494,49 +494,21 @@ def main():
 
 ## Built-in Workflows
 
-### files/ - File Search
-Triggered by `~` prefix. Uses fd + fzf for fast fuzzy file search.
+> **Full plugin API documentation:** See [`actions/AGENTS.md`](actions/AGENTS.md) for complete JSON protocol reference and examples.
 
-```python
-# Result format
-{
-    "id": "/full/path/to/file",
-    "name": "filename.txt",
-    "description": "~/path/to/folder",  # Shown as subtitle
-    "icon": "description",               # File type icon
-    "thumbnail": "/path/to/image.png",   # For images
-    "actions": [
-        {"id": "open_folder", "name": "Open folder", "icon": "folder_open"},
-        {"id": "copy_path", "name": "Copy path", "icon": "content_copy"},
-        {"id": "delete", "name": "Delete", "icon": "delete"}
-    ]
-}
-```
-
-### quicklinks/ - Web Search Quicklinks
-Search the web with predefined quicklinks. Supports add/edit/delete.
-
-Features:
-- Browse quicklinks, fuzzy search by name or alias
-- Search with `{query}` placeholder in URL
-- Add new quicklinks (name + URL)
-- Edit existing quicklink URLs
-- Delete quicklinks
-
-### shell/ - Shell History
-Search and execute commands from shell history.
-
-### pictures/ - Image Browser
-Browse images with thumbnails, open/copy/delete actions.
-
-### wallpaper/ - Wallpaper Selector
-Uses the `imageBrowser` response type to show a rich image browser UI.
-- Opens image browser with dark/light mode actions
-- User selects image and action, handler receives selection
-- Sets wallpaper via switchwall.sh
-
-### dict/ - Dictionary Lookup
-Dictionary lookup returning card with definition.
+| Plugin | Trigger | Key Patterns Demonstrated |
+|--------|---------|---------------------------|
+| `files/` | `~` | Results with thumbnails, action buttons, fd+fzf integration |
+| `clipboard/` | `;` | Image thumbnails, wipe action |
+| `shell/` | `!` | Simple results, execute commands |
+| `bitwarden/` | `/bitwarden` | entryPoint replay, cache, error cards |
+| `quicklinks/` | `/quicklinks` | Submit mode, context persistence, CRUD |
+| `dict/` | `/dict` | Card response, API fetch |
+| `pictures/` | `/pictures` | Thumbnails, multi-turn navigation |
+| `screenshot/` | `/screenshot` | imageBrowser with `enableOcr: true` |
+| `snippet/` | `/snippet` | Submit mode for text input |
+| `todo/` | `/todo` | Submit mode, IPC refresh, CRUD |
+| `wallpaper/` | `/wallpaper` | imageBrowser, history tracking |
 
 ## Image Browser Response Type
 
@@ -550,6 +522,7 @@ print(json.dumps({
     "imageBrowser": {
         "directory": "~/Pictures/Wallpapers",  # Initial directory (~ expanded)
         "title": "Select Wallpaper",           # Title shown in sidebar
+        "enableOcr": False,                    # Optional: enable OCR text search (requires tesseract)
         "actions": [                           # Custom action buttons in toolbar
             {"id": "set_dark", "name": "Set (Dark Mode)", "icon": "dark_mode"},
             {"id": "set_light", "name": "Set (Light Mode)", "icon": "light_mode"},
@@ -557,6 +530,14 @@ print(json.dumps({
     }
 }))
 ```
+
+**Image Browser Options:**
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `directory` | string | required | Initial directory path (`~` expanded) |
+| `title` | string | `""` | Title shown in the sidebar |
+| `enableOcr` | bool | `false` | Enable background OCR indexing for text search (requires tesseract) |
+| `actions` | array | `[]` | Custom action buttons shown in toolbar |
 
 ### Receiving Selection
 

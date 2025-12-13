@@ -112,8 +112,10 @@ Hamr uses Material Design colors from `~/.local/state/user/generated/colors.json
 ## Creating Plugins
 
 Plugins live in `~/.config/hamr/actions/`. Each plugin is either:
-- A **folder** with `manifest.json` + `handler.py` (multi-step plugins)
+- A **folder** with `manifest.json` + handler executable (multi-step plugins)
 - An **executable script** (simple one-shot actions)
+
+**Language agnostic:** Plugins communicate via JSON over stdin/stdout. Use Python, Bash, Go, Rust, Node.js - any language that can read/write JSON.
 
 ### What Plugins Can Do
 
