@@ -40,6 +40,7 @@ Hamr is extracted and adapted from [end-4's illogical-impulse](https://github.co
 | `bitwarden` | `/bitwarden` | Password manager with local caching |
 | `quicklinks` | `/quicklinks` | Web search with customizable quicklinks |
 | `dict` | `/dict` | Dictionary lookup with definitions |
+| `notes` | `/notes` | Quick notes with multi-line content support |
 | `pictures` | `/pictures` | Browse images with thumbnails |
 | `screenshot` | `/screenshot` | Browse screenshots with OCR text search |
 | `snippet` | `/snippet` | Text snippets for quick insertion |
@@ -124,6 +125,7 @@ Plugins live in `~/.config/hamr/actions/`. Each plugin is either:
 |------------|-------------|
 | **Multi-step navigation** | Show lists, let users drill down, navigate back |
 | **Rich cards** | Display markdown content (definitions, previews, help) |
+| **Multi-field forms** | Forms with text, textarea, select, checkbox fields |
 | **Image thumbnails** | Show image previews in result lists |
 | **Action buttons** | Add context actions per item (copy, delete, open folder) |
 | **Image browser** | Full image browser UI with directory navigation |
@@ -262,6 +264,25 @@ Type `/hello` to try it!
 ```
 
 Set `enableOcr: true` to enable background OCR indexing for text search within images (requires tesseract).
+
+**Show Form (multi-field input):**
+```json
+{
+  "type": "form",
+  "form": {
+    "title": "Add Note",
+    "submitLabel": "Save",
+    "fields": [
+      {"id": "title", "type": "text", "label": "Title", "required": true},
+      {"id": "content", "type": "textarea", "label": "Content", "rows": 6}
+    ]
+  },
+  "context": "add_note"
+}
+```
+
+Handler receives `{"step": "form", "formData": {"title": "...", "content": "..."}}` on submit.
+Field types: `text`, `textarea`, `select`, `checkbox`, `password`. Keyboard: `Esc` cancel, `Ctrl+Enter` submit.
 
 #### Input Modes
 
