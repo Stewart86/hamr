@@ -11,6 +11,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Test mode - skip external tool calls
+TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
+
 # Todo file location (same as Quickshell's Todo.qml)
 STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
 TODO_FILE = STATE_DIR / "quickshell" / "user" / "todo.json"
@@ -84,11 +87,16 @@ def get_todo_results(todos: list[dict], show_add: bool = True) -> list[dict]:
 
 def refresh_sidebar():
     """Refresh the Todo sidebar via IPC"""
-    subprocess.Popen(
-        ["qs", "-c", "ii", "ipc", "call", "todo", "refresh"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    if TEST_MODE:
+        return  # Skip IPC in test mode
+    try:
+        subprocess.Popen(
+            ["qs", "-c", "ii", "ipc", "call", "todo", "refresh"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except FileNotFoundError:
+        pass  # qs not installed, skip refresh
 
 
 def respond(

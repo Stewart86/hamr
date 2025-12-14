@@ -6,11 +6,15 @@ Automatically trims the end of recordings to remove hamr UI.
 """
 
 import json
+import os
 import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
+
+# Test mode - mock external tool calls
+TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
 # Directories
 VIDEOS_DIR = Path.home() / "Videos"
@@ -25,11 +29,21 @@ TRIM_BUFFER_MS = 500  # Extra buffer to ensure hamr animation is trimmed
 
 def is_recording() -> bool:
     """Check if wf-recorder is currently running."""
-    return subprocess.run(["pgrep", "wf-recorder"], capture_output=True).returncode == 0
+    if TEST_MODE:
+        return False  # Not recording in test mode
+    try:
+        return (
+            subprocess.run(["pgrep", "wf-recorder"], capture_output=True).returncode
+            == 0
+        )
+    except FileNotFoundError:
+        return False
 
 
 def get_focused_monitor() -> str:
     """Get the name of the currently focused monitor."""
+    if TEST_MODE:
+        return "eDP-1"  # Mock monitor name
     try:
         result = subprocess.run(
             ["hyprctl", "monitors", "-j"], capture_output=True, text=True, timeout=5
@@ -38,13 +52,20 @@ def get_focused_monitor() -> str:
         for monitor in monitors:
             if monitor.get("focused"):
                 return monitor.get("name", "")
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError):
+    except (
+        subprocess.TimeoutExpired,
+        json.JSONDecodeError,
+        KeyError,
+        FileNotFoundError,
+    ):
         pass
     return ""
 
 
 def get_audio_source() -> str:
     """Get the monitor audio source for recording system audio."""
+    if TEST_MODE:
+        return "alsa_output.pci-0000_00_1f.3.analog-stereo.monitor"  # Mock audio source
     try:
         result = subprocess.run(
             ["pactl", "list", "sources"],
@@ -55,7 +76,7 @@ def get_audio_source() -> str:
         for line in result.stdout.split("\n"):
             if "Name:" in line and "monitor" in line.lower():
                 return line.split("Name:")[1].strip()
-    except subprocess.TimeoutExpired:
+    except (subprocess.TimeoutExpired, FileNotFoundError):
         pass
     return ""
 

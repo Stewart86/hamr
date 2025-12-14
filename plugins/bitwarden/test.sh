@@ -121,8 +121,10 @@ get_test_session() {
 
 test_no_bw_cli_response() {
     # When bw CLI is not available, handler should return error card
-    if has_bw; then
-        # Skip this test if bw is installed
+    # This test only runs when bw is NOT installed AND we're NOT in test mode
+    # In test mode, we mock the bw CLI existence, so we skip this test
+    if has_bw || [[ "$HAMR_TEST_MODE" == "1" ]]; then
+        # Skip this test if bw is installed or we're in test mode
         return 0
     fi
     
