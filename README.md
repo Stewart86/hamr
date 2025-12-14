@@ -4,6 +4,8 @@
 
 Hamr is an extensible launcher for Hyprland built with [Quickshell](https://quickshell.outfoxxed.me/). Extend it with plugins written in Python using a simple JSON protocol.
 
+![Hamr Demo](assets/recording/hamr-demo.gif)
+
 ## Screenshots
 
 ![Hamr Overview](assets/screenshots/hamr-overview.png)
