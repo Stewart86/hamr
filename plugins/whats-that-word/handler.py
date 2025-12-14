@@ -38,7 +38,7 @@ def query_ai(user_input: str) -> list[str]:
     try:
         prompt = f"{SYSTEM_PROMPT}\n\nUser input: {user_input}"
         result = subprocess.run(
-            ["opencode", "run", prompt],
+            ["opencode", "--model", "google/gemini-2.5-flash", "run", prompt],
             capture_output=True,
             text=True,
             timeout=30,
