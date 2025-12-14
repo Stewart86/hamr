@@ -129,6 +129,8 @@ Singleton {
     function startPlugin(pluginId) {
         const success = PluginRunner.startPlugin(pluginId);
         if (success) {
+            // Clear exclusive mode when starting a plugin
+            root.exclusiveMode = "";
             // Clear query for fresh plugin input
             root.pluginStarting = true;
             root.query = "";
@@ -1329,6 +1331,8 @@ Singleton {
                     type: "Plugin",
                     iconName: plugin.manifest?.icon || 'extension',
                     iconType: LauncherSearchResult.IconType.Material,
+                    resultType: LauncherSearchResult.ResultType.PluginEntry,
+                    pluginId: plugin.id,
                     execute: () => {
                         root.recordSearch("workflow", plugin.id, root.query);
                         root.startPlugin(plugin.id);
@@ -1772,9 +1776,8 @@ Singleton {
         // Add plugin history term matches (e.g., "q" -> QuickLinks if user previously typed "q" to find it)
         const pluginHistoryTermResults = Fuzzy.go(actionQuery, root.preppedPluginHistoryTerms, { key: "name", limit: 5 });
         
-        pluginHistoryTermResults
-            .filter(result => !seenPlugins.has(result.obj.pluginId))
-            .forEach(result => {
+        pluginHistoryTermResults.forEach(result => {
+                if (seenPlugins.has(result.obj.pluginId)) return;
                 const plugin = PluginRunner.getPlugin(result.obj.pluginId);
                 if (!plugin) return;
                 seenPlugins.add(result.obj.pluginId);

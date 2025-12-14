@@ -26,7 +26,9 @@ Item { // Wrapper
     property alias contentItem: searchWidgetContent
 
     function focusFirstItem() {
-        appResults.currentIndex = 0;
+        if (appResults.count > 0) {
+            appResults.currentIndex = 0;
+        }
     }
 
     function focusSearchInput() {
@@ -381,6 +383,7 @@ Item { // Wrapper
                     clip: true
                     cacheBuffer: 500  // Keep more delegates cached to reduce flicker
                     reuseItems: true  // Enable delegate reuse
+                    currentIndex: -1  // Start with no selection to prevent out-of-range errors
                     topMargin: 6
                     bottomMargin: 6
                     spacing: 2
@@ -388,7 +391,7 @@ Item { // Wrapper
                     highlightMoveDuration: 100
 
                 onFocusChanged: {
-                    if (focus)
+                    if (focus && appResults.count > 1)
                         appResults.currentIndex = 1;
                 }
 
@@ -405,9 +408,10 @@ Item { // Wrapper
                     objectProp: "key"
                     values: LauncherSearch.results
                     onValuesChanged: {
+                        // Reset index before model updates to prevent out-of-range errors
+                        appResults.currentIndex = -1;
                         if (LauncherSearch.skipNextAutoFocus) {
                             LauncherSearch.skipNextAutoFocus = false;
-                            appResults.currentIndex = -1;
                             return;
                         }
                         root.focusFirstItem();

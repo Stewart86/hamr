@@ -148,13 +148,16 @@ Singleton {
                     const manifest = JSON.parse(manifestLoader.outputBuffer.trim());
                     manifest._handlerPath = manifestLoader.pluginPath + "/handler.py";
                     
-                    const updated = root.plugins.slice();
-                    updated.push({
-                        id: manifestLoader.pluginId,
-                        path: manifestLoader.pluginPath,
-                        manifest: manifest
-                    });
-                    root.plugins = updated;
+                    // Skip if plugin already exists (prevents duplicates from race conditions)
+                    if (!root.plugins.some(p => p.id === manifestLoader.pluginId)) {
+                        const updated = root.plugins.slice();
+                        updated.push({
+                            id: manifestLoader.pluginId,
+                            path: manifestLoader.pluginPath,
+                            manifest: manifest
+                        });
+                        root.plugins = updated;
+                    }
                 } catch (e) {
                     console.warn(`[PluginRunner] Failed to parse manifest for ${manifestLoader.pluginId}:`, e);
                 }
