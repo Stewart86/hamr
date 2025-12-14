@@ -4,6 +4,12 @@
 
 Hamr is an extensible launcher for Hyprland built with [Quickshell](https://quickshell.outfoxxed.me/). Extend it with plugins written in Python using a simple JSON protocol.
 
+## Screenshots
+
+| Overview | Plugins |
+|----------|---------|
+| ![Hamr Overview](assets/screenshots/hamr-overview.png) | ![Hamr Plugins](assets/screenshots/hamr-plugins.png) |
+
 ## Compatibility
 
 Hamr works standalone but is **best used alongside [end-4's illogical-impulse](https://github.com/end-4/dots-hyprland)** dotfiles. Many built-in plugins (wallpaper switching, theme toggling, etc.) are designed to integrate with illogical-impulse's theming system.
