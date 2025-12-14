@@ -7,7 +7,7 @@ import QtQuick.Controls
  */
 TextInput {
     color: Appearance.colors.colOnLayer1
-    renderType: Text.NativeRendering
+    renderType: Text.QtRendering
     selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
     selectionColor: Appearance.colors.colSecondaryContainer
     font {
