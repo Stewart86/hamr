@@ -14,9 +14,13 @@ Note: Uses a delay before typing to allow focus to return to previous window
 """
 
 import json
+import os
 import sys
 import shutil
 from pathlib import Path
+
+# Test mode - mock external tool availability
+TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
 SNIPPETS_PATH = Path.home() / ".config/hamr/snippets.json"
 # Delay in ms before typing to allow focus to return
@@ -126,6 +130,8 @@ def get_main_menu(snippets: list[dict], query: str = "") -> list[dict]:
 
 def check_ydotool() -> bool:
     """Check if ydotool is available"""
+    if TEST_MODE:
+        return True  # Assume available in test mode
     return shutil.which("ydotool") is not None
 
 

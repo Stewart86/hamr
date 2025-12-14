@@ -4,13 +4,139 @@ Dictionary workflow handler - looks up word definitions using Free Dictionary AP
 """
 
 import json
+import os
 import sys
 import urllib.request
 import urllib.error
 
+# Test mode - return mock data instead of calling real API
+TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
+
+# Mock definitions for common test words
+MOCK_DEFINITIONS = {
+    "hello": {
+        "word": "hello",
+        "phonetic": "/həˈloʊ/",
+        "meanings": [
+            {
+                "partOfSpeech": "exclamation",
+                "definitions": [
+                    {
+                        "definition": "Used as a greeting or to begin a phone conversation.",
+                        "example": "Hello, how are you?",
+                    }
+                ],
+            },
+            {
+                "partOfSpeech": "noun",
+                "definitions": [
+                    {
+                        "definition": "An utterance of 'hello'; a greeting.",
+                        "example": "She gave a friendly hello.",
+                    }
+                ],
+            },
+        ],
+    },
+    "cat": {
+        "word": "cat",
+        "phonetic": "/kæt/",
+        "meanings": [
+            {
+                "partOfSpeech": "noun",
+                "definitions": [
+                    {
+                        "definition": "A small domesticated carnivorous mammal with soft fur.",
+                        "example": "The cat sat on the mat.",
+                    }
+                ],
+            }
+        ],
+    },
+    "dog": {
+        "word": "dog",
+        "phonetic": "/dɔɡ/",
+        "meanings": [
+            {
+                "partOfSpeech": "noun",
+                "definitions": [
+                    {
+                        "definition": "A domesticated carnivorous mammal that typically has a long snout and an acute sense of smell.",
+                        "example": "The dog wagged its tail.",
+                    }
+                ],
+            }
+        ],
+    },
+    "run": {
+        "word": "run",
+        "phonetic": "/rʌn/",
+        "meanings": [
+            {
+                "partOfSpeech": "verb",
+                "definitions": [
+                    {
+                        "definition": "Move at a speed faster than a walk.",
+                        "example": "She ran to catch the bus.",
+                    }
+                ],
+            }
+        ],
+    },
+    "walk": {
+        "word": "walk",
+        "phonetic": "/wɔːk/",
+        "meanings": [
+            {
+                "partOfSpeech": "verb",
+                "definitions": [
+                    {
+                        "definition": "Move at a regular pace by lifting and setting down each foot in turn.",
+                        "example": "We walked along the beach.",
+                    }
+                ],
+            }
+        ],
+    },
+    "think": {
+        "word": "think",
+        "phonetic": "/θɪŋk/",
+        "meanings": [
+            {
+                "partOfSpeech": "verb",
+                "definitions": [
+                    {
+                        "definition": "Have a particular belief or idea.",
+                        "example": "I think it's going to rain.",
+                    }
+                ],
+            }
+        ],
+    },
+    "a": {
+        "word": "a",
+        "phonetic": "/ə/",
+        "meanings": [
+            {
+                "partOfSpeech": "article",
+                "definitions": [
+                    {
+                        "definition": "Used when referring to someone or something for the first time.",
+                        "example": "A man walked into the room.",
+                    }
+                ],
+            }
+        ],
+    },
+}
+
 
 def get_definition(word: str) -> dict | None:
-    """Fetch word definition from Free Dictionary API"""
+    """Fetch word definition from Free Dictionary API (or mock in test mode)"""
+    if TEST_MODE:
+        # Return mock data in test mode
+        return MOCK_DEFINITIONS.get(word.lower())
+
     url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
@@ -138,10 +264,11 @@ def main():
                 data = get_definition(word)
                 if data:
                     content = format_definition(data)
-                    # Copy to clipboard using wl-copy
-                    import subprocess
+                    # Copy to clipboard using wl-copy (skip in test mode)
+                    if not TEST_MODE:
+                        import subprocess
 
-                    subprocess.run(["wl-copy", content], check=False)
+                        subprocess.run(["wl-copy", content], check=False)
 
                     print(
                         json.dumps(

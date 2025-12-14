@@ -27,7 +27,7 @@ MouseArea {
     Component.onCompleted: {
         if (initialDirectory) {
             // Set initial directory from workflow config
-            const expandedPath = initialDirectory.replace(/^~/, Directories.home.replace("file://", ""));
+            const expandedPath = initialDirectory.replace(/^~/, FileUtils.trimFileProtocol(Directories.home));
             FolderBrowser.setDirectory(expandedPath);
         }
         // Enable OCR if configured

@@ -53,7 +53,7 @@ IconImage {
         id: reloadTimer
         interval: 50
         onTriggered: {
-            root.currentSource = `file://${root.faviconFilePath}`
+            root.currentSource = Qt.resolvedUrl(root.faviconFilePath)
         }
     }
 
@@ -61,7 +61,7 @@ IconImage {
     Component.onCompleted: {
         if (root.hasDomain) {
             root.loadAttempt = 1
-            root.currentSource = `file://${root.faviconFilePath}`
+            root.currentSource = Qt.resolvedUrl(root.faviconFilePath)
         }
     }
 

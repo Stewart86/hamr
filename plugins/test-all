@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+#
+# Run all plugin tests
+# Usage: ./test-all [plugin-name...]
+#
+# Examples:
+#   ./test-all              # Run all tests
+#   ./test-all clipboard    # Run only clipboard tests
+#   ./test-all dict notes   # Run dict and notes tests
+#
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+# Ensure test mode is set
+export HAMR_TEST_MODE=1
+
+# Track results
+declare -a PASSED_PLUGINS=()
+declare -a FAILED_PLUGINS=()
+TOTAL_TESTS=0
+TOTAL_PASSED=0
+TOTAL_FAILED=0
+
+# Get list of plugins to test
+if [[ $# -gt 0 ]]; then
+    PLUGINS=("$@")
+else
+    PLUGINS=()
+    for dir in "$SCRIPT_DIR"/*/; do
+        plugin_name=$(basename "$dir")
+        if [[ -f "$dir/test.sh" ]]; then
+            PLUGINS+=("$plugin_name")
+        fi
+    done
+fi
+
+echo -e "${BOLD}Running Hamr Plugin Tests${NC}"
+echo -e "${BLUE}HAMR_TEST_MODE=${HAMR_TEST_MODE}${NC}"
+echo ""
+
+for plugin in "${PLUGINS[@]}"; do
+    test_file="$SCRIPT_DIR/$plugin/test.sh"
+    
+    if [[ ! -f "$test_file" ]]; then
+        echo -e "${YELLOW}[SKIP]${NC} $plugin - no test.sh found"
+        continue
+    fi
+    
+    echo -e "${BOLD}Testing: $plugin${NC}"
+    
+    # Run tests and capture output
+    set +e
+    output=$(bash "$test_file" 2>&1)
+    exit_code=$?
+    set -e
+    
+    # Parse test counts from output: "Tests: 22 | Passed: 22 | Failed: 0"
+    if [[ "$output" =~ Passed:\ ([0-9]+) ]]; then
+        passed="${BASH_REMATCH[1]}"
+    else
+        passed=0
+    fi
+    
+    if [[ "$output" =~ Failed:\ ([0-9]+) ]]; then
+        failed="${BASH_REMATCH[1]}"
+    else
+        failed=0
+    fi
+    
+    tests=$((passed + failed))
+    TOTAL_TESTS=$((TOTAL_TESTS + tests))
+    TOTAL_PASSED=$((TOTAL_PASSED + passed))
+    TOTAL_FAILED=$((TOTAL_FAILED + failed))
+    
+    if [[ $exit_code -eq 0 ]]; then
+        echo -e "  ${GREEN}PASS${NC} ($passed tests)"
+        PASSED_PLUGINS+=("$plugin")
+    else
+        echo -e "  ${RED}FAIL${NC} ($passed passed, $failed failed)"
+        FAILED_PLUGINS+=("$plugin")
+        # Show failed test output indented
+        echo "$output" | grep -E "^\[FAIL\]" | sed 's/^/    /'
+    fi
+done
+
+echo ""
+echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${BOLD}Summary${NC}"
+echo -e "  Plugins: ${#PASSED_PLUGINS[@]} passed, ${#FAILED_PLUGINS[@]} failed"
+echo -e "  Tests:   $TOTAL_PASSED passed, $TOTAL_FAILED failed (total: $TOTAL_TESTS)"
+
+if [[ ${#FAILED_PLUGINS[@]} -gt 0 ]]; then
+    echo ""
+    echo -e "${RED}Failed plugins:${NC}"
+    for plugin in "${FAILED_PLUGINS[@]}"; do
+        echo -e "  - $plugin"
+    done
+    exit 1
+fi
+
+echo ""
+echo -e "${GREEN}All tests passed!${NC}"
+exit 0

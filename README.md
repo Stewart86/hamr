@@ -84,6 +84,110 @@ Hamr is extracted and adapted from [end-4's illogical-impulse](https://github.co
 - Optional: [illogical-impulse](https://github.com/end-4/dots-hyprland) for full theme integration
 - Optional: `fd`, `fzf`, `cliphist`, `wl-clipboard`, `bw` (Bitwarden CLI), `tesseract` (OCR) for respective plugins
 
+### Required Fonts
+
+Hamr requires the following fonts for proper display:
+
+| Font | Purpose |
+|------|---------|
+| **Material Symbols Rounded** | Icons throughout the UI |
+| **JetBrains Mono NF** | Monospace text and Nerd Font icons |
+| **Google Sans Flex** | Main UI text |
+| **Readex Pro** | Reading/content text |
+| **Space Grotesk** | Expressive text elements |
+
+<details>
+<summary><strong>Arch Linux / CachyOS / EndeavourOS</strong></summary>
+
+```bash
+# From official repos
+sudo pacman -S ttf-jetbrains-mono-nerd ttf-material-symbols-variable-git
+
+# From AUR (using yay or paru)
+yay -S ttf-google-sans ttf-readex-pro ttf-space-grotesk
+```
+
+</details>
+
+<details>
+<summary><strong>Fedora</strong></summary>
+
+```bash
+# JetBrains Mono Nerd Font
+sudo dnf install jetbrains-mono-fonts
+
+# For other fonts, download from Google Fonts and install manually:
+# - https://fonts.google.com/specimen/Google+Sans+Flex (or use Product Sans)
+# - https://fonts.google.com/specimen/Readex+Pro
+# - https://fonts.google.com/specimen/Space+Grotesk
+# - https://github.com/google/material-design-icons/tree/master/variablefont
+
+# Install downloaded fonts:
+mkdir -p ~/.local/share/fonts
+cp *.ttf ~/.local/share/fonts/
+fc-cache -fv
+```
+
+</details>
+
+<details>
+<summary><strong>Ubuntu / Debian</strong></summary>
+
+```bash
+# JetBrains Mono (Nerd Font version from GitHub releases)
+wget https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/JetBrainsMono.zip
+unzip JetBrainsMono.zip -d ~/.local/share/fonts/JetBrainsMono
+fc-cache -fv
+
+# For other fonts, download from Google Fonts:
+# - https://fonts.google.com/specimen/Readex+Pro
+# - https://fonts.google.com/specimen/Space+Grotesk
+# - Material Symbols: https://github.com/google/material-design-icons/tree/master/variablefont
+
+mkdir -p ~/.local/share/fonts
+# Copy downloaded .ttf files to ~/.local/share/fonts/
+fc-cache -fv
+```
+
+</details>
+
+<details>
+<summary><strong>NixOS</strong></summary>
+
+```nix
+# In configuration.nix or home-manager
+fonts.packages = with pkgs; [
+  jetbrains-mono
+  nerd-fonts.jetbrains-mono
+  material-symbols
+  # Google Sans Flex may need to be installed manually
+];
+```
+
+</details>
+
+<details>
+<summary><strong>Manual Installation (Any Distro)</strong></summary>
+
+Download fonts from:
+- [JetBrains Mono Nerd Font](https://github.com/ryanoasis/nerd-fonts/releases) - Download `JetBrainsMono.zip`
+- [Material Symbols](https://github.com/google/material-design-icons/tree/master/variablefont) - Download the variable font
+- [Readex Pro](https://fonts.google.com/specimen/Readex+Pro)
+- [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk)
+- Google Sans Flex - Part of Google's proprietary fonts; alternatives: [Product Sans](https://befonts.com/product-sans-font.html) or use system sans-serif
+
+```bash
+# Install to user fonts directory
+mkdir -p ~/.local/share/fonts
+cp *.ttf ~/.local/share/fonts/
+fc-cache -fv
+
+# Verify installation
+fc-list | grep -i "JetBrains\|Material\|Readex\|Space Grotesk"
+```
+
+</details>
+
 ### Steps
 
 ```bash

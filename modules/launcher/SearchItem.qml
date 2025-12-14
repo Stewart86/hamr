@@ -250,7 +250,7 @@ RippleButton {
                 
                 Image {
                     anchors.fill: parent
-                    source: root.thumbnail ? `file://${root.thumbnail}` : ""
+                    source: root.thumbnail ? Qt.resolvedUrl(root.thumbnail) : ""
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     sourceSize.width: 80

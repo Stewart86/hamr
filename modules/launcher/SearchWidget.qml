@@ -139,15 +139,15 @@ Item { // Wrapper
             }
             spacing: 0
 
-            // clip: true
-            layer.enabled: true
-            layer.effect: OpacityMask {
-                maskSource: Rectangle {
-                    width: searchWidgetContent.width
-                    height: searchWidgetContent.height
-                    radius: searchWidgetContent.radius
-                }
-            }
+            clip: true
+            // layer.enabled: true
+            // layer.effect: OpacityMask {
+            //     maskSource: Rectangle {
+            //         width: searchWidgetContent.width
+            //         height: searchWidgetContent.height
+            //         radius: searchWidgetContent.radius
+            //     }
+            // }
 
             // Elevated search bar container
             Rectangle {

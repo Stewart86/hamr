@@ -84,7 +84,9 @@ Singleton {
     // Uses FolderListModel to auto-reload when scripts are added/removed
     // Note: Plugin folders (containing manifest.json) are handled by PluginRunner
     // Excludes text/config files like .md, .txt, .json, .yaml, etc.
-    readonly property var excludedActionExtensions: [".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".log", ".csv"]
+    // Excludes test-* prefixed files (test utilities)
+    readonly property var excludedActionExtensions: [".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".log", ".csv", ".sh"]
+    readonly property var excludedActionPrefixes: ["test-", "hamr-test"]
     
     property var userActionScripts: {
         const actions = [];
@@ -97,9 +99,13 @@ Singleton {
                 if (root.excludedActionExtensions.some(ext => lowerName.endsWith(ext))) {
                     continue;
                 }
+                // Skip test utilities (test-*, hamr-test)
+                if (root.excludedActionPrefixes.some(prefix => lowerName.startsWith(prefix))) {
+                    continue;
+                }
                 
                 const actionName = fileName.replace(/\.[^/.]+$/, ""); // strip extension
-                const scriptPath = filePath.toString().replace("file://", "");
+                const scriptPath = FileUtils.trimFileProtocol(filePath);
                 actions.push({
                     action: actionName,
                     execute: ((path) => (args) => {
@@ -114,7 +120,7 @@ Singleton {
 
     FolderListModel {
         id: userActionsFolder
-        folder: `file://${Directories.userPlugins}`
+        folder: Qt.resolvedUrl(Directories.userPlugins)
         showDirs: false
         showHidden: false
         sortField: FolderListModel.Name
@@ -2156,14 +2162,14 @@ Singleton {
                 fuzzyScore: 1000,
                 frecency: 0,
                 result: resultComp.createObject(null, {
-                    name: StringUtils.cleanPrefix(root.query, Config.options.search.prefix.shellCommand).replace("file://", ""),
+                    name: FileUtils.trimFileProtocol(StringUtils.cleanPrefix(root.query, Config.options.search.prefix.shellCommand)),
                     verb: "Run",
                     type: "Command",
                     fontType: LauncherSearchResult.FontType.Monospace,
                     iconName: 'terminal',
                     iconType: LauncherSearchResult.IconType.Material,
                     execute: () => {
-                        let cleanedCommand = root.query.replace("file://", "");
+                        let cleanedCommand = FileUtils.trimFileProtocol(root.query);
                         cleanedCommand = StringUtils.cleanPrefix(cleanedCommand, Config.options.search.prefix.shellCommand);
                         Quickshell.execDetached(["ghostty", "--class=floating.terminal", "-e", "zsh", "-ic", cleanedCommand]);
                     }

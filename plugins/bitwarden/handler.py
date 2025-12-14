@@ -15,6 +15,49 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Test mode - return mock data instead of calling real Bitwarden CLI
+TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
+
+# Mock vault items for testing
+MOCK_VAULT_ITEMS = [
+    {
+        "id": "mock-github-id",
+        "name": "GitHub",
+        "type": 1,
+        "login": {
+            "username": "testuser@example.com",
+            "password": "mock-password-123",
+            "totp": "JBSWY3DPEHPK3PXP",
+        },
+        "notes": "Personal GitHub account",
+    },
+    {
+        "id": "mock-google-id",
+        "name": "Google",
+        "type": 1,
+        "login": {
+            "username": "testuser@gmail.com",
+            "password": "mock-google-pass",
+            "totp": None,
+        },
+        "notes": "",
+    },
+    {
+        "id": "mock-note-id",
+        "name": "Secret Note",
+        "type": 2,
+        "login": {},
+        "notes": "This is a secure note with sensitive info",
+    },
+    {
+        "id": "mock-card-id",
+        "name": "Credit Card",
+        "type": 3,
+        "login": {},
+        "notes": "Main credit card",
+    },
+]
+
 # Cache directory for vault items
 CACHE_DIR = (
     Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
@@ -27,6 +70,9 @@ CACHE_MAX_AGE_SECONDS = 300  # 5 minutes
 
 def find_bw() -> str | None:
     """Find bw executable, checking common user paths"""
+    if TEST_MODE:
+        return "/mock/bw"  # Return fake path in test mode
+
     bw_path = shutil.which("bw")
     if bw_path:
         return bw_path
@@ -59,6 +105,9 @@ BW_PATH = find_bw()
 
 def get_session() -> str | None:
     """Get session from file locations (env var often stale in graphical apps)"""
+    if TEST_MODE:
+        return "mock-session-token"  # Return fake session in test mode
+
     home = Path.home()
     session_files = [
         home / ".bw_session",
@@ -78,6 +127,22 @@ def get_session() -> str | None:
 
 def run_bw(args: list[str], session: str | None = None) -> tuple[bool, str]:
     """Run bw command and return (success, output)"""
+    # In test mode, return mock responses
+    if TEST_MODE:
+        if args == ["list", "items"]:
+            return True, json.dumps(MOCK_VAULT_ITEMS)
+        elif args == ["sync"]:
+            return True, "Syncing complete."
+        elif len(args) >= 3 and args[0] == "get" and args[1] == "item":
+            item_id = args[2]
+            for item in MOCK_VAULT_ITEMS:
+                if item["id"] == item_id:
+                    return True, json.dumps(item)
+            return False, "Item not found"
+        elif len(args) >= 3 and args[0] == "get" and args[1] == "totp":
+            return True, "123456"  # Mock TOTP code
+        return True, ""
+
     if not BW_PATH:
         return False, "Bitwarden CLI not found"
 
@@ -509,7 +574,8 @@ def main():
         # Copy username (from cache - instant)
         # Uses entryPoint for history so credentials aren't stored in command
         if action == "copy_username" and username:
-            subprocess.run(["wl-copy", username], check=False)
+            if not TEST_MODE:
+                subprocess.run(["wl-copy", username], check=False)
             respond_execute(
                 notify=f"Username copied: {username[:30]}{'...' if len(username) > 30 else ''}",
                 name=f"Copy username: {name}",
@@ -525,7 +591,8 @@ def main():
         # Copy password (from cache - instant)
         # Uses entryPoint - password is NEVER stored in history
         if action == "copy_password" and password:
-            subprocess.run(["wl-copy", password], check=False)
+            if not TEST_MODE:
+                subprocess.run(["wl-copy", password], check=False)
             respond_execute(
                 notify="Password copied to clipboard",
                 name=f"Copy password: {name}",
@@ -543,7 +610,8 @@ def main():
         if action == "copy_totp":
             totp = get_totp(item_id, session)
             if totp:
-                subprocess.run(["wl-copy", totp], check=False)
+                if not TEST_MODE:
+                    subprocess.run(["wl-copy", totp], check=False)
                 respond_execute(
                     notify=f"TOTP copied: {totp}",
                     name=f"Copy TOTP: {name}",
@@ -561,7 +629,8 @@ def main():
         # Default: copy password or username (from cache - instant)
         # Uses entryPoint for history tracking
         if password:
-            subprocess.run(["wl-copy", password], check=False)
+            if not TEST_MODE:
+                subprocess.run(["wl-copy", password], check=False)
             respond_execute(
                 notify="Password copied to clipboard",
                 name=f"Copy password: {name}",
@@ -573,7 +642,8 @@ def main():
                 },
             )
         elif username:
-            subprocess.run(["wl-copy", username], check=False)
+            if not TEST_MODE:
+                subprocess.run(["wl-copy", username], check=False)
             respond_execute(
                 notify=f"Username copied: {username[:30]}...",
                 name=f"Copy username: {name}",

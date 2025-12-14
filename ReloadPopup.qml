@@ -81,7 +81,7 @@ Scope {
 					}
 
 					Text {
-						renderType: Text.NativeRendering
+						renderType: Text.QtRendering
 						font.family: Appearance.font.family.main
 						font.pixelSize: Appearance.font.pixelSize.normal
 						text: root.failed ? "hamr got hammered" : "hamr time"
@@ -90,7 +90,7 @@ Scope {
 					}
 
 					Text {
-						renderType: Text.NativeRendering
+						renderType: Text.QtRendering
 						font.family: Appearance.font.family.monospace
 						font.pixelSize: Appearance.font.pixelSize.smaller
 						text: root.errorString

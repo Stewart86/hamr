@@ -6,7 +6,7 @@ StyledText {
     property real iconSize: Appearance?.font.pixelSize.small ?? 16
     property real fill: 0
     property real truncatedFill: fill.toFixed(1) // Reduce memory consumption spikes from constant font remapping
-    renderType: Text.NativeRendering
+    renderType: Text.QtRendering
     font {
         hintingPreference: Font.PreferNoHinting
         family: Appearance?.font.family.iconMaterial ?? "Material Symbols Rounded"

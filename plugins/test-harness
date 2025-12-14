@@ -1,0 +1,650 @@
+#!/usr/bin/env python3
+"""
+test-harness: CLI tool for testing Hamr plugins.
+
+Simulates Hamr's stdin/stdout communication with plugins.
+Validates responses and returns parsed JSON.
+
+Usage:
+    ./test-harness <handler> initial
+    ./test-harness <handler> search --query "test"
+    ./test-harness <handler> action --id "item-id" [--action "copy"]
+    ./test-harness <handler> form --data '{"field": "value"}'
+
+Examples:
+    # Test initial step
+    ./test-harness ./handler.py initial
+
+    # Test search
+    ./test-harness ./handler.py search --query "hello"
+
+    # Test action with context from previous response
+    ./test-harness ./handler.py action --id "item-1" --context "__edit__:item-1"
+
+    # Pipe to jq for inspection
+    ./test-harness ./handler.py initial | jq '.results[].id'
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Literal
+
+
+# ============================================================================
+# Errors
+# ============================================================================
+
+
+class HamrTestError(Exception):
+    """Base exception for all Hamr test kit errors."""
+    pass
+
+
+class HandlerExecutionError(HamrTestError):
+    """Raised when the handler fails to execute."""
+
+    def __init__(
+        self,
+        message: str,
+        exit_code: int | None = None,
+        stdout: str = "",
+        stderr: str = "",
+    ):
+        self.exit_code = exit_code
+        self.stdout = stdout
+        self.stderr = stderr
+        super().__init__(message)
+
+
+class InvalidResponseError(HamrTestError):
+    """Raised when handler output is not valid JSON."""
+
+    def __init__(self, message: str, raw_output: str = ""):
+        self.raw_output = raw_output
+        super().__init__(message)
+
+
+class SchemaValidationError(HamrTestError):
+    """Raised when response doesn't conform to Hamr protocol schema."""
+
+    def __init__(
+        self,
+        message: str,
+        response_type: str | None = None,
+        field_name: str | None = None,
+        expected: str | None = None,
+        actual: str | None = None,
+    ):
+        self.response_type = response_type
+        self.field_name = field_name
+        self.expected = expected
+        self.actual = actual
+        super().__init__(message)
+
+    def __str__(self) -> str:
+        parts = [super().__str__()]
+        if self.response_type:
+            parts.append(f"Response type: {self.response_type}")
+        if self.field_name:
+            parts.append(f"Field: {self.field_name}")
+        if self.expected is not None:
+            parts.append(f"Expected: {self.expected}")
+        if self.actual is not None:
+            parts.append(f"Actual: {self.actual}")
+        return "\n".join(parts)
+
+
+# ============================================================================
+# Response Types
+# ============================================================================
+
+
+@dataclass
+class ActionButton:
+    """An action button on a result item."""
+    id: str
+    name: str
+    icon: str = ""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> ActionButton:
+        if "id" not in data:
+            raise SchemaValidationError(
+                "Action button missing 'id'",
+                field_name="actions[].id",
+                expected="string",
+            )
+        if "name" not in data:
+            raise SchemaValidationError(
+                "Action button missing 'name'",
+                field_name="actions[].name",
+                expected="string",
+            )
+        return cls(id=data["id"], name=data["name"], icon=data.get("icon", ""))
+
+
+@dataclass
+class ResultItem:
+    """A single result item in a results response."""
+    id: str
+    name: str
+    description: str = ""
+    icon: str = ""
+    icon_type: Literal["material", "system"] = "material"
+    thumbnail: str = ""
+    verb: str = ""
+    actions: list[ActionButton] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict, index: int = 0) -> ResultItem:
+        if "id" not in data:
+            raise SchemaValidationError(
+                f"Result item [{index}] missing required 'id'",
+                response_type="results",
+                field_name=f"results[{index}].id",
+                expected="string",
+            )
+        if "name" not in data:
+            raise SchemaValidationError(
+                f"Result item [{index}] missing required 'name'",
+                response_type="results",
+                field_name=f"results[{index}].name",
+                expected="string",
+            )
+        actions = [ActionButton.from_dict(a) for a in data.get("actions", [])]
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            description=data.get("description", ""),
+            icon=data.get("icon", ""),
+            icon_type=data.get("iconType", "material"),
+            thumbnail=data.get("thumbnail", ""),
+            verb=data.get("verb", ""),
+            actions=actions,
+        )
+
+
+@dataclass
+class CardContent:
+    """Content for a card response."""
+    title: str = ""
+    content: str = ""
+    markdown: bool = False
+
+    @classmethod
+    def from_dict(cls, data: dict) -> CardContent:
+        return cls(
+            title=data.get("title", ""),
+            content=data.get("content", ""),
+            markdown=data.get("markdown", False),
+        )
+
+
+@dataclass
+class ExecuteCommand:
+    """Execute command configuration."""
+    command: list[str] = field(default_factory=list)
+    close: bool = True
+    notify: str = ""
+    name: str = ""
+    icon: str = ""
+    entry_point: dict | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> ExecuteCommand:
+        return cls(
+            command=data.get("command", []),
+            close=data.get("close", True),
+            notify=data.get("notify", ""),
+            name=data.get("name", ""),
+            icon=data.get("icon", ""),
+            entry_point=data.get("entryPoint"),
+        )
+
+
+@dataclass
+class ImageBrowserConfig:
+    """Configuration for image browser response."""
+    directory: str
+    title: str = ""
+    enable_ocr: bool = False
+    actions: list[dict] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> ImageBrowserConfig:
+        if "directory" not in data:
+            raise SchemaValidationError(
+                "imageBrowser missing required 'directory'",
+                response_type="imageBrowser",
+                field_name="imageBrowser.directory",
+                expected="string",
+            )
+        return cls(
+            directory=data["directory"],
+            title=data.get("title", ""),
+            enable_ocr=data.get("enableOcr", False),
+            actions=data.get("actions", []),
+        )
+
+
+@dataclass
+class FormField:
+    """A field in a form response."""
+    id: str
+    type: str
+    label: str = ""
+    placeholder: str = ""
+    required: bool = False
+    default: str = ""
+
+    @classmethod
+    def from_dict(cls, data: dict, index: int = 0) -> FormField:
+        if "id" not in data:
+            raise SchemaValidationError(
+                f"Form field [{index}] missing required 'id'",
+                response_type="form",
+                field_name=f"form.fields[{index}].id",
+            )
+        if "type" not in data:
+            raise SchemaValidationError(
+                f"Form field [{index}] missing required 'type'",
+                response_type="form",
+                field_name=f"form.fields[{index}].type",
+            )
+        return cls(
+            id=data["id"],
+            type=data["type"],
+            label=data.get("label", ""),
+            placeholder=data.get("placeholder", ""),
+            required=data.get("required", False),
+            default=data.get("default", ""),
+        )
+
+
+@dataclass
+class FormConfig:
+    """Configuration for a form response."""
+    title: str = ""
+    submit_label: str = "Submit"
+    cancel_label: str = "Cancel"
+    fields: list[FormField] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> FormConfig:
+        fields = [FormField.from_dict(f, i) for i, f in enumerate(data.get("fields", []))]
+        return cls(
+            title=data.get("title", ""),
+            submit_label=data.get("submitLabel", "Submit"),
+            cancel_label=data.get("cancelLabel", "Cancel"),
+            fields=fields,
+        )
+
+
+@dataclass
+class PromptConfig:
+    """Configuration for a prompt response."""
+    text: str = ""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> PromptConfig:
+        return cls(text=data.get("text", ""))
+
+
+ResponseType = Literal["results", "card", "execute", "imageBrowser", "form", "prompt", "error"]
+
+
+@dataclass
+class HamrResponse:
+    """A validated response from a Hamr plugin handler."""
+    type: ResponseType
+    raw: dict
+
+    # Type-specific fields
+    results: list[ResultItem] = field(default_factory=list)
+    card: CardContent | None = None
+    execute: ExecuteCommand | None = None
+    image_browser: ImageBrowserConfig | None = None
+    form: FormConfig | None = None
+    prompt: PromptConfig | None = None
+    message: str = ""
+
+    # Common optional fields
+    input_mode: Literal["realtime", "submit"] = "realtime"
+    placeholder: str = ""
+    clear_input: bool = False
+    context: str = ""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> HamrResponse:
+        if "type" not in data:
+            raise SchemaValidationError(
+                "Response missing required 'type' field",
+                expected="one of: results, card, execute, imageBrowser, form, prompt, error",
+            )
+
+        resp_type = data["type"]
+        valid_types = {"results", "card", "execute", "imageBrowser", "form", "prompt", "error"}
+        if resp_type not in valid_types:
+            raise SchemaValidationError(
+                f"Invalid response type: {resp_type}",
+                expected=f"one of: {', '.join(sorted(valid_types))}",
+                actual=resp_type,
+            )
+
+        response = cls(
+            type=resp_type,
+            raw=data,
+            input_mode=data.get("inputMode", "realtime"),
+            placeholder=data.get("placeholder", ""),
+            clear_input=data.get("clearInput", False),
+            context=data.get("context", ""),
+        )
+
+        # Parse type-specific content
+        if resp_type == "results":
+            if "results" not in data:
+                raise SchemaValidationError(
+                    "'results' response missing 'results' array",
+                    response_type="results",
+                    field_name="results",
+                    expected="array",
+                )
+            if not isinstance(data["results"], list):
+                raise SchemaValidationError(
+                    "'results' must be an array",
+                    response_type="results",
+                    field_name="results",
+                    expected="array",
+                    actual=type(data["results"]).__name__,
+                )
+            response.results = [
+                ResultItem.from_dict(item, i) for i, item in enumerate(data["results"])
+            ]
+
+        elif resp_type == "card":
+            if "card" not in data:
+                raise SchemaValidationError(
+                    "'card' response missing 'card' object",
+                    response_type="card",
+                    field_name="card",
+                )
+            response.card = CardContent.from_dict(data["card"])
+
+        elif resp_type == "execute":
+            if "execute" not in data:
+                raise SchemaValidationError(
+                    "'execute' response missing 'execute' object",
+                    response_type="execute",
+                    field_name="execute",
+                )
+            response.execute = ExecuteCommand.from_dict(data["execute"])
+
+        elif resp_type == "imageBrowser":
+            if "imageBrowser" not in data:
+                raise SchemaValidationError(
+                    "'imageBrowser' response missing 'imageBrowser' object",
+                    response_type="imageBrowser",
+                    field_name="imageBrowser",
+                )
+            response.image_browser = ImageBrowserConfig.from_dict(data["imageBrowser"])
+
+        elif resp_type == "form":
+            if "form" not in data:
+                raise SchemaValidationError(
+                    "'form' response missing 'form' object",
+                    response_type="form",
+                    field_name="form",
+                )
+            response.form = FormConfig.from_dict(data["form"])
+
+        elif resp_type == "prompt":
+            if "prompt" not in data:
+                raise SchemaValidationError(
+                    "'prompt' response missing 'prompt' object",
+                    response_type="prompt",
+                    field_name="prompt",
+                )
+            response.prompt = PromptConfig.from_dict(data["prompt"])
+
+        elif resp_type == "error":
+            if "message" not in data:
+                raise SchemaValidationError(
+                    "'error' response missing 'message'",
+                    response_type="error",
+                    field_name="message",
+                )
+            response.message = data["message"]
+
+        return response
+
+
+# ============================================================================
+# CLI
+# ============================================================================
+
+
+def build_input(args: argparse.Namespace) -> dict:
+    """Build the input JSON from CLI arguments."""
+    if args.command == "raw":
+        try:
+            return json.loads(args.input)
+        except json.JSONDecodeError as e:
+            print(f"Error: Invalid JSON in --input: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    input_data: dict = {
+        "step": args.command,
+        "session": args.session,
+    }
+
+    if hasattr(args, "context") and args.context:
+        input_data["context"] = args.context
+
+    if args.command == "search":
+        input_data["query"] = args.query or ""
+
+    elif args.command == "action":
+        input_data["selected"] = {"id": args.id}
+        if args.action:
+            input_data["action"] = args.action
+        if args.path:
+            input_data["selected"]["path"] = args.path
+        if args.selected_action:
+            input_data["selected"]["action"] = args.selected_action
+
+    elif args.command == "form":
+        if args.data:
+            try:
+                input_data["formData"] = json.loads(args.data)
+            except json.JSONDecodeError as e:
+                print(f"Error: Invalid JSON in --data: {e}", file=sys.stderr)
+                sys.exit(1)
+
+    elif args.command == "replay":
+        input_data["replay"] = True
+        input_data["step"] = args.step or "action"
+        if args.id:
+            input_data["selected"] = {"id": args.id}
+        if args.action:
+            input_data["action"] = args.action
+        if args.query:
+            input_data["query"] = args.query
+
+    return input_data
+
+
+def check_test_mode() -> None:
+    """Ensure HAMR_TEST_MODE=1 is set before running tests.
+    
+    This guard prevents accidental API calls to external services,
+    especially those requiring authentication or payment.
+    Plugin authors must explicitly set HAMR_TEST_MODE=1 in their
+    test scripts to acknowledge they're running in test mode.
+    """
+    if os.environ.get("HAMR_TEST_MODE") != "1":
+        print(
+            "Error: HAMR_TEST_MODE=1 must be set before running tests.\n"
+            "\n"
+            "This prevents accidental calls to external APIs that may:\n"
+            "  - Require authentication\n"
+            "  - Incur costs\n"
+            "  - Have rate limits\n"
+            "  - Cause unintended side effects\n"
+            "\n"
+            "Set it in your test script:\n"
+            "  export HAMR_TEST_MODE=1\n"
+            "\n"
+            "Or run directly:\n"
+            "  HAMR_TEST_MODE=1 ./test-harness ./handler.py initial\n",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def run_handler(handler_path: Path, input_data: dict, timeout: float) -> tuple[str, str, int]:
+    """Run the handler and return (stdout, stderr, exit_code)."""
+    input_json = json.dumps(input_data)
+
+    try:
+        result = subprocess.run(
+            [str(handler_path)],
+            input=input_json,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=handler_path.parent,
+        )
+        return result.stdout, result.stderr, result.returncode
+    except subprocess.TimeoutExpired:
+        raise HandlerExecutionError(f"Handler timed out after {timeout}s")
+    except PermissionError:
+        raise HandlerExecutionError(
+            f"Handler not executable: {handler_path}\n"
+            f"Run: chmod +x {handler_path}"
+        )
+    except FileNotFoundError:
+        raise HandlerExecutionError(f"Handler not found: {handler_path}")
+
+
+def validate_and_parse(stdout: str) -> HamrResponse:
+    """Validate and parse the handler output."""
+    if not stdout.strip():
+        raise InvalidResponseError("Handler produced no output", raw_output=stdout)
+
+    try:
+        data = json.loads(stdout)
+    except json.JSONDecodeError as e:
+        raise InvalidResponseError(f"Invalid JSON: {e}", raw_output=stdout)
+
+    return HamrResponse.from_dict(data)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="test-harness",
+        description="Test Hamr plugins by simulating stdin/stdout communication",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  ./test-harness ./handler.py initial
+  ./test-harness ./handler.py search --query "test"
+  ./test-harness ./handler.py action --id "item-1" --action "copy"
+  ./test-harness ./handler.py form --data '{"title": "Note"}'
+        """,
+    )
+
+    parser.add_argument("handler", type=Path, help="Path to the handler script")
+    parser.add_argument("--timeout", type=float, default=10.0, help="Timeout in seconds")
+    parser.add_argument("--session", default="test-session", help="Session ID")
+    parser.add_argument("--show-input", action="store_true", help="Print input JSON to stderr")
+    parser.add_argument("--show-stderr", action="store_true", help="Print handler stderr")
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # initial
+    p = subparsers.add_parser("initial", help="Test initial step")
+    p.add_argument("--context", help="Context string")
+
+    # search
+    p = subparsers.add_parser("search", help="Test search step")
+    p.add_argument("--query", "-q", default="", help="Search query")
+    p.add_argument("--context", help="Context string")
+
+    # action
+    p = subparsers.add_parser("action", help="Test action step")
+    p.add_argument("--id", "-i", required=True, help="Selected item ID")
+    p.add_argument("--action", "-a", help="Action button ID")
+    p.add_argument("--path", "-p", help="Path (for imageBrowser)")
+    p.add_argument("--selected-action", help="Action in selected object")
+    p.add_argument("--context", help="Context string")
+
+    # form
+    p = subparsers.add_parser("form", help="Test form submission")
+    p.add_argument("--data", "-d", required=True, help="Form data as JSON")
+    p.add_argument("--context", help="Context string")
+
+    # replay
+    p = subparsers.add_parser("replay", help="Test replay from history")
+    p.add_argument("--step", default="action", help="Step type")
+    p.add_argument("--id", "-i", help="Selected item ID")
+    p.add_argument("--action", "-a", help="Action ID")
+    p.add_argument("--query", "-q", help="Query string")
+    p.add_argument("--context", help="Context string")
+
+    # raw
+    p = subparsers.add_parser("raw", help="Send raw JSON input")
+    p.add_argument("--input", "-i", required=True, help="Raw JSON input")
+
+    args = parser.parse_args()
+
+    handler_path = args.handler.resolve()
+    if not handler_path.exists():
+        print(f"Error: Handler not found: {handler_path}", file=sys.stderr)
+        sys.exit(1)
+
+    # Require HAMR_TEST_MODE=1 to prevent accidental API calls
+    check_test_mode()
+
+    input_data = build_input(args)
+
+    if args.show_input:
+        print(f"Input: {json.dumps(input_data)}", file=sys.stderr)
+
+    try:
+        stdout, stderr, exit_code = run_handler(handler_path, input_data, args.timeout)
+    except HandlerExecutionError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.show_stderr and stderr:
+        print(f"Handler stderr:\n{stderr}", file=sys.stderr)
+
+    if exit_code != 0:
+        print(f"Error: Handler exited with code {exit_code}", file=sys.stderr)
+        if stderr:
+            print(f"Stderr: {stderr}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        response = validate_and_parse(stdout)
+    except InvalidResponseError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        if e.raw_output:
+            print(f"Raw output:\n{e.raw_output[:500]}", file=sys.stderr)
+        sys.exit(1)
+    except SchemaValidationError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print(json.dumps(response.raw, indent=2))
+
+
+if __name__ == "__main__":
+    main()

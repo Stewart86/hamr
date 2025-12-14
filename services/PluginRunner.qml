@@ -92,7 +92,7 @@ Singleton {
             const fileName = pluginsFolder.get(i, "fileName");
             const filePath = pluginsFolder.get(i, "filePath");
             if (fileName && filePath) {
-                const dirPath = filePath.toString().replace("file://", "");
+                const dirPath = FileUtils.trimFileProtocol(filePath);
                 root.pendingManifestLoads.push({
                     id: fileName,
                     path: dirPath
@@ -171,7 +171,7 @@ Singleton {
     // Watch for plugin folders
     FolderListModel {
         id: pluginsFolder
-        folder: `file://${Directories.userPlugins}`
+        folder: Qt.resolvedUrl(Directories.userPlugins)
         showDirs: true
         showFiles: false
         showHidden: false
