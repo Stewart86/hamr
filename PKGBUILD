@@ -9,6 +9,7 @@ license=(GPL3)
 depends=(
     # Core (quickshell-git or illogical-impulse-quickshell-git)
     quickshell
+    qt6-5compat  # Required for Qt5Compat.GraphicalEffects
 
     # Python runtime
     python
