@@ -195,10 +195,14 @@ Singleton {
             const itemActions = (item.actions ?? []).map(action => {
                 // Store action.id in local const to ensure closure captures value
                 const actionId = action.id;
+                // Determine icon type: respect explicit iconType, otherwise default to Material
+                const actionIconType = action.iconType === "system" 
+                    ? LauncherSearchResult.IconType.System 
+                    : LauncherSearchResult.IconType.Material;
                 return resultComp.createObject(null, {
                     name: action.name,
                     iconName: action.icon ?? 'play_arrow',
-                    iconType: LauncherSearchResult.IconType.Material,
+                    iconType: actionIconType,
                     execute: () => {
                         PluginRunner.selectItem(itemId, actionId);
                     }

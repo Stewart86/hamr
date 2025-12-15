@@ -466,7 +466,8 @@ RippleButton {
             const action = actions[root.focusedActionIndex];
             const buttonWidth = 28;
             const buttonSpacing = 4;
-            const actionsCount = actions.length;
+            // Only up to 4 actions are displayed (see Repeater model slicing)
+            const actionsCount = Math.min(actions.length, 4);
             const actionsRowWidth = actionsCount * buttonWidth + (actionsCount - 1) * buttonSpacing;
             const buttonOffset = root.focusedActionIndex * (buttonWidth + buttonSpacing) + buttonWidth / 2;
             const localX = root.width - root.horizontalMargin - root.buttonHorizontalPadding - actionsRowWidth + buttonOffset;

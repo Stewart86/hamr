@@ -102,6 +102,30 @@ def parse_desktop_file(path: Path) -> dict | None:
         # Remove field codes
         exec_clean = " ".join(p for p in exec_str.split() if not p.startswith("%"))
 
+        # Parse desktop actions (e.g., "new-window;new-private-window;")
+        actions_str = entry.get("Actions", "")
+        action_ids = [a.strip() for a in actions_str.split(";") if a.strip()]
+        desktop_actions = []
+        for action_id in action_ids:
+            section_name = f"Desktop Action {action_id}"
+            if config.has_section(section_name):
+                action_section = config[section_name]
+                action_name = action_section.get("Name", action_id)
+                action_exec = action_section.get("Exec", "")
+                action_exec_clean = " ".join(
+                    p for p in action_exec.split() if not p.startswith("%")
+                )
+                action_icon = action_section.get("Icon", "")
+                if action_exec_clean:
+                    desktop_actions.append(
+                        {
+                            "id": action_id,
+                            "name": action_name,
+                            "exec": action_exec_clean,
+                            "icon": action_icon,
+                        }
+                    )
+
         return {
             "id": str(path),
             "name": name,
@@ -113,6 +137,7 @@ def parse_desktop_file(path: Path) -> dict | None:
             "display_category": display_category,
             "keywords": entry.get("Keywords", ""),
             "terminal": entry.get("Terminal", "").lower() == "true",
+            "actions": desktop_actions,
         }
     except Exception:
         return None
@@ -205,7 +230,36 @@ def app_to_result(app: dict, show_category: bool = False) -> dict:
         else:
             description = app["display_category"]
 
-    return {
+    # Convert desktop actions to result actions format
+    actions = []
+    for action in app.get("actions", []):
+        # Use material icons for action buttons (more reliable than system icons)
+        # Guess icon based on action name/id
+        action_name_lower = action["name"].lower()
+        action_id_lower = action["id"].lower()
+
+        if "private" in action_name_lower or "incognito" in action_name_lower:
+            icon = "visibility_off"
+        elif "window" in action_name_lower or "window" in action_id_lower:
+            icon = "open_in_new"
+        elif "quit" in action_name_lower or "quit" in action_id_lower:
+            icon = "close"
+        elif "compose" in action_name_lower or "message" in action_name_lower:
+            icon = "edit"
+        elif "address" in action_name_lower or "contact" in action_name_lower:
+            icon = "contacts"
+        else:
+            icon = "play_arrow"
+
+        actions.append(
+            {
+                "id": f"__action__:{app['id']}:{action['id']}",
+                "name": action["name"],
+                "icon": icon,
+            }
+        )
+
+    result = {
         "id": app["id"],
         "name": app["name"],
         "description": description,
@@ -213,6 +267,9 @@ def app_to_result(app: dict, show_category: bool = False) -> dict:
         "iconType": "system",  # App icons are system icons from .desktop files
         "verb": "Launch",
     }
+    if actions:
+        result["actions"] = actions
+    return result
 
 
 def get_categories(apps: list[dict]) -> list[str]:
@@ -464,6 +521,51 @@ def main():
 
         # Empty state - ignore
         if selected_id == "__empty__":
+            return
+
+        # Desktop action (e.g., "New Window", "New Private Window")
+        if selected_id.startswith("__action__:"):
+            # Format: __action__:<desktop_path>:<action_id>
+            parts = selected_id.split(":", 2)
+            if len(parts) == 3:
+                desktop_path = parts[1]
+                action_id = parts[2]
+
+                # Find the app and action
+                app = None
+                for a in all_apps:
+                    if a["id"] == desktop_path:
+                        app = a
+                        break
+
+                if app:
+                    # Find the specific action
+                    action = None
+                    for act in app.get("actions", []):
+                        if act["id"] == action_id:
+                            action = act
+                            break
+
+                    if action:
+                        # Execute the action's command
+                        exec_parts = action["exec"].split()
+                        print(
+                            json.dumps(
+                                {
+                                    "type": "execute",
+                                    "execute": {
+                                        "command": exec_parts,
+                                        "name": f"{app['name']}: {action['name']}",
+                                        "icon": action.get("icon") or app["icon"],
+                                        "iconType": "system",
+                                        "close": True,
+                                    },
+                                }
+                            )
+                        )
+                        return
+
+            print(json.dumps({"type": "error", "message": "Action not found"}))
             return
 
         # Category selection
