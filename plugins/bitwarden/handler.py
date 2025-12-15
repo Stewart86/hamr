@@ -330,6 +330,33 @@ def get_totp(item_id: str, session: str) -> str | None:
     return output if success else None
 
 
+# ===== PLUGIN ACTIONS =====
+
+
+def get_plugin_actions(cache_age: float | None = None) -> list[dict]:
+    """Get plugin-level actions for the action bar"""
+    # Cache status for sync button
+    if cache_age is not None:
+        if cache_age < 60:
+            cache_status = "just now"
+        elif cache_age < 3600:
+            cache_status = f"{int(cache_age // 60)}m ago"
+        else:
+            cache_status = f"{int(cache_age // 3600)}h ago"
+        sync_name = f"Sync ({cache_status})"
+    else:
+        sync_name = "Sync Vault"
+
+    return [
+        {
+            "id": "sync",
+            "name": sync_name,
+            "icon": "sync",
+            "shortcut": "Ctrl+1",
+        }
+    ]
+
+
 # ===== FORMATTING =====
 
 
@@ -486,35 +513,26 @@ def main():
             return
 
         results = format_item_results(items)
-
-        # Cache status
         cache_age = get_cache_age()
-        if cache_age is not None:
-            if cache_age < 60:
-                cache_status = "synced just now"
-            elif cache_age < 3600:
-                cache_status = f"synced {int(cache_age // 60)}m ago"
-            else:
-                cache_status = f"synced {int(cache_age // 3600)}h ago"
-        else:
-            cache_status = "not synced"
 
-        results.append(
-            {
-                "id": "__sync__",
-                "name": "Sync Vault",
-                "description": f"Refresh from server ({cache_status})",
-                "icon": "sync",
-            }
+        print(
+            json.dumps(
+                {
+                    "type": "results",
+                    "results": results,
+                    "inputMode": "realtime",
+                    "placeholder": "Search vault...",
+                    "pluginActions": get_plugin_actions(cache_age),
+                }
+            )
         )
-
-        respond_results(results)
         return
 
     # ===== SEARCH =====
     if step == "search":
         items = search_items(query, session)
         results = format_item_results(items)
+        cache_age = get_cache_age()
 
         if not results:
             results = [
@@ -525,28 +543,63 @@ def main():
                 }
             ]
 
-        respond_results(results)
+        print(
+            json.dumps(
+                {
+                    "type": "results",
+                    "results": results,
+                    "inputMode": "realtime",
+                    "placeholder": "Search vault...",
+                    "pluginActions": get_plugin_actions(cache_age),
+                }
+            )
+        )
         return
 
     # ===== ACTION =====
     if step == "action":
         item_id = selected.get("id", "")
 
-        # Sync vault
+        # Plugin-level action: sync (from action bar)
+        if item_id == "__plugin__" and action == "sync":
+            run_bw(["sync"], session=session)
+            clear_items_cache()
+            items = search_items("", session, force_refresh=True)
+            results = format_item_results(items)
+            cache_age = get_cache_age()
+            print(
+                json.dumps(
+                    {
+                        "type": "results",
+                        "results": results,
+                        "inputMode": "realtime",
+                        "placeholder": "Vault synced!",
+                        "clearInput": True,
+                        "pluginActions": get_plugin_actions(cache_age),
+                    }
+                )
+            )
+            return
+
+        # Legacy sync button (keep for backwards compatibility)
         if item_id == "__sync__":
             run_bw(["sync"], session=session)
             clear_items_cache()
             items = search_items("", session, force_refresh=True)
             results = format_item_results(items)
-            results.append(
-                {
-                    "id": "__sync__",
-                    "name": "Sync Vault",
-                    "description": "Refresh from server (synced just now)",
-                    "icon": "sync",
-                }
+            cache_age = get_cache_age()
+            print(
+                json.dumps(
+                    {
+                        "type": "results",
+                        "results": results,
+                        "inputMode": "realtime",
+                        "placeholder": "Vault synced!",
+                        "clearInput": True,
+                        "pluginActions": get_plugin_actions(cache_age),
+                    }
+                )
             )
-            respond_results(results, placeholder="Vault synced!", clear_input=True)
             return
 
         # No results placeholder

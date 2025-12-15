@@ -116,18 +116,19 @@ test_initial_shows_wipe_option() {
     set_clipboard_entries "1	Test entry"
     local result=$(hamr_test initial)
     
-    assert_has_result "$result" "__wipe__"
-    assert_contains "$result" "Wipe clipboard history"
+    # Wipe is now in pluginActions, not in results
+    assert_contains "$result" "pluginActions"
+    local wipe_id=$(json_get "$result" '.pluginActions[0].id')
+    assert_eq "$wipe_id" "wipe" "pluginActions should have wipe action"
 }
 
 test_initial_no_wipe_when_empty() {
     clear_clipboard
     local result=$(hamr_test initial)
     
-    # When empty, wipe is shown but also empty state message
-    # Wipe button doesn't do anything useful when nothing to wipe
+    # When empty, wipe is still shown in pluginActions
     assert_contains "$result" "No clipboard entries"
-    assert_contains "$result" "Wipe clipboard history"
+    assert_contains "$result" "pluginActions"
 }
 
 test_initial_realtime_mode() {
@@ -169,18 +170,21 @@ test_search_fuzzy_match() {
     assert_contains "$result" "The quick brown fox"
 }
 
-test_search_empty_query_shows_wipe() {
+test_search_empty_query_shows_entries() {
     set_clipboard_entries "1	Test"
     local result=$(hamr_test search --query "")
     
-    assert_has_result "$result" "__wipe__"
+    # With empty query, should show all entries
+    assert_contains "$result" "Test"
 }
 
-test_search_with_query_hides_wipe() {
-    set_clipboard_entries "1	Test entry"
+test_search_with_query_filters() {
+    set_clipboard_entries "1	Test entry
+2	Another item"
     local result=$(hamr_test search --query "test")
     
-    assert_no_result "$result" "__wipe__"
+    assert_contains "$result" "Test entry"
+    assert_not_contains "$result" "Another item"
 }
 
 test_search_no_results() {
@@ -330,41 +334,37 @@ test_delete_last_entry_shows_empty() {
 }
 
 # ============================================================================
-# Tests: Wipe Action
+# Tests: Wipe Action (Plugin Action Bar)
 # ============================================================================
 
-test_wipe_shows_confirmation() {
+test_wipe_action_in_plugin_bar() {
     set_clipboard_entries "1	Entry"
-    local result=$(hamr_test action --id "__wipe__")
+    local result=$(hamr_test initial)
     
-    assert_type "$result" "results"
-    assert_has_result "$result" "__wipe_confirm__"
-    assert_has_result "$result" "__back__"
+    # Wipe should be in pluginActions with confirm message
+    assert_contains "$result" "pluginActions"
+    assert_json "$result" '.pluginActions[0].id' "wipe"
+    assert_json "$result" '.pluginActions[0].name' "Wipe All"
+    # Confirm message should be set
+    local confirm=$(json_get "$result" '.pluginActions[0].confirm')
+    assert_contains "$confirm" "Wipe all clipboard history"
 }
 
-test_wipe_confirmation_shows_warning() {
+test_wipe_action_closes() {
     set_clipboard_entries "1	Entry"
-    local result=$(hamr_test action --id "__wipe__")
-    
-    assert_contains "$result" "Confirm: Wipe all clipboard history"
-}
-
-test_wipe_confirmed_closes() {
-    set_clipboard_entries "1	Entry"
-    local result=$(hamr_test action --id "__wipe_confirm__")
+    # Wipe is now triggered via __plugin__ id with "wipe" action
+    local result=$(hamr_test action --id "__plugin__" --action "wipe")
     
     assert_type "$result" "execute"
     assert_closes "$result"
 }
 
-test_wipe_back_cancels() {
+test_wipe_action_notifies() {
     set_clipboard_entries "1	Entry"
-    hamr_test action --id "__wipe__" > /dev/null
-    local result=$(hamr_test action --id "__back__")
+    local result=$(hamr_test action --id "__plugin__" --action "wipe")
     
-    assert_type "$result" "results"
-    assert_contains "$result" "Entry"
-    assert_no_result "$result" "__wipe_confirm__"
+    # Should notify user via notify-send command
+    assert_contains "$result" "notify-send"
 }
 
 # ============================================================================
@@ -398,13 +398,6 @@ test_initial_placeholder() {
     assert_json "$result" '.placeholder' "Search clipboard..."
 }
 
-test_wipe_confirmation_placeholder() {
-    set_clipboard_entries "1	Entry"
-    local result=$(hamr_test action --id "__wipe__")
-    
-    assert_json "$result" '.placeholder' "Confirm wipe?"
-}
-
 # ============================================================================
 # Tests: Response Structure
 # ============================================================================
@@ -413,10 +406,10 @@ test_result_has_required_fields() {
     set_clipboard_entries "1	Entry"
     local result=$(hamr_test initial)
     
-    # Check result structure (skip wipe option at index 0, actual entry is at index 1)
-    assert_json "$result" '.results[1].id' "1	Entry"
-    assert_json "$result" '.results[1].name' "Entry"
-    assert_json "$result" '.results[1].icon' "content_paste"
+    # Check result structure (wipe is in pluginActions, so entry is at index 0)
+    assert_json "$result" '.results[0].id' "1	Entry"
+    assert_json "$result" '.results[0].name' "Entry"
+    assert_json "$result" '.results[0].icon' "content_paste"
 }
 
 test_all_responses_are_valid_json() {
@@ -425,8 +418,8 @@ test_all_responses_are_valid_json() {
     
     assert_ok hamr_test initial
     assert_ok hamr_test search --query "test"
-    assert_ok hamr_test action --id "__wipe__"
-    assert_ok hamr_test action --id "__back__"
+    assert_ok hamr_test action --id "__plugin__" --action "wipe"
+    assert_ok hamr_test action --id "1	Test entry" --action "delete"
 }
 
 test_image_entry_has_thumbnail_field() {
@@ -518,16 +511,16 @@ test_wipe_confirmation_uses_realtime_mode() {
 }
 
 # ============================================================================
-# Tests: Clear Input Flag
+# Tests: Delete Action Stays Open
 # ============================================================================
 
-test_back_clears_input() {
-    set_clipboard_entries "1	Entry"
-    hamr_test action --id "__wipe__" > /dev/null
-    local result=$(hamr_test action --id "__back__")
+test_delete_stays_open() {
+    set_clipboard_entries "1	Entry
+2	Another"
+    local result=$(hamr_test action --id "1	Entry" --action "delete")
     
-    local clearInput=$(json_get "$result" '.clearInput')
-    assert_eq "$clearInput" "true" "clearInput should be true on back"
+    # Delete should return results (stay open), not execute
+    assert_type "$result" "results"
 }
 
 # ============================================================================
@@ -572,8 +565,8 @@ run_tests \
     test_search_filter_matches \
     test_search_case_insensitive \
     test_search_fuzzy_match \
-    test_search_empty_query_shows_wipe \
-    test_search_with_query_hides_wipe \
+    test_search_empty_query_shows_entries \
+    test_search_with_query_filters \
     test_search_no_results \
     test_search_realtime_mode \
     test_text_entry_truncation \
@@ -591,14 +584,12 @@ run_tests \
     test_delete_returns_results \
     test_delete_shows_remaining_entries \
     test_delete_last_entry_shows_empty \
-    test_wipe_shows_confirmation \
-    test_wipe_confirmation_shows_warning \
-    test_wipe_confirmed_closes \
-    test_wipe_back_cancels \
+    test_wipe_action_in_plugin_bar \
+    test_wipe_action_closes \
+    test_wipe_action_notifies \
     test_empty_state_not_actionable \
     test_empty_state_on_wipe \
     test_initial_placeholder \
-    test_wipe_confirmation_placeholder \
     test_result_has_required_fields \
     test_all_responses_are_valid_json \
     test_image_entry_has_thumbnail_field \
@@ -611,8 +602,7 @@ run_tests \
     test_search_unicode \
     test_initial_uses_realtime_mode \
     test_search_uses_realtime_mode \
-    test_wipe_confirmation_uses_realtime_mode \
-    test_back_clears_input \
+    test_delete_stays_open \
     test_fuzzy_discontinuous_chars \
     test_fuzzy_all_chars_required \
     test_fuzzy_partial_match_fails

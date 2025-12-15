@@ -74,8 +74,9 @@ test_initial_empty() {
     
     assert_type "$result" "results"
     assert_realtime_mode "$result"
-    assert_has_result "$result" "__add__"
-    assert_json "$result" '.results | length' "1"
+    # Add is now in pluginActions
+    assert_contains "$result" "pluginActions"
+    assert_json "$result" '.pluginActions[0].id' "add"
 }
 
 test_initial_with_quicklinks() {
@@ -90,8 +91,9 @@ test_initial_with_quicklinks() {
     assert_type "$result" "results"
     assert_has_result "$result" "Google"
     assert_has_result "$result" "GitHub"
-    assert_has_result "$result" "__add__"
-    assert_result_count "$result" 3
+    # Add is in pluginActions, not results
+    assert_contains "$result" "pluginActions"
+    assert_result_count "$result" 2
 }
 
 test_initial_has_actions() {
@@ -138,11 +140,13 @@ test_search_filters_by_alias() {
     assert_contains "$result" "Google"
 }
 
-test_search_shows_add_option() {
+test_search_shows_add_in_plugin_actions() {
     clear_quicklinks
     local result=$(hamr_test search --query "NewLink")
     
-    assert_has_result "$result" "__add__"
+    # Add is in pluginActions
+    assert_contains "$result" "pluginActions"
+    assert_json "$result" '.pluginActions[0].id' "add"
 }
 
 test_search_realtime_mode() {
@@ -153,125 +157,238 @@ test_search_realtime_mode() {
 }
 
 # ============================================================================
-# Tests - Add Quicklink
+# Tests - Add Quicklink (Form API)
 # ============================================================================
 
-test_add_action_opens_add_mode() {
+test_add_shows_form() {
     clear_quicklinks
-    local result=$(hamr_test action --id "__add__")
+    local result=$(hamr_test action --id "__plugin__" --action "add")
+    
+    assert_type "$result" "form"
+    assert_json "$result" '.context' "__add__"
+    assert_json "$result" '.form.title' "Add New Quicklink"
+}
+
+test_add_form_has_name_field() {
+    clear_quicklinks
+    local result=$(hamr_test action --id "__plugin__" --action "add")
+    
+    local name_field=$(json_get "$result" '.form.fields[] | select(.id == "name")')
+    assert_contains "$name_field" '"type": "text"'
+    assert_contains "$name_field" '"required": true'
+}
+
+test_add_form_has_url_field() {
+    clear_quicklinks
+    local result=$(hamr_test action --id "__plugin__" --action "add")
+    
+    local url_field=$(json_get "$result" '.form.fields[] | select(.id == "url")')
+    assert_contains "$url_field" '"type": "text"'
+    assert_contains "$url_field" '"required": true'
+    assert_contains "$url_field" "{query}"
+}
+
+test_add_form_has_icon_field() {
+    clear_quicklinks
+    local result=$(hamr_test action --id "__plugin__" --action "add")
+    
+    local icon_field=$(json_get "$result" '.form.fields[] | select(.id == "icon")')
+    assert_contains "$icon_field" '"type": "text"'
+}
+
+test_add_form_submission_saves_quicklink() {
+    clear_quicklinks
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test form --data '{"name": "MyLink", "url": "https://example.com", "icon": "link"}' --context "__add__")
     
     assert_type "$result" "results"
-    assert_submit_mode "$result"
-    assert_json "$result" '.context' "__add__"
-    assert_json "$result" '.placeholder' "Enter quicklink name (Enter to confirm)"
+    local file=$(get_quicklinks_file)
+    assert_contains "$file" "MyLink"
+    assert_contains "$file" "https://example.com"
 }
 
-test_add_submit_name_shows_url_prompt() {
+test_add_form_requires_name() {
     clear_quicklinks
-    hamr_test action --id "__add__" > /dev/null
-    local result=$(hamr_test search --query "MyLink" --context "__add__")
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test form --data '{"name": "", "url": "https://example.com"}' --context "__add__")
     
-    assert_submit_mode "$result"
-    assert_json "$result" '.context' "__add_name__:MyLink"
-    assert_json "$result" '.placeholder' "Enter URL for 'MyLink' (Enter to save)"
-    assert_contains "$result" "Back"
+    assert_type "$result" "error"
+    assert_contains "$result" "Name is required"
 }
 
-test_add_duplicate_name_shows_error() {
+test_add_form_requires_url() {
+    clear_quicklinks
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test form --data '{"name": "MyLink", "url": ""}' --context "__add__")
+    
+    assert_type "$result" "error"
+    assert_contains "$result" "URL is required"
+}
+
+test_add_form_name_already_exists() {
     set_quicklinks '{"quicklinks": [{"name": "Google", "url": "https://google.com", "icon": "search"}]}'
-    hamr_test action --id "__add__" > /dev/null
-    local result=$(hamr_test search --query "Google" --context "__add__")
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test form --data '{"name": "Google", "url": "https://newurl.com"}' --context "__add__")
     
+    assert_type "$result" "error"
     assert_contains "$result" "already exists"
-    assert_has_result "$result" "__error__"
 }
 
-test_add_url_saves_quicklink() {
+test_add_form_adds_https_prefix() {
     clear_quicklinks
-    hamr_test action --id "__add__" > /dev/null
-    hamr_test search --query "MyLink" --context "__add__" > /dev/null
-    local result=$(hamr_test search --query "https://example.com" --context "__add_name__:MyLink")
-    
-    assert_realtime_mode "$result"
-    assert_contains "$(get_quicklinks_file)" "MyLink"
-    assert_contains "$(get_quicklinks_file)" "https://example.com"
-}
-
-test_add_url_adds_https_prefix() {
-    clear_quicklinks
-    hamr_test action --id "__add__" > /dev/null
-    hamr_test search --query "MyLink" --context "__add__" > /dev/null
-    hamr_test search --query "example.com" --context "__add_name__:MyLink" > /dev/null
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    hamr_test form --data '{"name": "MyLink", "url": "example.com"}' --context "__add__" > /dev/null
     
     local url=$(json_get "$(get_quicklinks_file)" '.quicklinks[0].url')
     assert_eq "$url" "https://example.com"
 }
 
-test_add_url_clears_input() {
+test_add_form_preserves_http() {
     clear_quicklinks
-    hamr_test action --id "__add__" > /dev/null
-    hamr_test search --query "MyLink" --context "__add__" > /dev/null
-    local result=$(hamr_test search --query "https://example.com" --context "__add_name__:MyLink")
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    hamr_test form --data '{"name": "MyLink", "url": "http://example.com"}' --context "__add__" > /dev/null
+    
+    local url=$(json_get "$(get_quicklinks_file)" '.quicklinks[0].url')
+    assert_eq "$url" "http://example.com"
+}
+
+test_add_form_returns_to_list() {
+    clear_quicklinks
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test form --data '{"name": "MyLink", "url": "https://example.com"}' --context "__add__")
+    
+    assert_type "$result" "results"
+    assert_has_result "$result" "MyLink"
+    assert_json "$result" '.context' ""
+}
+
+test_add_form_cancel_returns_to_list() {
+    clear_quicklinks
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test action --id "__form_cancel__")
+    
+    assert_type "$result" "results"
+    assert_contains "$result" "pluginActions"
+}
+
+test_add_form_clears_input() {
+    clear_quicklinks
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test form --data '{"name": "MyLink", "url": "https://example.com"}' --context "__add__")
     
     assert_json "$result" '.clearInput' "true"
 }
 
-test_add_back_returns_to_menu() {
+test_add_form_default_icon() {
     clear_quicklinks
-    hamr_test action --id "__add__" > /dev/null
-    local result=$(hamr_test action --id "__back__")
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    hamr_test form --data '{"name": "MyLink", "url": "https://example.com", "icon": ""}' --context "__add__" > /dev/null
     
-    assert_realtime_mode "$result"
-    assert_json "$result" '.context' ""
+    local icon=$(json_get "$(get_quicklinks_file)" '.quicklinks[0].icon')
+    assert_eq "$icon" "link"
+}
+
+test_add_form_custom_icon() {
+    clear_quicklinks
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    hamr_test form --data '{"name": "MyLink", "url": "https://example.com", "icon": "star"}' --context "__add__" > /dev/null
+    
+    local icon=$(json_get "$(get_quicklinks_file)" '.quicklinks[0].icon')
+    assert_eq "$icon" "star"
 }
 
 # ============================================================================
-# Tests - Edit Quicklink
+# Tests - Edit Quicklink (Form API)
 # ============================================================================
 
-test_edit_action_opens_edit_mode() {
+test_edit_shows_form() {
     set_quicklinks '{"quicklinks": [{"name": "Google", "url": "https://google.com", "icon": "search"}]}'
     local result=$(hamr_test action --id "Google" --action "edit")
     
-    assert_type "$result" "results"
-    assert_submit_mode "$result"
+    assert_type "$result" "form"
     assert_json "$result" '.context' "__edit__:Google"
-    assert_contains "$result" "Current: https://google.com"
+    assert_contains "$result" "Edit Quicklink: Google"
 }
 
-test_edit_submit_updates_url() {
+test_edit_form_prefills_url() {
+    set_quicklinks '{"quicklinks": [{"name": "Google", "url": "https://google.com", "icon": "search"}]}'
+    local result=$(hamr_test action --id "Google" --action "edit")
+    
+    local url_default=$(json_get "$result" '.form.fields[] | select(.id == "url") | .default')
+    assert_eq "$url_default" "https://google.com"
+}
+
+test_edit_form_prefills_icon() {
+    set_quicklinks '{"quicklinks": [{"name": "Google", "url": "https://google.com", "icon": "search"}]}'
+    local result=$(hamr_test action --id "Google" --action "edit")
+    
+    local icon_default=$(json_get "$result" '.form.fields[] | select(.id == "icon") | .default')
+    assert_eq "$icon_default" "search"
+}
+
+test_edit_form_saves_new_url() {
     set_quicklinks '{"quicklinks": [{"name": "Google", "url": "https://google.com", "icon": "search"}]}'
     hamr_test action --id "Google" --action "edit" > /dev/null
-    local result=$(hamr_test search --query "https://google.com/new" --context "__edit__:Google")
+    local result=$(hamr_test form --data '{"url": "https://google.com/new", "icon": "search"}' --context "__edit__:Google")
     
+    assert_type "$result" "results"
     local url=$(json_get "$(get_quicklinks_file)" '.quicklinks[0].url')
     assert_eq "$url" "https://google.com/new"
 }
 
-test_edit_url_adds_https_prefix() {
+test_edit_form_saves_new_icon() {
     set_quicklinks '{"quicklinks": [{"name": "Google", "url": "https://google.com", "icon": "search"}]}'
     hamr_test action --id "Google" --action "edit" > /dev/null
-    hamr_test search --query "newdomain.com" --context "__edit__:Google" > /dev/null
+    hamr_test form --data '{"url": "https://google.com", "icon": "star"}' --context "__edit__:Google" > /dev/null
+    
+    local icon=$(json_get "$(get_quicklinks_file)" '.quicklinks[0].icon')
+    assert_eq "$icon" "star"
+}
+
+test_edit_form_adds_https_prefix() {
+    set_quicklinks '{"quicklinks": [{"name": "Google", "url": "https://google.com", "icon": "search"}]}'
+    hamr_test action --id "Google" --action "edit" > /dev/null
+    hamr_test form --data '{"url": "newdomain.com", "icon": "search"}' --context "__edit__:Google" > /dev/null
     
     local url=$(json_get "$(get_quicklinks_file)" '.quicklinks[0].url')
     assert_eq "$url" "https://newdomain.com"
 }
 
-test_edit_url_clears_input() {
+test_edit_form_requires_url() {
     set_quicklinks '{"quicklinks": [{"name": "Google", "url": "https://google.com", "icon": "search"}]}'
     hamr_test action --id "Google" --action "edit" > /dev/null
-    local result=$(hamr_test search --query "https://newurl.com" --context "__edit__:Google")
+    local result=$(hamr_test form --data '{"url": "", "icon": "search"}' --context "__edit__:Google")
     
-    assert_json "$result" '.clearInput' "true"
+    assert_type "$result" "error"
+    assert_contains "$result" "URL is required"
 }
 
-test_edit_back_cancels_changes() {
+test_edit_form_returns_to_list() {
     set_quicklinks '{"quicklinks": [{"name": "Google", "url": "https://google.com", "icon": "search"}]}'
     hamr_test action --id "Google" --action "edit" > /dev/null
-    local result=$(hamr_test action --id "__back__")
+    local result=$(hamr_test form --data '{"url": "https://google.com/new", "icon": "search"}' --context "__edit__:Google")
     
+    assert_type "$result" "results"
+    assert_has_result "$result" "Google"
+}
+
+test_edit_form_cancel() {
+    set_quicklinks '{"quicklinks": [{"name": "Google", "url": "https://google.com", "icon": "search"}]}'
+    hamr_test action --id "Google" --action "edit" > /dev/null
+    local result=$(hamr_test action --id "__form_cancel__")
+    
+    assert_type "$result" "results"
+    # URL should remain unchanged
     local url=$(json_get "$(get_quicklinks_file)" '.quicklinks[0].url')
     assert_eq "$url" "https://google.com"
+}
+
+test_edit_form_clears_input() {
+    set_quicklinks '{"quicklinks": [{"name": "Google", "url": "https://google.com", "icon": "search"}]}'
+    hamr_test action --id "Google" --action "edit" > /dev/null
+    local result=$(hamr_test form --data '{"url": "https://google.com/new", "icon": "search"}' --context "__edit__:Google")
+    
+    assert_json "$result" '.clearInput' "true"
 }
 
 # ============================================================================
@@ -425,44 +542,6 @@ test_search_by_alias() {
 }
 
 # ============================================================================
-# Tests - Context Persistence
-# ============================================================================
-
-test_context_persists_during_add() {
-    clear_quicklinks
-    hamr_test action --id "__add__" > /dev/null
-    hamr_test search --query "MyLink" --context "__add__" > /dev/null
-    local result=$(hamr_test search --query "" --context "__add_name__:MyLink")
-    
-    assert_json "$result" '.context' "__add_name__:MyLink"
-}
-
-test_context_persists_during_edit() {
-    set_quicklinks '{"quicklinks": [{"name": "Google", "url": "https://google.com", "icon": "search"}]}'
-    hamr_test action --id "Google" --action "edit" > /dev/null
-    local result=$(hamr_test search --query "" --context "__edit__:Google")
-    
-    assert_json "$result" '.context' "__edit__:Google"
-}
-
-test_context_cleared_on_back() {
-    clear_quicklinks
-    hamr_test action --id "__add__" > /dev/null
-    local result=$(hamr_test action --id "__back__")
-    
-    assert_json "$result" '.context' ""
-}
-
-test_context_cleared_on_save() {
-    clear_quicklinks
-    hamr_test action --id "__add__" > /dev/null
-    hamr_test search --query "MyLink" --context "__add__" > /dev/null
-    local result=$(hamr_test search --query "https://example.com" --context "__add_name__:MyLink")
-    
-    assert_json "$result" '.context' ""
-}
-
-# ============================================================================
 # Tests - Icon and Metadata
 # ============================================================================
 
@@ -480,30 +559,6 @@ test_default_icon_when_missing() {
     
     local icon=$(json_get "$result" '.results[] | select(.id == "Test") | .icon')
     assert_eq "$icon" "link"
-}
-
-# ============================================================================
-# Tests - Encoding and Special Characters
-# ============================================================================
-
-test_https_prefix_not_duplicated() {
-    clear_quicklinks
-    hamr_test action --id "__add__" > /dev/null
-    hamr_test search --query "MyLink" --context "__add__" > /dev/null
-    hamr_test search --query "https://example.com" --context "__add_name__:MyLink" > /dev/null
-    
-    local url=$(json_get "$(get_quicklinks_file)" '.quicklinks[0].url')
-    assert_eq "$url" "https://example.com"
-}
-
-test_http_protocol_preserved() {
-    clear_quicklinks
-    hamr_test action --id "__add__" > /dev/null
-    hamr_test search --query "MyLink" --context "__add__" > /dev/null
-    hamr_test search --query "http://example.com" --context "__add_name__:MyLink" > /dev/null
-    
-    local url=$(json_get "$(get_quicklinks_file)" '.quicklinks[0].url')
-    assert_eq "$url" "http://example.com"
 }
 
 # ============================================================================
@@ -556,7 +611,8 @@ test_all_responses_valid() {
     assert_ok hamr_test search --query "git"
     assert_ok hamr_test action --id "Google"
     assert_ok hamr_test action --id "GitHub"
-    assert_ok hamr_test action --id "__add__"
+    assert_ok hamr_test action --id "__plugin__" --action "add"
+    assert_ok hamr_test action --id "Google" --action "edit"
 }
 
 # ============================================================================
@@ -569,20 +625,33 @@ run_tests \
     test_initial_has_actions \
     test_search_filters_by_name \
     test_search_filters_by_alias \
-    test_search_shows_add_option \
+    test_search_shows_add_in_plugin_actions \
     test_search_realtime_mode \
-    test_add_action_opens_add_mode \
-    test_add_submit_name_shows_url_prompt \
-    test_add_duplicate_name_shows_error \
-    test_add_url_saves_quicklink \
-    test_add_url_adds_https_prefix \
-    test_add_url_clears_input \
-    test_add_back_returns_to_menu \
-    test_edit_action_opens_edit_mode \
-    test_edit_submit_updates_url \
-    test_edit_url_adds_https_prefix \
-    test_edit_url_clears_input \
-    test_edit_back_cancels_changes \
+    test_add_shows_form \
+    test_add_form_has_name_field \
+    test_add_form_has_url_field \
+    test_add_form_has_icon_field \
+    test_add_form_submission_saves_quicklink \
+    test_add_form_requires_name \
+    test_add_form_requires_url \
+    test_add_form_name_already_exists \
+    test_add_form_adds_https_prefix \
+    test_add_form_preserves_http \
+    test_add_form_returns_to_list \
+    test_add_form_cancel_returns_to_list \
+    test_add_form_clears_input \
+    test_add_form_default_icon \
+    test_add_form_custom_icon \
+    test_edit_shows_form \
+    test_edit_form_prefills_url \
+    test_edit_form_prefills_icon \
+    test_edit_form_saves_new_url \
+    test_edit_form_saves_new_icon \
+    test_edit_form_adds_https_prefix \
+    test_edit_form_requires_url \
+    test_edit_form_returns_to_list \
+    test_edit_form_cancel \
+    test_edit_form_clears_input \
     test_delete_action_removes_quicklink \
     test_delete_updates_file \
     test_delete_shows_remaining \
@@ -596,14 +665,8 @@ run_tests \
     test_select_quicklink_without_query_opens_directly \
     test_quicklink_with_aliases_shows_description \
     test_search_by_alias \
-    test_context_persists_during_add \
-    test_context_persists_during_edit \
-    test_context_cleared_on_back \
-    test_context_cleared_on_save \
     test_custom_icon_preserved \
     test_default_icon_when_missing \
-    test_https_prefix_not_duplicated \
-    test_http_protocol_preserved \
     test_execute_has_close_flag \
     test_execute_search_has_close_flag \
     test_execute_includes_name \

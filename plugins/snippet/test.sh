@@ -73,7 +73,9 @@ test_initial_empty() {
     local result=$(hamr_test initial)
     
     assert_type "$result" "results"
-    assert_has_result "$result" "__add__"
+    # Add is now in pluginActions
+    assert_contains "$result" "pluginActions"
+    assert_json "$result" '.pluginActions[0].id' "add"
     assert_json "$result" '.inputMode' "realtime"
 }
 
@@ -82,7 +84,7 @@ test_initial_with_snippets() {
     local result=$(hamr_test initial)
     
     assert_type "$result" "results"
-    assert_result_count "$result" 3  # add + 2 snippets
+    assert_result_count "$result" 2  # 2 snippets (add is in pluginActions)
     assert_has_result "$result" "hello"
     assert_has_result "$result" "date"
 }
@@ -149,11 +151,13 @@ test_search_fuzzy_matching() {
     assert_has_result "$result" "helloworld"
 }
 
-test_search_always_shows_add_option() {
+test_search_shows_add_in_plugin_actions() {
     set_snippets '{"snippets": [{"key": "test", "value": "value"}]}'
     local result=$(hamr_test search --query "xyz")
     
-    assert_has_result "$result" "__add__"
+    # Add is in pluginActions
+    assert_contains "$result" "pluginActions"
+    assert_json "$result" '.pluginActions[0].id' "add"
 }
 
 test_search_empty_query_shows_all() {
@@ -172,165 +176,171 @@ test_search_case_insensitive() {
 }
 
 # ============================================================================
-# Tests - Add Snippet
+# Tests - Add Snippet (Form API)
 # ============================================================================
 
-test_add_initial_step() {
+test_add_shows_form() {
     clear_snippets
-    local result=$(hamr_test action --id "__add__")
+    # Add is now triggered via __plugin__ id with "add" action
+    local result=$(hamr_test action --id "__plugin__" --action "add")
     
-    assert_submit_mode "$result"
+    assert_type "$result" "form"
     assert_json "$result" '.context' "__add__"
-    assert_json "$result" '.placeholder' "Enter snippet key (Enter to confirm)"
+    assert_json "$result" '.form.title' "Add New Snippet"
 }
 
-test_add_key_validation_empty() {
+test_add_form_has_key_field() {
     clear_snippets
-    local result=$(hamr_test search --query "" --context "__add__")
+    local result=$(hamr_test action --id "__plugin__" --action "add")
     
-    assert_submit_mode "$result"
-    assert_has_result "$result" "__back__"
+    local key_field=$(json_get "$result" '.form.fields[] | select(.id == "key")')
+    assert_contains "$key_field" '"type": "text"'
+    assert_contains "$key_field" '"required": true'
 }
 
-test_add_key_already_exists() {
-    set_snippets '{"snippets": [{"key": "taken", "value": "value"}]}'
-    local result=$(hamr_test search --query "taken" --context "__add__")
-    
-    assert_submit_mode "$result"
-    assert_has_result "$result" "__error__"
-    assert_contains "$result" "already exists"
-}
-
-test_add_key_valid_moves_to_value() {
+test_add_form_has_value_field() {
     clear_snippets
-    local result=$(hamr_test search --query "newkey" --context "__add__")
+    local result=$(hamr_test action --id "__plugin__" --action "add")
     
-    assert_submit_mode "$result"
-    assert_json "$result" '.context' "__add_key__:newkey"
-    assert_contains "$result" "Enter value for 'newkey'"
+    local value_field=$(json_get "$result" '.form.fields[] | select(.id == "value")')
+    assert_contains "$value_field" '"type": "textarea"'
+    assert_contains "$value_field" '"required": true'
 }
 
-test_add_value_saves_snippet() {
+test_add_form_submission_saves_snippet() {
     clear_snippets
-    hamr_test search --query "mykey" --context "__add__" > /dev/null
-    hamr_test search --query "myvalue" --context "__add_key__:mykey" > /dev/null
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test form --data '{"key": "mykey", "value": "myvalue"}' --context "__add__")
     
+    assert_type "$result" "results"
     local snippets=$(get_snippets_file)
     assert_contains "$snippets" "mykey"
     assert_contains "$snippets" "myvalue"
 }
 
-test_add_value_processes_escape_sequences() {
+test_add_form_requires_key() {
     clear_snippets
-    hamr_test search --query "escapes" --context "__add__" > /dev/null
-    hamr_test search --query "Line 1\\nLine 2" --context "__add_key__:escapes" > /dev/null
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test form --data '{"key": "", "value": "somevalue"}' --context "__add__")
     
+    assert_type "$result" "error"
+    assert_contains "$result" "Key is required"
+}
+
+test_add_form_requires_value() {
+    clear_snippets
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test form --data '{"key": "somekey", "value": ""}' --context "__add__")
+    
+    assert_type "$result" "error"
+    assert_contains "$result" "Value is required"
+}
+
+test_add_form_key_already_exists() {
+    set_snippets '{"snippets": [{"key": "taken", "value": "value"}]}'
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test form --data '{"key": "taken", "value": "newvalue"}' --context "__add__")
+    
+    assert_type "$result" "error"
+    assert_contains "$result" "already exists"
+}
+
+test_add_form_multiline_value() {
+    clear_snippets
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test form --data '{"key": "multi", "value": "Line 1\nLine 2"}' --context "__add__")
+    
+    assert_type "$result" "results"
     local value=$(json_get "$(get_snippets_file)" '.snippets[0].value')
     assert_contains "$value" "Line 1"
 }
 
-test_add_value_with_tabs() {
+test_add_form_returns_to_list() {
     clear_snippets
-    hamr_test search --query "tabs" --context "__add__" > /dev/null
-    hamr_test search --query "col1\\tcol2" --context "__add_key__:tabs" > /dev/null
-    
-    local value=$(json_get "$(get_snippets_file)" '.snippets[0].value')
-    assert_contains "$value" "col1"
-}
-
-test_add_value_returns_to_main_list() {
-    clear_snippets
-    hamr_test search --query "key1" --context "__add__" > /dev/null
-    hamr_test search --query "value1" --context "__add_key__:key1" > /dev/null
-    local result=$(hamr_test search --query "" --context "")
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test form --data '{"key": "newsnippet", "value": "content"}' --context "__add__")
     
     assert_type "$result" "results"
-    assert_has_result "$result" "key1"
+    assert_has_result "$result" "newsnippet"
 }
 
-test_add_back_from_key_entry() {
+test_add_form_cancel_returns_to_list() {
     clear_snippets
-    hamr_test action --id "__add__" > /dev/null
-    local result=$(hamr_test action --id "__back__")
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
+    local result=$(hamr_test action --id "__form_cancel__")
     
     assert_type "$result" "results"
-    assert_has_result "$result" "__add__"
-}
-
-test_add_back_from_value_entry() {
-    clear_snippets
-    hamr_test search --query "key1" --context "__add__" > /dev/null
-    local result=$(hamr_test action --id "__back__" --context "__add_key__:key1")
-    
-    assert_type "$result" "results"
-    # Back clears context and returns to main menu
-    assert_has_result "$result" "__add__"
+    assert_contains "$result" "pluginActions"
 }
 
 # ============================================================================
-# Tests - Edit Snippet
+# Tests - Edit Snippet (Form API)
 # ============================================================================
 
-test_edit_action_entry() {
+test_edit_shows_form() {
     set_snippets '{"snippets": [{"key": "edit_me", "value": "old value"}]}'
     local result=$(hamr_test action --id "edit_me" --action "edit")
     
-    assert_submit_mode "$result"
+    assert_type "$result" "form"
     assert_json "$result" '.context' "__edit__:edit_me"
-    assert_contains "$result" "old value"
+    assert_contains "$result" "Edit Snippet"
 }
 
-test_edit_shows_current_value() {
-    set_snippets '{"snippets": [{"key": "test", "value": "current"}]}'
+test_edit_form_prefills_value() {
+    set_snippets '{"snippets": [{"key": "test", "value": "current value"}]}'
     local result=$(hamr_test action --id "test" --action "edit")
     
-    assert_contains "$result" "current"
+    local value_default=$(json_get "$result" '.form.fields[] | select(.id == "value") | .default')
+    assert_eq "$value_default" "current value"
 }
 
-test_edit_saves_new_value() {
+test_edit_form_saves_new_value() {
     set_snippets '{"snippets": [{"key": "edit_test", "value": "old"}]}'
     hamr_test action --id "edit_test" --action "edit" > /dev/null
-    hamr_test search --query "new" --context "__edit__:edit_test" > /dev/null
+    local result=$(hamr_test form --data '{"value": "new"}' --context "__edit__:edit_test")
     
+    assert_type "$result" "results"
     local value=$(json_get "$(get_snippets_file)" '.snippets[0].value')
     assert_eq "$value" "new"
 }
 
-test_edit_processes_escape_sequences() {
+test_edit_form_multiline_value() {
     set_snippets '{"snippets": [{"key": "escape_test", "value": "old"}]}'
     hamr_test action --id "escape_test" --action "edit" > /dev/null
-    hamr_test search --query "Line 1\\nLine 2" --context "__edit__:escape_test" > /dev/null
+    local result=$(hamr_test form --data '{"value": "Line 1\nLine 2"}' --context "__edit__:escape_test")
     
+    assert_type "$result" "results"
     local value=$(json_get "$(get_snippets_file)" '.snippets[0].value')
     assert_contains "$value" "Line 1"
 }
 
-test_edit_returns_to_main_list() {
+test_edit_form_returns_to_list() {
     set_snippets '{"snippets": [{"key": "edited", "value": "old"}]}'
     hamr_test action --id "edited" --action "edit" > /dev/null
-    hamr_test search --query "new value" --context "__edit__:edited" > /dev/null
-    local result=$(hamr_test search --query "")
+    local result=$(hamr_test form --data '{"value": "new value"}' --context "__edit__:edited")
     
+    assert_type "$result" "results"
     assert_has_result "$result" "edited"
 }
 
-test_edit_back_cancels() {
+test_edit_form_cancel() {
     set_snippets '{"snippets": [{"key": "cancel_edit", "value": "original"}]}'
     hamr_test action --id "cancel_edit" --action "edit" > /dev/null
-    local result=$(hamr_test action --id "__back__" --context "__edit__:cancel_edit")
+    local result=$(hamr_test action --id "__form_cancel__")
     
+    assert_type "$result" "results"
     # Value should remain unchanged
     local value=$(json_get "$(get_snippets_file)" '.snippets[0].value')
     assert_eq "$value" "original"
 }
 
-test_edit_empty_value_shows_prompt() {
-    set_snippets '{"snippets": [{"key": "empty", "value": "something"}]}'
-    local result=$(hamr_test action --id "empty" --action "edit")
+test_edit_form_requires_value() {
+    set_snippets '{"snippets": [{"key": "empty_edit", "value": "something"}]}'
+    hamr_test action --id "empty_edit" --action "edit" > /dev/null
+    local result=$(hamr_test form --data '{"value": ""}' --context "__edit__:empty_edit")
     
-    # When entering edit mode with empty input, should show prompt for value
-    assert_submit_mode "$result"
-    assert_json "$result" '.context' "__edit__:empty"
+    assert_type "$result" "error"
+    assert_contains "$result" "Value is required"
 }
 
 # ============================================================================
@@ -472,7 +482,7 @@ test_multiple_snippets_same_prefix() {
     set_snippets '{"snippets": [{"key": "pre1", "value": "v1"}, {"key": "pre2", "value": "v2"}, {"key": "prefix", "value": "v3"}]}'
     local result=$(hamr_test search --query "pre")
     
-    assert_result_count "$result" 4  # All 3 snippets + add option
+    assert_result_count "$result" 3  # All 3 snippets (add is in pluginActions)
 }
 
 # ============================================================================
@@ -484,7 +494,7 @@ test_all_responses_valid_json() {
     
     assert_ok hamr_test initial
     assert_ok hamr_test search --query "test"
-    assert_ok hamr_test action --id "__add__"
+    assert_ok hamr_test action --id "__plugin__" --action "add"
     assert_ok hamr_test action --id "test" --action "copy"
     assert_ok hamr_test action --id "test" --action "edit"
     assert_ok hamr_test action --id "test" --action "delete"
@@ -515,26 +525,26 @@ run_tests \
     test_search_filters_by_key \
     test_search_filters_by_value_preview \
     test_search_fuzzy_matching \
-    test_search_always_shows_add_option \
+    test_search_shows_add_in_plugin_actions \
     test_search_empty_query_shows_all \
     test_search_case_insensitive \
-    test_add_initial_step \
-    test_add_key_validation_empty \
-    test_add_key_already_exists \
-    test_add_key_valid_moves_to_value \
-    test_add_value_saves_snippet \
-    test_add_value_processes_escape_sequences \
-    test_add_value_with_tabs \
-    test_add_value_returns_to_main_list \
-    test_add_back_from_key_entry \
-    test_add_back_from_value_entry \
-    test_edit_action_entry \
-    test_edit_shows_current_value \
-    test_edit_saves_new_value \
-    test_edit_processes_escape_sequences \
-    test_edit_returns_to_main_list \
-    test_edit_back_cancels \
-    test_edit_empty_value_shows_prompt \
+    test_add_shows_form \
+    test_add_form_has_key_field \
+    test_add_form_has_value_field \
+    test_add_form_submission_saves_snippet \
+    test_add_form_requires_key \
+    test_add_form_requires_value \
+    test_add_form_key_already_exists \
+    test_add_form_multiline_value \
+    test_add_form_returns_to_list \
+    test_add_form_cancel_returns_to_list \
+    test_edit_shows_form \
+    test_edit_form_prefills_value \
+    test_edit_form_saves_new_value \
+    test_edit_form_multiline_value \
+    test_edit_form_returns_to_list \
+    test_edit_form_cancel \
+    test_edit_form_requires_value \
     test_copy_action_executes \
     test_copy_uses_snippet_value \
     test_copy_closes_launcher \

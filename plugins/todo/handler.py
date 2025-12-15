@@ -43,19 +43,38 @@ def save_todos(todos: list[dict]) -> None:
         json.dump(todos, f)
 
 
-def get_todo_results(todos: list[dict], show_add: bool = True) -> list[dict]:
+def get_plugin_actions(todos: list[dict], in_add_mode: bool = False) -> list[dict]:
+    """Get plugin-level actions for the action bar"""
+    actions = []
+    if not in_add_mode:
+        actions.append(
+            {
+                "id": "add",
+                "name": "Add Task",
+                "icon": "add_circle",
+                "shortcut": "Ctrl+1",
+            }
+        )
+        # Show clear completed if there are any completed todos
+        completed_count = sum(1 for t in todos if t.get("done", False))
+        if completed_count > 0:
+            actions.append(
+                {
+                    "id": "clear_completed",
+                    "name": f"Clear Done ({completed_count})",
+                    "icon": "delete_sweep",
+                    "confirm": f"Remove {completed_count} completed task(s)?",
+                    "shortcut": "Ctrl+2",
+                }
+            )
+    return actions
+
+
+def get_todo_results(todos: list[dict], show_add: bool = False) -> list[dict]:
     """Convert todos to result format"""
     results = []
 
-    if show_add:
-        results.append(
-            {
-                "id": "__add__",
-                "name": "Add new task...",
-                "icon": "add_circle",
-                "description": "Type to create a new task",
-            }
-        )
+    # No longer add "Add" as a result item - it's now a plugin action
 
     for i, todo in enumerate(todos):
         done = todo.get("done", False)
@@ -79,13 +98,13 @@ def get_todo_results(todos: list[dict], show_add: bool = True) -> list[dict]:
             }
         )
 
-    if not todos and show_add:
+    if not todos:
         results.append(
             {
                 "id": "__empty__",
                 "name": "No tasks yet",
                 "icon": "info",
-                "description": "Click 'Add new task' to get started",
+                "description": "Use 'Add Task' button or Ctrl+1 to get started",
             }
         )
 
@@ -111,8 +130,9 @@ def respond(
     refresh_ui: bool = False,
     clear_input: bool = False,
     context: str = "",
-    placeholder: str = "Search tasks or type to add...",
+    placeholder: str = "Search tasks...",
     input_mode: str = "realtime",
+    plugin_actions: list[dict] | None = None,
 ):
     """Send a results response"""
     response = {
@@ -121,6 +141,8 @@ def respond(
         "inputMode": input_mode,
         "placeholder": placeholder,
     }
+    if plugin_actions is not None:
+        response["pluginActions"] = plugin_actions
     if clear_input:
         response["clearInput"] = True
     if context:
@@ -142,7 +164,10 @@ def main():
 
     # Initial: show todo list
     if step == "initial":
-        respond(get_todo_results(todos))
+        respond(
+            get_todo_results(todos),
+            plugin_actions=get_plugin_actions(todos),
+        )
         return
 
     # Search: filter todos or prepare to add
@@ -160,11 +185,16 @@ def main():
                     }
                 )
                 save_todos(todos)
-                respond(get_todo_results(todos), refresh_ui=True, clear_input=True)
+                respond(
+                    get_todo_results(todos),
+                    refresh_ui=True,
+                    clear_input=True,
+                    plugin_actions=get_plugin_actions(todos),
+                )
                 return
-            # Empty query - stay in add mode (shouldn't happen in submit mode, but handle it)
+            # Empty query - stay in add mode
             respond(
-                [{"id": "__back__", "name": "Cancel", "icon": "arrow_back"}],
+                [],
                 placeholder="Type new task... (Enter to add)",
                 context="__add_mode__",
                 input_mode="submit",
@@ -180,19 +210,17 @@ def main():
                 if query:
                     todos[todo_idx]["content"] = query
                     save_todos(todos)
-                    respond(get_todo_results(todos), refresh_ui=True, clear_input=True)
-                else:
                     respond(
-                        [
-                            {"id": "__back__", "name": "Cancel", "icon": "arrow_back"},
-                            {
-                                "id": "__current__",
-                                "name": f"Current: {old_content}",
-                                "icon": "info",
-                                "description": "Type new content above",
-                            },
-                        ],
-                        placeholder="Type new task content... (Enter to save)",
+                        get_todo_results(todos),
+                        refresh_ui=True,
+                        clear_input=True,
+                        plugin_actions=get_plugin_actions(todos),
+                    )
+                else:
+                    # Show current value in placeholder
+                    respond(
+                        [],
+                        placeholder=f"Edit: {old_content[:50]}{'...' if len(old_content) > 50 else ''} (Enter to save)",
                         context=context,
                         input_mode="submit",
                     )
@@ -234,33 +262,57 @@ def main():
                             ],
                         }
                     )
-            respond(filtered)
+            respond(filtered, plugin_actions=get_plugin_actions(todos))
         else:
-            respond(get_todo_results(todos))
+            respond(
+                get_todo_results(todos),
+                plugin_actions=get_plugin_actions(todos),
+            )
         return
 
     # Action: handle clicks
     if step == "action":
         item_id = selected.get("id", "")
 
+        # Plugin-level actions (from action bar)
+        if item_id == "__plugin__":
+            if action == "add":
+                # Enter add mode (submit mode) - empty results, placeholder tells user what to do
+                respond(
+                    [],
+                    placeholder="Type new task... (Enter to add)",
+                    clear_input=True,
+                    context="__add_mode__",
+                    input_mode="submit",
+                    plugin_actions=[],  # Hide actions in add mode
+                )
+                return
+
+            if action == "clear_completed":
+                # Remove all completed todos
+                todos = [t for t in todos if not t.get("done", False)]
+                save_todos(todos)
+                respond(
+                    get_todo_results(todos),
+                    refresh_ui=True,
+                    clear_input=True,
+                    plugin_actions=get_plugin_actions(todos),
+                )
+                return
+
         # Back
         if item_id == "__back__":
-            respond(get_todo_results(todos), clear_input=True)
+            respond(
+                get_todo_results(todos),
+                clear_input=True,
+                plugin_actions=get_plugin_actions(todos),
+            )
             return
 
-        # Enter add mode (submit mode)
+        # Enter add mode (submit mode) - legacy item click support
         if item_id == "__add__":
-            results = [
-                {"id": "__back__", "name": "Cancel", "icon": "arrow_back"},
-                {
-                    "id": "__add__:",
-                    "name": "Type a task and press Enter...",
-                    "icon": "add_circle",
-                    "description": "Start typing to add a new task",
-                },
-            ]
             respond(
-                results,
+                [],
                 placeholder="Type new task... (Enter to add)",
                 clear_input=True,
                 context="__add_mode__",
@@ -282,11 +334,19 @@ def main():
                         }
                     )
                     save_todos(todos)
-                    respond(get_todo_results(todos), refresh_ui=True, clear_input=True)
+                    respond(
+                        get_todo_results(todos),
+                        refresh_ui=True,
+                        clear_input=True,
+                        plugin_actions=get_plugin_actions(todos),
+                    )
                     return
                 except Exception:
                     pass
-            respond(get_todo_results(todos))
+            respond(
+                get_todo_results(todos),
+                plugin_actions=get_plugin_actions(todos),
+            )
             return
 
         # Save edit (content encoded in ID)
@@ -301,21 +361,27 @@ def main():
                         todos[todo_idx]["content"] = new_content
                         save_todos(todos)
                         respond(
-                            get_todo_results(todos), refresh_ui=True, clear_input=True
+                            get_todo_results(todos),
+                            refresh_ui=True,
+                            clear_input=True,
+                            plugin_actions=get_plugin_actions(todos),
                         )
                         return
                     except Exception:
                         pass
-            respond(get_todo_results(todos), clear_input=True)
-            return
-
-        # Info-only items - ignore
-        if item_id == "__current__":
+            respond(
+                get_todo_results(todos),
+                clear_input=True,
+                plugin_actions=get_plugin_actions(todos),
+            )
             return
 
         # Empty state - ignore
         if item_id == "__empty__":
-            respond(get_todo_results(todos))
+            respond(
+                get_todo_results(todos),
+                plugin_actions=get_plugin_actions(todos),
+            )
             return
 
         # Todo item actions
@@ -327,24 +393,20 @@ def main():
                 if 0 <= todo_idx < len(todos):
                     todos[todo_idx]["done"] = not todos[todo_idx].get("done", False)
                     save_todos(todos)
-                    respond(get_todo_results(todos), refresh_ui=True)
+                    respond(
+                        get_todo_results(todos),
+                        refresh_ui=True,
+                        plugin_actions=get_plugin_actions(todos),
+                    )
                 return
 
             if action == "edit":
                 if 0 <= todo_idx < len(todos):
                     content = todos[todo_idx].get("content", "")
-                    results = [
-                        {"id": "__back__", "name": "Cancel", "icon": "arrow_back"},
-                        {
-                            "id": f"__save__:{todo_idx}:",
-                            "name": "Save changes",
-                            "icon": "save",
-                            "description": f"Current: {content}",
-                        },
-                    ]
+                    # Show current value in placeholder - empty results for clean UI
                     respond(
-                        results,
-                        placeholder="Type new content... (Enter to save)",
+                        [],
+                        placeholder=f"Edit: {content[:50]}{'...' if len(content) > 50 else ''} (Enter to save)",
                         clear_input=True,
                         context=f"__edit__:{todo_idx}",
                         input_mode="submit",
@@ -355,7 +417,11 @@ def main():
                 if 0 <= todo_idx < len(todos):
                     todos.pop(todo_idx)
                     save_todos(todos)
-                    respond(get_todo_results(todos), refresh_ui=True)
+                    respond(
+                        get_todo_results(todos),
+                        refresh_ui=True,
+                        plugin_actions=get_plugin_actions(todos),
+                    )
                 return
 
     # Unknown

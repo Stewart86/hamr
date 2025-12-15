@@ -53,10 +53,25 @@ def truncate(text: str, max_len: int = 60) -> str:
     return text[: max_len - 3] + "..."
 
 
-def get_note_results(notes: list[dict], show_add: bool = True) -> list[dict]:
+def get_plugin_actions(in_form_mode: bool = False) -> list[dict]:
+    """Get plugin-level actions for the action bar"""
+    if in_form_mode:
+        return []  # No actions while in form
+    return [
+        {
+            "id": "add",
+            "name": "Add Note",
+            "icon": "add_circle",
+            "shortcut": "Ctrl+1",
+        }
+    ]
+
+
+def get_note_results(notes: list[dict], show_add: bool = False) -> list[dict]:
     """Convert notes to result format"""
     results = []
 
+    # Add option is now in plugin action bar, but keep for legacy support
     if show_add:
         results.append(
             {
@@ -217,7 +232,8 @@ def main():
                 "type": "results",
                 "results": get_note_results(notes),
                 "inputMode": "realtime",
-                "placeholder": "Search notes or add new...",
+                "placeholder": "Search notes...",
+                "pluginActions": get_plugin_actions(),
             }
         )
         return
@@ -238,14 +254,15 @@ def main():
                 }
             )
 
-        results.extend(get_note_results(filtered, show_add=not query))
+        results.extend(get_note_results(filtered))
 
         respond(
             {
                 "type": "results",
                 "results": results,
                 "inputMode": "realtime",
-                "placeholder": "Search notes or add new...",
+                "placeholder": "Search notes...",
+                "pluginActions": get_plugin_actions(),
             }
         )
         return
@@ -274,7 +291,8 @@ def main():
                             "inputMode": "realtime",
                             "clearInput": True,
                             "context": "",
-                            "placeholder": "Search notes or add new...",
+                            "placeholder": "Search notes...",
+                            "pluginActions": get_plugin_actions(),
                         }
                     )
                 else:
@@ -307,7 +325,8 @@ def main():
                             "inputMode": "realtime",
                             "clearInput": True,
                             "context": "",
-                            "placeholder": "Search notes or add new...",
+                            "placeholder": "Search notes...",
+                            "pluginActions": get_plugin_actions(),
                         }
                     )
                 else:
@@ -320,6 +339,11 @@ def main():
     if step == "action":
         item_id = selected.get("id", "")
 
+        # Plugin-level action: add (from action bar)
+        if item_id == "__plugin__" and action == "add":
+            show_add_form()
+            return
+
         # Form cancelled - return to list
         if item_id == "__form_cancel__":
             respond(
@@ -329,7 +353,8 @@ def main():
                     "inputMode": "realtime",
                     "clearInput": True,
                     "context": "",
-                    "placeholder": "Search notes or add new...",
+                    "placeholder": "Search notes...",
+                    "pluginActions": get_plugin_actions(),
                 }
             )
             return
@@ -406,7 +431,8 @@ def main():
                         "inputMode": "realtime",
                         "clearInput": True,
                         "context": "",
-                        "placeholder": "Search notes or add new...",
+                        "placeholder": "Search notes...",
+                        "pluginActions": get_plugin_actions(),
                     }
                 )
             else:
@@ -422,7 +448,8 @@ def main():
                     "inputMode": "realtime",
                     "clearInput": True,
                     "context": "",
-                    "placeholder": "Search notes or add new...",
+                    "placeholder": "Search notes...",
+                    "pluginActions": get_plugin_actions(),
                 }
             )
             return

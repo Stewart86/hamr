@@ -120,11 +120,102 @@ Display a list of selectable items.
     "inputMode": "realtime",             # Optional: "realtime" (default) or "submit"
     "placeholder": "Search...",          # Optional: search bar placeholder
     "clearInput": true,                  # Optional: clear search text
-    "context": "my-state"                # Optional: persist state for search calls
+    "context": "my-state",               # Optional: persist state for search calls
+    "pluginActions": [                   # Optional: plugin-level action bar buttons
+        {"id": "add", "name": "Add", "icon": "add_circle", "shortcut": "Ctrl+1"},
+        {"id": "wipe", "name": "Wipe All", "icon": "delete_sweep", "confirm": "Are you sure?"}
+    ]
 }
 ```
 
 **Example plugins:** [`quicklinks/`](quicklinks/handler.py), [`todo/`](todo/handler.py), [`bitwarden/`](bitwarden/handler.py)
+
+#### Plugin Actions (Toolbar Buttons)
+
+The `pluginActions` field displays action buttons in a toolbar below the search bar. These are for plugin-level actions (e.g., "Add", "Wipe", "Refresh") that apply to the plugin itself, not specific items.
+
+```python
+"pluginActions": [
+    {
+        "id": "add",           # Required: action ID
+        "name": "Add Item",    # Required: button label
+        "icon": "add_circle",  # Required: material icon
+        "shortcut": "Ctrl+1",  # Optional: keyboard shortcut (default: Ctrl+N)
+        "confirm": "..."       # Optional: confirmation message (shows dialog before executing)
+    }
+]
+```
+
+| Field      | Type   | Required | Description                                       |
+| ---------- | ------ | -------- | ------------------------------------------------- |
+| `id`       | string | Yes      | Action ID sent to handler                         |
+| `name`     | string | Yes      | Button label text                                 |
+| `icon`     | string | Yes      | Material icon name                                |
+| `shortcut` | string | No       | Keyboard shortcut (default: Ctrl+1 through Ctrl+6)|
+| `confirm`  | string | No       | If set, shows confirmation dialog before executing|
+
+**Receiving plugin action clicks:**
+
+When user clicks a plugin action button (or confirms a dangerous action), handler receives:
+
+```python
+{
+    "step": "action",
+    "selected": {"id": "__plugin__"},   # Always "__plugin__" for plugin actions
+    "action": "add",                     # The plugin action ID
+    "context": "...",                    # Current context (if any)
+    "session": "..."
+}
+```
+
+**Example: Clipboard with Wipe action**
+
+```python
+def get_plugin_actions():
+    return [
+        {
+            "id": "wipe",
+            "name": "Wipe All",
+            "icon": "delete_sweep",
+            "confirm": "Wipe all clipboard history? This cannot be undone.",
+            "shortcut": "Ctrl+1",
+        }
+    ]
+
+def main():
+    input_data = json.load(sys.stdin)
+    step = input_data.get("step", "initial")
+    selected = input_data.get("selected", {})
+    action = input_data.get("action", "")
+
+    if step == "initial":
+        print(json.dumps({
+            "type": "results",
+            "results": get_clipboard_entries(),
+            "pluginActions": get_plugin_actions(),
+        }))
+        return
+
+    if step == "action":
+        # Plugin-level action (from toolbar)
+        if selected.get("id") == "__plugin__" and action == "wipe":
+            wipe_clipboard()
+            print(json.dumps({
+                "type": "execute",
+                "execute": {"notify": "Clipboard wiped", "close": True}
+            }))
+            return
+        
+        # Item-specific actions...
+```
+
+**Best practices:**
+- Maximum 6 actions (Ctrl+1 through Ctrl+6)
+- Use `confirm` for dangerous/irreversible actions
+- Hide actions during special modes (e.g., pass empty array during add mode)
+- Common actions: Add, Refresh, Clear/Wipe, Settings, Export
+
+**Example plugins:** [`clipboard/`](clipboard/handler.py), [`todo/`](todo/handler.py)
 
 ---
 

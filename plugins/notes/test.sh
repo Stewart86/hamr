@@ -92,8 +92,11 @@ test_initial_empty() {
     local result=$(hamr_test initial)
     
     assert_type "$result" "results"
-    assert_has_result "$result" "__add__"
-    assert_has_result "$result" "__empty__"
+    # Add is now in pluginActions, not results
+    assert_contains "$result" "pluginActions"
+    assert_json "$result" '.pluginActions[0].id' "add"
+    # Empty state should be shown when no notes
+    assert_contains "$result" "No notes yet" || assert_result_count "$result" 0
 }
 
 test_initial_with_notes() {
@@ -105,7 +108,7 @@ test_initial_with_notes() {
     local result=$(hamr_test initial)
     
     assert_type "$result" "results"
-    assert_result_count "$result" 3  # add + 2 notes
+    assert_result_count "$result" 2  # 2 notes (add is in pluginActions)
     assert_has_result "$result" "note_1"
     assert_has_result "$result" "note_2"
 }
@@ -118,8 +121,8 @@ test_initial_notes_sorted_by_updated_desc() {
     set_notes "$notes"
     local result=$(hamr_test initial)
     
-    # New note should appear first (after add button)
-    local first_note_id=$(json_get "$result" '.results[1].id')
+    # New note should appear first (add button is in pluginActions, so index 0)
+    local first_note_id=$(json_get "$result" '.results[0].id')
     assert_eq "$first_note_id" "note_2" "Most recent note should appear first"
 }
 
@@ -180,13 +183,15 @@ test_search_empty_hides_quick_add() {
     clear_notes
     local result=$(hamr_test search --query "")
     
-    assert_has_result "$result" "__add__"
+    # Add button is in pluginActions, not results
+    assert_contains "$result" "pluginActions"
     assert_no_result "$result" "__add_quick__"
 }
 
 test_action_click_add_shows_form() {
     clear_notes
-    local result=$(hamr_test action --id "__add__")
+    # Add is now triggered via __plugin__ id with "add" action
+    local result=$(hamr_test action --id "__plugin__" --action "add")
     
     assert_type "$result" "form"
     assert_json "$result" '.form.title' "Add New Note"
@@ -195,7 +200,7 @@ test_action_click_add_shows_form() {
 
 test_add_form_has_title_field() {
     clear_notes
-    local result=$(hamr_test action --id "__add__")
+    local result=$(hamr_test action --id "__plugin__" --action "add")
     
     local title_field=$(json_get "$result" '.form.fields[] | select(.id == "title")')
     assert_contains "$title_field" '"type": "text"'
@@ -204,7 +209,7 @@ test_add_form_has_title_field() {
 
 test_add_form_has_content_field() {
     clear_notes
-    local result=$(hamr_test action --id "__add__")
+    local result=$(hamr_test action --id "__plugin__" --action "add")
     
     local content_field=$(json_get "$result" '.form.fields[] | select(.id == "content")')
     assert_contains "$content_field" '"type": "textarea"'
@@ -222,7 +227,7 @@ test_action_quick_add_shows_form_with_title() {
 
 test_form_submission_add_creates_note() {
     clear_notes
-    hamr_test action --id "__add__" > /dev/null
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
     local result=$(hamr_test form --data '{"title": "Test Note", "content": "Test content"}' --context "__add__")
     
     assert_type "$result" "results"
@@ -233,17 +238,17 @@ test_form_submission_add_creates_note() {
 test_form_submission_add_returns_to_list() {
     local notes='{"notes": [{"id": "note_1", "title": "Existing", "content": "Content", "created": 1000, "updated": 1000}]}'
     set_notes "$notes"
-    hamr_test action --id "__add__" > /dev/null
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
     local result=$(hamr_test form --data '{"title": "New Note", "content": ""}' --context "__add__")
     
-    assert_has_result "$result" "__add__"
+    # Add is in pluginActions, notes in results
     assert_has_result "$result" "note_1"
     assert_contains "$result" "New Note"
 }
 
 test_form_submission_requires_title() {
     clear_notes
-    hamr_test action --id "__add__" > /dev/null
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
     local result=$(hamr_test form --data '{"title": "", "content": "Some content"}' --context "__add__")
     
     assert_type "$result" "error"
@@ -253,7 +258,7 @@ test_form_submission_requires_title() {
 
 test_form_submission_allows_empty_content() {
     clear_notes
-    hamr_test action --id "__add__" > /dev/null
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
     local result=$(hamr_test form --data '{"title": "Title Only", "content": ""}' --context "__add__")
     
     assert_type "$result" "results"
@@ -262,7 +267,7 @@ test_form_submission_allows_empty_content() {
 
 test_form_submission_clears_input() {
     clear_notes
-    hamr_test action --id "__add__" > /dev/null
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
     local result=$(hamr_test form --data '{"title": "Test", "content": ""}' --context "__add__")
     
     local clear_input=$(json_get "$result" '.clearInput')
@@ -425,7 +430,8 @@ test_delete_returns_to_list() {
     set_notes "$notes"
     local result=$(hamr_test action --id "note_1" --action "delete")
     
-    assert_has_result "$result" "__add__"
+    # Add is in pluginActions
+    assert_contains "$result" "pluginActions"
     assert_has_result "$result" "note_2"
 }
 
@@ -518,7 +524,7 @@ test_all_responses_valid_json() {
     
     assert_ok hamr_test initial
     assert_ok hamr_test search --query "test"
-    assert_ok hamr_test action --id "__add__"
+    assert_ok hamr_test action --id "__plugin__" --action "add"
     assert_ok hamr_test action --id "note_1"
     assert_ok hamr_test action --id "note_1" --action "view"
     assert_ok hamr_test action --id "note_1" --action "edit"
@@ -535,12 +541,13 @@ test_nonexistent_note_error() {
 test_form_cancel_returns_to_list() {
     local notes='{"notes": [{"id": "note_1", "title": "Existing", "content": "Content", "created": 1000, "updated": 1000}]}'
     set_notes "$notes"
-    hamr_test action --id "__add__" > /dev/null
+    hamr_test action --id "__plugin__" --action "add" > /dev/null
     local result=$(hamr_test action --id "__form_cancel__")
     
     assert_type "$result" "results"
     assert_has_result "$result" "note_1"
-    assert_has_result "$result" "__add__"
+    # Add is in pluginActions
+    assert_contains "$result" "pluginActions"
 }
 
 test_input_mode_realtime() {

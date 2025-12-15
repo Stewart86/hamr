@@ -132,6 +132,7 @@ RowLayout {
         signal cycleActionNext()
         signal cycleActionPrev()
         signal executeActionByIndex(int index)
+        signal executePluginAction(int index)
 
         // Vim-style navigation (Ctrl+J/K/L) and Tab for action cycling
         Keys.onPressed: event => {
@@ -149,6 +150,14 @@ RowLayout {
             }
             
             if (event.modifiers & Qt.ControlModifier) {
+                // Ctrl+1 through Ctrl+6 execute plugin actions (when plugin is active)
+                const pluginActionIndex = event.key - Qt.Key_1;
+                if (pluginActionIndex >= 0 && pluginActionIndex <= 5) {
+                    searchInput.executePluginAction(pluginActionIndex);
+                    event.accepted = true;
+                    return;
+                }
+                
                 // Ctrl+actionKeys execute action buttons directly (default: u,i,o,p)
                 // Check this first so users can override navigation keys if desired
                 const actionKeys = Config.options.search.actionKeys;

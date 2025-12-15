@@ -39,6 +39,11 @@ Singleton {
     property var lastSelectedItem: null // Last selected item (persisted across search calls)
     property string pluginContext: ""  // Custom context string for multi-step flows
     
+    // Plugin-level actions (toolbar buttons, not item-specific)
+    // Each action: { id, name, icon, confirm?: string }
+    // If confirm is set, show confirmation dialog before executing
+    property var pluginActions: []
+    
     // Input mode: "realtime" (every keystroke) or "submit" (only on Enter)
     // Handler controls this via response - allows different modes per step
     property string inputMode: "realtime"
@@ -385,6 +390,7 @@ Singleton {
          root.inputMode = "realtime";
          root.pollInterval = 0;
          root.lastPollQuery = "";
+         root.pluginActions = [];
          root.pluginClosed();
      }
      
@@ -396,6 +402,25 @@ Singleton {
      // Get plugin by ID
      function getPlugin(id) {
          return root.plugins.find(w => w.id === id) ?? null;
+     }
+     
+     // Execute a plugin-level action (from toolbar button)
+     function executePluginAction(actionId) {
+         if (!root.activePlugin) return;
+         
+         const input = {
+             step: "action",
+             selected: { id: "__plugin__" },  // Special marker for plugin-level actions
+             action: actionId,
+             session: root.activePlugin.session
+         };
+         
+         // Include context if set
+         if (root.pluginContext) {
+             input.context = root.pluginContext;
+         }
+         
+         sendToPlugin(input);
      }
     
      // Replay a saved action using entryPoint
@@ -490,28 +515,32 @@ Singleton {
          }
          
          switch (response.type) {
-             case "results":
-                 root.pluginResults = response.results ?? [];
-                 root.pluginCard = null;
-                 root.pluginForm = null;
-                 if (response.placeholder !== undefined) {
-                     root.pluginPlaceholder = response.placeholder ?? "";
-                 }
-                 // Allow handler to set the context for subsequent search calls
-                 if (response.context !== undefined) {
-                     root.pluginContext = response.context ?? "";
-                 }
-                 // Set input mode from response (defaults to realtime)
-                 root.inputMode = response.inputMode ?? "realtime";
-                 // Allow handler to override poll interval dynamically
-                 if (response.pollInterval !== undefined) {
-                     root.pollInterval = response.pollInterval ?? 0;
-                 }
-                 if (response.clearInput) {
-                     root.clearInputRequested();
-                 }
-                 root.resultsReady(root.pluginResults);
-                 break;
+              case "results":
+                  root.pluginResults = response.results ?? [];
+                  root.pluginCard = null;
+                  root.pluginForm = null;
+                  if (response.placeholder !== undefined) {
+                      root.pluginPlaceholder = response.placeholder ?? "";
+                  }
+                  // Allow handler to set the context for subsequent search calls
+                  if (response.context !== undefined) {
+                      root.pluginContext = response.context ?? "";
+                  }
+                  // Set input mode from response (defaults to realtime)
+                  root.inputMode = response.inputMode ?? "realtime";
+                  // Allow handler to override poll interval dynamically
+                  if (response.pollInterval !== undefined) {
+                      root.pollInterval = response.pollInterval ?? 0;
+                  }
+                  // Plugin-level actions (toolbar buttons)
+                  if (response.pluginActions !== undefined) {
+                      root.pluginActions = response.pluginActions ?? [];
+                  }
+                  if (response.clearInput) {
+                      root.clearInputRequested();
+                  }
+                  root.resultsReady(root.pluginResults);
+                  break;
                  
              case "card":
                  root.pluginCard = response.card ?? null;

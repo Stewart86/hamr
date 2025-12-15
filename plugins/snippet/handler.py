@@ -77,6 +77,87 @@ def filter_snippets(query: str, snippets: list[dict]) -> list[dict]:
     return results
 
 
+def get_plugin_actions(in_add_mode: bool = False) -> list[dict]:
+    """Get plugin-level actions for the action bar"""
+    if in_add_mode:
+        return []  # No actions while in form
+    return [
+        {
+            "id": "add",
+            "name": "Add Snippet",
+            "icon": "add_circle",
+            "shortcut": "Ctrl+1",
+        }
+    ]
+
+
+def show_add_form(key_default: str = "", key_error: str = ""):
+    """Show form for adding a new snippet"""
+    fields = [
+        {
+            "id": "key",
+            "type": "text",
+            "label": "Key",
+            "placeholder": "Snippet key/name",
+            "required": True,
+            "default": key_default,
+        },
+        {
+            "id": "value",
+            "type": "textarea",
+            "label": "Value",
+            "placeholder": "Snippet content...\n\nSupports multiple lines.",
+            "rows": 6,
+            "required": True,
+        },
+    ]
+    if key_error:
+        fields[0]["hint"] = key_error
+
+    print(
+        json.dumps(
+            {
+                "type": "form",
+                "form": {
+                    "title": "Add New Snippet",
+                    "submitLabel": "Save",
+                    "cancelLabel": "Cancel",
+                    "fields": fields,
+                },
+                "context": "__add__",
+            }
+        )
+    )
+
+
+def show_edit_form(key: str, current_value: str):
+    """Show form for editing an existing snippet"""
+    print(
+        json.dumps(
+            {
+                "type": "form",
+                "form": {
+                    "title": f"Edit Snippet: {key}",
+                    "submitLabel": "Save",
+                    "cancelLabel": "Cancel",
+                    "fields": [
+                        {
+                            "id": "value",
+                            "type": "textarea",
+                            "label": "Value",
+                            "placeholder": "Snippet content...",
+                            "rows": 6,
+                            "required": True,
+                            "default": current_value,
+                        },
+                    ],
+                },
+                "context": f"__edit__:{key}",
+            }
+        )
+    )
+
+
 def truncate_value(value: str, max_len: int = 60) -> str:
     """Truncate value for display"""
     # Replace newlines with spaces for preview
@@ -108,22 +189,23 @@ def get_snippet_list(snippets: list[dict], show_actions: bool = True) -> list[di
 
 
 def get_main_menu(snippets: list[dict], query: str = "") -> list[dict]:
-    """Get main menu with snippets and add option"""
+    """Get main menu with snippets (add option now in action bar)"""
     results = []
 
     # Filter snippets
     filtered = filter_snippets(query, snippets)
     results.extend(get_snippet_list(filtered))
 
-    # Add "Add new snippet" option at the end
-    results.append(
-        {
-            "id": "__add__",
-            "name": "Add new snippet",
-            "description": "Create a new text snippet",
-            "icon": "add_circle",
-        }
-    )
+    # Empty state hint
+    if not results:
+        results.append(
+            {
+                "id": "__empty__",
+                "name": "No snippets yet",
+                "icon": "info",
+                "description": "Use 'Add Snippet' button or Ctrl+1 to create one",
+            }
+        )
 
     return results
 
@@ -146,7 +228,7 @@ def main():
     snippets = load_snippets()
     selected_id = selected.get("id", "")
 
-    # ===== INITIAL: Show all snippets + add option =====
+    # ===== INITIAL: Show all snippets =====
     if step == "initial":
         results = get_main_menu(snippets)
         print(
@@ -156,207 +238,97 @@ def main():
                     "results": results,
                     "inputMode": "realtime",
                     "placeholder": "Search snippets...",
+                    "pluginActions": get_plugin_actions(),
                 }
             )
         )
         return
 
-    # ===== SEARCH: Context-dependent search =====
-    if step == "search":
-        # Adding new snippet - step 2: entering value (submit mode)
-        # Check this BEFORE step 1 because selected_id might still be "__add__"
-        # but context has been updated to "__add_key__:..."
-        if context.startswith("__add_key__:"):
+    # ===== FORM: Handle form submission =====
+    if step == "form":
+        form_data = input_data.get("formData", {})
+
+        # Adding new snippet
+        if context == "__add__":
+            key = form_data.get("key", "").strip()
+            value = form_data.get("value", "")
+
+            if not key:
+                print(json.dumps({"type": "error", "message": "Key is required"}))
+                return
+
+            # Check if key already exists
+            if any(s["key"] == key for s in snippets):
+                print(
+                    json.dumps(
+                        {"type": "error", "message": f"Key '{key}' already exists"}
+                    )
+                )
+                return
+
+            if not value:
+                print(json.dumps({"type": "error", "message": "Value is required"}))
+                return
+
+            new_snippet = {"key": key, "value": value}
+            snippets.append(new_snippet)
+
+            if save_snippets(snippets):
+                print(
+                    json.dumps(
+                        {
+                            "type": "results",
+                            "results": get_main_menu(snippets),
+                            "inputMode": "realtime",
+                            "clearInput": True,
+                            "context": "",
+                            "placeholder": "Search snippets...",
+                            "pluginActions": get_plugin_actions(),
+                        }
+                    )
+                )
+            else:
+                print(
+                    json.dumps({"type": "error", "message": "Failed to save snippet"})
+                )
+            return
+
+        # Editing existing snippet
+        if context.startswith("__edit__:"):
             key = context.split(":", 1)[1]
-            if query:
-                # Save directly on Enter
-                # Process escape sequences
-                value = query.replace("\\n", "\n").replace("\\t", "\t")
+            value = form_data.get("value", "")
 
-                new_snippet = {"key": key, "value": value}
-                snippets.append(new_snippet)
+            if not value:
+                print(json.dumps({"type": "error", "message": "Value is required"}))
+                return
 
-                if save_snippets(snippets):
-                    snippets = load_snippets()
-                    print(
-                        json.dumps(
-                            {
-                                "type": "results",
-                                "results": get_main_menu(snippets),
-                                "inputMode": "realtime",
-                                "clearInput": True,
-                                "context": "",
-                                "placeholder": "Search snippets...",
-                            }
-                        )
-                    )
-                else:
-                    print(
-                        json.dumps(
-                            {"type": "error", "message": "Failed to save snippets"}
-                        )
-                    )
-            else:
+            for s in snippets:
+                if s["key"] == key:
+                    s["value"] = value
+                    break
+
+            if save_snippets(snippets):
                 print(
                     json.dumps(
                         {
                             "type": "results",
-                            "inputMode": "submit",
-                            "context": f"__add_key__:{key}",
-                            "placeholder": f"Enter value for '{key}' (Enter to save)",
-                            "results": [
-                                {
-                                    "id": "__back__",
-                                    "name": "Back",
-                                    "icon": "arrow_back",
-                                },
-                                {
-                                    "id": "__tip__",
-                                    "name": "Tip: Use \\n for newlines",
-                                    "icon": "info",
-                                    "description": "e.g., Line 1\\nLine 2",
-                                },
-                            ],
+                            "results": get_main_menu(snippets),
+                            "inputMode": "realtime",
+                            "clearInput": True,
+                            "context": "",
+                            "placeholder": "Search snippets...",
+                            "pluginActions": get_plugin_actions(),
                         }
                     )
                 )
-            return
-
-        # Adding new snippet - step 1: entering key (submit mode)
-        if context == "__add__" or selected_id == "__add__":
-            if query:
-                # Check if key already exists
-                exists = any(s["key"] == query for s in snippets)
-                if exists:
-                    print(
-                        json.dumps(
-                            {
-                                "type": "results",
-                                "inputMode": "submit",
-                                "context": "__add__",
-                                "placeholder": "Enter snippet key (Enter to confirm)",
-                                "results": [
-                                    {
-                                        "id": "__back__",
-                                        "name": "Back",
-                                        "icon": "arrow_back",
-                                    },
-                                    {
-                                        "id": "__error__",
-                                        "name": f"'{query}' already exists",
-                                        "icon": "error",
-                                        "description": "Choose a different key",
-                                    },
-                                ],
-                            }
-                        )
-                    )
-                else:
-                    # Move to value entry on Enter
-                    print(
-                        json.dumps(
-                            {
-                                "type": "results",
-                                "inputMode": "submit",
-                                "clearInput": True,
-                                "context": f"__add_key__:{query}",
-                                "placeholder": f"Enter value for '{query}' (Enter to save)",
-                                "results": [
-                                    {
-                                        "id": "__back__",
-                                        "name": "Back",
-                                        "icon": "arrow_back",
-                                    },
-                                    {
-                                        "id": "__tip__",
-                                        "name": "Tip: Use \\n for newlines",
-                                        "icon": "info",
-                                        "description": "e.g., Line 1\\nLine 2",
-                                    },
-                                ],
-                            }
-                        )
-                    )
             else:
                 print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "inputMode": "submit",
-                            "context": "__add__",
-                            "placeholder": "Enter snippet key (Enter to confirm)",
-                            "results": [
-                                {"id": "__back__", "name": "Back", "icon": "arrow_back"}
-                            ],
-                        }
-                    )
+                    json.dumps({"type": "error", "message": "Failed to save snippet"})
                 )
             return
 
-        # Editing snippet value (submit mode)
-        edit_context = context if context.startswith("__edit__:") else None
-        if edit_context or selected_id.startswith("__edit__:"):
-            key = (edit_context or selected_id).split(":", 1)[1]
-            snippet = next((s for s in snippets if s["key"] == key), None)
-            current_value = snippet.get("value", "") if snippet else ""
-
-            if query:
-                # Save directly on Enter
-                # Process escape sequences
-                value = query.replace("\\n", "\n").replace("\\t", "\t")
-
-                for s in snippets:
-                    if s["key"] == key:
-                        s["value"] = value
-                        break
-
-                if save_snippets(snippets):
-                    snippets = load_snippets()
-                    print(
-                        json.dumps(
-                            {
-                                "type": "results",
-                                "results": get_main_menu(snippets),
-                                "inputMode": "realtime",
-                                "clearInput": True,
-                                "context": "",
-                                "placeholder": "Search snippets...",
-                            }
-                        )
-                    )
-                else:
-                    print(
-                        json.dumps(
-                            {"type": "error", "message": "Failed to save snippets"}
-                        )
-                    )
-            else:
-                # Show current value as hint
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "inputMode": "submit",
-                            "context": f"__edit__:{key}",
-                            "placeholder": f"Edit value for '{key}' (Enter to save)",
-                            "results": [
-                                {
-                                    "id": "__current_value__",
-                                    "name": f"Current: {truncate_value(current_value)}",
-                                    "description": "Type new value above",
-                                    "icon": "info",
-                                },
-                                {
-                                    "id": "__back__",
-                                    "name": "Cancel",
-                                    "icon": "arrow_back",
-                                },
-                            ],
-                        }
-                    )
-                )
-            return
-
+    # ===== SEARCH: Filter snippets =====
+    if step == "search":
         # Normal snippet filtering (realtime mode)
         results = get_main_menu(snippets, query)
         print(
@@ -366,6 +338,7 @@ def main():
                     "inputMode": "realtime",
                     "results": results,
                     "placeholder": "Search snippets...",
+                    "pluginActions": get_plugin_actions(),
                 }
             )
         )
@@ -373,25 +346,47 @@ def main():
 
     # ===== ACTION: Handle selection =====
     if step == "action":
-        # Back button
-        if selected_id == "__back__":
-            results = get_main_menu(snippets)
+        # Plugin-level action: add (from action bar)
+        if selected_id == "__plugin__" and action == "add":
+            show_add_form()
+            return
+
+        # Form cancelled - return to list
+        if selected_id == "__form_cancel__":
             print(
                 json.dumps(
                     {
                         "type": "results",
-                        "results": results,
+                        "results": get_main_menu(snippets),
                         "inputMode": "realtime",
                         "clearInput": True,
                         "context": "",
                         "placeholder": "Search snippets...",
+                        "pluginActions": get_plugin_actions(),
+                    }
+                )
+            )
+            return
+
+        # Back button (legacy support)
+        if selected_id == "__back__":
+            print(
+                json.dumps(
+                    {
+                        "type": "results",
+                        "results": get_main_menu(snippets),
+                        "inputMode": "realtime",
+                        "clearInput": True,
+                        "context": "",
+                        "placeholder": "Search snippets...",
+                        "pluginActions": get_plugin_actions(),
                     }
                 )
             )
             return
 
         # Non-actionable items
-        if selected_id in ("__error__", "__current_value__", "__tip__"):
+        if selected_id in ("__error__", "__current_value__", "__tip__", "__empty__"):
             return
 
         # Copy action
@@ -414,35 +409,11 @@ def main():
                 )
             return
 
-        # Edit action - enter edit mode
+        # Edit action - show edit form
         if action == "edit":
             snippet = next((s for s in snippets if s["key"] == selected_id), None)
             if snippet:
-                current_value = snippet.get("value", "")
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "inputMode": "submit",
-                            "clearInput": True,
-                            "context": f"__edit__:{selected_id}",
-                            "placeholder": f"Edit value for '{selected_id}' (Enter to save)",
-                            "results": [
-                                {
-                                    "id": "__current_value__",
-                                    "name": f"Current: {truncate_value(current_value)}",
-                                    "description": "Type new value above",
-                                    "icon": "info",
-                                },
-                                {
-                                    "id": "__back__",
-                                    "name": "Cancel",
-                                    "icon": "arrow_back",
-                                },
-                            ],
-                        }
-                    )
-                )
+                show_edit_form(selected_id, snippet.get("value", ""))
             return
 
         # Delete action
@@ -457,6 +428,7 @@ def main():
                             "inputMode": "realtime",
                             "clearInput": True,
                             "placeholder": "Search snippets...",
+                            "pluginActions": get_plugin_actions(),
                         }
                     )
                 )
@@ -466,22 +438,9 @@ def main():
                 )
             return
 
-        # Start adding new snippet
+        # Start adding new snippet (legacy item click support)
         if selected_id == "__add__":
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "inputMode": "submit",
-                        "clearInput": True,
-                        "context": "__add__",
-                        "placeholder": "Enter snippet key (Enter to confirm)",
-                        "results": [
-                            {"id": "__back__", "name": "Back", "icon": "arrow_back"}
-                        ],
-                    }
-                )
-            )
+            show_add_form()
             return
 
         # Direct snippet selection - insert using ydotool

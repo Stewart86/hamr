@@ -165,7 +165,8 @@ test_initial_with_cache() {
     assert_type "$result" "results"
     assert_has_result "$result" "item1"
     assert_has_result "$result" "item2"
-    assert_has_result "$result" "__sync__"
+    # Sync is now in pluginActions, not in results
+    assert_contains "$result" "pluginActions"
 }
 
 test_initial_results_have_structure() {
@@ -261,18 +262,21 @@ test_results_description_shows_notes_if_no_username() {
 }
 
 test_sync_button_in_initial() {
-    # Initial results should include __sync__ button
+    # Initial results should include sync button in pluginActions
     local items='[{"id":"i1","type":1,"name":"Item","login":{"username":"u","password":"p"},"notes":""}]'
     set_cache_items "$items"
     
     local result=$(hamr_test initial)
     
-    assert_has_result "$result" "__sync__"
-    assert_contains "$result" "Sync Vault"
+    # Sync is now in pluginActions, not in results
+    assert_contains "$result" "pluginActions"
+    # Check that pluginActions contains sync (flexible quote matching)
+    local sync_id=$(json_get "$result" '.pluginActions[0].id')
+    assert_eq "$sync_id" "sync" "pluginActions should have sync button"
 }
 
 test_sync_button_shows_cache_age() {
-    # __sync__ button should show cache age in description
+    # Sync button in pluginActions should show cache age
     local items='[{"id":"i1","type":1,"name":"Item","login":{"username":"u","password":"p"},"notes":""}]'
     set_cache_items "$items"
     
@@ -281,8 +285,11 @@ test_sync_button_shows_cache_age() {
     
     local result=$(hamr_test initial)
     
-    # Should mention cache age or sync status
-    assert_contains "$result" "synced"
+    # Should have pluginActions with sync
+    assert_contains "$result" "pluginActions"
+    local sync_name=$(json_get "$result" '.pluginActions[0].name')
+    # Should show some indication of time (Sync (Xh ago), Sync (Xm ago), or Sync (just now))
+    assert_contains "$sync_name" "Sync"
 }
 
 test_search_filters_by_name() {
@@ -474,16 +481,17 @@ test_action_error_when_no_credentials() {
 }
 
 test_sync_action() {
-    # __sync__ action should perform sync and return fresh results
+    # Plugin action sync should perform sync and return fresh results
     local items='[{"id":"old1","type":1,"name":"Old Item","login":{"username":"u","password":"p"},"notes":""}]'
     set_cache_items "$items"
     
-    local result=$(hamr_test action --id "__sync__")
+    # Test via plugin action (new way)
+    local result=$(hamr_test action --id "__plugin__" --action "sync")
     
     # Should return results (same or updated)
     assert_type "$result" "results"
-    # Should have sync button again
-    assert_has_result "$result" "__sync__"
+    # Should have pluginActions with sync button again
+    assert_contains "$result" "pluginActions"
 }
 
 test_response_realtime_mode() {

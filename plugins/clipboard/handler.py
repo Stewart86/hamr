@@ -180,16 +180,7 @@ def get_entry_results(entries: list[str], query: str = "") -> list[dict]:
     """Convert clipboard entries to result format"""
     results = []
 
-    # Add wipe option at top when no query
-    if not query:
-        results.append(
-            {
-                "id": "__wipe__",
-                "name": "Wipe clipboard history",
-                "icon": "delete_sweep",
-                "description": "Clear all clipboard entries",
-            }
-        )
+    # No longer add wipe as a result item - it's now a plugin action
 
     for entry in entries:
         if query and not fuzzy_match(query, clean_entry(entry)):
@@ -230,7 +221,7 @@ def get_entry_results(entries: list[str], query: str = "") -> list[dict]:
 
         results.append(result)
 
-    if not results or (len(results) == 1 and results[0]["id"] == "__wipe__"):
+    if not results:
         results.append(
             {
                 "id": "__empty__",
@@ -243,6 +234,22 @@ def get_entry_results(entries: list[str], query: str = "") -> list[dict]:
     return results
 
 
+def get_plugin_actions(show_wipe: bool = True) -> list[dict]:
+    """Get plugin-level actions for the action bar"""
+    actions = []
+    if show_wipe:
+        actions.append(
+            {
+                "id": "wipe",
+                "name": "Wipe All",
+                "icon": "delete_sweep",
+                "confirm": "Wipe all clipboard history? This cannot be undone.",
+                "shortcut": "Ctrl+1",
+            }
+        )
+    return actions
+
+
 def respond(results: list[dict], **kwargs):
     """Send a results response"""
     response = {
@@ -250,6 +257,7 @@ def respond(results: list[dict], **kwargs):
         "results": results,
         "inputMode": "realtime",
         "placeholder": kwargs.get("placeholder", "Search clipboard..."),
+        "pluginActions": kwargs.get("plugin_actions", get_plugin_actions()),
     }
     if kwargs.get("clear_input"):
         response["clearInput"] = True
@@ -279,22 +287,8 @@ def main():
     if step == "action":
         item_id = selected.get("id", "")
 
-        # Wipe confirmation
-        if item_id == "__wipe__":
-            results = [
-                {"id": "__back__", "name": "Cancel", "icon": "arrow_back"},
-                {
-                    "id": "__wipe_confirm__",
-                    "name": "Confirm: Wipe all clipboard history",
-                    "icon": "warning",
-                    "description": "This cannot be undone",
-                },
-            ]
-            respond(results, placeholder="Confirm wipe?")
-            return
-
-        # Wipe confirmed
-        if item_id == "__wipe_confirm__":
+        # Plugin-level action: wipe (from action bar)
+        if item_id == "__plugin__" and action == "wipe":
             wipe_clipboard()
             print(
                 json.dumps(
@@ -313,11 +307,6 @@ def main():
                     }
                 )
             )
-            return
-
-        # Back
-        if item_id == "__back__":
-            respond(get_entry_results(entries), clear_input=True)
             return
 
         # Empty state - ignore
