@@ -80,7 +80,7 @@ Singleton {
         return acc;
     }, []).sort()
 
-    // Load user action scripts from ~/.config/hamr/plugins/
+    // Load action scripts from plugins folders
     // Uses FolderListModel to auto-reload when scripts are added/removed
     // Note: Plugin folders (containing manifest.json) are handled by PluginRunner
     // Excludes text/config files like .md, .txt, .json, .yaml, etc.
@@ -88,11 +88,12 @@ Singleton {
     readonly property var excludedActionExtensions: [".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".log", ".csv", ".sh"]
     readonly property var excludedActionPrefixes: ["test-", "hamr-test"]
     
-    property var userActionScripts: {
+    // Helper to extract scripts from a FolderListModel
+    function extractScriptsFromFolder(folderModel: FolderListModel): list<var> {
         const actions = [];
-        for (let i = 0; i < userActionsFolder.count; i++) {
-            const fileName = userActionsFolder.get(i, "fileName");
-            const filePath = userActionsFolder.get(i, "filePath");
+        for (let i = 0; i < folderModel.count; i++) {
+            const fileName = folderModel.get(i, "fileName");
+            const filePath = folderModel.get(i, "filePath");
             if (fileName && filePath) {
                 // Skip text/config files
                 const lowerName = fileName.toLowerCase();
@@ -117,10 +118,24 @@ Singleton {
         }
         return actions;
     }
+    
+    // User scripts from ~/.config/hamr/plugins/
+    property var userActionScripts: extractScriptsFromFolder(userActionsFolder)
+    
+    // Built-in scripts from repo plugins/ folder
+    property var builtinActionScripts: extractScriptsFromFolder(builtinActionsFolder)
 
     FolderListModel {
         id: userActionsFolder
         folder: Qt.resolvedUrl(Directories.userPlugins)
+        showDirs: false
+        showHidden: false
+        sortField: FolderListModel.Name
+    }
+    
+    FolderListModel {
+        id: builtinActionsFolder
+        folder: Qt.resolvedUrl(Directories.builtinPlugins)
         showDirs: false
         showHidden: false
         sortField: FolderListModel.Name
@@ -1067,8 +1082,20 @@ Singleton {
 
     property var searchActions: []
 
-    // Combined built-in and user actions
-    property var allActions: searchActions.concat(userActionScripts)
+    // Combined built-in and user actions (user scripts override built-in with same name)
+    property var allActions: {
+        const combined = [...searchActions, ...builtinActionScripts];
+        // Add user scripts, allowing them to override built-in scripts with same name
+        for (const userScript of userActionScripts) {
+            const existingIdx = combined.findIndex(a => a.action === userScript.action);
+            if (existingIdx >= 0) {
+                combined[existingIdx] = userScript; // User script overrides
+            } else {
+                combined.push(userScript);
+            }
+        }
+        return combined;
+    }
 
     // Prepared actions for fuzzy search
     property var preppedActions: allActions.map(a => ({
