@@ -711,7 +711,7 @@ For desktop application icons from `.desktop` files, set `"iconType": "system"`:
 | ---------------------------------- | ---------------- | ----------------------------------- | --------------------------------------- |
 | [`apps/`](apps/)                   | `/apps`          | App drawer with categories          | System icons, category navigation       |
 | [`files/`](files/)                 | `~`              | File search with fd+fzf, thumbnails | Results with thumbnails, action buttons |
-| [`clipboard/`](clipboard/)         | `;`              | Clipboard history with images       | Image thumbnails, wipe action           |
+| [`clipboard/`](clipboard/)         | `;`              | Clipboard history, OCR search       | Thumbnails, OCR, filter actions         |
 | [`shell/`](shell/)                 | `!`              | Shell command history               | Simple results, execute commands        |
 | [`bitwarden/`](bitwarden/)         | `/bitwarden`     | Password manager                    | entryPoint replay, cache, error cards   |
 | [`quicklinks/`](quicklinks/)       | `/quicklinks`    | Web search quicklinks               | Submit mode, context, CRUD              |

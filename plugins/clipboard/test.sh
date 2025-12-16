@@ -116,9 +116,9 @@ test_initial_shows_wipe_option() {
     set_clipboard_entries "1	Test entry"
     local result=$(hamr_test initial)
     
-    # Wipe is now in pluginActions, not in results
+    # Wipe is now in pluginActions at index 2 (Images, Text, Wipe)
     assert_contains "$result" "pluginActions"
-    local wipe_id=$(json_get "$result" '.pluginActions[0].id')
+    local wipe_id=$(json_get "$result" '.pluginActions[2].id')
     assert_eq "$wipe_id" "wipe" "pluginActions should have wipe action"
 }
 
@@ -341,12 +341,12 @@ test_wipe_action_in_plugin_bar() {
     set_clipboard_entries "1	Entry"
     local result=$(hamr_test initial)
     
-    # Wipe should be in pluginActions with confirm message
+    # Wipe should be in pluginActions at index 2 (Images, Text, Wipe)
     assert_contains "$result" "pluginActions"
-    assert_json "$result" '.pluginActions[0].id' "wipe"
-    assert_json "$result" '.pluginActions[0].name' "Wipe All"
+    assert_json "$result" '.pluginActions[2].id' "wipe"
+    assert_json "$result" '.pluginActions[2].name' "Wipe All"
     # Confirm message should be set
-    local confirm=$(json_get "$result" '.pluginActions[0].confirm')
+    local confirm=$(json_get "$result" '.pluginActions[2].confirm')
     assert_contains "$confirm" "Wipe all clipboard history"
 }
 

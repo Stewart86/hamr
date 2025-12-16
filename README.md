@@ -18,7 +18,7 @@ Hamr is an extensible launcher for Hyprland built with [Quickshell](https://quic
 **Extensible plugin system** - Type `/` to browse all available plugins. From Bitwarden passwords to AI-powered plugin creation, each plugin communicates via simple JSON over stdin/stdout.
 
 ![Hamr Clipboard](assets/screenshots/hamr-clipboard.png)
-**Clipboard history with image previews** - Type `;` to search your clipboard history. Images show thumbnails, and each entry has quick copy/delete actions.
+**Clipboard history with OCR search** - Type `;` to search your clipboard history. Images show thumbnails with OCR text extraction for searchable screenshots. Filter by type (Images/Text) and quick copy/delete actions.
 
 ## Platform Support
 
@@ -108,7 +108,7 @@ Powered by [qalculate](https://qalculate.github.io/) - supports 150+ currencies 
 |--------|---------|-------------|
 | `apps` | `/apps` | App drawer with categories (like rofi/dmenu) |
 | `files` | `~` | File search with fd + fzf, thumbnails for images |
-| `clipboard` | `;` | Clipboard history with image support |
+| `clipboard` | `;` | Clipboard history with OCR search, filter by type |
 | `shell` | `!` | Shell command history (zsh/bash/fish) |
 | `bitwarden` | `/bitwarden` | Password manager with local caching |
 | `quicklinks` | `/quicklinks` | Web search with customizable quicklinks |

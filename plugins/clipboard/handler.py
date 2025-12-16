@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Clipboard workflow handler - browse and manage clipboard history via cliphist.
-Features: list, search, copy, delete, wipe, image thumbnails
+Features: list, search, copy, delete, wipe, image thumbnails, OCR search
 """
 
 import hashlib
@@ -13,12 +13,14 @@ import sys
 from pathlib import Path
 
 
-# Cache directory for image thumbnails
+# Cache directory for image thumbnails and OCR
 CACHE_DIR = (
     Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
     / "hamr"
     / "clipboard-thumbs"
 )
+OCR_CACHE_FILE = CACHE_DIR / "ocr-index.json"
+SCRIPT_DIR = Path(__file__).parent
 # Max thumbnail size (width or height)
 MAX_THUMB_SIZE = 256
 
@@ -64,58 +66,69 @@ def get_image_dimensions(entry: str) -> tuple[int, int] | None:
     return None
 
 
+def get_entry_hash(entry: str) -> str:
+    """Get a stable hash for a clipboard entry"""
+    return hashlib.md5(entry.encode()).hexdigest()[:16]
+
+
+def load_ocr_cache() -> dict[str, str]:
+    """Load OCR cache from disk"""
+    if OCR_CACHE_FILE.exists():
+        try:
+            return json.loads(OCR_CACHE_FILE.read_text())
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {}
+
+
+def save_ocr_cache(cache: dict[str, str]) -> None:
+    """Save OCR cache to disk"""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    OCR_CACHE_FILE.write_text(json.dumps(cache))
+
+
+def spawn_ocr_indexer():
+    """Spawn background OCR indexer process (non-blocking)"""
+    indexer_script = SCRIPT_DIR / "ocr-indexer.py"
+    if indexer_script.exists():
+        # Preserve DBUS for notifications in detached process
+        env = os.environ.copy()
+        subprocess.Popen(
+            [sys.executable, str(indexer_script)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            env=env,
+        )
+
+
+def get_ocr_text_for_entries(
+    entries: list[str], ocr_cache: dict[str, str]
+) -> dict[str, str]:
+    """Get OCR text for all image entries from cache only (no blocking OCR)"""
+    result = {}
+    for entry in entries:
+        if is_image(entry):
+            entry_hash = get_entry_hash(entry)
+            if entry_hash in ocr_cache:
+                result[entry] = ocr_cache[entry_hash]
+    return result
+
+
 def get_image_thumbnail(entry: str) -> str | None:
-    """Get or create thumbnail for image entry, return path or None"""
+    """Get cached thumbnail for image entry, return path or None.
+
+    Does NOT generate thumbnails - that's done by the background indexer.
+    """
     if not is_image(entry):
         return None
 
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
-    # Use entry hash as filename
     entry_hash = hashlib.md5(entry.encode()).hexdigest()[:16]
     thumb_path = CACHE_DIR / f"{entry_hash}.png"
 
-    # Return cached thumbnail if exists
+    # Only return if cached - don't block on generation
     if thumb_path.exists():
         return str(thumb_path)
-
-    # Decode and save thumbnail
-    try:
-        decode_proc = subprocess.run(
-            ["cliphist", "decode"],
-            input=entry.encode("utf-8"),
-            capture_output=True,
-            timeout=5,
-        )
-        if decode_proc.returncode != 0 or not decode_proc.stdout:
-            return None
-
-        # Check if we need to resize (use ImageMagick if available)
-        dims = get_image_dimensions(entry)
-        if dims and (dims[0] > MAX_THUMB_SIZE or dims[1] > MAX_THUMB_SIZE):
-            # Resize with ImageMagick convert
-            resize_proc = subprocess.run(
-                [
-                    "magick",
-                    "-",
-                    "-thumbnail",
-                    f"{MAX_THUMB_SIZE}x{MAX_THUMB_SIZE}>",
-                    str(thumb_path),
-                ],
-                input=decode_proc.stdout,
-                capture_output=True,
-                timeout=10,
-            )
-            if resize_proc.returncode == 0 and thumb_path.exists():
-                return str(thumb_path)
-            # Fall back to saving full size if resize fails
-
-        # Save as-is if small or resize failed
-        thumb_path.write_bytes(decode_proc.stdout)
-        return str(thumb_path)
-
-    except (subprocess.TimeoutExpired, Exception) as e:
-        print(f"Error decoding image: {e}", file=sys.stderr)
 
     return None
 
@@ -176,24 +189,47 @@ def fuzzy_match(query: str, text: str) -> bool:
     return qi == len(query)
 
 
-def get_entry_results(entries: list[str], query: str = "") -> list[dict]:
+def get_entry_results(
+    entries: list[str],
+    query: str = "",
+    filter_type: str = "",
+    ocr_texts: dict[str, str] | None = None,
+) -> list[dict]:
     """Convert clipboard entries to result format"""
     results = []
-
-    # No longer add wipe as a result item - it's now a plugin action
+    ocr_texts = ocr_texts or {}
 
     for entry in entries:
-        if query and not fuzzy_match(query, clean_entry(entry)):
+        # Apply type filter
+        is_img = is_image(entry)
+        if filter_type == "images" and not is_img:
+            continue
+        if filter_type == "text" and is_img:
             continue
 
-        display = clean_entry(entry)
-        is_img = is_image(entry)
+        # Apply search query (check both content and OCR text for images)
+        if query:
+            content_match = fuzzy_match(query, clean_entry(entry))
+            ocr_text = ocr_texts.get(entry, "")
+            ocr_match = is_img and ocr_text and fuzzy_match(query, ocr_text)
+            if not content_match and not ocr_match:
+                continue
 
-        # For images, show dimensions
+        display = clean_entry(entry)
+
+        # For images, show dimensions and OCR preview if available
         if is_img:
             dims = get_image_dimensions(entry)
             display = f"Image {dims[0]}x{dims[1]}" if dims else "Image"
-            entry_type = "Image"
+            ocr_text = ocr_texts.get(entry, "")
+            if ocr_text:
+                # Show OCR text preview in description
+                ocr_preview = ocr_text.replace("\n", " ")[:60]
+                if len(ocr_text) > 60:
+                    ocr_preview += "..."
+                entry_type = ocr_preview
+            else:
+                entry_type = "Image"
             icon = "image"
             thumbnail = get_image_thumbnail(entry)
         else:
@@ -234,31 +270,45 @@ def get_entry_results(entries: list[str], query: str = "") -> list[dict]:
     return results
 
 
-def get_plugin_actions(show_wipe: bool = True) -> list[dict]:
+def get_plugin_actions(active_filter: str = "") -> list[dict]:
     """Get plugin-level actions for the action bar"""
-    actions = []
-    if show_wipe:
-        actions.append(
-            {
-                "id": "wipe",
-                "name": "Wipe All",
-                "icon": "delete_sweep",
-                "confirm": "Wipe all clipboard history? This cannot be undone.",
-                "shortcut": "Ctrl+1",
-            }
-        )
-    return actions
+    return [
+        {
+            "id": "filter_images",
+            "name": "Images",
+            "icon": "image",
+            "shortcut": "Ctrl+1",
+            "active": active_filter == "images",
+        },
+        {
+            "id": "filter_text",
+            "name": "Text",
+            "icon": "text_fields",
+            "shortcut": "Ctrl+2",
+            "active": active_filter == "text",
+        },
+        {
+            "id": "wipe",
+            "name": "Wipe All",
+            "icon": "delete_sweep",
+            "confirm": "Wipe all clipboard history? This cannot be undone.",
+            "shortcut": "Ctrl+3",
+        },
+    ]
 
 
 def respond(results: list[dict], **kwargs):
     """Send a results response"""
+    active_filter = kwargs.get("active_filter", "")
     response = {
         "type": "results",
         "results": results,
         "inputMode": "realtime",
         "placeholder": kwargs.get("placeholder", "Search clipboard..."),
-        "pluginActions": kwargs.get("plugin_actions", get_plugin_actions()),
+        "pluginActions": get_plugin_actions(active_filter),
     }
+    if active_filter:
+        response["context"] = active_filter
     if kwargs.get("clear_input"):
         response["clearInput"] = True
     print(json.dumps(response))
@@ -270,48 +320,80 @@ def main():
     query = input_data.get("query", "").strip()
     selected = input_data.get("selected", {})
     action = input_data.get("action", "")
+    context = input_data.get("context", "")  # Active filter: "", "images", or "text"
 
     entries = get_clipboard_entries()
 
-    # Initial: show clipboard list
+    # Load OCR cache for image text search
+    ocr_cache = load_ocr_cache()
+    ocr_texts = get_ocr_text_for_entries(entries, ocr_cache)
+
+    # Initial: show clipboard list and spawn background OCR indexer
     if step == "initial":
-        respond(get_entry_results(entries))
+        spawn_ocr_indexer()
+        respond(get_entry_results(entries, ocr_texts=ocr_texts))
         return
 
     # Search: filter entries
     if step == "search":
-        respond(get_entry_results(entries, query))
+        respond(
+            get_entry_results(entries, query, context, ocr_texts),
+            active_filter=context,
+        )
         return
 
     # Action: handle clicks
     if step == "action":
         item_id = selected.get("id", "")
 
-        # Plugin-level action: wipe (from action bar)
-        if item_id == "__plugin__" and action == "wipe":
-            wipe_clipboard()
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": [
-                                "notify-send",
-                                "Clipboard",
-                                "History cleared",
-                                "-a",
-                                "Shell",
-                            ],
-                            "close": True,
-                        },
-                    }
+        # Plugin-level actions (from action bar)
+        if item_id == "__plugin__":
+            # Filter by images - toggle
+            if action == "filter_images":
+                new_filter = "" if context == "images" else "images"
+                respond(
+                    get_entry_results(entries, query, new_filter, ocr_texts),
+                    active_filter=new_filter,
                 )
-            )
-            return
+                return
+
+            # Filter by text - toggle
+            if action == "filter_text":
+                new_filter = "" if context == "text" else "text"
+                respond(
+                    get_entry_results(entries, query, new_filter, ocr_texts),
+                    active_filter=new_filter,
+                )
+                return
+
+            # Wipe all
+            if action == "wipe":
+                wipe_clipboard()
+                print(
+                    json.dumps(
+                        {
+                            "type": "execute",
+                            "execute": {
+                                "command": [
+                                    "notify-send",
+                                    "Clipboard",
+                                    "History cleared",
+                                    "-a",
+                                    "Shell",
+                                ],
+                                "close": True,
+                            },
+                        }
+                    )
+                )
+                return
 
         # Empty state - ignore
         if item_id == "__empty__":
-            respond(get_entry_results(entries))
+            respond(
+                get_entry_results(entries, query, context, ocr_texts),
+                active_filter=context,
+            )
             return
 
         # Clipboard entry actions
@@ -321,7 +403,16 @@ def main():
             delete_entry(entry)
             # Refresh entries after delete
             entries = [e for e in entries if e != entry]
-            respond(get_entry_results(entries))
+            # Also remove from OCR cache
+            entry_hash = get_entry_hash(entry)
+            if entry_hash in ocr_cache:
+                del ocr_cache[entry_hash]
+                save_ocr_cache(ocr_cache)
+            ocr_texts = {k: v for k, v in ocr_texts.items() if k != entry}
+            respond(
+                get_entry_results(entries, query, context, ocr_texts),
+                active_filter=context,
+            )
             return
 
         # Default action (click) or explicit copy

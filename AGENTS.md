@@ -641,7 +641,7 @@ def main():
 | Plugin | Trigger | Key Patterns Demonstrated |
 |--------|---------|---------------------------|
 | `files/` | `~` | Results with thumbnails, action buttons, fd+fzf integration |
-| `clipboard/` | `;` | Image thumbnails, wipe action |
+| `clipboard/` | `;` | Image thumbnails, OCR search, filter by type |
 | `shell/` | `!` | Simple results, execute commands |
 | `bitwarden/` | `/bitwarden` | entryPoint replay, cache, error cards |
 | `quicklinks/` | `/quicklinks` | Submit mode, context persistence, CRUD |
