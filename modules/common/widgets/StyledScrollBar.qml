@@ -13,7 +13,7 @@ ScrollBar {
 
     contentItem: Rectangle {
         implicitWidth: 4
-        implicitHeight: 100  // Height is managed by ScrollBar, not this binding
+        implicitHeight: 100
         radius: width / 2
         color: Appearance.colors.colOnSurfaceVariant
         

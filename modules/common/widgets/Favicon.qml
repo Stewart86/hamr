@@ -27,9 +27,8 @@ IconImage {
     readonly property string faviconFilePath: hasDomain ? `${faviconDownloadPath}/${fileName}` : ""
     
     property string currentSource: ""
-    property int loadAttempt: 0  // 0 = not started, 1 = trying cache, 2 = downloaded, 3 = failed
+    property int loadAttempt: 0
 
-    // Download favicon and validate it's actually an image (not HTML error page)
     Process {
         id: faviconDownloadProcess
         running: false
@@ -42,7 +41,6 @@ IconImage {
                 root.loadAttempt = 2
                 reloadTimer.restart()
             } else {
-                // Download failed or not an image - clean up and give up
                 root.loadAttempt = 3
                 root.currentSource = ""
             }
@@ -57,7 +55,6 @@ IconImage {
         }
     }
 
-    // Try to load cached favicon first
     Component.onCompleted: {
         if (root.hasDomain) {
             root.loadAttempt = 1
@@ -65,13 +62,11 @@ IconImage {
         }
     }
 
-    // If image fails to load from cache, try downloading (only once)
     onStatusChanged: {
         if (status === Image.Error && root.loadAttempt === 1 && root.hasDomain) {
-            root.currentSource = ""  // Clear invalid source immediately
+            root.currentSource = ""
             faviconDownloadProcess.running = true
         } else if (status === Image.Error && root.loadAttempt === 2) {
-            // Downloaded file also failed to load - give up
             root.loadAttempt = 3
             root.currentSource = ""
         }

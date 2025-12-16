@@ -16,13 +16,13 @@ StyledImage {
     required property string sourcePath
     property string thumbnailSizeName: Images.thumbnailSizeNameForDimensions(sourceSize.width, sourceSize.height)
     property string thumbnailPath: {
-        if (sourcePath.length == 0) return "";
-        const resolvedUrlWithoutFileProtocol = FileUtils.trimFileProtocol(`${Qt.resolvedUrl(sourcePath)}`);
-        const encodedUrlWithoutFileProtocol = resolvedUrlWithoutFileProtocol.split("/").map(part => encodeURIComponent(part)).join("/");
-        const md5Hash = Qt.md5(`file://${encodedUrlWithoutFileProtocol}`);
-        return `${Directories.genericCache}/thumbnails/${thumbnailSizeName}/${md5Hash}.png`;
-    }
-    // Don't set source directly - check if thumbnail exists first
+         if (sourcePath.length == 0) return "";
+         const resolvedUrlWithoutFileProtocol = FileUtils.trimFileProtocol(`${Qt.resolvedUrl(sourcePath)}`);
+         const encodedUrlWithoutFileProtocol = resolvedUrlWithoutFileProtocol.split("/").map(part => encodeURIComponent(part)).join("/");
+         const md5Hash = Qt.md5(`file://${encodedUrlWithoutFileProtocol}`);
+         return `${Directories.genericCache}/thumbnails/${thumbnailSizeName}/${md5Hash}.png`;
+     }
+     
     source: ""
 
     asynchronous: true
@@ -40,17 +40,14 @@ StyledImage {
         thumbnailExistsCheck.running = true;
     }
 
-    // Check if thumbnail exists before trying to load it
     Process {
         id: thumbnailExistsCheck
         command: ["test", "-f", FileUtils.trimFileProtocol(root.thumbnailPath)]
         onExited: (exitCode, exitStatus) => {
-            if (exitCode === 0) {
-                // Thumbnail exists, load it
-                root.source = root.thumbnailPath;
-            }
-            // If thumbnail doesn't exist, source stays empty (no warning)
-        }
+             if (exitCode === 0) {
+                 root.source = root.thumbnailPath;
+             }
+         }
     }
 
     onSourceSizeChanged: {
@@ -67,10 +64,10 @@ StyledImage {
             ]
         }
         onExited: (exitCode, exitStatus) => {
-            if (exitCode === 1) { // Force reload if thumbnail had to be generated
-                root.source = "";
-                root.source = root.thumbnailPath; // Force reload
-            }
-        }
+             if (exitCode === 1) {
+                 root.source = "";
+                 root.source = root.thumbnailPath;
+             }
+         }
     }
 }

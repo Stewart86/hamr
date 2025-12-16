@@ -34,7 +34,6 @@ def is_already_running() -> bool:
         return False
     try:
         pid = int(LOCK_FILE.read_text().strip())
-        # Check if process exists
         os.kill(pid, 0)
         return True
     except (ValueError, ProcessLookupError, PermissionError):
@@ -231,7 +230,6 @@ def main():
         # Get all image entries (most recent first from cliphist)
         image_entries = [e for e in entries if is_image(e)]
 
-        # Find the top N most recent OCR-worthy images
         top_ocr_candidates = []
         for entry in image_entries:
             if is_image_worth_ocr(entry):

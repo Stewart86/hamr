@@ -101,9 +101,7 @@ Scope {
 					}
 				}
 
-				// A progress bar on the bottom of the screen, showing how long until the
-				// popup is removed.
-				Rectangle {
+			Rectangle {
 					z: 2
 					id: bar
 					color: root.failed ? Appearance.m3colors.m3error : Appearance.m3colors.m3success
@@ -127,9 +125,8 @@ Scope {
 						// when the mouse moves on and off the popup.
 						paused: mouseArea.containsMouse
 					}
-				}
-				// Its bg
-				Rectangle {
+			}
+			Rectangle {
 					z: 1
 					id: bar_bg
 					color: root.failed ? Qt.rgba(Appearance.m3colors.m3error.r, Appearance.m3colors.m3error.g, Appearance.m3colors.m3error.b, 0.3) : Qt.rgba(Appearance.m3colors.m3success.r, Appearance.m3colors.m3success.g, Appearance.m3colors.m3success.b, 0.3)

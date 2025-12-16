@@ -17,14 +17,9 @@ import qs.modules.common
 Rectangle {
     id: root
     
-    // Single key string like "Esc", "Enter", "Ctrl+S"
-    // Or array of keys like ["Ctrl", "Enter"] which renders with + separator
     property var keys: ""
-    
-    // Custom text color (for use on colored backgrounds)
     property color textColor: Appearance.m3colors.m3onSurfaceVariant
     
-    // Computed display text
     readonly property string displayText: {
         if (Array.isArray(keys)) {
             return keys.join(" + ");

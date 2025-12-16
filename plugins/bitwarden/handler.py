@@ -196,7 +196,6 @@ def run_bw(args: list[str], session: str | None = None) -> tuple[bool, str]:
         return False, str(e)
 
 
-# ===== CACHE =====
 
 
 def get_cache_age() -> float | None:
@@ -330,7 +329,6 @@ def get_totp(item_id: str, session: str) -> str | None:
     return output if success else None
 
 
-# ===== PLUGIN ACTIONS =====
 
 
 def get_plugin_actions(cache_age: float | None = None) -> list[dict]:
@@ -357,7 +355,6 @@ def get_plugin_actions(cache_age: float | None = None) -> list[dict]:
     ]
 
 
-# ===== FORMATTING =====
 
 
 def get_item_icon(item: dict) -> str:
@@ -404,7 +401,6 @@ def format_item_results(items: list[dict]) -> list[dict]:
     return results
 
 
-# ===== RESPONSES =====
 
 
 def respond_results(
@@ -470,7 +466,6 @@ def respond_execute(
     print(json.dumps({"type": "execute", "execute": execute}))
 
 
-# ===== INDEX =====
 
 
 def item_to_index_item(item: dict) -> dict:
@@ -545,7 +540,6 @@ def item_to_index_item(item: dict) -> dict:
     }
 
 
-# ===== MAIN =====
 
 
 def main():
@@ -555,7 +549,6 @@ def main():
     selected = input_data.get("selected", {})
     action = input_data.get("action", "")
 
-    # ===== INDEX: Provide searchable items for main launcher =====
     # Uses cached items only - does not require active session
     # Never includes passwords - uses entryPoint for secure execution
     if step == "index":
@@ -588,7 +581,6 @@ def main():
         )
         return
 
-    # ===== INITIAL =====
     if step == "initial":
         items = search_items("", session)
         if not items:
@@ -616,7 +608,6 @@ def main():
         )
         return
 
-    # ===== SEARCH =====
     if step == "search":
         items = search_items(query, session)
         results = format_item_results(items)
@@ -644,7 +635,6 @@ def main():
         )
         return
 
-    # ===== ACTION =====
     if step == "action":
         item_id = selected.get("id", "")
 

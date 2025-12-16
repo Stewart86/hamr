@@ -76,7 +76,6 @@ def parse_desktop_file(path: Path) -> dict | None:
 
         entry = config["Desktop Entry"]
 
-        # Skip hidden/non-application entries
         if entry.get("Type", "") != "Application":
             return None
         if entry.get("NoDisplay", "").lower() == "true":
@@ -88,23 +87,18 @@ def parse_desktop_file(path: Path) -> dict | None:
         if not name:
             return None
 
-        # Get categories
         categories_str = entry.get("Categories", "")
         categories = [c.strip() for c in categories_str.split(";") if c.strip()]
 
-        # Map to display category
         display_category = "Other"
         for cat in categories:
             if cat in CATEGORY_MAP:
                 display_category = CATEGORY_MAP[cat]
                 break
 
-        # Get exec command (strip field codes like %f, %u, etc.)
         exec_str = entry.get("Exec", "")
-        # Remove field codes
         exec_clean = " ".join(p for p in exec_str.split() if not p.startswith("%"))
 
-        # Parse desktop actions (e.g., "new-window;new-private-window;")
         actions_str = entry.get("Actions", "")
         action_ids = [a.strip() for a in actions_str.split(";") if a.strip()]
         desktop_actions = []
@@ -229,7 +223,6 @@ def app_to_index_item(app: dict) -> dict:
     Includes execute command so apps can be launched directly from main search.
     """
     # Get desktop file name without .desktop extension
-    # Handle both "app.desktop" and "org.app.desktop.desktop" (Flatpak naming)
     filename = Path(app["id"]).name
     desktop_name = filename.removesuffix(".desktop")
 
@@ -242,7 +235,6 @@ def app_to_index_item(app: dict) -> dict:
     if app.get("keywords"):
         keywords.extend(app["keywords"].lower().replace(";", " ").split())
 
-    # Convert desktop actions to index action format
     actions = []
     for action in app.get("actions", [])[:4]:  # Max 4 actions
         action_name_lower = action["name"].lower()
@@ -296,7 +288,6 @@ def app_to_result(app: dict, show_category: bool = False) -> dict:
         else:
             description = app["display_category"]
 
-    # Convert desktop actions to result actions format
     actions = []
     for action in app.get("actions", []):
         # Use material icons for action buttons (more reliable than system icons)
@@ -387,13 +378,11 @@ def main():
 
     all_apps.sort(key=sort_key)
 
-    # ===== INDEX: Provide searchable items for main search =====
     if step == "index":
         items = [app_to_index_item(app) for app in all_apps]
         print(json.dumps({"type": "index", "items": items}))
         return
 
-    # ===== INITIAL: Show categories =====
     if step == "initial":
         categories = get_categories(all_apps)
         results = [
@@ -427,7 +416,6 @@ def main():
         )
         return
 
-    # ===== SEARCH: Filter apps or categories =====
     if step == "search":
         # If in a category context, filter apps in that category
         if context and context.startswith("__cat__:"):
@@ -543,9 +531,7 @@ def main():
             )
         return
 
-    # ===== ACTION: Handle selection =====
     if step == "action":
-        # Back button
         if selected_id == "__back__":
             categories = get_categories(all_apps)
             results = [
@@ -582,11 +568,9 @@ def main():
             )
             return
 
-        # Empty state - ignore
         if selected_id == "__empty__":
             return
 
-        # Desktop action (e.g., "New Window", "New Private Window")
         if selected_id.startswith("__action__:"):
             # Format: __action__:<desktop_path>:<action_id>
             parts = selected_id.split(":", 2)
@@ -594,7 +578,6 @@ def main():
                 desktop_path = parts[1]
                 action_id = parts[2]
 
-                # Find the app and action
                 app = None
                 for a in all_apps:
                     if a["id"] == desktop_path:
@@ -602,7 +585,6 @@ def main():
                         break
 
                 if app:
-                    # Find the specific action
                     action = None
                     for act in app.get("actions", []):
                         if act["id"] == action_id:
@@ -631,7 +613,6 @@ def main():
             print(json.dumps({"type": "error", "message": "Action not found"}))
             return
 
-        # Category selection
         if selected_id.startswith("__cat__:"):
             category = selected_id.replace("__cat__:", "")
             if category == "All":
@@ -660,7 +641,6 @@ def main():
             )
             return
 
-        # App launch - selected_id is the .desktop file path
         app = None
         for a in all_apps:
             if a["id"] == selected_id:

@@ -44,7 +44,7 @@ Scope {
             implicitHeight: Appearance.sizes.imageBrowserHeight
             implicitWidth: Appearance.sizes.imageBrowserWidth
 
-            HyprlandFocusGrab { // Click outside to close
+            HyprlandFocusGrab {
                 id: grab
                 windows: [ panelWindow ]
                 active: imageBrowserLoader.active

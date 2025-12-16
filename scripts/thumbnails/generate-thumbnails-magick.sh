@@ -24,12 +24,10 @@ usage() {
 }
 
 md5() {
-    # Calculate md5 hash of the file's absolute path
     echo -n "$1" | md5sum | awk '{print $1}'
 }
 
 urlencode() {
-    # Percent-encode a string for use in a URI, but do not encode slashes
     local str="$1"
     local encoded=""
     local c
@@ -47,7 +45,6 @@ generate_thumbnail() {
     local src="$1"
     local abs_path
     abs_path="$(realpath "$src")"
-    # Skip files with multiple frames (GIFs, videos, etc.)
     case "${abs_path,,}" in
         *.gif|*.mp4|*.webm|*.mkv|*.avi|*.mov)
             return

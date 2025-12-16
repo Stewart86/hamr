@@ -202,7 +202,6 @@ def get_main_menu(quicklinks: list[dict], query: str = "") -> list[dict]:
     filtered = filter_quicklinks(query, quicklinks)
     results.extend(get_quicklink_list(filtered))
 
-    # Empty state hint
     if not results:
         results.append(
             {
@@ -290,13 +289,11 @@ def main():
     selected_id = selected.get("id", "")
     context = input_data.get("context", "")
 
-    # ===== INDEX: Provide searchable items for main search =====
     if step == "index":
         items = [quicklink_to_index_item(link) for link in quicklinks]
         print(json.dumps({"type": "index", "items": items}))
         return
 
-    # ===== INITIAL: Show all quicklinks =====
     if step == "initial":
         results = get_main_menu(quicklinks)
         print(
@@ -312,7 +309,6 @@ def main():
         )
         return
 
-    # ===== FORM: Handle form submission =====
     if step == "form":
         form_data = input_data.get("formData", {})
 
@@ -326,7 +322,6 @@ def main():
                 print(json.dumps({"type": "error", "message": "Name is required"}))
                 return
 
-            # Check if name already exists
             if any(l["name"] == name for l in quicklinks):
                 print(
                     json.dumps({"type": "error", "message": f"'{name}' already exists"})
@@ -404,7 +399,6 @@ def main():
                 )
             return
 
-    # ===== SEARCH: Context-dependent search =====
     if step == "search":
         # Search mode for a quicklink with {query} (submit mode for search input)
         search_context = context if context.startswith("__search__:") else None
@@ -473,7 +467,6 @@ def main():
         )
         return
 
-    # ===== ACTION: Handle selection =====
     if step == "action":
         # Plugin-level action: add (from action bar)
         if selected_id == "__plugin__" and action == "add":

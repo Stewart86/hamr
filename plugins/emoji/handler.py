@@ -158,7 +158,6 @@ def main():
     # Load emojis
     emojis = load_emojis()
 
-    # ===== INDEX: Provide searchable items for main search =====
     if step == "index":
         items = format_index_items(emojis)
         print(json.dumps({"type": "index", "items": items}))

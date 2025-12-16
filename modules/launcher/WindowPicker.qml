@@ -74,9 +74,8 @@ Scope {
                 }
 
                 onWindowClosed: toplevel => {
-                    WindowManager.closeWindow(toplevel);
-                    // Update windows list - need to refresh from GlobalStates
-                    const remaining = root.windows.filter(w => w !== toplevel);
+                     WindowManager.closeWindow(toplevel);
+                     const remaining = root.windows.filter(w => w !== toplevel);
                     if (remaining.length === 1) {
                         // Auto-focus last window
                         WindowManager.focusWindow(remaining[0]);
@@ -103,13 +102,4 @@ Scope {
         }
     }
 
-    // Close launcher when window picker closes (unless selecting a window)
-    Connections {
-        target: GlobalStates
-        function onWindowPickerOpenChanged() {
-            if (!GlobalStates.windowPickerOpen) {
-                // Picker closed - return focus to launcher if still open
-            }
-        }
-    }
 }

@@ -36,7 +36,6 @@ def get_processes() -> list[dict]:
         processes = []
         lines = result.stdout.strip().split("\n")
 
-        # Find the SECOND header line (second iteration has accurate CPU usage)
         header_idx = -1
         header_count = 0
         for i, line in enumerate(lines):
@@ -164,7 +163,6 @@ def main():
     selected = input_data.get("selected", {})
     action = input_data.get("action", "")
 
-    # Initial: show process list
     if step == "initial":
         processes = get_processes()
         print(
@@ -179,7 +177,6 @@ def main():
         )
         return
 
-    # Search: filter processes
     if step == "search":
         processes = get_processes()
         print(

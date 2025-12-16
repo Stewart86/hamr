@@ -26,7 +26,6 @@ from pathlib import Path
 # Test mode - mock external dependencies
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
-# Check if opencode is available (always available in test mode)
 OPENCODE_AVAILABLE = shutil.which("opencode") is not None or TEST_MODE
 
 # Session storage file
@@ -386,7 +385,6 @@ See existing plugins for examples.""",
     session = load_session()
 
     if step == "initial":
-        # Check if we have an ongoing conversation
         if session.get("messages"):
             # Show option to continue or start fresh
             print(

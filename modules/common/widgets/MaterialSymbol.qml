@@ -5,7 +5,7 @@ StyledText {
     id: root
     property real iconSize: Appearance?.font.pixelSize.small ?? 16
     property real fill: 0
-    property real truncatedFill: fill.toFixed(1) // Reduce memory consumption spikes from constant font remapping
+    property real truncatedFill: fill.toFixed(1)
     renderType: Text.QtRendering
     font {
         hintingPreference: Font.PreferNoHinting
@@ -14,13 +14,11 @@ StyledText {
         weight: Font.Normal + (Font.DemiBold - Font.Normal) * truncatedFill
         variableAxes: { 
             "FILL": truncatedFill,
-            // "wght": font.weight,
-            // "GRAD": 0,
             "opsz": iconSize,
         }
     }
 
-    Behavior on fill { // Leaky leaky, no good
+    Behavior on fill {
         NumberAnimation {
             duration: Appearance?.animation.elementMoveFast.duration ?? 200
             easing.type: Appearance?.animation.elementMoveFast.type ?? Easing.BezierSpline

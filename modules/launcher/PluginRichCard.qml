@@ -44,9 +44,7 @@ Rectangle {
 
     property var card: null
 
-    // When true, show inline loading indicator (keeps transcript visible)
     property bool busy: false
-
 
     property string title: card?.title ?? ""
     property var blocks: card?.blocks ?? []
@@ -136,7 +134,6 @@ Rectangle {
             }
         }
 
-        // Inline plugin busy indicator (keeps card visible)
         RowLayout {
             visible: root.busy
             Layout.fillWidth: true
@@ -188,8 +185,7 @@ Rectangle {
                     model: root.blocks
 
                     delegate: Item {
-                        // Do NOT name this `modelData` (it shadows the repeater context).
-                        property var block: modelData
+                         property var block: modelData
 
                         width: blockColumn.width
                         implicitHeight: (blockLoader.item?.implicitHeight ?? 0)
@@ -449,25 +445,22 @@ Rectangle {
                             id: contentText
                             Layout.fillWidth: true
 
-                            // Ensure the TextArea contributes height to layouts
-                            implicitHeight: Math.max(24, contentHeight)
+                             implicitHeight: Math.max(24, contentHeight)
 
-                            text: content
-                            textFormat: markdown ? TextEdit.MarkdownText : TextEdit.PlainText
+                             text: content
+                             textFormat: markdown ? TextEdit.MarkdownText : TextEdit.PlainText
+                             
+                             readOnly: true
+                             selectByMouse: true
+                             wrapMode: TextEdit.Wrap
 
-
-                            readOnly: true
-                            selectByMouse: true
-                            wrapMode: TextEdit.Wrap
-
-                            font.family: Appearance.font.family.reading
-                            font.pixelSize: markdown ? Appearance.font.pixelSize.smaller : Appearance.font.pixelSize.small
-                            font.underline: false
-                            color: Appearance.m3colors.m3onSurface
-
-
-                            background: null
-                            padding: 0
+                             font.family: Appearance.font.family.reading
+                             font.pixelSize: markdown ? Appearance.font.pixelSize.smaller : Appearance.font.pixelSize.small
+                             font.underline: false
+                             color: Appearance.m3colors.m3onSurface
+                             
+                             background: null
+                             padding: 0
                         }
                     }
                 }
@@ -554,27 +547,25 @@ Rectangle {
             }
 
             TextArea {
-                Layout.fillWidth: true
-                visible: section.expanded
+                 Layout.fillWidth: true
+                 visible: section.expanded
 
-                // Ensure expanded content actually takes space
-                implicitHeight: Math.max(40, contentHeight + 20)
+                 implicitHeight: Math.max(40, contentHeight + 20)
 
-                text: section.content
-                textFormat: section.markdown ? TextEdit.MarkdownText : TextEdit.PlainText
+                 text: section.content
+                 textFormat: section.markdown ? TextEdit.MarkdownText : TextEdit.PlainText
+                 
+                 readOnly: true
+                 selectByMouse: true
+                 wrapMode: TextEdit.Wrap
 
+                 font.family: section.monospace ? Appearance.font.family.monospace : Appearance.font.family.reading
+                 font.pixelSize: Appearance.font.pixelSize.smaller
+                 font.underline: false
+                 color: Appearance.m3colors.m3onSurface
 
-                readOnly: true
-                selectByMouse: true
-                wrapMode: TextEdit.Wrap
-
-                font.family: section.monospace ? Appearance.font.family.monospace : Appearance.font.family.reading
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                font.underline: false
-                color: Appearance.m3colors.m3onSurface
-
-                background: null
-                padding: 10
+                 background: null
+                 padding: 10
             }
         }
     }

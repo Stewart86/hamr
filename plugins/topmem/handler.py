@@ -125,7 +125,6 @@ def main():
     selected = input_data.get("selected", {})
     action = input_data.get("action", "")
 
-    # Initial: show process list
     if step == "initial":
         processes = get_processes()
         print(
@@ -140,7 +139,6 @@ def main():
         )
         return
 
-    # Search: filter processes
     if step == "search":
         processes = get_processes()
         print(

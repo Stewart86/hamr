@@ -20,14 +20,12 @@ import qs.services
 ShellRoot {
     id: root
 
-    // Initialize services on startup
     Component.onCompleted: {
         MaterialThemeLoader.reapplyTheme()
         ShellHistory.refresh()
         PluginRunner.loadPlugins()
     }
 
-    // Main launcher components
     Launcher {}
     ImageBrowser {}
     WindowPicker {}
@@ -35,7 +33,6 @@ ShellRoot {
     // Reload popup for development
     ReloadPopup {}
 
-    // IPC handler for hamr
     IpcHandler {
         target: "hamr"
 

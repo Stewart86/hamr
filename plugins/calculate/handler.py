@@ -20,7 +20,6 @@ import sys
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
-# ==================== CURRENCY MAPS ====================
 
 CURRENCY_SYMBOL_MAP = {
     "$": "USD",
@@ -90,7 +89,6 @@ ALL_CURRENCY_CODES = [
 ]
 
 
-# ==================== PREPROCESSING ====================
 
 
 def preprocess_thousand_separators(expr: str) -> str:
@@ -138,19 +136,16 @@ def preprocess_currency(expr: str) -> str:
     """
     result = expr
 
-    # Handle prefixed symbols first (S$, HK$, etc.)
     for prefix, code in CURRENCY_PREFIX_MAP.items():
         escaped = prefix.replace("$", r"\$")
         result = re.sub(
             escaped + r"\s*([\d,]+\.?\d*)", rf"\1 {code}", result, flags=re.IGNORECASE
         )
 
-    # Handle simple symbols ($, €, £, etc.)
     for symbol, code in CURRENCY_SYMBOL_MAP.items():
         escaped = re.escape(symbol)
         result = re.sub(escaped + r"\s*([\d,]+\.?\d*)", rf"\1 {code}", result)
 
-    # Handle currency code before number: "sgd100" -> "100 SGD"
     codes_pattern = "|".join(ALL_CURRENCY_CODES)
     match = re.match(rf"^({codes_pattern})\s*([\d,]+\.?\d*)", result, re.IGNORECASE)
     if match:
@@ -206,7 +201,6 @@ def preprocess_expression(query: str, math_prefix: str = "=") -> str:
     return expr
 
 
-# ==================== CALCULATION ====================
 
 
 def calculate(expr: str) -> str | None:
@@ -246,7 +240,6 @@ def calculate(expr: str) -> str | None:
         return None
 
 
-# ==================== MAIN ====================
 
 
 def main():
@@ -255,7 +248,6 @@ def main():
     query = input_data.get("query", "").strip()
     selected = input_data.get("selected", {})
 
-    # ===== MATCH: Called when query matches our patterns =====
     if step == "match":
         if not query:
             print(json.dumps({"type": "error", "message": "No expression provided"}))
@@ -290,7 +282,6 @@ def main():
             print(json.dumps({"type": "match", "result": None}))
         return
 
-    # ===== INITIAL: Show prompt =====
     if step == "initial":
         print(
             json.dumps(
@@ -304,7 +295,6 @@ def main():
         )
         return
 
-    # ===== SEARCH: Calculate on input =====
     if step == "search":
         if not query:
             print(
@@ -363,7 +353,6 @@ def main():
             )
         return
 
-    # ===== ACTION: Copy result =====
     if step == "action":
         item_id = selected.get("id", "")
 

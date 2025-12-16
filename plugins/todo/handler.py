@@ -185,7 +185,6 @@ def main():
 
     todos = load_todos()
 
-    # Initial: show todo list
     if step == "initial":
         respond(
             get_todo_results(todos),
@@ -193,7 +192,6 @@ def main():
         )
         return
 
-    # Search: filter todos or prepare to add
     if step == "search":
         # Add mode (submit mode)
         # In submit mode, Enter should perform the action directly (single press).
@@ -403,7 +401,6 @@ def main():
             )
             return
 
-        # Empty state - ignore
         if item_id == "__empty__":
             respond(
                 get_todo_results(todos),

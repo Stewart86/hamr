@@ -27,11 +27,9 @@ MouseArea {
 
     Component.onCompleted: {
         if (initialDirectory) {
-            // Set initial directory from workflow config
             const expandedPath = initialDirectory.replace(/^~/, FileUtils.trimFileProtocol(Directories.home));
             FolderBrowser.setDirectory(expandedPath);
         }
-        // Enable OCR if configured
         FolderBrowser.ocrEnabled = enableOcr;
     }
 
@@ -51,14 +49,12 @@ MouseArea {
         target: FolderBrowser
         function onDirectoryChanged() {
             root.updateThumbnails()
-            // Start OCR indexing when directory changes (if enabled)
             root.startOcrIndexing()
         }
     }
 
     function handleFilePasting(event) {
         const clipboardText = Quickshell.clipboardText ?? "";
-        // Check if clipboard contains a file path
         if (clipboardText.startsWith("file://") || clipboardText.startsWith("/")) {
             const path = clipboardText.startsWith("file://") 
                 ? FileUtils.trimFileProtocol(decodeURIComponent(clipboardText))
@@ -70,7 +66,6 @@ MouseArea {
         }
     }
 
-    // Handle file selection - send selection back to workflow handler
     function selectFilePath(filePath) {
         if (!filePath || filePath.length === 0) return;
         
@@ -79,7 +74,6 @@ MouseArea {
         GlobalStates.imageBrowserSelection(filePath, defaultAction);
     }
     
-    // Handle action button click
     function selectFileWithAction(filePath, actionId) {
         if (!filePath || filePath.length === 0) return;
         GlobalStates.imageBrowserSelection(filePath, actionId);
@@ -217,7 +211,6 @@ MouseArea {
                         text: root.title
                     }
                     ListView {
-                        // Quick dirs
                         Layout.fillHeight: true
                         Layout.margins: 4
                         implicitWidth: Config.options.imageBrowser?.sidebarWidth ?? 140
@@ -264,7 +257,6 @@ MouseArea {
                         }
                     }
 
-                    // Key guide
                     ColumnLayout {
                         id: keyGuideColumn
                         Layout.fillWidth: true
@@ -334,7 +326,6 @@ MouseArea {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
-                    // Progress bar for thumbnail generation
                     StyledIndeterminateProgressBar {
                         id: indeterminateProgressBar
                         visible: FolderBrowser.thumbnailGenerationRunning && value == 0
@@ -352,8 +343,7 @@ MouseArea {
                         value: FolderBrowser.thumbnailGenerationProgress
                         anchors.fill: indeterminateProgressBar
                     }
-                    
-                    // Secondary progress bar for OCR indexing
+
                     StyledProgressBar {
                         visible: root.enableOcr && FolderBrowser.ocrIndexingRunning
                         value: FolderBrowser.ocrIndexingProgress
@@ -448,7 +438,6 @@ MouseArea {
                             bottomMargin: 8
                         }
 
-                        // Custom action buttons from workflow config
                         Repeater {
                             model: root.customActions
                             delegate: IconToolbarButton {

@@ -7,19 +7,17 @@ Canvas {
     property var roundedPolygon: null
     property bool polygonIsNormalized: true
 
-    // Internals: size
     property var bounds: roundedPolygon.calculateBounds()
     implicitWidth: bounds[2] - bounds[0]
     implicitHeight: bounds[3] - bounds[1]
 
-    // Internals: anim
     property var prevRoundedPolygon: null
     property double progress: 1
     property var morph: new Morph.Morph(roundedPolygon, roundedPolygon)
     property Animation animation: NumberAnimation {
         duration: 350
         easing.type: Easing.BezierSpline
-        easing.bezierCurve: [0.42, 1.67, 0.21, 0.90, 1, 1] // Material 3 Expressive fast spatial (https://m3.material.io/styles/motion/overview/specs)
+        easing.bezierCurve: [0.42, 1.67, 0.21, 0.90, 1, 1]
     }
     
     onRoundedPolygonChanged: {

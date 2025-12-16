@@ -25,7 +25,6 @@ def main():
     query = input_data.get("query", "").strip()
     selected = input_data.get("selected", {})
 
-    # ===== MATCH: Called when query matches URL pattern =====
     if step == "match":
         if not query:
             print(json.dumps({"type": "match", "result": None}))
@@ -60,7 +59,6 @@ def main():
         )
         return
 
-    # ===== ACTION: Handle action buttons =====
     if step == "action":
         action = input_data.get("action", "")
 
@@ -95,7 +93,6 @@ def main():
         )
         return
 
-    # ===== INITIAL/SEARCH: Not typically used for match-only plugin =====
     print(json.dumps({"type": "results", "results": []}))
 
 

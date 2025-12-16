@@ -71,7 +71,6 @@ def query_ai(user_input: str) -> list[str]:
         output = result.stdout.strip()
 
         # Try to extract JSON array from output
-        # Handle cases where output might have extra text
         start_idx = output.find("[")
         end_idx = output.rfind("]")
 
@@ -118,7 +117,6 @@ def main():
         )
         return
 
-    # ===== INITIAL: Show prompt =====
     if step == "initial":
         print(
             json.dumps(
@@ -139,7 +137,6 @@ def main():
         )
         return
 
-    # ===== SEARCH: Query AI for words =====
     if step == "search":
         if not query:
             print(
@@ -220,7 +217,6 @@ def main():
         )
         return
 
-    # ===== ACTION: Handle selection =====
     if step == "action":
         selected_id = selected.get("id", "")
 

@@ -119,7 +119,6 @@ def main():
         )
         return
 
-    # Handle image browser selection
     if step == "action" and selected.get("id") == "imageBrowser":
         file_path = selected.get("path", "")
         action_id = selected.get("action", "open")

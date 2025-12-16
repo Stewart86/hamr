@@ -10,13 +10,11 @@ pragma ComponentBehavior: Bound
 Singleton {
     id: root
 
-    // ==================== LAUNCHER STATE ====================
     property bool launcherOpen: false
     property bool superReleaseMightTrigger: true
     
-     // ==================== IMAGE BROWSER ====================
-     // Unified image browser that can be opened in standalone or plugin mode
-     property bool imageBrowserOpen: false
+    // Unified image browser that can be opened in standalone or plugin mode
+    property bool imageBrowserOpen: false
      property var imageBrowserConfig: null  // { directory, title, extensions, actions, workflowId }
      property bool imageBrowserClosedBySelection: false  // Track if close was due to selection
      
@@ -46,7 +44,6 @@ Singleton {
         }
     }
 
-    // ==================== ACTION HINT POPUP ====================
     // Floating action hint that appears above all launcher content
     property bool actionHintVisible: false
     property string actionHintKey: ""
@@ -64,7 +61,6 @@ Singleton {
         actionHintVisible = false;
     }
 
-    // ==================== WINDOW PICKER ====================
     // Window picker for switching between multiple windows of an app
     property bool windowPickerOpen: false
     property string windowPickerAppId: ""

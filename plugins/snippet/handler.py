@@ -196,7 +196,6 @@ def get_main_menu(snippets: list[dict], query: str = "") -> list[dict]:
     filtered = filter_snippets(query, snippets)
     results.extend(get_snippet_list(filtered))
 
-    # Empty state hint
     if not results:
         results.append(
             {
@@ -271,13 +270,11 @@ def main():
     snippets = load_snippets()
     selected_id = selected.get("id", "")
 
-    # ===== INDEX: Provide searchable items for main launcher =====
     if step == "index":
         items = [snippet_to_index_item(s) for s in snippets]
         print(json.dumps({"type": "index", "items": items}))
         return
 
-    # ===== INITIAL: Show all snippets =====
     if step == "initial":
         results = get_main_menu(snippets)
         print(
@@ -293,7 +290,6 @@ def main():
         )
         return
 
-    # ===== FORM: Handle form submission =====
     if step == "form":
         form_data = input_data.get("formData", {})
 
@@ -306,7 +302,6 @@ def main():
                 print(json.dumps({"type": "error", "message": "Key is required"}))
                 return
 
-            # Check if key already exists
             if any(s["key"] == key for s in snippets):
                 print(
                     json.dumps(
@@ -376,7 +371,6 @@ def main():
                 )
             return
 
-    # ===== SEARCH: Filter snippets =====
     if step == "search":
         # Normal snippet filtering (realtime mode)
         results = get_main_menu(snippets, query)
@@ -393,7 +387,6 @@ def main():
         )
         return
 
-    # ===== ACTION: Handle selection =====
     if step == "action":
         # Plugin-level action: add (from action bar)
         if selected_id == "__plugin__" and action == "add":

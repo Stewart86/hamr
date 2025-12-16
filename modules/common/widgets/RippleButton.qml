@@ -18,10 +18,10 @@ Button {
     property real buttonEffectiveRadius: root.down ? root.buttonRadiusPressed : root.buttonRadius
     property int rippleDuration: 1200
     property bool rippleEnabled: true
-    property var downAction // When left clicking (down)
-    property var releaseAction // When left clicking (release)
-    property var altAction // When right clicking
-    property var middleClickAction // When middle clicking
+     property var downAction
+     property var releaseAction
+     property var altAction
+     property var middleClickAction
 
     property color colBackground: ColorUtils.transparentize(Appearance?.colors.colLayer1Hover, 1) || "transparent"
     property color colBackgroundHover: Appearance?.colors.colLayer1Hover ?? "#E5DFED"
@@ -59,7 +59,7 @@ Button {
 
     MouseArea {
         anchors.fill: parent
-        z: -1  // Place behind content so nested buttons receive events first
+         z: -1
         cursorShape: root.pointingHandCursor ? Qt.PointingHandCursor : Qt.ArrowCursor
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
         onPressed: (event) => { 
@@ -81,7 +81,7 @@ Button {
             root.down = false
             if (event.button != Qt.LeftButton) return;
             if (root.releaseAction) root.releaseAction();
-            root.click() // Because the MouseArea already consumed the event
+             root.click()
             if (!root.rippleEnabled) return;
             rippleFadeAnim.restart();
         }

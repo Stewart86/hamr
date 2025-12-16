@@ -256,13 +256,11 @@ def main():
 
     notes = load_notes()
 
-    # ===== INDEX: Provide searchable items for main launcher =====
     if step == "index":
         items = [note_to_index_item(n) for n in notes]
         print(json.dumps({"type": "index", "items": items}))
         return
 
-    # ===== INITIAL: Show notes list =====
     if step == "initial":
         respond(
             {
@@ -275,7 +273,6 @@ def main():
         )
         return
 
-    # ===== SEARCH: Filter notes =====
     if step == "search":
         filtered = filter_notes(query, notes)
         results = []
@@ -304,7 +301,6 @@ def main():
         )
         return
 
-    # ===== FORM: Handle form submission =====
     if step == "form":
         # Adding new note
         if context == "__add__":
@@ -372,7 +368,6 @@ def main():
                 respond({"type": "error", "message": "Title is required"})
             return
 
-    # ===== ACTION: Handle clicks =====
     if step == "action":
         item_id = selected.get("id", "")
 
@@ -426,7 +421,6 @@ def main():
             show_add_form(title_default=title)
             return
 
-        # Find the note
         note = next((n for n in notes if n.get("id") == item_id), None)
         if not note:
             respond({"type": "error", "message": f"Note not found: {item_id}"})

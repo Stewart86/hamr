@@ -390,20 +390,17 @@ def main():
     ocr_cache = load_ocr_cache()
     ocr_texts = get_ocr_text_for_entries(entries, ocr_cache)
 
-    # ===== INDEX: Provide searchable items for main search =====
     if step == "index":
         # Limit to recent 50 entries for main search (full list available in plugin)
         items = [entry_to_index_item(e, ocr_texts) for e in entries[:300]]
         print(json.dumps({"type": "index", "items": items}))
         return
 
-    # Initial: show clipboard list and spawn background OCR indexer
     if step == "initial":
         spawn_ocr_indexer()
         respond(get_entry_results(entries, ocr_texts=ocr_texts))
         return
 
-    # Search: filter entries
     if step == "search":
         respond(
             get_entry_results(entries, query, context, ocr_texts),
@@ -465,7 +462,6 @@ def main():
             )
             return
 
-        # Empty state - ignore
         if item_id == "__empty__":
             respond(
                 get_entry_results(entries, query, context, ocr_texts),

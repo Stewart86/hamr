@@ -17,7 +17,7 @@ ToolTip {
         family: Appearance.font.family.main
         variableAxes: Appearance.font.variableAxes.main
         pixelSize: Appearance?.font.pixelSize.smaller ?? 14
-        hintingPreference: Font.PreferNoHinting // Prevent shaky text
+        hintingPreference: Font.PreferNoHinting
     }
 
     delay: 0

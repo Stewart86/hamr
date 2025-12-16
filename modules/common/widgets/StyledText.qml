@@ -59,7 +59,7 @@ Text {
                     easing.type: Easing.InSine
                 }
             }
-            PropertyAction {} // Tie the text update to this point (we don't want it to happen during the first slide+fade)
+            PropertyAction {}
             PropertyAction {
                 target: root
                 property: "x"

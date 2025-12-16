@@ -9,70 +9,18 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 import qs.services
 
-/**
- * A horizontal popup showing live window previews with keyboard navigation.
- * 
- * Features:
- * - Live window previews using ScreencopyView
- * - Keyboard navigation (h/l/arrows/vim keys)
- * - Mouse-free workflow support
- * - Visual indication of selected window
- * 
- * Usage:
- *   WindowPicker {
- *       windows: MyWindowList.toplevels
- *       onWindowSelected: window => MyApp.activate(window)
- *       onWindowClosed: window => window.close()
- *   }
- */
 Rectangle {
     id: root
     
-    // ==================== PROPERTIES ====================
-    
-    /**
-     * List of Toplevel objects to display as window previews
-     */
     property list<var> windows: []
-    
-    /**
-     * Currently selected window index (0-based)
-     */
     property int selectedIndex: 0
-    
-    /**
-     * Maximum preview width in pixels (from config)
-     */
     property real maxPreviewWidth: Appearance.sizes.windowPickerMaxWidth
-    
-    /**
-     * Maximum preview height in pixels (from config)
-     */
     property real maxPreviewHeight: Appearance.sizes.windowPickerMaxHeight
     
-    // ==================== SIGNALS ====================
-    
-    /**
-     * Emitted when user selects a window (Enter/Space/click)
-     */
     signal windowSelected(var toplevel)
-    
-    /**
-     * Emitted when user closes a window (x button/Delete)
-     */
     signal windowClosed(var toplevel)
-    
-    /**
-     * Emitted when user presses Escape
-     */
     signal cancelled()
-    
-    /**
-     * Emitted when user presses 'n' for new instance
-     */
     signal newInstanceRequested()
-    
-    // ==================== STYLING ====================
     
     color: Appearance.colors.colSurfaceContainer
     radius: Appearance.rounding.normal
@@ -80,35 +28,30 @@ Rectangle {
     implicitWidth: windowLayout.implicitWidth + windowLayout.anchors.margins * 2
     implicitHeight: windowLayout.implicitHeight + windowLayout.anchors.margins * 2
     
-    // ==================== KEYBOARD HANDLING ====================
-    
     Keys.enabled: visible
     Keys.onPressed: event => {
-        const key = event.key;
-        const modifiers = event.modifiers;
-        
-        // Navigation: Previous window
-        if ((key === Qt.Key_H) || 
+         const key = event.key;
+         const modifiers = event.modifiers;
+         
+         if ((key === Qt.Key_H) ||
             (key === Qt.Key_Left) || 
             (key === Qt.Key_K && modifiers & Qt.ControlModifier) ||
             (key === Qt.Key_H && modifiers & Qt.ControlModifier)) {
             selectedIndex = (selectedIndex - 1 + windows.length) % windows.length;
             event.accepted = true;
-            return;
-        }
-        
-        // Navigation: Next window
-        if ((key === Qt.Key_L) || 
+             return;
+         }
+         
+         if ((key === Qt.Key_L) ||
             (key === Qt.Key_Right) || 
             (key === Qt.Key_J && modifiers & Qt.ControlModifier) ||
             (key === Qt.Key_L && modifiers & Qt.ControlModifier)) {
             selectedIndex = (selectedIndex + 1) % windows.length;
             event.accepted = true;
-            return;
-        }
-        
-        // Vim-style navigation (without modifiers)
-        if (key === Qt.Key_K) {
+             return;
+         }
+         
+         if (key === Qt.Key_K) {
             selectedIndex = (selectedIndex - 1 + windows.length) % windows.length;
             event.accepted = true;
             return;
@@ -120,40 +63,34 @@ Rectangle {
             return;
         }
         
-        // Select/Activate window
-        if ((key === Qt.Key_Return) || (key === Qt.Key_Enter) || (key === Qt.Key_Space)) {
+         if ((key === Qt.Key_Return) || (key === Qt.Key_Enter) || (key === Qt.Key_Space)) {
             if (windows.length > 0 && selectedIndex < windows.length) {
                 root.windowSelected(windows[selectedIndex]);
             }
             event.accepted = true;
-            return;
-        }
-        
-        // Close selected window
-        if ((key === Qt.Key_X) || (key === Qt.Key_Delete)) {
+             return;
+         }
+         
+         if ((key === Qt.Key_X) || (key === Qt.Key_Delete)) {
             if (windows.length > 0 && selectedIndex < windows.length) {
                 root.windowClosed(windows[selectedIndex]);
             }
             event.accepted = true;
-            return;
-        }
-        
-        // New instance
-        if (key === Qt.Key_N) {
+             return;
+         }
+         
+         if (key === Qt.Key_N) {
             root.newInstanceRequested();
             event.accepted = true;
-            return;
-        }
-        
-        // Cancel/Close picker
-        if (key === Qt.Key_Escape) {
+             return;
+         }
+         
+         if (key === Qt.Key_Escape) {
             root.cancelled();
             event.accepted = true;
             return;
         }
-    }
-    
-    // ==================== WINDOW PREVIEWS ====================
+     }
     
     RowLayout {
         id: windowLayout
@@ -166,8 +103,6 @@ Rectangle {
             delegate: windowPreviewDelegate
         }
     }
-    
-    // ==================== WINDOW PREVIEW DELEGATE ====================
     
     Component {
         id: windowPreviewDelegate
@@ -184,7 +119,6 @@ Rectangle {
             
             padding: 0
             
-            // Highlight selected window with border
             property bool isSelected: index === root.selectedIndex
             property color borderColor: isSelected ? Appearance.colors.colPrimary : "transparent"
             
@@ -209,13 +143,11 @@ Rectangle {
                 }
             }
             
-            // Click to select
             onClicked: {
                 root.selectedIndex = index;
                 root.windowSelected(root.windows[index]);
             }
             
-            // Middle click to close
             middleClickAction: () => {
                 root.windowClosed(root.windows[index]);
             }
@@ -242,7 +174,6 @@ Rectangle {
                         font.pixelSize: Appearance.font.pixelSize.small
                     }
                     
-                    // Close button
                     RippleButton {
                         id: closeButton
                         Layout.preferredWidth: 24
@@ -261,7 +192,6 @@ Rectangle {
                     }
                 }
                 
-                // Live preview (constraintSize maintains aspect ratio)
                 ScreencopyView {
                     id: screencopyView
                     captureSource: root.windows[index] ?? null

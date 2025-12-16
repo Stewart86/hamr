@@ -242,7 +242,6 @@ def main():
 
     selected_id = selected.get("id", "")
 
-    # ===== INITIAL: Show recent files =====
     if step == "initial":
         recent = load_recent_files()
         if recent:
@@ -271,7 +270,6 @@ def main():
         )
         return
 
-    # ===== SEARCH: Fuzzy file search =====
     if step == "search":
         if query:
             paths = search_files(query)
@@ -303,7 +301,6 @@ def main():
         )
         return
 
-    # ===== ACTION: Handle selection =====
     if step == "action":
         # Info/no-results items are not actionable
         if selected_id in ["__info__", "__no_results__"]:

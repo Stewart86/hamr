@@ -4,9 +4,6 @@ import Quickshell.Io
 import qs.modules.common
 import qs.modules.common.functions
 
-// From https://github.com/caelestia-dots/shell with modifications.
-// License: GPLv3
-
 Image {
     id: root
     required property var fileModelData

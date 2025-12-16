@@ -11,21 +11,19 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 
-Item { // Wrapper
+Item {
     id: root
     readonly property string xdgConfigHome: Directories.config
     property string searchingText: LauncherSearch.query
     property bool showResults: searchingText != "" || LauncherSearch.results.length > 0
     property bool showCard: PluginRunner.pluginCard !== null
     property bool showForm: PluginRunner.pluginForm !== null
-    // Include the full visual height (content + offset)
+    
     implicitWidth: searchWidgetContent.implicitWidth + Appearance.sizes.elevationMargin * 2
     implicitHeight: searchWidgetContent.implicitHeight + searchWidgetContent.anchors.topMargin + Appearance.sizes.elevationMargin * 2
 
-    // Expose the content rectangle for input masking
     property alias contentItem: searchWidgetContent
 
-    // Forward drag signals from SearchBar
     signal dragStarted(real mouseX, real mouseY)
     signal dragMoved(real mouseX, real mouseY)
     signal dragEnded
@@ -64,44 +62,35 @@ Item { // Wrapper
     }
 
     Keys.onPressed: event => {
-        // Prevent Esc and Backspace from registering
-        if (event.key === Qt.Key_Escape)
-            return;
+         if (event.key === Qt.Key_Escape)
+             return;
 
-        // Handle Backspace: focus and delete character if not focused
-        if (event.key === Qt.Key_Backspace) {
+         if (event.key === Qt.Key_Backspace) {
             if (!searchBar.searchInput.activeFocus) {
                 root.focusSearchInput();
                 if (event.modifiers & Qt.ControlModifier) {
-                    // Delete word before cursor
-                    let text = searchBar.searchInput.text;
-                    let pos = searchBar.searchInput.cursorPosition;
-                    if (pos > 0) {
-                        // Find the start of the previous word
-                        let left = text.slice(0, pos);
-                        let match = left.match(/(\s*\S+)\s*$/);
-                        let deleteLen = match ? match[0].length : 1;
-                        searchBar.searchInput.text = text.slice(0, pos - deleteLen) + text.slice(pos);
-                        searchBar.searchInput.cursorPosition = pos - deleteLen;
-                    }
-                } else {
-                    // Delete character before cursor if any
-                    if (searchBar.searchInput.cursorPosition > 0) {
-                        searchBar.searchInput.text = searchBar.searchInput.text.slice(0, searchBar.searchInput.cursorPosition - 1) + searchBar.searchInput.text.slice(searchBar.searchInput.cursorPosition);
-                        searchBar.searchInput.cursorPosition -= 1;
-                    }
-                }
-                // Always move cursor to end after programmatic edit
-                searchBar.searchInput.cursorPosition = searchBar.searchInput.text.length;
-                event.accepted = true;
-            }
-            // If already focused, let TextField handle it
-            return;
+                 let text = searchBar.searchInput.text;
+                     let pos = searchBar.searchInput.cursorPosition;
+                     if (pos > 0) {
+                         let left = text.slice(0, pos);
+                         let match = left.match(/(\s*\S+)\s*$/);
+                         let deleteLen = match ? match[0].length : 1;
+                         searchBar.searchInput.text = text.slice(0, pos - deleteLen) + text.slice(pos);
+                         searchBar.searchInput.cursorPosition = pos - deleteLen;
+                     }
+                 } else {
+                     if (searchBar.searchInput.cursorPosition > 0) {
+                         searchBar.searchInput.text = searchBar.searchInput.text.slice(0, searchBar.searchInput.cursorPosition - 1) + searchBar.searchInput.text.slice(searchBar.searchInput.cursorPosition);
+                         searchBar.searchInput.cursorPosition -= 1;
+                     }
+                 }
+                 searchBar.searchInput.cursorPosition = searchBar.searchInput.text.length;
+                 event.accepted = true;
+             }
+             return;
         }
 
-        // Only handle visible printable characters (ignore control chars, arrows, etc.)
-        if (event.text && event.text.length === 1 && event.key !== Qt.Key_Enter && event.key !== Qt.Key_Return && event.key !== Qt.Key_Delete && event.text.charCodeAt(0) >= 0x20) // ignore control chars like Backspace, Tab, etc.
-        {
+         if (event.text && event.text.length === 1 && event.key !== Qt.Key_Enter && event.key !== Qt.Key_Return && event.key !== Qt.Key_Delete && event.text.charCodeAt(0) >= 0x20) {
             if (!searchBar.searchInput.activeFocus) {
                 root.focusSearchInput();
                 // Insert the character at the cursor position
@@ -114,10 +103,10 @@ Item { // Wrapper
     }
 
     StyledRectangularShadow {
-        target: searchWidgetContent
-    }
-    Rectangle { // Background
-        id: searchWidgetContent
+         target: searchWidgetContent
+     }
+     Rectangle {
+         id: searchWidgetContent
         anchors {
             top: parent.top
             horizontalCenter: parent.horizontalCenter
@@ -143,18 +132,9 @@ Item { // Wrapper
             }
             spacing: 0
 
-            clip: true
-            // layer.enabled: true
-            // layer.effect: OpacityMask {
-            //     maskSource: Rectangle {
-            //         width: searchWidgetContent.width
-            //         height: searchWidgetContent.height
-            //         radius: searchWidgetContent.radius
-            //     }
-            // }
+             clip: true
 
-            // Elevated search bar container
-            Rectangle {
+             Rectangle {
                 id: searchBarContainer
                 implicitWidth: searchBar.implicitWidth + 12
                 implicitHeight: searchBar.implicitHeight + 12
@@ -167,12 +147,11 @@ Item { // Wrapper
                 SearchBar {
                     id: searchBar
                     anchors.centerIn: parent
-                    Synchronizer on searchingText {
-                        property alias source: root.searchingText
-                    }
+                     Synchronizer on searchingText {
+                         property alias source: root.searchingText
+                     }
 
-                    // Forward drag signals
-                    onDragStarted: (mouseX, mouseY) => root.dragStarted(mouseX, mouseY)
+                     onDragStarted: (mouseX, mouseY) => root.dragStarted(mouseX, mouseY)
                     onDragMoved: (mouseX, mouseY) => root.dragMoved(mouseX, mouseY)
                     onDragEnded: root.dragEnded()
 
@@ -275,8 +254,6 @@ Item { // Wrapper
                 }
             }
 
-            // Hint bar - shows prefix shortcuts on main view, back button in prefix modes
-            // Hidden when plugin is active
             Item {
                 id: hintBar
                 visible: !PluginRunner.isActive()
@@ -286,7 +263,6 @@ Item { // Wrapper
                 Layout.bottomMargin: 8
                 Layout.preferredHeight: 34
                 
-                // Check if we're in any prefix mode (by checking if query starts with a known prefix)
                 readonly property bool inPrefixMode: {
                     const q = root.searchingText;
                     return q.startsWith(Config.options.search.prefix.file) ||
@@ -298,16 +274,13 @@ Item { // Wrapper
                            LauncherSearch.isInExclusiveMode();
                 }
                 
-                // Check if in clipboard mode specifically (for wipe action)
                 readonly property bool inClipboardMode: root.searchingText.startsWith(Config.options.search.prefix.clipboard)
                 
-                // Main view: prefix buttons
                 RowLayout {
                     anchors.fill: parent
                     spacing: 8
                     visible: !hintBar.inPrefixMode
 
-                    // Prefix buttons (clickable to enter prefix mode)
                     Repeater {
                         model: [
                             { key: Config.options.search.prefix.file, label: "files" },
@@ -332,13 +305,12 @@ Item { // Wrapper
                             colRipple: Appearance.colors.colSurfaceContainerHighest
                             
                             onClicked: {
-                                searchBar.searchInput.text = modelData.key;
-                                LauncherSearch.query = modelData.key;
-                                root.focusSearchInput();
-                            }
-                            
-                            // Border outline
-                            Rectangle {
+                                 searchBar.searchInput.text = modelData.key;
+                                 LauncherSearch.query = modelData.key;
+                                 root.focusSearchInput();
+                             }
+                             
+                             Rectangle {
                                 anchors.fill: parent
                                 radius: 4
                                 color: "transparent"
@@ -370,7 +342,6 @@ Item { // Wrapper
                         Layout.fillWidth: true
                     }
                     
-                    // Navigation hints (shown when results are displayed)
                     Repeater {
                         model: root.showResults ? [
                             { key: "^J", label: "down" },
@@ -395,13 +366,11 @@ Item { // Wrapper
                     }
                 }
                 
-                // Prefix mode: back button (and wipe for clipboard)
                 RowLayout {
                     anchors.fill: parent
                     spacing: 8
                     visible: hintBar.inPrefixMode
                     
-                    // Back button
                     RippleButton {
                         id: backBtn
                         Layout.fillHeight: true
@@ -413,11 +382,10 @@ Item { // Wrapper
                         colRipple: Appearance.colors.colSurfaceContainerHighest
                         
                         onClicked: {
-                            root.cancelSearch();
-                        }
-                        
-                        // Border outline
-                        Rectangle {
+                             root.cancelSearch();
+                         }
+                         
+                         Rectangle {
                             anchors.fill: parent
                             radius: 4
                             color: "transparent"
@@ -450,7 +418,6 @@ Item { // Wrapper
                         }
                     }
                     
-                    // Wipe button (clipboard mode only)
                     RippleButton {
                         id: wipeBtn
                         visible: hintBar.inClipboardMode
@@ -463,13 +430,11 @@ Item { // Wrapper
                         colRipple: Appearance.colors.colSurfaceContainerHighest
                         
                         onClicked: {
-                            Quickshell.exec(["cliphist", "wipe"]);
-                            // Refresh the clipboard list
-                            LauncherSearch.query = Config.options.search.prefix.clipboard;
-                        }
-                        
-                        // Border outline
-                        Rectangle {
+                             Quickshell.exec(["cliphist", "wipe"]);
+                             LauncherSearch.query = Config.options.search.prefix.clipboard;
+                         }
+                         
+                         Rectangle {
                             anchors.fill: parent
                             radius: 4
                             color: "transparent"
@@ -504,7 +469,6 @@ Item { // Wrapper
                 }
             }
             
-            // Plugin action bar - shows when plugin is active
             PluginActionBar {
                 id: pluginActionBar
                 visible: PluginRunner.isActive()
@@ -530,18 +494,13 @@ Item { // Wrapper
             }
 
             Rectangle {
-                // Separator
-                visible: root.showResults || root.showCard || root.showForm || PluginRunner.pluginBusy
-                Layout.fillWidth: true
-                // Both hint bar and plugin action bar have same height/margin, so no adjustment needed
-                height: 1
+                 visible: root.showResults || root.showCard || root.showForm || PluginRunner.pluginBusy
+                 Layout.fillWidth: true
+                 height: 1
                 color: Appearance.colors.colOutlineVariant
             }
 
-            // Loading indicator when plugin is processing and no card is shown.
-            // Only show in submit mode - realtime mode should not show loading on every keystroke.
-            // For card-based plugins (chat), the card itself shows its busy state.
-            RowLayout {
+             RowLayout {
                 visible: PluginRunner.pluginBusy && !root.showCard && PluginRunner.inputMode === "submit"
                 Layout.fillWidth: true
                 Layout.margins: 20
@@ -558,9 +517,7 @@ Item { // Wrapper
                 }
             }
 
-            // Plugin card display (shown instead of results when card is present)
-            // Use PluginRichCard when handler returns block-based cards (chat/timeline).
-            Loader {
+             Loader {
                 id: pluginCardLoader
                 visible: root.showCard
                 Layout.fillWidth: true
@@ -597,8 +554,7 @@ Item { // Wrapper
                 }
             }
 
-            // Plugin form display (shown when form response received)
-            PluginForm {
+             PluginForm {
                 id: pluginFormView
                 visible: root.showForm
                 Layout.fillWidth: true
@@ -621,10 +577,7 @@ Item { // Wrapper
                 }
             }
 
-            // Results container with recessed background
-            // In realtime mode, keep results visible during processing to avoid flickering.
-            // In submit mode, hide results while loading indicator is shown.
-            Rectangle {
+             Rectangle {
                 id: resultsContainer
                 visible: root.showResults && !root.showCard && !root.showForm && !(PluginRunner.pluginBusy && PluginRunner.inputMode === "submit")
                 Layout.fillWidth: true
@@ -638,8 +591,8 @@ Item { // Wrapper
                 border.width: 1
                 border.color: Appearance.colors.colOutlineVariant
 
-                ListView { // App results
-                    id: appResults
+                 ListView {
+                     id: appResults
                     anchors.fill: parent
                     implicitHeight: Math.min(Appearance.sizes.maxResultsHeight, appResults.contentHeight + topMargin + bottomMargin)
                     clip: true
@@ -665,19 +618,14 @@ Item { // Wrapper
                         }
                     }
 
-                    // Track selected item key and action index for poll update restoration
-                    // Use two properties: current (live) and pending (for restoration after action)
                     property string selectedItemKey: ""
-                    property int selectedActionIndex: -1
-                    
-                    // Pending restore state - used when skipNextAutoFocus is set
-                    // These values persist until successfully restored OR explicitly cleared
-                    property string pendingItemKey: ""
-                    property int pendingActionIndex: -1
-                    property int pendingCurrentIndex: -1  // Fallback: original index position
+                     property int selectedActionIndex: -1
+                     
+                     property string pendingItemKey: ""
+                     property int pendingActionIndex: -1
+                     property int pendingCurrentIndex: -1
 
-                    // Update selected key when selection changes
-                    onCurrentIndexChanged: {
+                     onCurrentIndexChanged: {
                         if (currentIndex >= 0 && currentIndex < LauncherSearch.results.length) {
                             selectedItemKey = LauncherSearch.results[currentIndex]?.key ?? "";
                         } else {
@@ -685,20 +633,17 @@ Item { // Wrapper
                         }
                     }
 
-                    // Track action index changes from current item
-                    function updateActionIndex(index) {
+                     function updateActionIndex(index) {
                         selectedActionIndex = index;
                     }
                     
-                    // Capture current selection for restoration after action execution
-                    function captureSelection() {
+                     function captureSelection() {
                         pendingItemKey = selectedItemKey;
                         pendingActionIndex = selectedActionIndex;
                         pendingCurrentIndex = currentIndex;
                     }
                     
-                    // Clear pending restore state (called when restoration is complete or cancelled)
-                    function clearPendingSelection() {
+                     function clearPendingSelection() {
                         pendingItemKey = "";
                         pendingActionIndex = -1;
                         pendingCurrentIndex = -1;
@@ -712,15 +657,11 @@ Item { // Wrapper
                             const hasPendingRestore = appResults.pendingItemKey !== "" || appResults.pendingCurrentIndex >= 0;
                             const isPoll = PluginRunner.isPollUpdate;
                             
-                            // Clear poll flag early (we've captured it)
                             if (isPoll) {
-                                PluginRunner.isPollUpdate = false;
-                            }
-                            
-                            // Determine which key to use for restoration:
-                            // - If we have pending restore state (from action), use pendingItemKey
-                            // - Otherwise for poll updates, use current selectedItemKey
-                            const shouldTryRestore = LauncherSearch.skipNextAutoFocus || hasPendingRestore || isPoll;
+                                 PluginRunner.isPollUpdate = false;
+                             }
+                             
+                             const shouldTryRestore = LauncherSearch.skipNextAutoFocus || hasPendingRestore || isPoll;
                             
                             if (shouldTryRestore && appResults.count > 0) {
                                 // Clear the one-shot flag if it was set
@@ -728,22 +669,18 @@ Item { // Wrapper
                                     LauncherSearch.skipNextAutoFocus = false;
                                 }
                                 
-                                // Priority: pendingItemKey (from action) > selectedItemKey (for poll)
-                                const savedKey = hasPendingRestore ? appResults.pendingItemKey : appResults.selectedItemKey;
-                                const savedActionIndex = hasPendingRestore ? appResults.pendingActionIndex : appResults.selectedActionIndex;
-                                const savedIndex = appResults.pendingCurrentIndex;
-                                
-                                // Try to find the item by key first
-                                if (savedKey) {
-                                    const newIndex = LauncherSearch.results.findIndex(r => r.key === savedKey);
-                                    if (newIndex >= 0) {
-                                        appResults.currentIndex = newIndex;
-                                        // Only clear pending state if this was an action restore (not poll)
-                                        if (hasPendingRestore) {
-                                            appResults.clearPendingSelection();
-                                        }
-                                        // Restore action focus after delegate is ready
-                                        if (savedActionIndex >= 0) {
+                                 const savedKey = hasPendingRestore ? appResults.pendingItemKey : appResults.selectedItemKey;
+                                 const savedActionIndex = hasPendingRestore ? appResults.pendingActionIndex : appResults.selectedActionIndex;
+                                 const savedIndex = appResults.pendingCurrentIndex;
+                                 
+                                 if (savedKey) {
+                                     const newIndex = LauncherSearch.results.findIndex(r => r.key === savedKey);
+                                     if (newIndex >= 0) {
+                                         appResults.currentIndex = newIndex;
+                                         if (hasPendingRestore) {
+                                             appResults.clearPendingSelection();
+                                         }
+                                         if (savedActionIndex >= 0) {
                                             Qt.callLater(() => {
                                                 const currentItem = appResults.itemAtIndex(appResults.currentIndex);
                                                 if (currentItem) {
@@ -755,9 +692,7 @@ Item { // Wrapper
                                     }
                                 }
                                 
-                                // Key not found - item was likely removed or process ended
-                                // Try to stay at same index position (or nearest valid)
-                                if (savedIndex >= 0) {
+                                 if (savedIndex >= 0) {
                                     const clampedIndex = Math.min(savedIndex, appResults.count - 1);
                                     appResults.currentIndex = Math.max(0, clampedIndex);
                                     if (hasPendingRestore) {
@@ -766,29 +701,24 @@ Item { // Wrapper
                                     return;
                                 }
                                 
-                                // Fallback: just keep current index if valid
-                                if (appResults.currentIndex >= 0 && appResults.currentIndex < appResults.count) {
+                                 if (appResults.currentIndex >= 0 && appResults.currentIndex < appResults.count) {
                                     return;
                                 }
                             }
                             
-                            // If count is 0 but we have pending restore, keep the pending state
-                            // (waiting for actual results to arrive)
                             if (appResults.count === 0 && hasPendingRestore) {
                                 return;
                             }
 
-                            // Normal update - reset to first
                             appResults.clearPendingSelection();
-                            appResults.currentIndex = -1;
-                            appResults.selectedActionIndex = -1;
-                            root.focusFirstItem();
+                             appResults.currentIndex = -1;
+                             appResults.selectedActionIndex = -1;
+                             root.focusFirstItem();
                         }
                     }
 
                     delegate: SearchItem {
-                        // The selectable item for each search result
-                        anchors.left: parent?.left
+                         anchors.left: parent?.left
                         anchors.right: parent?.right
                         entry: modelData
                         query: StringUtils.cleanOnePrefix(root.searchingText, [Config.options.search.prefix.action, Config.options.search.prefix.app, Config.options.search.prefix.clipboard, Config.options.search.prefix.emojis, Config.options.search.prefix.math, Config.options.search.prefix.shellCommand, Config.options.search.prefix.webSearch])

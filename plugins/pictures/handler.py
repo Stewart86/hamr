@@ -98,7 +98,6 @@ def main():
     selected = input_data.get("selected", {})
     action = input_data.get("action", "")
 
-    # Initial: show image list
     if step == "initial":
         images = find_images()
         results = get_image_list_results(images)
@@ -107,7 +106,6 @@ def main():
         )
         return
 
-    # Search: filter image list
     if step == "search":
         images = find_images(query)
         results = get_image_list_results(images)

@@ -15,7 +15,7 @@ ProgressBar {
     property real valueBarGap: 4
     property color highlightColor: Appearance?.colors.colPrimary ?? "#685496"
     property color trackColor: Appearance?.m3colors.m3secondaryContainer ?? "#F1D3F9"
-    property bool wavy: false // If true, the progress bar will have a wavy fill effect
+    property bool wavy: false
     property bool animateWave: true
     property real waveAmplitudeMultiplier: wavy ? 0.5 : 0
     property real waveFrequency: 6
@@ -78,7 +78,7 @@ ProgressBar {
             }
         }
         
-        Rectangle { // Right remaining part fill
+         Rectangle {
             anchors.right: parent.right
             width: (1 - root.visualPosition) * parent.width - valueBarGap
             height: parent.height
@@ -86,7 +86,7 @@ ProgressBar {
             color: root.trackColor
         }
         
-        Rectangle { // Stop point
+         Rectangle {
             anchors.right: parent.right
             width: valueBarGap
             height: valueBarGap

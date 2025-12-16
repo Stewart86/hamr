@@ -56,13 +56,11 @@ Rectangle {
                 implicitHeight: addressInput.implicitHeight
 
                 Keys.onPressed: event => {
-                    if (directoryEntry.visible && event.key === Qt.Key_Escape) {
-                        root.showBreadcrumb = true;
-                        event.accepted = true;
-                        return;
-                    }
-                    event.accepted = false;
-                }
+                     if (event.key === Qt.Key_Escape) {
+                         root.showBreadcrumb = true;
+                         event.accepted = true;
+                     }
+                 }
 
                 StyledTextInput {
                     id: addressInput
@@ -79,12 +77,11 @@ Rectangle {
                     }
 
                     MouseArea {
-                        // I-beam cursor
-                        anchors.fill: parent
-                        acceptedButtons: Qt.NoButton
-                        hoverEnabled: true
-                        cursorShape: Qt.IBeamCursor
-                    }
+                         anchors.fill: parent
+                         acceptedButtons: Qt.NoButton
+                         hoverEnabled: true
+                         cursorShape: Qt.IBeamCursor
+                     }
                 }
             }
 

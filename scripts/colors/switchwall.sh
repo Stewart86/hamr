@@ -78,7 +78,6 @@ set_color_scheme() {
     if command -v gsettings &>/dev/null; then
         if [[ "$mode" == "dark" ]]; then
             gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
-            # Try to set GTK theme if adw-gtk3 is available
             gsettings set org.gnome.desktop.interface gtk-theme 'adw-gtk3-dark' 2>/dev/null || true
         elif [[ "$mode" == "light" ]]; then
             gsettings set org.gnome.desktop.interface color-scheme 'prefer-light'
@@ -144,7 +143,6 @@ main() {
         fi
     fi
     
-    # Handle color flag (placeholder)
     if [[ -n "$color" ]]; then
         notify-send "Accent Color" "Set to $color (requires matugen for actual theming)"
     fi

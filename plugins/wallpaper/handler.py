@@ -140,7 +140,6 @@ def main():
             str(WALLPAPERS_DIR) if WALLPAPERS_DIR.exists() else str(PICTURES_DIR)
         )
 
-        # Check if switchwall script exists to determine available modes
         has_custom_script = find_switchwall_script() is not None
 
         # Build actions - only show dark/light mode if custom script supports it
@@ -169,7 +168,6 @@ def main():
         )
         return
 
-    # Handle image browser selection
     if step == "action" and selected.get("id") == "imageBrowser":
         file_path = selected.get("path", "")
         action_id = selected.get("action", "set")

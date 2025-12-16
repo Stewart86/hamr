@@ -15,10 +15,10 @@ Button {
     property string buttonText
     property real buttonRadius: Appearance?.rounding?.small ?? 8
     property real buttonRadiusPressed: Appearance?.rounding?.small ?? 6
-    property var downAction // When left clicking (down)
-    property var releaseAction // When left clicking (release)
-    property var altAction // When right clicking
-    property var middleClickAction // When middle clicking
+     property var downAction
+     property var releaseAction
+     property var altAction
+     property var middleClickAction
     property bool bounce: true
     property real baseWidth: contentItem.implicitWidth + horizontalPadding * 2
     property real baseHeight: contentItem.implicitHeight + verticalPadding * 2
@@ -110,11 +110,10 @@ Button {
             root.down = false
         }
 
-        onPressAndHold: () => {
-            altAction(); 
-            root.down = false; 
-            root.clicked = false;
-        };
+         onPressAndHold: () => {
+             if (root.altAction) root.altAction();
+             root.down = false;
+         }
     }
 
     property bool tabbedTo: root.focus && (focusReason === Qt.TabFocusReason || focusReason === Qt.BacktabFocusReason)

@@ -15,11 +15,9 @@ Window {
     property double padding: 50
     property double shapePadding: 12
 
-    //////////////////////////////// Begin juicy part ////////////////////////////////
-    // All 35 shapes
     property var shapeGetters: [ MaterialShapes.getCircle, MaterialShapes.getSquare, MaterialShapes.getSlanted, MaterialShapes.getArch, MaterialShapes.getFan, MaterialShapes.getArrow, MaterialShapes.getSemiCircle, MaterialShapes.getOval, MaterialShapes.getPill, MaterialShapes.getTriangle, MaterialShapes.getDiamond, MaterialShapes.getClamShell, MaterialShapes.getPentagon, MaterialShapes.getGem, MaterialShapes.getSunny, MaterialShapes.getVerySunny, MaterialShapes.getCookie4Sided, MaterialShapes.getCookie6Sided, MaterialShapes.getCookie7Sided, MaterialShapes.getCookie9Sided, MaterialShapes.getCookie12Sided, MaterialShapes.getGhostish, MaterialShapes.getClover4Leaf, MaterialShapes.getClover8Leaf, MaterialShapes.getBurst, MaterialShapes.getSoftBurst, MaterialShapes.getBoom, MaterialShapes.getSoftBoom, MaterialShapes.getFlower, MaterialShapes.getPuffy, MaterialShapes.getPuffyDiamond, MaterialShapes.getPixelCircle, MaterialShapes.getPixelTriangle, MaterialShapes.getBun, MaterialShapes.getHeart]
     property int shapeIndex: 0
-    // Automatic morphing
+
     Timer {
         id: morphTimer
         interval: 700
@@ -27,7 +25,7 @@ Window {
         repeat: true
         onTriggered: root.shapeIndex = (root.shapeIndex + 1) % root.shapeGetters.length;
     }
-    // The actual shape
+
     ShapeCanvas {
         id: shapeCanvas
         z: 2
@@ -35,24 +33,21 @@ Window {
         implicitWidth: root.radius * 2
         implicitHeight: root.radius * 2
         color: "#685496"
-        roundedPolygon: root.shapeGetters[root.shapeIndex]()
-        onProgressChanged: requestPaint()
-    }
-    //////////////////////////////// End juicy part ////////////////////////////////
+         roundedPolygon: root.shapeGetters[root.shapeIndex]()
+         onProgressChanged: requestPaint()
+     }
 
-    // Background circle
-    Rectangle {
+     Rectangle {
         z: 1
         anchors.fill: parent
         anchors.margins: root.padding - root.shapePadding
         width: radius * 2 + 50
         height: height
         radius: height / 2
-        color: "#C7B3FC"
-    }
+         color: "#C7B3FC"
+     }
 
-    // Text
-    Text {
+     Text {
         z: 3
         anchors {
             horizontalCenter: parent.horizontalCenter

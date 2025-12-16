@@ -193,7 +193,6 @@ def main():
     selected = input_data.get("selected", {})
     action = input_data.get("action", "")
 
-    # ===== INDEX: Provide searchable items for main search =====
     # Indexes both binaries from $PATH and shell history
     if step == "index":
         items = []
