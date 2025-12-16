@@ -41,14 +41,14 @@ Rectangle {
     property int selectedIndex: 0
     
     /**
-     * Maximum preview width in pixels (default 350)
+     * Maximum preview width in pixels (from config)
      */
-    property real maxPreviewWidth: 350
+    property real maxPreviewWidth: Appearance.sizes.windowPickerMaxWidth
     
     /**
-     * Maximum preview height in pixels (default 220)
+     * Maximum preview height in pixels (from config)
      */
-    property real maxPreviewHeight: 220
+    property real maxPreviewHeight: Appearance.sizes.windowPickerMaxHeight
     
     // ==================== SIGNALS ====================
     

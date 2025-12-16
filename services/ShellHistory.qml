@@ -28,14 +28,17 @@ Singleton {
         command: cmd
     }))
 
+    // Shell history result limit from Config
+    readonly property int shellHistoryLimit: Config.options.search?.shellHistoryLimit ?? 50
+
     function fuzzyQuery(search: string): var {
         if (search.trim() === "") {
-            return entries.slice(0, 50); // Return recent commands when no search
+            return entries.slice(0, shellHistoryLimit); // Return recent commands when no search
         }
         return Fuzzy.go(search, preparedEntries, {
             all: true,
             key: "name",
-            limit: 50
+            limit: shellHistoryLimit
         }).map(r => r.obj.command);
     }
 
@@ -43,7 +46,7 @@ Singleton {
     function fuzzyQueryWithScores(search: string): var {
         if (search.trim() === "") {
             // Return recent commands with position-based scores
-            return entries.slice(0, 50).map((cmd, index) => ({
+            return entries.slice(0, shellHistoryLimit).map((cmd, index) => ({
                 command: cmd,
                 score: 1000 - index * 10 // More recent = higher score
             }));
@@ -51,7 +54,7 @@ Singleton {
         return Fuzzy.go(search, preparedEntries, {
             all: true,
             key: "name",
-            limit: 50
+            limit: shellHistoryLimit
         }).map(r => ({
             command: r.obj.command,
             score: r._score

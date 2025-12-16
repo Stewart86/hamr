@@ -629,16 +629,151 @@ Terms naturally age out based on frecency, so your shortcuts stay relevant as ha
 
 ## Configuration
 
-`~/.config/hamr/config.json`:
+Hamr is configured via `~/.config/hamr/config.json`. The install script creates a default config that you can customize. When updating, new config options are merged without overwriting your existing values.
+
+<details>
+<summary><strong>Full Configuration Reference</strong></summary>
 
 ```json
 {
+  "apps": {
+    "terminal": "ghostty",
+    "terminalArgs": "--class=floating.terminal",
+    "shell": "zsh"
+  },
   "search": {
-    "webSearch": {"name": "DuckDuckGo", "url": "https://duckduckgo.com/?q={query}"},
+    "nonAppResultDelay": 30,
+    "debounceMs": 50,
+    "pluginDebounceMs": 150,
+    "maxHistoryItems": 500,
+    "maxDisplayedResults": 16,
+    "maxRecentItems": 20,
+    "shellHistoryLimit": 50,
+    "engineBaseUrl": "https://www.google.com/search?q=",
+    "excludedSites": ["quora.com", "facebook.com"],
     "prefix": {
-      "action": "/", "clipboard": ";", "emojis": ":",
-      "math": "=", "shellCommand": "!", "webSearch": "?"
-    }
+      "action": "/",
+      "app": ">",
+      "clipboard": ";",
+      "emojis": ":",
+      "file": "~",
+      "math": "=",
+      "shellCommand": "$",
+      "shellHistory": "!",
+      "webSearch": "?"
+    },
+    "shellHistory": {
+      "enable": true,
+      "shell": "auto",
+      "customHistoryPath": "",
+      "maxEntries": 500
+    },
+    "actionKeys": ["u", "i", "o", "p"]
+  },
+  "imageBrowser": {
+    "useSystemFileDialog": false,
+    "columns": 4,
+    "cellAspectRatio": 1.333,
+    "sidebarWidth": 140
+  },
+  "appearance": {
+    "backgroundTransparency": 0.2,
+    "contentTransparency": 0.2,
+    "launcherXRatio": 0.5,
+    "launcherYRatio": 0.1
+  },
+  "sizes": {
+    "searchWidth": 580,
+    "searchInputHeight": 40,
+    "maxResultsHeight": 600,
+    "resultIconSize": 40,
+    "imageBrowserWidth": 1200,
+    "imageBrowserHeight": 690,
+    "windowPickerMaxWidth": 350,
+    "windowPickerMaxHeight": 220
+  },
+  "fonts": {
+    "main": "Google Sans Flex",
+    "monospace": "JetBrains Mono NF",
+    "reading": "Readex Pro",
+    "icon": "Material Symbols Rounded"
+  },
+  "paths": {
+    "wallpaperDir": "",
+    "colorsJson": ""
+  }
+}
+```
+
+</details>
+
+### Configuration Options
+
+| Category | Option | Default | Description |
+|----------|--------|---------|-------------|
+| **Apps** | `terminal` | `ghostty` | Terminal emulator for shell commands |
+| | `terminalArgs` | `--class=floating.terminal` | Arguments passed to terminal |
+| | `shell` | `zsh` | Shell for command execution (zsh, bash, fish) |
+| **Search** | `maxDisplayedResults` | `16` | Maximum results shown in launcher |
+| | `maxRecentItems` | `20` | Recent history items on empty search |
+| | `shellHistoryLimit` | `50` | Shell history results limit |
+| | `debounceMs` | `50` | Search input debounce (ms) |
+| | `pluginDebounceMs` | `150` | Plugin search debounce (ms) |
+| **Appearance** | `backgroundTransparency` | `0.2` | Background transparency (0-1) |
+| | `contentTransparency` | `0.2` | Content area transparency (0-1) |
+| | `launcherXRatio` | `0.5` | Horizontal position (0=left, 1=right) |
+| | `launcherYRatio` | `0.1` | Vertical position (0=top, 1=bottom) |
+| **Sizes** | `searchWidth` | `580` | Search bar width (px) |
+| | `searchInputHeight` | `40` | Search input height (px) |
+| | `maxResultsHeight` | `600` | Max results container height (px) |
+| | `resultIconSize` | `40` | Icon size in results (px) |
+| | `imageBrowserWidth` | `1200` | Image browser width (px) |
+| | `imageBrowserHeight` | `690` | Image browser height (px) |
+| **Fonts** | `main` | `Google Sans Flex` | Main UI font |
+| | `monospace` | `JetBrains Mono NF` | Monospace font |
+| | `reading` | `Readex Pro` | Reading/content font |
+| | `icon` | `Material Symbols Rounded` | Icon font |
+| **Paths** | `wallpaperDir` | `""` | Custom wallpaper directory (empty = ~/Pictures/Wallpapers) |
+| | `colorsJson` | `""` | Custom colors.json path (empty = illogical-impulse default) |
+
+### Quick Examples
+
+**Use a different terminal:**
+```json
+{
+  "apps": {
+    "terminal": "kitty",
+    "terminalArgs": "--class floating",
+    "shell": "fish"
+  }
+}
+```
+
+**More opaque launcher:**
+```json
+{
+  "appearance": {
+    "backgroundTransparency": 0.05,
+    "contentTransparency": 0.1
+  }
+}
+```
+
+**Larger launcher:**
+```json
+{
+  "sizes": {
+    "searchWidth": 700,
+    "maxResultsHeight": 800
+  }
+}
+```
+
+**Custom theme colors (without illogical-impulse):**
+```json
+{
+  "paths": {
+    "colorsJson": "~/.config/hamr/colors.json"
   }
 }
 ```

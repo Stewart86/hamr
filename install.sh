@@ -134,6 +134,97 @@ check_dependencies() {
     fi
 }
 
+create_default_config() {
+    local config_file="$CONFIG_DIR/hamr/config.json"
+    
+    # Default config template
+    local default_config='{
+  "apps": {
+    "terminal": "ghostty",
+    "terminalArgs": "--class=floating.terminal",
+    "shell": "zsh"
+  },
+  "search": {
+    "nonAppResultDelay": 30,
+    "debounceMs": 50,
+    "pluginDebounceMs": 150,
+    "maxHistoryItems": 500,
+    "maxDisplayedResults": 16,
+    "maxRecentItems": 20,
+    "shellHistoryLimit": 50,
+    "engineBaseUrl": "https://www.google.com/search?q=",
+    "excludedSites": ["quora.com", "facebook.com"],
+    "prefix": {
+      "action": "/",
+      "app": ">",
+      "clipboard": ";",
+      "emojis": ":",
+      "file": "~",
+      "math": "=",
+      "shellCommand": "$",
+      "shellHistory": "!",
+      "webSearch": "?"
+    },
+    "shellHistory": {
+      "enable": true,
+      "shell": "auto",
+      "customHistoryPath": "",
+      "maxEntries": 500
+    },
+    "actionKeys": ["u", "i", "o", "p"]
+  },
+  "imageBrowser": {
+    "useSystemFileDialog": false,
+    "columns": 4,
+    "cellAspectRatio": 1.333,
+    "sidebarWidth": 140
+  },
+  "appearance": {
+    "backgroundTransparency": 0.2,
+    "contentTransparency": 0.2,
+    "launcherXRatio": 0.5,
+    "launcherYRatio": 0.1
+  },
+  "sizes": {
+    "searchWidth": 580,
+    "searchInputHeight": 40,
+    "maxResultsHeight": 600,
+    "resultIconSize": 40,
+    "imageBrowserWidth": 1200,
+    "imageBrowserHeight": 690,
+    "windowPickerMaxWidth": 350,
+    "windowPickerMaxHeight": 220
+  },
+  "fonts": {
+    "main": "Google Sans Flex",
+    "monospace": "JetBrains Mono NF",
+    "reading": "Readex Pro",
+    "icon": "Material Symbols Rounded"
+  },
+  "paths": {
+    "wallpaperDir": "",
+    "colorsJson": ""
+  }
+}'
+
+    if [[ -f "$config_file" ]]; then
+        # Config exists - merge new keys without overwriting existing values
+        if command -v jq >/dev/null 2>&1; then
+            info "Updating config with new default keys (preserving existing values)..."
+            local tmp_file=$(mktemp)
+            # Use jq to merge: existing values take priority over defaults
+            echo "$default_config" | jq -s '.[0] * .[1]' - "$config_file" > "$tmp_file"
+            mv "$tmp_file" "$config_file"
+        else
+            info "Config exists. Install jq to auto-merge new config options."
+        fi
+    else
+        # Create new config
+        info "Creating default config: $config_file"
+        echo "$default_config" > "$config_file"
+    fi
+}
+
 install_hamr() {
     info "Installing hamr..."
 
@@ -160,6 +251,9 @@ install_hamr() {
     info "Created user plugins directory: $CONFIG_DIR/hamr/plugins"
     info "Built-in plugins loaded from: $SCRIPT_DIR/plugins/"
     info "User plugins loaded from: $CONFIG_DIR/hamr/plugins/"
+
+    # Create or update default config
+    create_default_config
 
     # Make scripts executable
     chmod +x "$SCRIPT_DIR/scripts/thumbnails/thumbgen.sh" 2>/dev/null || true
