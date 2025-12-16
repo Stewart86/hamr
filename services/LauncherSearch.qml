@@ -15,7 +15,10 @@ Singleton {
 
     property string query: ""
     property bool skipNextAutoFocus: false
-    property bool historyLoaded: false
+    
+    // Delegate to HistoryManager service
+    readonly property bool historyLoaded: HistoryManager.historyLoaded
+    readonly property var searchHistoryData: HistoryManager.searchHistoryData
     
     property string exclusiveMode: ""
     property bool exclusiveModeStarting: false
@@ -44,12 +47,11 @@ Singleton {
         if (!query || query.length < 2) return null;
         
         const colonIndex = query.indexOf(":");
-        if (colonIndex < 1) return null;  // Need at least 1 char before colon
+        if (colonIndex < 1) return null;
         
         const prefix = query.substring(0, colonIndex).toLowerCase();
         const searchQuery = query.substring(colonIndex + 1);
         
-        // Check if prefix matches an indexed plugin
         const indexedPlugins = PluginRunner.getIndexedPluginIds();
         if (indexedPlugins.includes(prefix)) {
             return { pluginId: prefix, searchQuery: searchQuery };
@@ -84,6 +86,35 @@ Singleton {
         } else {
             root.query = prefix + root.query;
         }
+    }
+
+    // Delegate history functions to HistoryManager service
+    function recordSearch(searchType, searchName, searchTerm) {
+        HistoryManager.recordSearch(searchType, searchName, searchTerm);
+    }
+    
+    function recordWorkflowExecution(actionInfo, searchTerm) {
+        HistoryManager.recordWorkflowExecution(actionInfo, searchTerm);
+    }
+    
+    function recordWindowFocus(appId, appName, windowTitle, iconName) {
+        HistoryManager.recordWindowFocus(appId, appName, windowTitle, iconName);
+    }
+    
+    function removeHistoryItem(historyType, identifier) {
+        HistoryManager.removeHistoryItem(historyType, identifier);
+    }
+    
+    // Delegate frecency functions to FrecencyScorer
+    function getFrecencyScore(historyItem) {
+        return FrecencyScorer.getFrecencyScore(historyItem);
+    }
+    
+    function getHistoryBoost(searchType, searchName) {
+        const historyItem = searchHistoryData.find(
+            h => h.type === searchType && h.name === searchName
+        );
+        return FrecencyScorer.getFrecencyScore(historyItem);
     }
 
     // https://specifications.freedesktop.org/menu/latest/category-registry.html
@@ -283,13 +314,6 @@ Singleton {
     
     property var preppedPlugins: PluginRunner.preppedPlugins
     
-    readonly property var sourceType: ({
-        PLUGIN: "plugin",
-        PLUGIN_EXECUTION: "pluginExecution",
-        WEB_SEARCH: "webSearch",
-        INDEXED_ITEM: "indexedItem"
-    })
-    
     property var preppedStaticSearchables: []
     
     Timer {
@@ -310,7 +334,7 @@ Singleton {
              const action = preppedAction.action;
              items.push({
                  name: preppedAction.name,
-                 sourceType: root.sourceType.PLUGIN,
+                 sourceType: ResultFactory.sourceType.PLUGIN,
                  id: `action:${action.action}`,
                  data: { action, isAction: true },
                  isHistoryTerm: false
@@ -322,7 +346,7 @@ Singleton {
              const plugin = preppedPlugin.plugin;
              items.push({
                  name: preppedPlugin.name,
-                 sourceType: root.sourceType.PLUGIN,
+                 sourceType: ResultFactory.sourceType.PLUGIN,
                  id: `workflow:${plugin.id}`,
                  data: { plugin, isAction: false },
                  isHistoryTerm: false
@@ -336,7 +360,7 @@ Singleton {
                  : item.name;
              items.push({
                  name: Fuzzy.prepare(searchableText),
-                 sourceType: root.sourceType.INDEXED_ITEM,
+                 sourceType: ResultFactory.sourceType.INDEXED_ITEM,
                  id: item.id,
                  data: { item },
                  isHistoryTerm: false
@@ -379,7 +403,7 @@ Singleton {
              for (const term of historyItem.recentSearchTerms) {
                  items.push({
                      name: Fuzzy.prepare(term),
-                     sourceType: root.sourceType.INDEXED_ITEM,
+                     sourceType: ResultFactory.sourceType.INDEXED_ITEM,
                      id: appItem.id,
                      data: { item: appItem, historyItem },
                      isHistoryTerm: true,
@@ -394,7 +418,7 @@ Singleton {
              for (const term of historyItem.recentSearchTerms) {
                  items.push({
                      name: Fuzzy.prepare(term),
-                     sourceType: root.sourceType.PLUGIN,
+                     sourceType: ResultFactory.sourceType.PLUGIN,
                      id: `action:${action.action}`,
                      data: { action, historyItem, isAction: true },
                      isHistoryTerm: true,
@@ -409,7 +433,7 @@ Singleton {
              for (const term of historyItem.recentSearchTerms) {
                  items.push({
                      name: Fuzzy.prepare(term),
-                     sourceType: root.sourceType.PLUGIN,
+                     sourceType: ResultFactory.sourceType.PLUGIN,
                      id: `workflow:${plugin.id}`,
                      data: { plugin, historyItem, isAction: false },
                      isHistoryTerm: true,
@@ -421,7 +445,7 @@ Singleton {
          for (const historyItem of searchHistoryData.filter(h => h.type === "workflowExecution")) {
              items.push({
                  name: Fuzzy.prepare(`${historyItem.workflowName} ${historyItem.name}`),
-                 sourceType: root.sourceType.PLUGIN_EXECUTION,
+                 sourceType: ResultFactory.sourceType.PLUGIN_EXECUTION,
                  id: historyItem.key,
                  data: { historyItem },
                  isHistoryTerm: false
@@ -430,7 +454,7 @@ Singleton {
                  for (const term of historyItem.recentSearchTerms) {
                      items.push({
                          name: Fuzzy.prepare(term),
-                         sourceType: root.sourceType.PLUGIN_EXECUTION,
+                         sourceType: ResultFactory.sourceType.PLUGIN_EXECUTION,
                          id: historyItem.key,
                          data: { historyItem },
                          isHistoryTerm: true,
@@ -443,7 +467,7 @@ Singleton {
          for (const historyItem of searchHistoryData.filter(h => h.type === "webSearch")) {
              items.push({
                  name: Fuzzy.prepare(historyItem.name),
-                 sourceType: root.sourceType.WEB_SEARCH,
+                 sourceType: ResultFactory.sourceType.WEB_SEARCH,
                  id: `webSearch:${historyItem.name}`,
                  data: { query: historyItem.name, historyItem },
                  isHistoryTerm: false
@@ -458,619 +482,6 @@ Singleton {
     }
     
     property var preppedSearchables: [...preppedStaticSearchables, ...preppedHistorySearchables]
-
-    property var searchHistoryData: []
-    property int maxHistoryItems: Config.options.search.maxHistoryItems
-
-    FileView {
-        id: searchHistoryFileView
-        path: Directories.searchHistory
-        watchChanges: true
-        onFileChanged: searchHistoryFileView.reload()
-        onLoaded: {
-            try {
-                const data = JSON.parse(searchHistoryFileView.text());
-                root.searchHistoryData = data.history || [];
-            } catch (e) {
-                 console.error("[SearchHistory] Failed to parse:", e);
-                 root.searchHistoryData = [];
-             }
-            root.historyLoaded = true;
-        }
-        onLoadFailed: error => {
-            if (error == FileViewError.FileNotFound) {
-                // Create empty history file
-                searchHistoryFileView.setText(JSON.stringify({ history: [] }));
-            }
-            root.searchHistoryData = [];
-            root.historyLoaded = true;
-        }
-    }
-
-    function removeHistoryItem(historyType, identifier) {
-        let newHistory;
-        if (historyType === "workflowExecution" || historyType === "windowFocus") {
-            newHistory = searchHistoryData.filter(h => !(h.type === historyType && h.key === identifier));
-        } else {
-            newHistory = searchHistoryData.filter(h => !(h.type === historyType && h.name === identifier));
-        }
-        
-        if (newHistory.length !== searchHistoryData.length) {
-            searchHistoryData = newHistory;
-            searchHistoryFileView.setText(JSON.stringify({ history: newHistory }, null, 2));
-        }
-    }
-
-    property int maxRecentSearchTerms: 5
-    
-    function recordSearch(searchType, searchName, searchTerm) {
-        const now = Date.now();
-        const existingIndex = searchHistoryData.findIndex(
-            h => h.type === searchType && h.name === searchName
-        );
-        
-        let newHistory = searchHistoryData.slice();
-        
-         if (existingIndex >= 0) {
-             const existing = newHistory[existingIndex];
-             let recentTerms = existing.recentSearchTerms || [];
-             
-             if (searchTerm) {
-                 recentTerms = recentTerms.filter(t => t !== searchTerm);
-                 recentTerms.unshift(searchTerm);
-                 recentTerms = recentTerms.slice(0, maxRecentSearchTerms);
-             }
-             
-             newHistory[existingIndex] = {
-                 type: existing.type,
-                 name: existing.name,
-                 count: existing.count + 1,
-                 lastUsed: now,
-                 recentSearchTerms: recentTerms
-             };
-         } else {
-             newHistory.unshift({
-                 type: searchType,
-                 name: searchName,
-                 count: 1,
-                 lastUsed: now,
-                 recentSearchTerms: searchTerm ? [searchTerm] : []
-             });
-         }
-         
-         newHistory = ageAndPruneHistory(newHistory, now);
-        
-        // Trim to max items
-        if (newHistory.length > maxHistoryItems) {
-            newHistory = newHistory.slice(0, maxHistoryItems);
-        }
-        
-        searchHistoryData = newHistory;
-        searchHistoryFileView.setText(JSON.stringify({ history: newHistory }, null, 2));
-    }
-    
-    function recordWorkflowExecution(actionInfo, searchTerm) {
-        const now = Date.now();
-        // Use name + workflowId as unique key
-        const key = `${actionInfo.workflowId}:${actionInfo.name}`;
-        const existingIndex = searchHistoryData.findIndex(
-            h => h.type === "workflowExecution" && h.key === key
-        );
-        
-        let newHistory = searchHistoryData.slice();
-        
-         if (existingIndex >= 0) {
-             const existing = newHistory[existingIndex];
-             let recentTerms = existing.recentSearchTerms || [];
-             
-             if (searchTerm) {
-                 recentTerms = recentTerms.filter(t => t !== searchTerm);
-                 recentTerms.unshift(searchTerm);
-                 recentTerms = recentTerms.slice(0, maxRecentSearchTerms);
-             }
-             
-             newHistory[existingIndex] = {
-                 type: existing.type,
-                 key: existing.key,
-                 name: existing.name,
-                 workflowId: existing.workflowId,
-                 workflowName: existing.workflowName,
-                 command: actionInfo.command,
-                 entryPoint: actionInfo.entryPoint ?? null,
-                 icon: actionInfo.icon,
-                 iconType: actionInfo.iconType ?? existing.iconType ?? "material",
-                 thumbnail: actionInfo.thumbnail,
-                 count: existing.count + 1,
-                 lastUsed: now,
-                 recentSearchTerms: recentTerms
-             };
-         } else {
-             newHistory.unshift({
-                 type: "workflowExecution",
-                 key: key,
-                 name: actionInfo.name,
-                 workflowId: actionInfo.workflowId,
-                 workflowName: actionInfo.workflowName,
-                 command: actionInfo.command,
-                 entryPoint: actionInfo.entryPoint ?? null,
-                 icon: actionInfo.icon,
-                 iconType: actionInfo.iconType ?? "material",
-                 thumbnail: actionInfo.thumbnail,
-                 count: 1,
-                 lastUsed: now,
-                 recentSearchTerms: searchTerm ? [searchTerm] : []
-             });
-         }
-        
-        newHistory = ageAndPruneHistory(newHistory, now);
-        
-        if (newHistory.length > maxHistoryItems) {
-            newHistory = newHistory.slice(0, maxHistoryItems);
-        }
-        
-        searchHistoryData = newHistory;
-        searchHistoryFileView.setText(JSON.stringify({ history: newHistory }, null, 2));
-    }
-    
-    function recordWindowFocus(appId, appName, windowTitle, iconName) {
-        const now = Date.now();
-        // Use appId + windowTitle as unique key
-        const key = `windowFocus:${appId}:${windowTitle}`;
-        const existingIndex = searchHistoryData.findIndex(
-            h => h.type === "windowFocus" && h.key === key
-        );
-        
-        let newHistory = searchHistoryData.slice();
-        
-         if (existingIndex >= 0) {
-             const existing = newHistory[existingIndex];
-             newHistory[existingIndex] = {
-                 type: existing.type,
-                 key: existing.key,
-                 appId: appId,
-                 appName: appName,
-                 windowTitle: windowTitle,
-                 iconName: iconName,
-                 count: existing.count + 1,
-                 lastUsed: now
-             };
-         } else {
-             newHistory.unshift({
-                 type: "windowFocus",
-                 key: key,
-                 appId: appId,
-                 appName: appName,
-                 windowTitle: windowTitle,
-                 iconName: iconName,
-                 count: 1,
-                 lastUsed: now
-             });
-         }
-        
-        newHistory = ageAndPruneHistory(newHistory, now);
-        
-        if (newHistory.length > maxHistoryItems) {
-            newHistory = newHistory.slice(0, maxHistoryItems);
-        }
-        
-        searchHistoryData = newHistory;
-        searchHistoryFileView.setText(JSON.stringify({ history: newHistory }, null, 2));
-    }
-     
-     function ageAndPruneHistory(history, now) {
-         let totalCount = history.reduce((sum, item) => sum + item.count, 0);
-         
-         if (totalCount > maxTotalScore) {
-             const scaleFactor = (maxTotalScore * 0.9) / totalCount;
-             history = history.map(item => ({
-                 type: item.type,
-                 name: item.name,
-                 count: item.count * scaleFactor,
-                 lastUsed: item.lastUsed,
-                 recentSearchTerms: item.recentSearchTerms
-             }));
-         }
-         
-         const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
-         history = history.filter(item => {
-             const age = now - item.lastUsed;
-             const isOld = age > maxAgeMs;
-             const hasLowScore = item.count < 1;
-             return !(isOld && hasLowScore);
-         });
-         
-         return history;
-     }
-
-    property int maxTotalScore: 10000
-    property int maxAgeDays: 90
-    
-    function getFrecencyScore(historyItem) {
-        if (!historyItem) return 0;
-         const now = Date.now();
-         const hoursSinceUse = (now - historyItem.lastUsed) / (1000 * 60 * 60);
-         
-         let recencyMultiplier;
-         if (hoursSinceUse < 1) recencyMultiplier = 4;
-         else if (hoursSinceUse < 24) recencyMultiplier = 2;
-         else if (hoursSinceUse < 168) recencyMultiplier = 1;
-         else recencyMultiplier = 0.5;
-         
-         return historyItem.count * recencyMultiplier;
-     }
-
-    function getHistoryBoost(searchType, searchName) {
-        const historyItem = searchHistoryData.find(
-            h => h.type === searchType && h.name === searchName
-        );
-        return getFrecencyScore(historyItem);
-    }
-     
-    readonly property var matchType: ({
-        EXACT: 3,
-        PREFIX: 2,
-        FUZZY: 1,
-        NONE: 0
-    })
-    
-    function getMatchType(query, target) {
-        if (!query || !target) return root.matchType.NONE;
-        const q = query.toLowerCase();
-        const t = target.toLowerCase();
-        if (t === q) return root.matchType.EXACT;
-        if (t.startsWith(q)) return root.matchType.PREFIX;
-        return root.matchType.FUZZY;
-    }
-    
-    function compareResults(a, b) {
-         const aIsExact = a.matchType === root.matchType.EXACT;
-         const bIsExact = b.matchType === root.matchType.EXACT;
-         
-         if (aIsExact !== bIsExact) {
-             return aIsExact ? -1 : 1;
-         }
-         
-         if (aIsExact && bIsExact) {
-             if (Math.abs(a.frecency - b.frecency) > 1) {
-                 return b.frecency - a.frecency;
-             }
-             return b.fuzzyScore - a.fuzzyScore;
-         }
-         
-         if (a.fuzzyScore !== b.fuzzyScore) {
-             return b.fuzzyScore - a.fuzzyScore;
-         }
-         return b.frecency - a.frecency;
-     }
-    
-    property real frecencyBoostFactor: 50
-    property real maxFrecencyBoost: 500
-    
-    function getCombinedScore(fuzzyScore, frecencyBoost) {
-         const boost = Math.min(frecencyBoost * frecencyBoostFactor, maxFrecencyBoost);
-         return fuzzyScore + boost;
-     }
-     
-    property int termMatchExactBoost: 5000
-    property int termMatchPrefixBoost: 3000
-    
-    function getTermMatchBoost(recentTerms, query) {
-        const queryLower = query.toLowerCase();
-        let boost = 0;
-        for (const term of recentTerms) {
-            const termLower = term.toLowerCase();
-            if (termLower === queryLower) {
-                return termMatchExactBoost;
-            } else if (termLower.startsWith(queryLower)) {
-                boost = Math.max(boost, termMatchPrefixBoost);
-            }
-        }
-        return boost;
-    }
-     
-    function unifiedFuzzySearch(query, limit) {
-        if (!query || query.trim() === "") return [];
-        
-         const fuzzyResults = Fuzzy.go(query, root.preppedSearchables, {
-             key: "name",
-             limit: limit * 3
-         });
-         
-         const seen = new Map();
-         for (const match of fuzzyResults) {
-             const item = match.obj;
-             const key = `${item.sourceType}:${item.id}`;
-             const existing = seen.get(key);
-             
-             if (!existing || match._score > existing.score) {
-                 seen.set(key, {
-                     score: match._score,
-                     item: item,
-                     isHistoryTerm: item.isHistoryTerm
-                 });
-             }
-         }
-         
-         return Array.from(seen.values());
-     }
-     
-    function createResultFromSearchable(item, query, fuzzyScore) {
-         const st = root.sourceType;
-         const data = item.data;
-         const resultMatchType = item.isHistoryTerm ? root.matchType.EXACT : root.matchType.FUZZY;
-         
-         let frecency = 0;
-         if (data.historyItem) {
-             frecency = root.getFrecencyScore(data.historyItem);
-         } else {
-             switch (item.sourceType) {
-                 case st.PLUGIN:
-                     if (data.isAction) {
-                         frecency = root.getHistoryBoost("action", data.action.action);
-                     } else {
-                         frecency = root.getHistoryBoost("workflow", data.plugin.id);
-                     }
-                     break;
-                 case st.INDEXED_ITEM:
-                     if (data.item?.appId) {
-                         frecency = root.getHistoryBoost("app", data.item.appId);
-                     }
-                     break;
-             }
-         }
-        
-        switch (item.sourceType) {
-            case st.PLUGIN:
-                return createPluginResultFromData(data, item.id, query, fuzzyScore, frecency, resultMatchType);
-            case st.PLUGIN_EXECUTION:
-                return createPluginExecResultFromData(data, query, fuzzyScore, frecency, resultMatchType);
-            case st.WEB_SEARCH:
-                return createWebSearchHistoryResultFromData(data, query, fuzzyScore, frecency, resultMatchType);
-            case st.INDEXED_ITEM:
-                return createIndexedItemResultFromData(data, query, fuzzyScore, frecency, resultMatchType);
-            default:
-                return null;
-        }
-    }
-    
-    function createPluginResultFromData(data, itemId, query, fuzzyScore, frecency, resultMatchType) {
-         if (data.isAction) {
-             const action = data.action;
-             const actionArgs = query.includes(" ") ? query.split(" ").slice(1).join(" ") : "";
-             const hasArgs = actionArgs.length > 0;
-             
-             return {
-                 matchType: resultMatchType,
-                 fuzzyScore: fuzzyScore,
-                 frecency: frecency,
-                 result: resultComp.createObject(null, {
-                     name: action.action + (hasArgs ? " " + actionArgs : ""),
-                     verb: "Run",
-                     type: "Action",
-                     iconName: 'settings_suggest',
-                     iconType: LauncherSearchResult.IconType.Material,
-                     acceptsArguments: !hasArgs,
-                     completionText: !hasArgs ? action.action + " " : "",
-                     execute: ((capturedAction, capturedArgs, capturedQuery) => () => {
-                         root.recordSearch("action", capturedAction.action, capturedQuery);
-                         capturedAction.execute(capturedArgs);
-                     })(action, actionArgs, query)
-                 })
-             };
-         } else {
-             const plugin = data.plugin;
-             const manifest = plugin.manifest;
-             
-             return {
-                 matchType: resultMatchType,
-                 fuzzyScore: fuzzyScore,
-                 frecency: frecency,
-                 result: resultComp.createObject(null, {
-                     name: manifest?.name ?? plugin.id,
-                     comment: manifest?.description ?? "",
-                     verb: "Start",
-                     type: "Plugin",
-                     iconName: manifest?.icon ?? 'extension',
-                     iconType: LauncherSearchResult.IconType.Material,
-                     resultType: LauncherSearchResult.ResultType.PluginEntry,
-                     pluginId: plugin.id,
-                     acceptsArguments: true,
-                     completionText: plugin.id + " ",
-                     execute: ((capturedPlugin, capturedQuery) => () => {
-                         root.recordSearch("workflow", capturedPlugin.id, capturedQuery);
-                         root.startPlugin(capturedPlugin.id);
-                     })(plugin, query)
-                 })
-             };
-         }
-     }
-     
-    function createPluginExecResultFromData(data, query, fuzzyScore, frecency, resultMatchType) {
-        const item = data.historyItem;
-        const iconType = item.iconType === "system" 
-            ? LauncherSearchResult.IconType.System 
-            : LauncherSearchResult.IconType.Material;
-        
-        return {
-            matchType: resultMatchType,
-            fuzzyScore: fuzzyScore,
-            frecency: frecency,
-            result: resultComp.createObject(null, {
-                type: item.workflowName || "Recent",
-                name: item.name,
-                iconName: item.icon || 'play_arrow',
-                iconType: iconType,
-                thumbnail: item.thumbnail || "",
-                verb: "Run",
-                execute: ((capturedItem, capturedQuery) => () => {
-                    root.recordWorkflowExecution({
-                        name: capturedItem.name,
-                        command: capturedItem.command,
-                        entryPoint: capturedItem.entryPoint,
-                        icon: capturedItem.icon,
-                        iconType: capturedItem.iconType,
-                        thumbnail: capturedItem.thumbnail,
-                        workflowId: capturedItem.workflowId,
-                        workflowName: capturedItem.workflowName
-                    }, capturedQuery);
-                    if (capturedItem.command && capturedItem.command.length > 0) {
-                        Quickshell.execDetached(capturedItem.command);
-                    } else if (capturedItem.entryPoint && capturedItem.workflowId) {
-                        PluginRunner.replayAction(capturedItem.workflowId, capturedItem.entryPoint);
-                    }
-                })(item, query)
-            })
-        };
-    }
-     
-    function createWebSearchHistoryResultFromData(data, query, fuzzyScore, frecency, resultMatchType) {
-         const searchQuery = data.query;
-         
-         return {
-             matchType: resultMatchType,
-             fuzzyScore: fuzzyScore,
-             frecency: frecency,
-             result: resultComp.createObject(null, {
-                 name: searchQuery,
-                 verb: "Search",
-                 type: "Web search - recent",
-                 iconName: 'travel_explore',
-                 iconType: LauncherSearchResult.IconType.Material,
-                 execute: ((capturedQuery) => () => {
-                     root.recordSearch("webSearch", capturedQuery, capturedQuery);
-                     let url = Config.options.search.engineBaseUrl + capturedQuery;
-                     for (let site of Config.options.search.excludedSites) {
-                         url += ` -site:${site}`;
-                     }
-                     Qt.openUrlExternally(url);
-                 })(searchQuery)
-             })
-         };
-     }
-     
-    function createIndexedItemResultFromData(data, query, fuzzyScore, frecency, resultMatchType) {
-         const item = data.item;
-         
-         let iconType;
-         if (item.iconType === "text") {
-             iconType = LauncherSearchResult.IconType.Text;
-         } else if (item.iconType === "system") {
-             iconType = LauncherSearchResult.IconType.System;
-         } else {
-             iconType = LauncherSearchResult.IconType.Material;
-         }
-         
-         const isAppItem = item.appId !== undefined;
-         const appId = item.appId ?? "";
-         
-         const windows = isAppItem ? WindowManager.getWindowsForApp(appId) : [];
-         const windowCount = windows.length;
-         
-         const itemActions = (item.actions ?? []).map(action => {
-             const actionIconType = action.iconType === "system" 
-                 ? LauncherSearchResult.IconType.System 
-                 : LauncherSearchResult.IconType.Material;
-             return resultComp.createObject(null, {
-                 name: action.name,
-                 iconName: action.icon ?? 'play_arrow',
-                 iconType: actionIconType,
-                 execute: ((capturedAction, capturedItem) => () => {
-                     if (capturedAction.entryPoint) {
-                         if (capturedAction.keepOpen) {
-                             PluginRunner.executeEntryPoint(capturedItem._pluginId, capturedAction.entryPoint);
-                         } else {
-                             PluginRunner.replayAction(capturedItem._pluginId, capturedAction.entryPoint);
-                             GlobalStates.launcherOpen = false;
-                         }
-                         return;
-                     }
-                     if (capturedAction.command) {
-                         Quickshell.execDetached(capturedAction.command);
-                         GlobalStates.launcherOpen = false;
-                     }
-                     if (capturedItem.appId) {
-                         root.recordSearch("app", capturedItem.appId, query);
-                     }
-                 })(action, item)
-             });
-         });
-         
-         let verb = item.verb ?? (item.execute?.notify ? "Copy" : "Run");
-         if (item.entryPoint) {
-             verb = item.verb ?? "Copy";
-         }
-         if (isAppItem) {
-             verb = windowCount > 0 ? "Focus" : "Open";
-         }
-        
-        return {
-            matchType: resultMatchType,
-            fuzzyScore: fuzzyScore,
-            frecency: frecency,
-            result: resultComp.createObject(null, {
-                type: isAppItem ? "App" : (item._pluginName ?? "Plugin"),
-                id: appId,  // For window tracking
-                name: item.name,
-                comment: item.description ?? "",
-                iconName: item.icon ?? 'extension',
-                iconType: iconType,
-                thumbnail: item.thumbnail ?? "",
-                verb: verb,
-                keepOpen: item.keepOpen ?? false,
-                windowCount: windowCount,
-                windows: windows,
-                actions: itemActions,
-                 execute: ((capturedItem, capturedQuery, capturedAppId, capturedIsApp) => () => {
-                     if (capturedIsApp) {
-                         const currentWindows = WindowManager.getWindowsForApp(capturedAppId);
-                         const currentWindowCount = currentWindows.length;
-                         
-                         if (currentWindowCount === 0) {
-                             root.recordSearch("app", capturedAppId, capturedQuery);
-                             if (capturedItem.execute?.command) {
-                                 Quickshell.execDetached(capturedItem.execute.command);
-                             }
-                         } else if (currentWindowCount === 1) {
-                             root.recordWindowFocus(capturedAppId, capturedItem.name, currentWindows[0].title, capturedItem.icon);
-                             WindowManager.focusWindow(currentWindows[0]);
-                             GlobalStates.launcherOpen = false;
-                         } else {
-                             GlobalStates.openWindowPicker(capturedAppId, currentWindows);
-                         }
-                     } else {
-                         if (capturedItem.entryPoint) {
-                             if (capturedItem.keepOpen) {
-                                 PluginRunner.executeEntryPoint(capturedItem._pluginId, capturedItem.entryPoint);
-                             } else {
-                                 PluginRunner.replayAction(capturedItem._pluginId, capturedItem.entryPoint);
-                                 GlobalStates.launcherOpen = false;
-                             }
-                             return;
-                         }
-                         
-                         if (capturedItem.execute?.command) {
-                             Quickshell.execDetached(capturedItem.execute.command);
-                         }
-                         if (capturedItem.execute?.notify) {
-                             Quickshell.execDetached(["notify-send", capturedItem._pluginName ?? "Plugin", capturedItem.execute.notify, "-a", "Shell"]);
-                         }
-                         if (capturedItem.execute?.name) {
-                             root.recordWorkflowExecution({
-                                 name: capturedItem.execute.name,
-                                 command: capturedItem.execute?.command ?? [],
-                                 entryPoint: capturedItem.entryPoint ?? null,
-                                 icon: capturedItem.icon ?? 'play_arrow',
-                                 iconType: capturedItem.iconType ?? "material",
-                                 thumbnail: capturedItem.thumbnail ?? "",
-                                 workflowId: capturedItem._pluginId,
-                                 workflowName: capturedItem._pluginName
-                             }, capturedQuery);
-                         }
-                     }
-                 })(item, query, appId, isAppItem)
-            })
-        };
-    }
 
     property var searchActions: []
 
@@ -1180,6 +591,75 @@ Singleton {
          }
      }
     
+    // Dependencies object for ResultFactory
+    readonly property var resultFactoryDependencies: ({
+        recordSearch: root.recordSearch,
+        recordWorkflowExecution: root.recordWorkflowExecution,
+        recordWindowFocus: root.recordWindowFocus,
+        startPlugin: root.startPlugin,
+        resultComponent: resultComp,
+        launcherSearchResult: LauncherSearchResult,
+        config: Config,
+        stringUtils: StringUtils
+    })
+    
+    function unifiedFuzzySearch(query, limit) {
+        if (!query || query.trim() === "") return [];
+        
+         const fuzzyResults = Fuzzy.go(query, root.preppedSearchables, {
+             key: "name",
+             limit: limit * 3
+         });
+         
+         const seen = new Map();
+         for (const match of fuzzyResults) {
+             const item = match.obj;
+             const key = `${item.sourceType}:${item.id}`;
+             const existing = seen.get(key);
+             
+             if (!existing || match._score > existing.score) {
+                 seen.set(key, {
+                     score: match._score,
+                     item: item,
+                     isHistoryTerm: item.isHistoryTerm
+                 });
+             }
+         }
+         
+         return Array.from(seen.values());
+     }
+     
+    function createResultFromSearchable(item, query, fuzzyScore) {
+         const resultMatchType = item.isHistoryTerm ? FrecencyScorer.matchType.EXACT : FrecencyScorer.matchType.FUZZY;
+         
+         let frecency = 0;
+         const data = item.data;
+         if (data.historyItem) {
+             frecency = FrecencyScorer.getFrecencyScore(data.historyItem);
+         } else {
+             switch (item.sourceType) {
+                 case ResultFactory.sourceType.PLUGIN:
+                     if (data.isAction) {
+                         frecency = root.getHistoryBoost("action", data.action.action);
+                     } else {
+                         frecency = root.getHistoryBoost("workflow", data.plugin.id);
+                     }
+                     break;
+                 case ResultFactory.sourceType.INDEXED_ITEM:
+                     if (data.item?.appId) {
+                         frecency = root.getHistoryBoost("app", data.item.appId);
+                     }
+                     break;
+             }
+         }
+        
+        return ResultFactory.createResultFromSearchable(
+            item, query, fuzzyScore,
+            root.resultFactoryDependencies,
+            frecency, resultMatchType
+        );
+    }
+    
     property list<var> results: {
          const _pluginActive = PluginRunner.activePlugin !== null;
          const _pluginResults = PluginRunner.pluginResults;
@@ -1191,7 +671,6 @@ Singleton {
             const searchString = root.query.split(" ")[0];
             const actionArgs = root.query.split(" ").slice(1).join(" ");
             
-            // Get actions
             const actionMatches = searchString === "" 
                 ? root.allActions.slice(0, 20)
                 : Fuzzy.go(searchString, root.preppedActions, { key: "name", limit: 20 }).map(r => r.obj.action);
@@ -1211,7 +690,6 @@ Singleton {
                 });
             });
             
-            // Get plugins
             const pluginMatches = searchString === ""
                 ? PluginRunner.plugins.slice(0, 20)
                 : Fuzzy.go(searchString, root.preppedPlugins, { key: "name", limit: 20 }).map(r => r.obj.plugin);
@@ -1262,12 +740,13 @@ Singleton {
                  matches = Fuzzy.go(searchQuery, preppedItems, { key: "name", limit: 50 });
              }
              
-             const plugin = PluginRunner.plugins.find(p => p.id === pluginId);
-             const pluginName = plugin?.manifest?.name ?? pluginId;
-             
              return matches.map(match => {
                  const item = match.obj.item;
-                 return root.createIndexedItemResultFromData(item, searchQuery);
+                 const resultObj = ResultFactory.createIndexedItemResultFromData(
+                     { item }, searchQuery, 0, 0, FrecencyScorer.matchType.FUZZY,
+                     root.resultFactoryDependencies
+                 );
+                 return resultObj?.result;
              }).filter(Boolean);
          }
          
@@ -1291,7 +770,6 @@ Singleton {
                      });
                     
                     if (item.type === "app") {
-                        // Look up app from plugin index
                         const allIndexed = PluginRunner.getAllIndexedItems();
                         const appItem = allIndexed.find(idx => idx.appId === item.name);
                         if (!appItem) return null;
@@ -1305,7 +783,6 @@ Singleton {
                             verb: "Open",
                             actions: [makeRemoveAction("app", item.name)],
                             execute: ((capturedAppItem, capturedAppId) => () => {
-                                // Smart execute: check windows at execution time
                                 const currentWindows = WindowManager.getWindowsForApp(capturedAppId);
                                 if (currentWindows.length === 0) {
                                     root.recordSearch("app", capturedAppId, "");
@@ -1353,7 +830,6 @@ Singleton {
                             }
                         });
                     } else if (item.type === "workflowExecution") {
-                        // Determine icon type from stored value
                         const iconType = item.iconType === "system" 
                             ? LauncherSearchResult.IconType.System 
                             : LauncherSearchResult.IconType.Material;
@@ -1394,25 +870,20 @@ Singleton {
                             verb: "Focus",
                             actions: [makeRemoveAction("windowFocus", item.key)],
                             execute: () => {
-                                // Find window by title
                                 const windows = WindowManager.getWindowsForApp(item.appId);
                                 const targetWindow = windows.find(w => w.title === item.windowTitle);
                                 
                                 if (targetWindow) {
-                                    // Found the exact window - focus it
                                     root.recordWindowFocus(item.appId, item.appName, item.windowTitle, item.iconName);
                                     WindowManager.focusWindow(targetWindow);
                                     GlobalStates.launcherOpen = false;
                                 } else if (windows.length === 1) {
-                                    // Only one window - focus it (title may have changed)
                                     root.recordWindowFocus(item.appId, item.appName, windows[0].title, item.iconName);
                                     WindowManager.focusWindow(windows[0]);
                                     GlobalStates.launcherOpen = false;
                                 } else if (windows.length > 1) {
-                                    // Multiple windows but can't find exact match - show picker
                                     GlobalStates.openWindowPicker(item.appId, windows);
                                 } else {
-                                    // No windows - launch new instance
                                     const entry = DesktopEntries.byId(item.appId);
                                     if (entry) entry.execute();
                                 }
@@ -1422,7 +893,7 @@ Singleton {
                     return null;
                 })
                 .filter(Boolean)
-                .slice(0, Config.options.search?.maxRecentItems ?? 20);  // Take top N valid items
+                .slice(0, Config.options.search?.maxRecentItems ?? 20);
             
              return recentItems;
          }
@@ -1437,11 +908,11 @@ Singleton {
              }
          }
          
-         allResults.sort(root.compareResults);
+         allResults.sort(FrecencyScorer.compareResults);
          
          const webSearchQuery = StringUtils.cleanPrefix(root.query, Config.options.search.prefix.webSearch);
          allResults.push({
-             matchType: root.matchType.NONE,
+             matchType: FrecencyScorer.matchType.NONE,
              fuzzyScore: 0,
              frecency: 0,
              result: resultComp.createObject(null, {
