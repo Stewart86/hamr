@@ -2,6 +2,16 @@
 
 > "When all you have is a hammer, everything looks like a nail"
 
+<div align="center">
+
+```bash
+paru -S hamr
+```
+
+[![AUR version](https://img.shields.io/aur/version/hamr)](https://aur.archlinux.org/packages/hamr)
+
+</div>
+
 Hamr is an extensible launcher for Hyprland built with [Quickshell](https://quickshell.outfoxxed.me/). Extend it with plugins in any language using a simple JSON protocol.
 
 ![Hamr Demo](assets/recording/hamr-demo.gif)
