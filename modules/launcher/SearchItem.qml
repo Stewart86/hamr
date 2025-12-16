@@ -91,9 +91,12 @@ RippleButton {
         if (actions && root.focusedActionIndex >= 0 && root.focusedActionIndex < actions.length) {
             const action = actions[root.focusedActionIndex];
             if (action && typeof action.execute === "function") {
-                LauncherSearch.skipNextAutoFocus = true;
+                // Capture selection before action executes (for restoration after results update)
                 const listView = root.ListView.view;
-                if (listView) listView.currentIndex = -1;
+                if (listView && typeof listView.captureSelection === "function") {
+                    listView.captureSelection();
+                }
+                LauncherSearch.skipNextAutoFocus = true;
                 action.execute();
             } else {
                 root.clicked();
@@ -209,6 +212,12 @@ RippleButton {
         const shouldKeepOpen = entry?.keepOpen === true;
 
         if (isPlugin || shouldKeepOpen) {
+            // Capture selection before action executes (for restoration after results update)
+            const listView = root.ListView.view;
+            if (listView && typeof listView.captureSelection === "function") {
+                listView.captureSelection();
+            }
+            LauncherSearch.skipNextAutoFocus = true;
             root.itemExecute()
             return
         }
@@ -234,9 +243,12 @@ RippleButton {
             const index = event.key - Qt.Key_1
             const actions = root.entry.actions ?? []
             if (index < actions.length) {
-                LauncherSearch.skipNextAutoFocus = true
+                // Capture selection before action executes (for restoration after results update)
                 const listView = root.ListView.view
-                if (listView) listView.currentIndex = -1
+                if (listView && typeof listView.captureSelection === "function") {
+                    listView.captureSelection()
+                }
+                LauncherSearch.skipNextAutoFocus = true
                 actions[index].execute()
                 event.accepted = true
             }
@@ -444,8 +456,12 @@ RippleButton {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: (event) => {
                             event.accepted = true
+                            // Capture selection before action executes (for restoration after results update)
+                            const listView = root.ListView.view
+                            if (listView && typeof listView.captureSelection === "function") {
+                                listView.captureSelection()
+                            }
                             LauncherSearch.skipNextAutoFocus = true
-                            // Keep selection - don't clear currentIndex
                             actionButton.modelData.execute()
                         }
                         onPressed: (event) => { event.accepted = true }

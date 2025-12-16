@@ -237,9 +237,10 @@ Item { // Wrapper
                                     const actions = currentItem.entry.actions ?? [];
                                     // Max 4 actions supported
                                     if (index < actions.length && index < 4) {
+                                        // Capture selection before action executes
+                                        appResults.captureSelection();
                                         LauncherSearch.skipNextAutoFocus = true;
                                         actions[index].execute();
-                                        // Keep selection - don't clear currentIndex
                                     }
                                 }
                             }
@@ -628,8 +629,13 @@ Item { // Wrapper
                     }
 
                     // Track selected item key and action index for poll update restoration
+                    // Use two properties: current (live) and pending (for restoration after action)
                     property string selectedItemKey: ""
                     property int selectedActionIndex: -1
+                    
+                    // Pending values: captured when skipNextAutoFocus is set, used for restoration
+                    property string pendingItemKey: ""
+                    property int pendingActionIndex: -1
 
                     // Update selected key when selection changes
                     onCurrentIndexChanged: {
@@ -643,6 +649,12 @@ Item { // Wrapper
                     // Track action index changes from current item
                     function updateActionIndex(index) {
                         selectedActionIndex = index;
+                    }
+                    
+                    // Capture current selection for restoration after action execution
+                    function captureSelection() {
+                        pendingItemKey = selectedItemKey;
+                        pendingActionIndex = selectedActionIndex;
                     }
 
                     model: ScriptModel {
@@ -678,12 +690,26 @@ Item { // Wrapper
                             // Skip auto focus - keep current selection
                             if (LauncherSearch.skipNextAutoFocus) {
                                 LauncherSearch.skipNextAutoFocus = false;
-                                // Try to preserve selection by key if results changed
-                                const savedKey = appResults.selectedItemKey;
+                                // Use pending values captured before action was executed
+                                const savedKey = appResults.pendingItemKey;
+                                const savedActionIndex = appResults.pendingActionIndex;
+                                // Clear pending values after use
+                                appResults.pendingItemKey = "";
+                                appResults.pendingActionIndex = -1;
+                                
                                 if (savedKey) {
                                     const newIndex = LauncherSearch.results.findIndex(r => r.key === savedKey);
                                     if (newIndex >= 0) {
                                         appResults.currentIndex = newIndex;
+                                        // Restore action focus after delegate is ready
+                                        if (savedActionIndex >= 0) {
+                                            Qt.callLater(() => {
+                                                const currentItem = appResults.itemAtIndex(appResults.currentIndex);
+                                                if (currentItem) {
+                                                    currentItem.focusedActionIndex = savedActionIndex;
+                                                }
+                                            });
+                                        }
                                         return;
                                     }
                                 }
