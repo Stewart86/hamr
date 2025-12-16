@@ -861,6 +861,9 @@ Singleton {
      function cancelForm() {
          if (!root.activePlugin) return;
          
+         // Cancelling form is going back one level
+         root.pendingBack = true;
+         
          // Send cancel action to handler - it decides what to do
          const input = {
              step: "action",
@@ -943,10 +946,12 @@ Singleton {
      }
      
      // Execute a plugin-level action (from toolbar button)
-     // These are view-modifying actions (filter, add mode), not navigation
-     // They don't increase depth - Escape closes plugin, not "undoes" the action
+     // These actions (filter, add mode, etc.) increase depth so user can "go back"
      function executePluginAction(actionId) {
          if (!root.activePlugin) return;
+         
+         // Plugin actions increase depth (user can press Escape to go back)
+         root.pendingNavigation = true;
          
          const input = {
              step: "action",
@@ -1112,6 +1117,7 @@ Singleton {
          // - navigateForward: true   → increment depth by 1 (drilling down)
          // - navigateBack: true      → decrement depth by 1 (going up)
          // - neither                 → no depth change (same view, modified data)
+         // Also uses pendingNavigation/pendingBack flags set before request was sent
          const isViewResponse = ["results", "card", "form"].includes(response.type);
          if (isViewResponse) {
              const hasNavDepth = response.navigationDepth !== undefined && response.navigationDepth !== null;
@@ -1122,7 +1128,7 @@ Singleton {
              } else if (response.navigateBack === true || root.pendingBack) {
                  // Back navigation - decrement depth
                  root.navigationDepth = Math.max(0, root.navigationDepth - 1);
-             } else if (response.navigateForward === true) {
+             } else if (response.navigateForward === true || root.pendingNavigation) {
                  // Forward navigation - increment depth
                  root.navigationDepth++;
              }

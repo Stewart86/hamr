@@ -457,6 +457,14 @@ def main():
                 )
                 return
 
+        # Back action - clear filter and go back to unfiltered list
+        if item_id == "__back__":
+            respond(
+                get_entry_results(entries, query, "", ocr_texts),
+                active_filter="",
+            )
+            return
+
         # Empty state - ignore
         if item_id == "__empty__":
             respond(

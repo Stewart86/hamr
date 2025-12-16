@@ -657,9 +657,11 @@ Item { // Wrapper
                     property string selectedItemKey: ""
                     property int selectedActionIndex: -1
                     
-                    // Pending values: captured when skipNextAutoFocus is set, used for restoration
+                    // Pending restore state - used when skipNextAutoFocus is set
+                    // These values persist until successfully restored OR explicitly cleared
                     property string pendingItemKey: ""
                     property int pendingActionIndex: -1
+                    property int pendingCurrentIndex: -1  // Fallback: original index position
 
                     // Update selected key when selection changes
                     onCurrentIndexChanged: {
@@ -679,6 +681,14 @@ Item { // Wrapper
                     function captureSelection() {
                         pendingItemKey = selectedItemKey;
                         pendingActionIndex = selectedActionIndex;
+                        pendingCurrentIndex = currentIndex;
+                    }
+                    
+                    // Clear pending restore state (called when restoration is complete or cancelled)
+                    function clearPendingSelection() {
+                        pendingItemKey = "";
+                        pendingActionIndex = -1;
+                        pendingCurrentIndex = -1;
                     }
 
                     model: ScriptModel {
@@ -686,45 +696,39 @@ Item { // Wrapper
                         objectProp: "key"
                         values: LauncherSearch.results
                         onValuesChanged: {
-                            // Only preserve selection during poll updates (not user search/actions)
-                            if (PluginRunner.isPollUpdate) {
-                                PluginRunner.isPollUpdate = false;  // Clear flag after processing
-
-                                const savedKey = appResults.selectedItemKey;
-                                const savedActionIndex = appResults.selectedActionIndex;
-
-                                if (savedKey) {
-                                    const newIndex = LauncherSearch.results.findIndex(r => r.key === savedKey);
-                                    if (newIndex >= 0) {
-                                        appResults.currentIndex = newIndex;
-                                        // Restore action focus after delegate is ready
-                                        if (savedActionIndex >= 0) {
-                                            Qt.callLater(() => {
-                                                const currentItem = appResults.itemAtIndex(appResults.currentIndex);
-                                                if (currentItem) {
-                                                    currentItem.focusedActionIndex = savedActionIndex;
-                                                }
-                                            });
-                                        }
-                                        return;  // Selection preserved
-                                    }
-                                }
+                            const hasPendingRestore = appResults.pendingItemKey !== "" || appResults.pendingCurrentIndex >= 0;
+                            const isPoll = PluginRunner.isPollUpdate;
+                            
+                            // Clear poll flag early (we've captured it)
+                            if (isPoll) {
+                                PluginRunner.isPollUpdate = false;
                             }
-
-                            // Skip auto focus - keep current selection
-                            if (LauncherSearch.skipNextAutoFocus) {
-                                LauncherSearch.skipNextAutoFocus = false;
-                                // Use pending values captured before action was executed
-                                const savedKey = appResults.pendingItemKey;
-                                const savedActionIndex = appResults.pendingActionIndex;
-                                // Clear pending values after use
-                                appResults.pendingItemKey = "";
-                                appResults.pendingActionIndex = -1;
+                            
+                            // Determine which key to use for restoration:
+                            // - If we have pending restore state (from action), use pendingItemKey
+                            // - Otherwise for poll updates, use current selectedItemKey
+                            const shouldTryRestore = LauncherSearch.skipNextAutoFocus || hasPendingRestore || isPoll;
+                            
+                            if (shouldTryRestore && appResults.count > 0) {
+                                // Clear the one-shot flag if it was set
+                                if (LauncherSearch.skipNextAutoFocus) {
+                                    LauncherSearch.skipNextAutoFocus = false;
+                                }
                                 
+                                // Priority: pendingItemKey (from action) > selectedItemKey (for poll)
+                                const savedKey = hasPendingRestore ? appResults.pendingItemKey : appResults.selectedItemKey;
+                                const savedActionIndex = hasPendingRestore ? appResults.pendingActionIndex : appResults.selectedActionIndex;
+                                const savedIndex = appResults.pendingCurrentIndex;
+                                
+                                // Try to find the item by key first
                                 if (savedKey) {
                                     const newIndex = LauncherSearch.results.findIndex(r => r.key === savedKey);
                                     if (newIndex >= 0) {
                                         appResults.currentIndex = newIndex;
+                                        // Only clear pending state if this was an action restore (not poll)
+                                        if (hasPendingRestore) {
+                                            appResults.clearPendingSelection();
+                                        }
                                         // Restore action focus after delegate is ready
                                         if (savedActionIndex >= 0) {
                                             Qt.callLater(() => {
@@ -737,14 +741,32 @@ Item { // Wrapper
                                         return;
                                     }
                                 }
-                                // Item was removed, select next available
-                                if (appResults.currentIndex >= appResults.count) {
-                                    appResults.currentIndex = Math.max(0, appResults.count - 1);
+                                
+                                // Key not found - item was likely removed or process ended
+                                // Try to stay at same index position (or nearest valid)
+                                if (savedIndex >= 0) {
+                                    const clampedIndex = Math.min(savedIndex, appResults.count - 1);
+                                    appResults.currentIndex = Math.max(0, clampedIndex);
+                                    if (hasPendingRestore) {
+                                        appResults.clearPendingSelection();
+                                    }
+                                    return;
                                 }
+                                
+                                // Fallback: just keep current index if valid
+                                if (appResults.currentIndex >= 0 && appResults.currentIndex < appResults.count) {
+                                    return;
+                                }
+                            }
+                            
+                            // If count is 0 but we have pending restore, keep the pending state
+                            // (waiting for actual results to arrive)
+                            if (appResults.count === 0 && hasPendingRestore) {
                                 return;
                             }
 
                             // Normal update - reset to first
+                            appResults.clearPendingSelection();
                             appResults.currentIndex = -1;
                             appResults.selectedActionIndex = -1;
                             root.focusFirstItem();

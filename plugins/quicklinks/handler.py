@@ -497,7 +497,7 @@ def main():
             )
             return
 
-        # Back button
+        # Back button - return to main list (core handles depth via pendingBack)
         if selected_id == "__back__":
             results = get_main_menu(quicklinks)
             print(
@@ -510,7 +510,6 @@ def main():
                         "context": "",
                         "placeholder": "Search quicklinks...",
                         "pluginActions": get_plugin_actions(),
-                        "navigateBack": True,  # Going back to main list
                     }
                 )
             )
@@ -617,6 +616,7 @@ def main():
         url_template = link.get("url", "")
 
         # If URL has {query} placeholder, enter search mode (submit mode)
+        # Core sets pendingNavigation for default clicks, so no need for navigateForward
         if "{query}" in url_template:
             base_url = url_template.replace("{query}", "")
             print(
@@ -627,7 +627,6 @@ def main():
                         "clearInput": True,
                         "context": f"__search__:{link['name']}",
                         "placeholder": f"Search {link['name']}... (Enter to search)",
-                        "navigateForward": True,  # Entering search mode
                         "results": [
                             {
                                 "id": f"__open_direct__:{link['name']}",
