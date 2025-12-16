@@ -91,7 +91,7 @@ RowLayout {
         id: searchInput
         Layout.topMargin: 4
         Layout.bottomMargin: 4
-        implicitHeight: 40
+        implicitHeight: Appearance.sizes.searchInputHeight
         focus: GlobalStates.launcherOpen
         font.pixelSize: Appearance.font.pixelSize.small
         placeholderText: root.pluginPlaceholder !== "" ? root.pluginPlaceholder : 

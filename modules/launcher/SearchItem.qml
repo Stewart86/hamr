@@ -260,8 +260,8 @@ RippleButton {
             Layout.alignment: Qt.AlignVCenter
             visible: root.thumbnail !== "" || root.iconType !== LauncherSearchResult.IconType.None
             
-            // Fixed container size - all icon types fit within this
-            property int containerSize: 40
+            // Fixed container size - all icon types fit within this (from Config)
+            property int containerSize: Appearance.sizes.resultIconSize
             implicitWidth: containerSize
             implicitHeight: containerSize
             

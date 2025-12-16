@@ -29,7 +29,16 @@ Singleton {
     
     // External theme integration (e.g., end-4's illogical-impulse generates colors here)
     property string externalThemeState: FileUtils.trimFileProtocol(`${Directories.state}/user`)
-    property string generatedMaterialThemePath: FileUtils.trimFileProtocol(`${Directories.externalThemeState}/generated/colors.json`)
+    // Colors JSON path: user-configurable or default to illogical-impulse location
+    property string generatedMaterialThemePath: {
+        const customPath = Config.options.paths?.colorsJson ?? "";
+        if (customPath && customPath.length > 0) {
+            // User specified custom path
+            return FileUtils.trimFileProtocol(customPath.replace("~", FileUtils.trimFileProtocol(Directories.home)));
+        }
+        // Default: illogical-impulse generated colors
+        return FileUtils.trimFileProtocol(`${Directories.externalThemeState}/generated/colors.json`);
+    }
     
     // Hamr data paths
     property string userPlugins: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/plugins`)
@@ -38,8 +47,14 @@ Singleton {
     property string shellConfigPath: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/config.json`)
     property string favicons: FileUtils.trimFileProtocol(`${Directories.cache}/favicons`)
     
-    // Default wallpaper directory
-    property string defaultWallpaperDir: FileUtils.trimFileProtocol(`${Directories.pictures}/Wallpapers`)
+    // Wallpaper directory: user-configurable or default to ~/Pictures/Wallpapers
+    property string defaultWallpaperDir: {
+        const customPath = Config.options.paths?.wallpaperDir ?? "";
+        if (customPath && customPath.length > 0) {
+            return FileUtils.trimFileProtocol(customPath.replace("~", FileUtils.trimFileProtocol(Directories.home)));
+        }
+        return FileUtils.trimFileProtocol(`${Directories.pictures}/Wallpapers`);
+    }
     
     // Initialize directories on startup
     Component.onCompleted: {

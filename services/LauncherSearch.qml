@@ -1611,7 +1611,7 @@ Singleton {
     // Debounce timer for plugin search
     Timer {
         id: pluginSearchTimer
-        interval: 150
+        interval: Config.options.search?.pluginDebounceMs ?? 150
         onTriggered: {
             // Double-check inputMode in case it changed while timer was running
             if (PluginRunner.isActive() && PluginRunner.inputMode === "realtime") {
@@ -1998,7 +1998,7 @@ Singleton {
                     return null;
                 })
                 .filter(Boolean)
-                .slice(0, 20);  // Take top 20 valid items
+                .slice(0, Config.options.search?.maxRecentItems ?? 20);  // Take top N valid items
             
             return recentItems;
         }
@@ -2070,7 +2070,10 @@ Singleton {
                     execute: ((capturedQuery) => () => {
                         let cleanedCommand = FileUtils.trimFileProtocol(capturedQuery);
                         cleanedCommand = StringUtils.cleanPrefix(cleanedCommand, Config.options.search.prefix.shellCommand);
-                        Quickshell.execDetached(["ghostty", "--class=floating.terminal", "-e", "zsh", "-ic", cleanedCommand]);
+                        const terminal = Config.options.apps?.terminal ?? "ghostty";
+                        const terminalArgs = Config.options.apps?.terminalArgs ?? "--class=floating.terminal";
+                        const shell = Config.options.apps?.shell ?? "zsh";
+                        Quickshell.execDetached([terminal, terminalArgs, "-e", shell, "-ic", cleanedCommand]);
                     })(root.query)
                 })
             });
@@ -2120,8 +2123,8 @@ Singleton {
             })
         });
         
-        // Take top 15 results + web search fallback
-        const maxResults = 16;
+        // Take top results (configurable via search.maxDisplayedResults)
+        const maxResults = Config.options.search?.maxDisplayedResults ?? 16;
         return allResults.slice(0, maxResults).map(item => item.result);
     }
 

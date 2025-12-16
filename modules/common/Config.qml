@@ -81,13 +81,19 @@ Singleton {
             // ==================== APPS ====================
             property JsonObject apps: JsonObject {
                 property string terminal: "ghostty" // Terminal for shell actions
+                property string terminalArgs: "--class=floating.terminal" // Terminal window class args
+                property string shell: "zsh" // Shell for command execution (zsh, bash, fish)
             }
 
             // ==================== SEARCH ====================
             property JsonObject search: JsonObject {
                 property int nonAppResultDelay: 30 // Prevents lagging when typing
                 property int debounceMs: 50 // Debounce for search input (ms)
+                property int pluginDebounceMs: 150 // Plugin search debounce (ms)
                 property int maxHistoryItems: 500 // Max search history entries (affects memory & fuzzy search speed)
+                property int maxDisplayedResults: 16 // Max results shown in launcher
+                property int maxRecentItems: 20 // Max recent history items shown
+                property int shellHistoryLimit: 50 // Shell history results limit
                 property string engineBaseUrl: "https://www.google.com/search?q="
                 property list<string> excludedSites: ["quora.com", "facebook.com"]
                 property JsonObject prefix: JsonObject {
@@ -116,6 +122,51 @@ Singleton {
             // ==================== IMAGE BROWSER ====================
             property JsonObject imageBrowser: JsonObject {
                 property bool useSystemFileDialog: false
+                property int columns: 4 // Grid columns
+                property real cellAspectRatio: 1.333 // 4:3 aspect ratio
+                property int sidebarWidth: 140 // Quick dirs sidebar width
+            }
+
+            // ==================== APPEARANCE ====================
+            property JsonObject appearance: JsonObject {
+                // Transparency (0.0 = opaque, 1.0 = fully transparent)
+                property real backgroundTransparency: 0.2
+                property real contentTransparency: 0.2
+                
+                // Launcher position as ratio of screen (0.0-1.0)
+                property real launcherXRatio: 0.5 // 0.5 = centered
+                property real launcherYRatio: 0.1 // 0.1 = 10% from top
+            }
+
+            // ==================== SIZES ====================
+            property JsonObject sizes: JsonObject {
+                // Launcher dimensions
+                property int searchWidth: 580
+                property int searchInputHeight: 40
+                property int maxResultsHeight: 600
+                property int resultIconSize: 40
+                
+                // Image browser dimensions
+                property int imageBrowserWidth: 1200
+                property int imageBrowserHeight: 690
+                
+                // Window picker preview
+                property int windowPickerMaxWidth: 350
+                property int windowPickerMaxHeight: 220
+            }
+
+            // ==================== FONTS ====================
+            property JsonObject fonts: JsonObject {
+                property string main: "Google Sans Flex"
+                property string monospace: "JetBrains Mono NF"
+                property string reading: "Readex Pro"
+                property string icon: "Material Symbols Rounded"
+            }
+
+            // ==================== PATHS ====================
+            property JsonObject paths: JsonObject {
+                property string wallpaperDir: "" // Empty = default ~/Pictures/Wallpapers
+                property string colorsJson: "" // Empty = default ~/.local/state/user/generated/colors.json
             }
         }
     }

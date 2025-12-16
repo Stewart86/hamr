@@ -603,7 +603,7 @@ Item { // Wrapper
                 ListView { // App results
                     id: appResults
                     anchors.fill: parent
-                    implicitHeight: Math.min(600, appResults.contentHeight + topMargin + bottomMargin)
+                    implicitHeight: Math.min(Appearance.sizes.maxResultsHeight, appResults.contentHeight + topMargin + bottomMargin)
                     clip: true
                     cacheBuffer: 500  // Keep more delegates cached to reduce flicker
                     reuseItems: true  // Enable delegate reuse

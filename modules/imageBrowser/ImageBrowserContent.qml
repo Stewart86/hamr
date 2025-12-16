@@ -12,8 +12,9 @@ import Quickshell.Io
 
 MouseArea {
     id: root
-    property int columns: 4
-    property real previewCellAspectRatio: 4 / 3
+    // Image browser grid settings from Config
+    property int columns: Config.options.imageBrowser?.columns ?? 4
+    property real previewCellAspectRatio: Config.options.imageBrowser?.cellAspectRatio ?? (4 / 3)
     
     // Workflow configuration
     property var config: null  // { directory, title, extensions, actions, workflowId, enableOcr }
@@ -219,7 +220,7 @@ MouseArea {
                         // Quick dirs
                         Layout.fillHeight: true
                         Layout.margins: 4
-                        implicitWidth: 140
+                        implicitWidth: Config.options.imageBrowser?.sidebarWidth ?? 140
                         clip: true
                         model: [
                             { icon: "home", name: "Home", path: Directories.home }, 

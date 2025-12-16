@@ -15,9 +15,9 @@ Singleton {
     property QtObject sizes
     property string syntaxHighlightingTheme
 
-    // Slight transparency for Hamr launcher
-    property real backgroundTransparency: 0.2
-    property real contentTransparency: 0.2
+    // Transparency from Config (0.0 = opaque, 1.0 = fully transparent)
+    property real backgroundTransparency: Config.options.appearance?.backgroundTransparency ?? 0.2
+    property real contentTransparency: Config.options.appearance?.contentTransparency ?? 0.2
 
     m3colors: QtObject {
         property bool darkmode: true
@@ -183,13 +183,14 @@ Singleton {
 
     font: QtObject {
         property QtObject family: QtObject {
-            property string main: "Google Sans Flex"
-            property string numbers: "Google Sans Flex"
-            property string title: "Google Sans Flex"
-            property string iconMaterial: "Material Symbols Rounded"
-            property string iconNerd: "JetBrains Mono NF"
-            property string monospace: "JetBrains Mono NF"
-            property string reading: "Readex Pro"
+            // Fonts from Config with fallbacks
+            property string main: Config.options.fonts?.main ?? "Google Sans Flex"
+            property string numbers: Config.options.fonts?.main ?? "Google Sans Flex"
+            property string title: Config.options.fonts?.main ?? "Google Sans Flex"
+            property string iconMaterial: Config.options.fonts?.icon ?? "Material Symbols Rounded"
+            property string iconNerd: Config.options.fonts?.monospace ?? "JetBrains Mono NF"
+            property string monospace: Config.options.fonts?.monospace ?? "JetBrains Mono NF"
+            property string reading: Config.options.fonts?.reading ?? "Readex Pro"
             property string expressive: "Space Grotesk"
         }
         property QtObject variableAxes: QtObject {
@@ -350,11 +351,19 @@ Singleton {
         property real fabShadowRadius: 5
         property real fabHoveredShadowRadius: 7
         property real hyprlandGapsOut: 5
-        property real searchWidth: 580
-        property real imageBrowserWidth: 1200
-        property real imageBrowserHeight: 690
+        // Launcher sizes from Config
+        property real searchWidth: Config.options.sizes?.searchWidth ?? 580
+        property real searchInputHeight: Config.options.sizes?.searchInputHeight ?? 40
+        property real maxResultsHeight: Config.options.sizes?.maxResultsHeight ?? 600
+        property real resultIconSize: Config.options.sizes?.resultIconSize ?? 40
+        // Image browser from Config
+        property real imageBrowserWidth: Config.options.sizes?.imageBrowserWidth ?? 1200
+        property real imageBrowserHeight: Config.options.sizes?.imageBrowserHeight ?? 690
         property real imageBrowserItemMargins: 8
         property real imageBrowserItemPadding: 6
+        // Window picker from Config
+        property real windowPickerMaxWidth: Config.options.sizes?.windowPickerMaxWidth ?? 350
+        property real windowPickerMaxHeight: Config.options.sizes?.windowPickerMaxHeight ?? 220
     }
 
     syntaxHighlightingTheme: root.m3colors.darkmode ? "Monokai" : "ayu Light"

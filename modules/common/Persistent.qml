@@ -157,9 +157,9 @@ Singleton {
 
             property JsonObject launcher: JsonObject {
                 // Position as ratio of screen size (0.0-1.0) for resolution independence
-                // 0.5 = centered horizontally, 0.1 = 10% from top
-                property real xRatio: 0.5
-                property real yRatio: 0.1
+                // Defaults from Config: appearance.launcherXRatio / launcherYRatio
+                property real xRatio: Config.options.appearance?.launcherXRatio ?? 0.5
+                property real yRatio: Config.options.appearance?.launcherYRatio ?? 0.1
             }
         }
     }
