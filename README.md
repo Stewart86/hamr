@@ -6,63 +6,6 @@ Hamr is an extensible launcher for Hyprland built with [Quickshell](https://quic
 
 ![Hamr Demo](assets/recording/hamr-demo.gif)
 
-## Screenshots
-
-![Hamr Overview](assets/screenshots/hamr-overview.png)
-**Recent history at your fingertips** - Open Hamr to see your most-used plugins, shell commands, and actions ranked by frecency. Wallpaper thumbnails show exactly which wallpaper you set last time.
-
-![Hamr App Search](assets/screenshots/hamr-app-search.png)
-**Unified search across everything** - Apps, emojis, and more in one place. Fuzzy matching highlights what you're looking for, with app descriptions and running window indicators.
-
-![Hamr Plugins](assets/screenshots/hamr-plugins.png)
-**Extensible plugin system** - Type `/` to browse all available plugins. From Bitwarden passwords to AI-powered plugin creation, each plugin communicates via simple JSON over stdin/stdout.
-
-![Hamr Clipboard](assets/screenshots/hamr-clipboard.png)
-**Clipboard history with OCR search** - Type `;` to search your clipboard history. Images show thumbnails with OCR text extraction for searchable screenshots. Filter by type (Images/Text) and quick copy/delete actions.
-
-## Platform Support
-
-| Platform | Support | Notes |
-|----------|---------|-------|
-| **Hyprland** | Full | Primary target, all features work |
-| **Other Wayland compositors** | Not supported | Would require significant refactoring (see below) |
-| **X11** | Not supported | Quickshell is Wayland-only |
-| **Windows / macOS** | Not supported | Quickshell is Linux-only; Wayland doesn't exist on these platforms |
-
-<details>
-<summary><strong>Why Hyprland-only?</strong></summary>
-
-Hamr relies on Hyprland-specific APIs throughout its codebase:
-
-| Component | Hyprland Dependency |
-|-----------|---------------------|
-| Focus management | `HyprlandFocusGrab` for keyboard/mouse capture |
-| Monitor detection | `Hyprland.focusedMonitor`, `HyprlandMonitor` |
-| Session tracking | `HYPRLAND_INSTANCE_SIGNATURE` environment variable |
-| Keybindings | `bind = Super, Super_L, global, quickshell:hamrToggle` |
-
-**Plugins also use Wayland-specific tools:**
-- `wl-copy` / `wl-paste` for clipboard
-- `cliphist` for clipboard history
-- `grim` + `slurp` for screenshots
-- `wf-recorder` for screen recording
-
-Porting to other Wayland compositors (Sway, River, KDE Plasma) would require:
-1. Replacing all `Quickshell.Hyprland` imports with compositor-agnostic alternatives
-2. Implementing generic focus grabbing (no standard Wayland protocol exists)
-3. Rewriting monitor detection logic
-4. Updating keybind documentation for each compositor
-
-This is a non-trivial effort and not currently planned.
-
-</details>
-
-Hamr is **fully standalone** and works out of the box on any Hyprland setup. It optionally integrates with [end-4's illogical-impulse](https://github.com/end-4/dots-hyprland) for enhanced theming features if detected.
-
-## Credits
-
-Hamr is extracted and adapted from [end-4's illogical-impulse](https://github.com/end-4/dots-hyprland). Major thanks to end-4 for the Material Design theming, fuzzy search, widget components, and overall architecture.
-
 ## Features
 
 - **Frecency-based ranking** - Results sorted by frequency + recency (inspired by [zoxide](https://github.com/ajeetdsouza/zoxide))
@@ -134,7 +77,23 @@ Powered by [qalculate](https://qalculate.github.io/) - supports 150+ currencies 
 | `light` | Switch to light mode (illogical-impulse) |
 | `accentcolor` | Set accent color (illogical-impulse) |
 
+## Screenshots
+
+![Hamr Overview](assets/screenshots/hamr-overview.png)
+**Recent history at your fingertips** - Open Hamr to see your most-used plugins, shell commands, and actions ranked by frecency. Wallpaper thumbnails show exactly which wallpaper you set last time.
+
+![Hamr App Search](assets/screenshots/hamr-app-search.png)
+**Unified search across everything** - Apps, emojis, and more in one place. Fuzzy matching highlights what you're looking for, with app descriptions and running window indicators.
+
+![Hamr Plugins](assets/screenshots/hamr-plugins.png)
+**Extensible plugin system** - Type `/` to browse all available plugins. From Bitwarden passwords to AI-powered plugin creation, each plugin communicates via simple JSON over stdin/stdout.
+
+![Hamr Clipboard](assets/screenshots/hamr-clipboard.png)
+**Clipboard history with OCR search** - Type `;` to search your clipboard history. Images show thumbnails with OCR text extraction for searchable screenshots. Filter by type (Images/Text) and quick copy/delete actions.
+
 ## Installation
+
+**Requirements:** Hyprland on Linux (Quickshell is Wayland-only and Hamr uses Hyprland-specific APIs)
 
 ### Arch Linux (Recommended)
 
@@ -854,6 +813,12 @@ Want functionality from a Raycast extension? Use the built-in `create-plugin` wo
 ```
 
 The AI will analyze the Raycast extension, translate the patterns to Hamr's protocol, and create a native Linux plugin. See [`plugins/AGENTS.md`](plugins/AGENTS.md#converting-raycast-extensions) for the full conversion guide.
+
+## Credits
+
+Hamr is extracted and adapted from [end-4's illogical-impulse](https://github.com/end-4/dots-hyprland). Major thanks to end-4 for the Material Design theming, fuzzy search, widget components, and overall architecture.
+
+Hamr is **fully standalone** and works out of the box on any Hyprland setup. It optionally integrates with [illogical-impulse](https://github.com/end-4/dots-hyprland) for enhanced theming features if detected.
 
 ## License
 
