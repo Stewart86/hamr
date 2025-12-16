@@ -103,12 +103,36 @@ jobs:
           # Get commits since last tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
-            NOTES=$(git log --pretty=format:"- %s" $PREV_TAG..HEAD --no-merges)
+            COMMITS=$(git log --pretty=format:"%s" $PREV_TAG..HEAD --no-merges)
           else
-            NOTES=$(git log --pretty=format:"- %s" --no-merges -20)
+            COMMITS=$(git log --pretty=format:"%s" --no-merges -20)
           fi
+          
+          # Sort by conventional commit type
+          FEAT=$(echo "$COMMITS" | grep -E "^feat(\(.+\))?:" | sed 's/^/- /' || true)
+          FIX=$(echo "$COMMITS" | grep -E "^fix(\(.+\))?:" | sed 's/^/- /' || true)
+          PERF=$(echo "$COMMITS" | grep -E "^perf(\(.+\))?:" | sed 's/^/- /' || true)
+          REFACTOR=$(echo "$COMMITS" | grep -E "^refactor(\(.+\))?:" | sed 's/^/- /' || true)
+          DOCS=$(echo "$COMMITS" | grep -E "^docs(\(.+\))?:" | sed 's/^/- /' || true)
+          CHORE=$(echo "$COMMITS" | grep -E "^chore(\(.+\))?:" | sed 's/^/- /' || true)
+          CI=$(echo "$COMMITS" | grep -E "^ci(\(.+\))?:" | sed 's/^/- /' || true)
+          TEST=$(echo "$COMMITS" | grep -E "^test(\(.+\))?:" | sed 's/^/- /' || true)
+          OTHER=$(echo "$COMMITS" | grep -vE "^(feat|fix|perf|refactor|docs|chore|ci|test)(\(.+\))?:" | sed 's/^/- /' || true)
+          
+          # Build release notes
+          NOTES=""
+          [ -n "$FEAT" ] && NOTES="${NOTES}### Features\n${FEAT}\n\n"
+          [ -n "$FIX" ] && NOTES="${NOTES}### Bug Fixes\n${FIX}\n\n"
+          [ -n "$PERF" ] && NOTES="${NOTES}### Performance\n${PERF}\n\n"
+          [ -n "$REFACTOR" ] && NOTES="${NOTES}### Refactoring\n${REFACTOR}\n\n"
+          [ -n "$DOCS" ] && NOTES="${NOTES}### Documentation\n${DOCS}\n\n"
+          [ -n "$TEST" ] && NOTES="${NOTES}### Tests\n${TEST}\n\n"
+          [ -n "$CI" ] && NOTES="${NOTES}### CI/CD\n${CI}\n\n"
+          [ -n "$CHORE" ] && NOTES="${NOTES}### Chores\n${CHORE}\n\n"
+          [ -n "$OTHER" ] && NOTES="${NOTES}### Other\n${OTHER}\n\n"
+          
           echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo -e "$NOTES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
@@ -116,9 +140,7 @@ jobs:
         with:
           name: v${{ steps.version.outputs.version }}
           body: |
-            ## Changes
             ${{ steps.release_notes.outputs.notes }}
-
             ## Installation
             ```bash
             paru -S hamr
