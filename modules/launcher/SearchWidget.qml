@@ -357,6 +357,30 @@ Item { // Wrapper
                     Item {
                         Layout.fillWidth: true
                     }
+                    
+                    // Navigation hints (shown when results are displayed)
+                    Repeater {
+                        model: root.showResults ? [
+                            { key: "^J", label: "down" },
+                            { key: "^K", label: "up" },
+                            { key: "Tab", label: "actions" },
+                        ] : []
+                        
+                        RowLayout {
+                            required property var modelData
+                            spacing: 4
+                            
+                            Kbd {
+                                keys: modelData.key
+                            }
+                            
+                            Text {
+                                text: modelData.label
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Appearance.m3colors.m3outline
+                            }
+                        }
+                    }
                 }
                 
                 // Prefix mode: back button (and wipe for clipboard)
