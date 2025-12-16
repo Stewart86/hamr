@@ -255,11 +255,20 @@ install_hamr() {
     # Create or update default config
     create_default_config
 
+    # Copy switchwall.sh to user config if it doesn't exist
+    mkdir -p "$CONFIG_DIR/hamr/scripts"
+    if [[ ! -f "$CONFIG_DIR/hamr/scripts/switchwall.sh" ]]; then
+        cp "$SCRIPT_DIR/scripts/colors/switchwall.sh" "$CONFIG_DIR/hamr/scripts/switchwall.sh"
+        chmod +x "$CONFIG_DIR/hamr/scripts/switchwall.sh"
+        info "Copied switchwall.sh to $CONFIG_DIR/hamr/scripts/"
+    fi
+
     # Make scripts executable
     chmod +x "$SCRIPT_DIR/scripts/thumbnails/thumbgen.sh" 2>/dev/null || true
     chmod +x "$SCRIPT_DIR/scripts/thumbnails/thumbgen.py" 2>/dev/null || true
     chmod +x "$SCRIPT_DIR/scripts/ocr/ocr-index.sh" 2>/dev/null || true
     chmod +x "$SCRIPT_DIR/scripts/ocr/ocr-index.py" 2>/dev/null || true
+    chmod +x "$SCRIPT_DIR/scripts/colors/switchwall.sh" 2>/dev/null || true
 
     info "Installation complete!"
     echo ""

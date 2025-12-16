@@ -25,7 +25,7 @@ Singleton {
     // ==================== EXCLUSIVE MODE ====================
     // Exclusive mode is for prefix-based filtering (/, :, =) that doesn't use plugins
     // but should still allow Escape to exit back to normal search
-    property string exclusiveMode: ""  // "", "action", "emoji", "math"
+    property string exclusiveMode: ""  // "", "action", "math"
     property bool exclusiveModeStarting: false  // Flag to prevent re-triggering on query clear
     
     function enterExclusiveMode(mode) {
@@ -320,12 +320,11 @@ Singleton {
         QUICKLINK: "quicklink",
         URL: "url",
         PLUGIN_EXECUTION: "pluginExecution",
-        WEB_SEARCH: "webSearch",
-        EMOJI: "emoji"
+        WEB_SEARCH: "webSearch"
     })
     
     // ==================== STATIC SEARCHABLES ====================
-    // Rebuilt only on reload (apps, plugins, actions, quicklinks, emojis)
+    // Rebuilt only on reload (apps, plugins, actions, quicklinks)
     // These change rarely - only when apps installed, plugins added, etc.
     // ==============================================================
     
@@ -398,19 +397,6 @@ Singleton {
             });
         }
         
-        // ========== EMOJIS ==========
-        const emojis = Emojis.preparedEntries ?? [];
-        for (const preppedEmoji of emojis) {
-            const entry = preppedEmoji.entry;
-            items.push({
-                name: preppedEmoji.name,
-                sourceType: root.sourceType.EMOJI,
-                id: `emoji:${entry}`,
-                data: { entry },
-                isHistoryTerm: false
-            });
-        }
-        
         root.preppedStaticSearchables = items;
         console.log(`[LauncherSearch] Static searchables: ${items.length} items`);
     }
@@ -439,14 +425,6 @@ Singleton {
     // Rebuild static searchables when actions change (new script added/removed)
     onAllActionsChanged: {
         root.rebuildStaticSearchables();
-    }
-    
-    // Rebuild static searchables when emojis are loaded
-    Connections {
-        target: Emojis
-        function onListChanged() {
-            root.rebuildStaticSearchables();
-        }
     }
     
     // NOTE: Initial rebuild is done in the main Component.onCompleted below (search for binariesProc)
@@ -942,8 +920,6 @@ Singleton {
     //   MATH      - Starts with number, operator, or math function
     //   URL       - Matches URL pattern (domain.com)
     //   FILE      - Starts with file prefix (~)
-    //   CLIPBOARD - Starts with clipboard prefix
-    //   EMOJI     - Starts with emoji prefix
     //   GENERAL   - Default (app search)
     // ===========================================================
     
@@ -952,7 +928,6 @@ Singleton {
         MATH: "math",
         URL: "url",
         FILE: "file",
-        EMOJI: "emoji",
         GENERAL: "general"
     })
     
@@ -962,7 +937,6 @@ Singleton {
         const trimmed = query.trim();
         
         // Explicit prefixes take priority
-        if (trimmed.startsWith(Config.options.search.prefix.emojis)) return root.intent.EMOJI;
         if (trimmed.startsWith(root.filePrefix)) return root.intent.FILE;
         if (trimmed.startsWith(Config.options.search.prefix.shellCommand)) return root.intent.COMMAND;
         if (trimmed.startsWith(Config.options.search.prefix.math)) return root.intent.MATH;
@@ -1182,8 +1156,6 @@ Singleton {
                 return createPluginExecResultFromData(data, query, fuzzyScore, frecency, resultMatchType);
             case st.WEB_SEARCH:
                 return createWebSearchHistoryResultFromData(data, query, fuzzyScore, frecency, resultMatchType);
-            case st.EMOJI:
-                return createEmojiResultFromData(data, fuzzyScore);
             default:
                 return null;
         }
@@ -1446,29 +1418,6 @@ Singleton {
             })
         };
     }
-    
-    // Factory: Emoji result
-    function createEmojiResultFromData(data, fuzzyScore) {
-        const entry = data.entry;
-        const emoji = entry.match(/^\s*(\S+)/)?.[1] || "";
-        
-        return {
-            matchType: root.matchType.FUZZY,
-            fuzzyScore: fuzzyScore,
-            frecency: 0,
-            result: resultComp.createObject(null, {
-                rawValue: entry,
-                name: entry.replace(/^\s*\S+\s+/, ""),
-                iconName: emoji,
-                iconType: LauncherSearchResult.IconType.Text,
-                verb: "Copy",
-                type: "Emoji",
-                execute: ((capturedEmoji) => () => {
-                    Quickshell.clipboardText = capturedEmoji;
-                })(emoji)
-            })
-        };
-    }
 
     property var searchActions: []
 
@@ -1561,8 +1510,8 @@ Singleton {
                 // Enter exclusive action mode when / is typed
                 root.enterExclusiveMode("action");
             } else if (root.query === Config.options.search.prefix.emojis) {
-                // Enter exclusive emoji mode when : is typed
-                root.enterExclusiveMode("emoji");
+                // Start emoji plugin when : is typed
+                root.startPlugin("emoji");
             } else if (root.query === Config.options.search.prefix.math) {
                 // Enter exclusive math mode when = is typed
                 root.enterExclusiveMode("math");
@@ -1751,25 +1700,6 @@ Singleton {
             });
             
             return [...pluginItems, ...actionItems].filter(Boolean);
-        }
-        
-        // Emojis in exclusive mode - show full emoji results
-        if (root.exclusiveMode === "emoji") {
-            const searchString = root.query;
-            return Emojis.fuzzyQuery(searchString).map(entry => {
-                const emoji = entry.match(/^\s*(\S+)/)?.[1] || "";
-                return resultComp.createObject(null, {
-                    rawValue: entry,
-                    name: entry.replace(/^\s*\S+\s+/, ""),
-                    iconName: emoji,
-                    iconType: LauncherSearchResult.IconType.Text,
-                    verb: "Copy",
-                    type: "Emoji",
-                    execute: () => {
-                        Quickshell.clipboardText = entry.match(/^\s*(\S+)/)?.[1];
-                    }
-                });
-            }).filter(Boolean);
         }
         
         // Math in exclusive mode - show only math result

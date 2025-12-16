@@ -1,12 +1,19 @@
 #!/bin/bash
 # Set accent color
 # Usage: accentcolor [color]
-# Customize this script for your setup
 
-# For end-4 dotfiles users with switchwall.sh
-SCRIPT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/ii/scripts/colors"
-if [[ -x "$SCRIPT_DIR/switchwall.sh" ]]; then
-    "$SCRIPT_DIR/switchwall.sh" --noswitch --color "$@"
-else
-    notify-send "Accent color" "switchwall.sh not found - customize this script for your setup"
-fi
+# Check for theming scripts (popular dotfiles first, then hamr fallback)
+# Add more dotfile paths here as needed
+SWITCHWALL_PATHS=(
+    "${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/ii/scripts/colors/switchwall.sh"  # end-4 illogical-impulse
+    "${XDG_CONFIG_HOME:-$HOME/.config}/hamr/scripts/switchwall.sh"                   # hamr standalone
+)
+
+for script in "${SWITCHWALL_PATHS[@]}"; do
+    if [[ -x "$script" ]]; then
+        "$script" --noswitch --color "$@"
+        exit 0
+    fi
+done
+
+notify-send "Accent color" "No theme script found"

@@ -16,7 +16,9 @@ import sys
 from configparser import ConfigParser
 from pathlib import Path
 
-HISTORY_PATH = Path.home() / ".local/state/quickshell/user/search-history.json"
+# Search history path (same as LauncherSearch.qml)
+HAMR_CONFIG = Path.home() / ".config" / "hamr"
+HISTORY_PATH = HAMR_CONFIG / "search-history.json"
 
 # XDG application directories
 APP_DIRS = [

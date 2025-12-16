@@ -57,7 +57,7 @@ This is a non-trivial effort and not currently planned.
 
 </details>
 
-Hamr works standalone but is **best used alongside [end-4's illogical-impulse](https://github.com/end-4/dots-hyprland)** dotfiles. Many built-in plugins (wallpaper switching, theme toggling, etc.) are designed to integrate with illogical-impulse's theming system.
+Hamr is **fully standalone** and works out of the box on any Hyprland setup. It optionally integrates with [end-4's illogical-impulse](https://github.com/end-4/dots-hyprland) for enhanced theming features if detected.
 
 ## Credits
 
@@ -345,10 +345,15 @@ exec-once = wl-paste --type image --watch cliphist store
 <details>
 <summary><strong>Theming</strong></summary>
 
-Hamr uses Material Design colors from `~/.local/state/user/generated/colors.json`.
+Hamr uses Material Design colors for its UI. Colors can come from:
 
-- **With illogical-impulse**: Colors are automatically generated from your wallpaper
-- **Standalone**: Hamr uses built-in default colors (dark theme)
+1. **Custom colors.json** - Set path in config: `"paths": {"colorsJson": "~/.config/hamr/colors.json"}`
+2. **illogical-impulse** - Auto-detected from `~/.local/state/user/generated/colors.json`
+3. **Built-in defaults** - Dark theme fallback when no colors.json found
+
+**Creating a custom colors.json:**
+
+The file should contain Material Design 3 color tokens. See [Material Theme Builder](https://material-foundation.github.io/material-theme-builder/) to generate a theme.
 
 </details>
 

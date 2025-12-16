@@ -15,9 +15,22 @@ from pathlib import Path
 # Test mode - skip external tool calls
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
-# Todo file location (same as Quickshell's Todo.qml)
-STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
-TODO_FILE = STATE_DIR / "quickshell" / "user" / "todo.json"
+# Todo file location
+# Primary: hamr-specific path
+# Legacy: quickshell/user path (for compatibility with illogical-impulse)
+HAMR_CONFIG = Path.home() / ".config" / "hamr"
+LEGACY_STATE_DIR = Path(
+    os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")
+)
+LEGACY_TODO_FILE = LEGACY_STATE_DIR / "quickshell" / "user" / "todo.json"
+TODO_FILE = HAMR_CONFIG / "todo.json"
+
+# Migrate from legacy path if needed
+if LEGACY_TODO_FILE.exists() and not TODO_FILE.exists():
+    TODO_FILE.parent.mkdir(parents=True, exist_ok=True)
+    import shutil
+
+    shutil.copy(LEGACY_TODO_FILE, TODO_FILE)
 
 
 def load_todos() -> list[dict]:
