@@ -16,21 +16,27 @@ from pathlib import Path
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
 # Todo file location
-# Primary: hamr-specific path
-# Legacy: quickshell/user path (for compatibility with illogical-impulse)
-HAMR_CONFIG = Path.home() / ".config" / "hamr"
-LEGACY_STATE_DIR = Path(
-    os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")
-)
-LEGACY_TODO_FILE = LEGACY_STATE_DIR / "quickshell" / "user" / "todo.json"
-TODO_FILE = HAMR_CONFIG / "todo.json"
+# Prefer illogical-impulse path for seamless sync between hamr and ii sidebar
+# Fallback to hamr-specific path for standalone users
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+II_TODO_FILE = STATE_DIR / "quickshell" / "user" / "todo.json"
+HAMR_TODO_FILE = Path.home() / ".config" / "hamr" / "todo.json"
 
-# Migrate from legacy path if needed
-if LEGACY_TODO_FILE.exists() and not TODO_FILE.exists():
-    TODO_FILE.parent.mkdir(parents=True, exist_ok=True)
-    import shutil
 
-    shutil.copy(LEGACY_TODO_FILE, TODO_FILE)
+def get_todo_file() -> Path:
+    """Get the todo file path, preferring ii path if ii is installed."""
+    # If ii todo file exists, use it (sync with ii sidebar)
+    if II_TODO_FILE.exists():
+        return II_TODO_FILE
+    # If ii config dir exists (ii is installed), use ii path even if file doesn't exist yet
+    ii_config = Path.home() / ".config" / "quickshell" / "ii"
+    if ii_config.exists():
+        return II_TODO_FILE
+    # Standalone mode: use hamr path
+    return HAMR_TODO_FILE
+
+
+TODO_FILE = get_todo_file()
 
 
 def load_todos() -> list[dict]:
