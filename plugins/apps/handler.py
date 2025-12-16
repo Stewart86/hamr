@@ -223,6 +223,70 @@ def fuzzy_match(query: str, text: str) -> bool:
     return qi == len(query)
 
 
+def app_to_index_item(app: dict) -> dict:
+    """Convert app info to indexable item format for main search.
+
+    Includes execute command so apps can be launched directly from main search.
+    """
+    # Get desktop file name without .desktop extension
+    # Handle both "app.desktop" and "org.app.desktop.desktop" (Flatpak naming)
+    filename = Path(app["id"]).name
+    desktop_name = filename.removesuffix(".desktop")
+
+    # Build keywords from name, generic name, comment, and keywords field
+    keywords = []
+    if app.get("generic_name"):
+        keywords.extend(app["generic_name"].lower().split())
+    if app.get("comment"):
+        keywords.extend(app["comment"].lower().split()[:5])  # First 5 words
+    if app.get("keywords"):
+        keywords.extend(app["keywords"].lower().replace(";", " ").split())
+
+    # Convert desktop actions to index action format
+    actions = []
+    for action in app.get("actions", [])[:4]:  # Max 4 actions
+        action_name_lower = action["name"].lower()
+        action_id_lower = action["id"].lower()
+
+        if "private" in action_name_lower or "incognito" in action_name_lower:
+            icon = "visibility_off"
+        elif "window" in action_name_lower or "window" in action_id_lower:
+            icon = "open_in_new"
+        elif "quit" in action_name_lower or "quit" in action_id_lower:
+            icon = "close"
+        else:
+            icon = "play_arrow"
+
+        actions.append(
+            {
+                "id": action["id"],
+                "name": action["name"],
+                "icon": icon,
+                "command": action["exec"].split() if action.get("exec") else [],
+            }
+        )
+
+    item = {
+        "id": f"app:{desktop_name}",
+        "name": app["name"],
+        "description": app.get("generic_name") or app.get("display_category") or "",
+        "keywords": keywords,
+        "icon": app["icon"],
+        "iconType": "system",
+        "verb": "Open",
+        "appId": desktop_name,  # For window integration in LauncherSearch
+        "execute": {
+            # Use gio launch with full path - more reliable than gtk-launch
+            # especially for Flatpak apps with .desktop.desktop naming
+            "command": ["gio", "launch", app["id"]],
+        },
+    }
+    if actions:
+        item["actions"] = actions
+
+    return item
+
+
 def app_to_result(app: dict, show_category: bool = False) -> dict:
     """Convert app info to result format"""
     description = app.get("generic_name") or app.get("comment") or ""
@@ -322,6 +386,12 @@ def main():
         return (-frecency.get(app["name"], 0), app["name"].lower())
 
     all_apps.sort(key=sort_key)
+
+    # ===== INDEX: Provide searchable items for main search =====
+    if step == "index":
+        items = [app_to_index_item(app) for app in all_apps]
+        print(json.dumps({"type": "index", "items": items}))
+        return
 
     # ===== INITIAL: Show categories =====
     if step == "initial":
@@ -598,14 +668,14 @@ def main():
                 break
 
         if app:
-            # Use gtk-launch for proper .desktop handling
-            desktop_name = Path(selected_id).stem
+            # Use gio launch with full path - more reliable than gtk-launch
+            # especially for Flatpak apps with .desktop.desktop naming
             print(
                 json.dumps(
                     {
                         "type": "execute",
                         "execute": {
-                            "command": ["gtk-launch", desktop_name],
+                            "command": ["gio", "launch", selected_id],
                             "name": f"Launch {app['name']}",
                             "icon": app["icon"],
                             "iconType": "system",  # App icons are system icons

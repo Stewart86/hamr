@@ -1,22 +1,13 @@
 {
-  "name": "Shell Commands",
-  "description": "Search and execute shell history commands",
+  "name": "Shell",
+  "description": "Run commands and search shell history",
   "icon": "terminal",
-  "version": "1.0",
-  
-  "steps": {
-    "initial": {
-      "prompt": "Search shell history...",
-      "type": "search",
-      "fuzzy": true
-    },
-    "selected": {
-      "type": "actions"
-    }
-  },
-  
-  "config": {
-    "persistent": false,
-    "timeout": 5000
+  "index": {
+    "enabled": true,
+    "watchFiles": [
+      "~/.zsh_history",
+      "~/.bash_history",
+      "~/.local/share/fish/fish_history"
+    ]
   }
 }

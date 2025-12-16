@@ -25,8 +25,7 @@ TEST_IMAGE_FILE=""
 TEST_DIR_1=""
 
 # Search history location (same as handler.py)
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}"
-HISTORY_PATH="$STATE_DIR/quickshell/user/search-history.json"
+HISTORY_PATH="$HOME/.config/hamr/search-history.json"
 HISTORY_BACKUP="/tmp/files-test-history-backup-$$.json"
 
 # ============================================================================

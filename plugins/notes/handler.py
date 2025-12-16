@@ -214,6 +214,37 @@ def show_edit_form(note: dict):
     )
 
 
+def note_to_index_item(note: dict) -> dict:
+    """Convert a note to an index item for main search"""
+    note_id = note.get("id", "")
+    title = note.get("title", "Untitled")
+    content = note.get("content", "")
+    first_line = content.split("\n")[0] if content else ""
+    return {
+        "id": f"notes:{note_id}",
+        "name": title,
+        "description": truncate(first_line, 50) if first_line else "",
+        "keywords": [truncate(first_line, 30)] if first_line else [],
+        "icon": "sticky_note_2",
+        "verb": "View",
+        "actions": [
+            {
+                "id": "copy",
+                "name": "Copy",
+                "icon": "content_copy",
+                "command": ["wl-copy", f"{title}\n\n{content}"],
+            },
+        ],
+        # Default action: view note in plugin (keepOpen = show UI)
+        "entryPoint": {
+            "step": "action",
+            "selected": {"id": note_id},
+            "action": "view",
+        },
+        "keepOpen": True,  # Don't close launcher, show plugin UI
+    }
+
+
 def main():
     input_data = json.load(sys.stdin)
     step = input_data.get("step", "initial")
@@ -224,6 +255,12 @@ def main():
     form_data = input_data.get("formData", {})
 
     notes = load_notes()
+
+    # ===== INDEX: Provide searchable items for main launcher =====
+    if step == "index":
+        items = [note_to_index_item(n) for n in notes]
+        print(json.dumps({"type": "index", "items": items}))
+        return
 
     # ===== INITIAL: Show notes list =====
     if step == "initial":
@@ -363,6 +400,21 @@ def main():
         if item_id in ("__info__", "__current__", "__empty__"):
             return
 
+        # Back navigation (from Escape key or back button)
+        if item_id == "__back__" or action == "back":
+            respond(
+                {
+                    "type": "results",
+                    "results": get_note_results(notes),
+                    "inputMode": "realtime",
+                    "clearInput": True,
+                    "context": "",
+                    "placeholder": "Search notes...",
+                    "pluginActions": get_plugin_actions(),
+                }
+            )
+            return
+
         # Start adding new note - show form
         if item_id == "__add__":
             show_add_form()
@@ -437,21 +489,6 @@ def main():
                 )
             else:
                 respond({"type": "error", "message": "Failed to delete note"})
-            return
-
-        # Card actions (when viewing a note)
-        if action == "back":
-            respond(
-                {
-                    "type": "results",
-                    "results": get_note_results(notes),
-                    "inputMode": "realtime",
-                    "clearInput": True,
-                    "context": "",
-                    "placeholder": "Search notes...",
-                    "pluginActions": get_plugin_actions(),
-                }
-            )
             return
 
     # Unknown step

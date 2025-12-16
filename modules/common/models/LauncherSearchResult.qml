@@ -58,6 +58,9 @@ QtObject {
      // Thumbnail image path (for workflow results with images)
      property string thumbnail: ""
      
+     // Keep launcher open after execution (for indexed items that show UI)
+     property bool keepOpen: false
+     
      // ==================== RUNNING WINDOW SUPPORT ====================
      // Number of open windows for this app (0 = not running)
      property int windowCount: 0

@@ -65,7 +65,7 @@ Scope {
                     // Record window focus in history
                     const entry = DesktopEntries.byId(root.appId) ?? DesktopEntries.heuristicLookup(root.appId);
                     const appName = entry?.name ?? root.appId;
-                    const iconName = entry?.icon ?? AppSearch.guessIcon(root.appId);
+                    const iconName = entry?.icon ?? IconResolver.guessIcon(root.appId);
                     LauncherSearch.recordWindowFocus(root.appId, appName, toplevel.title, iconName);
                     
                     WindowManager.focusWindow(toplevel);

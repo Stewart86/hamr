@@ -616,6 +616,43 @@ test_all_responses_valid() {
 }
 
 # ============================================================================
+# Tests - Index (for main search integration)
+# ============================================================================
+
+test_index_returns_items() {
+    set_quicklinks '{
+        "quicklinks": [
+            {"name": "GitHub", "url": "https://github.com", "icon": "code"},
+            {"name": "Google", "url": "https://google.com?q={query}", "icon": "search"}
+        ]
+    }'
+    local result=$(hamr_test index)
+    
+    assert_type "$result" "index"
+    local count=$(json_get "$result" '.items | length')
+    assert_eq "$count" "2"
+}
+
+test_index_item_without_query_has_execute_name() {
+    # Items without {query} placeholder should have execute.name for history tracking
+    set_quicklinks '{"quicklinks": [{"name": "GitHub", "url": "https://github.com", "icon": "code"}]}'
+    local result=$(hamr_test index)
+    
+    local name=$(json_get "$result" '.items[0].execute.name')
+    assert_contains "$name" "GitHub"
+}
+
+test_index_item_with_query_uses_entrypoint() {
+    # Items with {query} placeholder should use entryPoint (no direct execute)
+    set_quicklinks '{"quicklinks": [{"name": "Google", "url": "https://google.com?q={query}", "icon": "search"}]}'
+    local result=$(hamr_test index)
+    
+    # Should have entryPoint instead of execute
+    local has_entrypoint=$(json_get "$result" '.items[0].entryPoint != null')
+    assert_eq "$has_entrypoint" "true"
+}
+
+# ============================================================================
 # Run
 # ============================================================================
 
@@ -671,4 +708,7 @@ run_tests \
     test_execute_search_has_close_flag \
     test_execute_includes_name \
     test_execute_includes_icon \
-    test_all_responses_valid
+    test_all_responses_valid \
+    test_index_returns_items \
+    test_index_item_without_query_has_execute_name \
+    test_index_item_with_query_uses_entrypoint

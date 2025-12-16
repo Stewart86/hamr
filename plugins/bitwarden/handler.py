@@ -470,6 +470,81 @@ def respond_execute(
     print(json.dumps({"type": "execute", "execute": execute}))
 
 
+# ===== INDEX =====
+
+
+def item_to_index_item(item: dict) -> dict:
+    """Convert a vault item to an index item for main search.
+
+    IMPORTANT: Never include passwords or sensitive data in index items.
+    Uses entryPoint for execution so credentials are fetched fresh on replay.
+    """
+    item_id = item.get("id", "")
+    name = item.get("name", "Unknown")
+    login = item.get("login", {}) or {}
+    username = login.get("username", "")
+    has_password = bool(login.get("password"))
+    has_totp = bool(login.get("totp"))
+
+    # Build actions with entryPoints (no passwords stored!)
+    actions = []
+    if username:
+        actions.append(
+            {
+                "id": "copy_username",
+                "name": "Copy Username",
+                "icon": "person",
+                "entryPoint": {
+                    "step": "action",
+                    "selected": {"id": item_id},
+                    "action": "copy_username",
+                },
+            }
+        )
+    if has_password:
+        actions.append(
+            {
+                "id": "copy_password",
+                "name": "Copy Password",
+                "icon": "key",
+                "entryPoint": {
+                    "step": "action",
+                    "selected": {"id": item_id},
+                    "action": "copy_password",
+                },
+            }
+        )
+    if has_totp:
+        actions.append(
+            {
+                "id": "copy_totp",
+                "name": "Copy TOTP",
+                "icon": "schedule",
+                "entryPoint": {
+                    "step": "action",
+                    "selected": {"id": item_id},
+                    "action": "copy_totp",
+                },
+            }
+        )
+
+    return {
+        "id": f"bitwarden:{item_id}",
+        "name": name,
+        "description": username,
+        "keywords": [username] if username else [],
+        "icon": get_item_icon(item),
+        "verb": "Copy Password" if has_password else "Copy Username",
+        "actions": actions,
+        # Default action: copy password if available, else username
+        "entryPoint": {
+            "step": "action",
+            "selected": {"id": item_id},
+            "action": "copy_password" if has_password else "copy_username",
+        },
+    }
+
+
 # ===== MAIN =====
 
 
@@ -479,6 +554,19 @@ def main():
     query = input_data.get("query", "").strip()
     selected = input_data.get("selected", {})
     action = input_data.get("action", "")
+
+    # ===== INDEX: Provide searchable items for main launcher =====
+    # Uses cached items only - does not require active session
+    # Never includes passwords - uses entryPoint for secure execution
+    if step == "index":
+        cached_items = load_cached_items()
+        if cached_items:
+            items = [item_to_index_item(item) for item in cached_items]
+            print(json.dumps({"type": "index", "items": items}))
+        else:
+            # No cache - return empty index
+            print(json.dumps({"type": "index", "items": []}))
+        return
 
     # Check bw is installed
     if not BW_PATH:

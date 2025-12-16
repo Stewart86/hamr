@@ -1,0 +1,25 @@
+{
+  "name": "Calculate",
+  "description": "Calculator with currency, units, and temperature conversion",
+  "icon": "calculate",
+  "match": {
+    "patterns": [
+      "^=",
+      "^[\\d\\.]+\\s*[\\+\\-\\*\\/\\^\\%]",
+      "^[\\+\\-\\*\\/\\^]",
+      "^\\(",
+      "^(sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|sqrt|cbrt|log|ln|exp|abs|ceil|floor|round|factorial|rand)\\s*\\(",
+      "^-?\\d+\\.?\\d*\\s*°?[cf](\\s|$)",
+      "^-?\\d+\\.?\\d*\\s*(celsius|fahrenheit)",
+      "^[$€£¥₹₽₩₪฿₫₴₸₺₼₾]",
+      "^(S|HK|A|C|NZ|NT|R|MX)\\$\\s*\\d",
+      "^(USD|EUR|GBP|JPY|CNY|SGD|AUD|CAD|CHF|HKD|NZD|SEK|NOK|DKK|KRW|INR|RUB|BRL|MXN|ZAR|TRY|THB|MYR|IDR|PHP|VND|PLN|CZK|HUF|ILS|AED|SAR|TWD|BTC|ETH)\\s*[\\d,]",
+      "^\\d+\\.?\\d*\\s*(USD|EUR|GBP|JPY|CNY|SGD|AUD|CAD|CHF|HKD|NZD|SEK|NOK|DKK|KRW|INR|RUB|BRL|MXN|ZAR|TRY|THB|MYR|IDR|PHP|VND|PLN|CZK|HUF|ILS|AED|SAR|TWD|BTC|ETH)",
+      "^\\d+\\.?\\d*\\s*(ft|feet|foot|in|inch|inches|mi|mile|miles|yd|yard|yards|m|meter|meters|metre|metres|cm|km|mm|nm|kg|kilogram|kilograms|g|gram|grams|lb|lbs|pound|pounds|oz|ounce|ounces|L|liter|liters|litre|litres|ml|gal|gallon|gallons|pt|pint|pints|cup|cups|tbsp|tsp|mph|km\\/h|kmh|kph|m\\/s|knot|knots|hp|kw|watt|watts|joule|joules|cal|calorie|calories|btu|byte|bytes|kb|mb|gb|tb|bit|bits|kbit|mbit|gbit)",
+      "\\d+\\.?\\d*\\s*%\\s*(of|off)\\s+",
+      "^\\d{1,2}:\\d{2}(:\\d{2})?\\s*[\\+\\-]",
+      "^\\d{1,2}\\s*(am|pm)"
+    ],
+    "priority": 100
+  }
+}

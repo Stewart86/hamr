@@ -1,5 +1,9 @@
 {
   "name": "Quicklinks",
   "description": "Search the web with quicklinks",
-  "icon": "link"
+  "icon": "link",
+  "index": {
+    "enabled": true,
+    "watchFiles": ["~/.config/hamr/quicklinks.json"]
+  }
 }

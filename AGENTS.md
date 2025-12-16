@@ -478,6 +478,66 @@ def main():
    ```
 4. Reload quickshell to detect new workflow folder
 
+### Match Patterns (Auto-Trigger)
+
+Plugins can define regex patterns in `manifest.json` that auto-trigger the plugin when the user's query matches. This allows plugins to intercept specific input patterns without requiring a prefix.
+
+**Manifest format:**
+```json
+{
+  "name": "Calculate",
+  "description": "Calculator with math, currency, units",
+  "icon": "calculate",
+  "match": {
+    "patterns": [
+      "^=",                                    // Explicit = prefix
+      "^[\\d\\.]+\\s*[\\+\\-\\*\\/\\^\\%]",   // Number + operator (5+, 3*)
+      "^\\(",                                  // Opening parenthesis
+      "^(sin|cos|sqrt)\\s*\\(",               // Math functions
+      "^[$\u20ac\u00a3]",                            // Currency symbols
+      "^\\d+\\.?\\d*\\s*(USD|EUR|GBP)"        // Amount + currency code
+    ],
+    "priority": 100
+  }
+}
+```
+
+**How it works:**
+1. Patterns are compiled to RegExp on plugin load
+2. When user types (min 2 chars), patterns are checked
+3. Highest priority matching plugin is auto-started
+4. Plugin receives `step: "search"` with the full query
+
+**Pattern rules:**
+- Case-insensitive matching (`i` flag)
+- Must escape special regex chars in JSON (`\\d` not `\d`)
+- Patterns are tested against full query string
+- First pattern to match wins within a plugin
+
+**Priority:**
+- Higher `priority` value = checked first
+- Default priority is 0
+- If multiple plugins match with same priority, first match wins
+
+**Example: Calculator patterns**
+
+| Pattern | Matches | Purpose |
+|---------|---------|---------|
+| `^=` | `=5+3` | Explicit calculator prefix |
+| `^[\d\.]+\s*[\+\-\*\/]` | `5+`, `3.14*` | Number + operator |
+| `^\(` | `(5+3)` | Expression in parens |
+| `^[$]` | `$50` | USD currency |
+| `^\d+\s*c$` | `10c` | Temperature (Celsius) |
+
+**Testing patterns:**
+```bash
+# Test if pattern matches
+python3 -c "import re; print(re.match(r'^[\d\.]+\s*[\+\-\*\/]', '5+3', re.I))"
+
+# Test plugin with matched query
+echo '{"step": "search", "query": "5+3"}' | python3 plugins/calculate/handler.py
+```
+
 ### Workflow Execution History
 
 When a workflow action includes `name` in the execute response, it's saved to search history and becomes fuzzy-searchable.
@@ -654,6 +714,37 @@ def main():
 | `wallpaper/` | `/wallpaper` | imageBrowser, history tracking |
 | `topcpu/` | `/topcpu` | Polling API, process management |
 | `topmem/` | `/topmem` | Polling API, process management |
+
+## Index Search Isolation
+
+Search within a specific plugin's index using the `pluginId:query` prefix pattern. This allows focused search without starting the full plugin UI.
+
+**Usage:**
+```
+emoji:smile      # Search only emoji index for "smile"
+apps:fire        # Search only apps index for "fire"  
+clipboard:code   # Search only clipboard index for "code"
+shell:git        # Search only shell history for "git"
+quicklinks:gh    # Search only quicklinks for "gh"
+```
+
+**Available prefixes** (plugins with index support):
+- `apps:` - Installed applications
+- `emoji:` - Emoji picker (1800+ emojis)
+- `clipboard:` - Recent clipboard entries
+- `shell:` - Shell command history
+- `quicklinks:` - User quicklinks
+
+**How it works:**
+1. Type `pluginId:` to enter isolation mode
+2. Everything after the colon is the search query
+3. Results show only items from that plugin's index
+4. Press Backspace to exit isolation mode (removes the prefix)
+
+**Technical details:**
+- Uses `parseIndexIsolationPrefix()` in LauncherSearch.qml
+- Calls `PluginRunner.getIndexedItemsForPlugin(pluginId)`
+- Only plugins with `index.enabled: true` in manifest support isolation
 
 ## Image Browser Response Type
 

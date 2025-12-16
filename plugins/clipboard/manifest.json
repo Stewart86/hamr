@@ -1,5 +1,9 @@
 {
   "name": "Clipboard",
   "description": "Browse and manage clipboard history",
-  "icon": "content_paste"
+  "icon": "content_paste",
+  "index": {
+    "enabled": true,
+    "reindex": "30s"
+  }
 }

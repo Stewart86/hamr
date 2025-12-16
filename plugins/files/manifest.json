@@ -1,5 +1,6 @@
 {
   "name": "Files",
   "description": "Search and browse files",
-  "icon": "folder_open"
+  "icon": "folder_open",
+  "prefix": "~"
 }

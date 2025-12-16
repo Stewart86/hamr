@@ -1,5 +1,9 @@
 {
   "name": "Apps",
   "description": "Browse and launch applications",
-  "icon": "apps"
+  "icon": "apps",
+  "index": {
+    "enabled": true,
+    "reindex": "5m"
+  }
 }

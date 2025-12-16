@@ -5,11 +5,18 @@ import qs.modules.common.functions
 import Quickshell
 
 /**
- * - Eases fuzzy searching for applications by name
- * - Guesses icon name for window class name
+ * IconResolver - Icon lookup utilities for window management
+ * 
+ * Resolves window class names to appropriate icons using:
+ * - Desktop entry lookups
+ * - Known substitution mappings
+ * - Regex-based transformations
+ * - Heuristic guessing
  */
 Singleton {
     id: root
+    
+    // Substitutions for known window class names that don't match desktop entry IDs
     property var substitutions: ({
         "code-url-handler": "visual-studio-code",
         "Code": "visual-studio-code",
@@ -19,6 +26,7 @@ Singleton {
         "wpsoffice": "wps-office2019-kprometheus",
         "footclient": "foot",
     })
+    
     property var regexSubstitutions: [
         {
             "regex": /^steam_app_(\d+)$/,
@@ -37,43 +45,6 @@ Singleton {
             "replace": "system-lock-screen"
         }
     ]
-
-    // Deduped list to fix double icons
-    readonly property list<DesktopEntry> list: Array.from(DesktopEntries.applications.values)
-        .filter((app, index, self) => 
-            index === self.findIndex((t) => (
-                t.id === app.id
-            ))
-    )
-    
-    // Combine name + keywords for fuzzy matching (e.g., "whatsapp" -> ZapZap)
-    readonly property var preppedNames: list.map(a => ({
-        name: Fuzzy.prepare(`${a.name} ${(a.keywords ?? []).join(' ')}`),
-        entry: a
-    }))
-
-    readonly property var preppedIcons: list.map(a => ({
-        name: Fuzzy.prepare(`${a.icon} `),
-        entry: a
-    }))
-
-    function fuzzyQuery(search: string): var {
-        return Fuzzy.go(search, preppedNames, {
-            all: true,
-            key: "name"
-        }).map(r => r.obj.entry);
-    }
-
-    // Returns results with scores for unified ranking
-    function fuzzyQueryWithScores(search: string): var {
-        return Fuzzy.go(search, preppedNames, {
-            all: true,
-            key: "name"
-        }).map(r => ({
-            entry: r.obj.entry,
-            score: r._score
-        }));
-    }
 
     function iconExists(iconName) {
         if (!iconName || iconName.length == 0) return false;
@@ -134,25 +105,7 @@ Singleton {
         const undescoreToKebabGuess = getUndescoreToKebabAppName(str);
         if (iconExists(undescoreToKebabGuess)) return undescoreToKebabGuess;
 
-        // Search in desktop entries
-        const iconSearchResults = Fuzzy.go(str, preppedIcons, {
-            all: true,
-            key: "name"
-        }).map(r => {
-            return r.obj.entry
-        });
-        if (iconSearchResults.length > 0) {
-            const guess = iconSearchResults[0].icon
-            if (iconExists(guess)) return guess;
-        }
-
-        const nameSearchResults = root.fuzzyQuery(str);
-        if (nameSearchResults.length > 0) {
-            const guess = nameSearchResults[0].icon
-            if (iconExists(guess)) return guess;
-        }
-
-        // Quickshell's desktop entry lookup
+        // Quickshell's heuristic desktop entry lookup
         const heuristicEntry = DesktopEntries.heuristicLookup(str);
         if (heuristicEntry) return heuristicEntry.icon;
 

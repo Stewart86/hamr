@@ -201,12 +201,14 @@ RippleButton {
     onClicked: {
         // For plugin results, don't auto-close - let the handler decide via execute.close
         // For plugin entry (starting a plugin), keep open
+        // For indexed items with keepOpen (e.g., viewing a note), keep open
         // For everything else (apps, actions, scripts), close first to release HyprlandFocusGrab.
         // This fixes region selectors like `slurp` (screenshot) not receiving pointer input.
         const isPlugin = entry?.resultType === LauncherSearchResult.ResultType.PluginEntry ||
                           entry?.resultType === LauncherSearchResult.ResultType.PluginResult;
+        const shouldKeepOpen = entry?.keepOpen === true;
 
-        if (isPlugin) {
+        if (isPlugin || shouldKeepOpen) {
             root.itemExecute()
             return
         }

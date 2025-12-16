@@ -1,5 +1,9 @@
 {
   "name": "Notes",
   "description": "Quick notes - create, read, edit, delete",
-  "icon": "sticky_note_2"
+  "icon": "sticky_note_2",
+  "index": {
+    "enabled": true,
+    "watchFiles": ["~/.config/hamr/notes.json"]
+  }
 }

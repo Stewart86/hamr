@@ -1,5 +1,9 @@
 {
   "name": "Emoji",
   "description": "Search and copy emojis",
-  "icon": "emoji_emotions"
+  "icon": "emoji_emotions",
+  "index": {
+    "enabled": true,
+    "reindex": "never"
+  }
 }

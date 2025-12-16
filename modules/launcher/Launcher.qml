@@ -94,8 +94,6 @@ Scope {
                         if (!GlobalStates.imageBrowserOpen) {
                             delayedGrabTimer.start();
                         }
-                        // Refresh plugins to detect newly added ones (workaround for symlink detection)
-                        PluginRunner.refreshPlugins();
                     }
                 }
             }

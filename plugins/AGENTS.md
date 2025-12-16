@@ -728,6 +728,210 @@ For desktop application icons from `.desktop` files, set `"iconType": "system"`:
 
 ---
 
+## Plugin Indexing
+
+Plugins can provide searchable items that appear in the main launcher search without entering the plugin. This enables fast access to plugin data alongside apps, clipboard, and other search results.
+
+### Enabling Indexing
+
+Add `index` configuration to your `manifest.json`:
+
+```json
+{
+  "name": "My Plugin",
+  "description": "Description",
+  "icon": "star",
+  "index": {
+    "enabled": true,
+    "watchFiles": ["~/.config/hamr/my-data.json"],
+    "reindex": "5m"
+  }
+}
+```
+
+| Field        | Type     | Description                                                    |
+| ------------ | -------- | -------------------------------------------------------------- |
+| `enabled`    | bool     | Enable indexing for this plugin                                |
+| `watchFiles` | string[] | Files to watch for changes (triggers reindex on change)        |
+| `reindex`    | string   | Fallback polling interval: `"30s"`, `"5m"`, `"1h"`, or `"never"` |
+
+**Prefer `watchFiles` over `reindex`** - file watching is more efficient than polling.
+
+### Handling the Index Step
+
+When Hamr needs to index your plugin, it sends:
+
+```python
+{
+    "step": "index",
+    "mode": "full"      # "full" or "incremental"
+}
+```
+
+Respond with indexable items:
+
+```python
+{
+    "type": "index",
+    "items": [
+        {
+            "id": "unique-id",           # Required: unique identifier
+            "name": "Display Name",      # Required: searchable name
+            "keywords": ["search", "terms"],  # Optional: additional search terms
+            "icon": "star",              # Optional: material icon
+            "iconType": "material",      # Optional: "material" (default) or "system"
+            "execute": {                 # Required: what to do when selected
+                "command": ["xdg-open", "https://example.com"],
+                "notify": "Opened link"
+            }
+        }
+    ]
+}
+```
+
+### Index Item Properties
+
+| Field      | Type     | Required | Description                                       |
+| ---------- | -------- | -------- | ------------------------------------------------- |
+| `id`       | string   | Yes      | Unique identifier for the item                    |
+| `name`     | string   | Yes      | Display name (searched by fuzzy match)            |
+| `keywords` | string[] | No       | Additional search terms                           |
+| `icon`     | string   | No       | Icon name (material icon or system icon)          |
+| `iconType` | string   | No       | `"material"` (default) or `"system"`              |
+| `execute`  | object   | Yes      | Action to execute: `{command, notify, name}`      |
+
+### History Tracking for Index Items
+
+To enable frecency-based ranking for indexed items, add a `name` field to `execute`:
+
+```python
+"execute": {
+    "command": ["xdg-open", url],
+    "notify": "Opened link",
+    "name": f"Open {link_name}",  # Enables history tracking
+}
+```
+
+**With `execute.name`:** Item is tracked in search history, frequently used items rank higher.
+
+**Without `execute.name`:** Item is NOT tracked, no frecency boost.
+
+Use history tracking for:
+- Frequently accessed items (emojis, quicklinks, snippets)
+- Items where user preference matters
+
+Skip history tracking for:
+- Ephemeral content (clipboard entries, shell history)
+- Items that change frequently
+
+### Example: Quicklinks Index
+
+```python
+def main():
+    input_data = json.load(sys.stdin)
+    step = input_data.get("step", "initial")
+
+    # Handle index request
+    if step == "index":
+        quicklinks = load_quicklinks()
+        print(json.dumps({
+            "type": "index",
+            "items": [
+                {
+                    "id": f"quicklink:{ql['name']}",
+                    "name": ql["name"],
+                    "keywords": [ql.get("keyword", "")],
+                    "icon": "link",
+                    "execute": {
+                        "command": ["xdg-open", ql["url"]],
+                        "name": f"Open {ql['name']}",  # Enable history tracking
+                    }
+                }
+                for ql in quicklinks
+            ]
+        }))
+        return
+
+    # ... rest of handler
+```
+
+### watchFiles: File Change Detection
+
+Instead of polling on an interval, use `watchFiles` to trigger reindex when data files change:
+
+```json
+{
+  "index": {
+    "enabled": true,
+    "watchFiles": [
+      "~/.config/hamr/quicklinks.json",
+      "~/.local/share/my-plugin/data.json"
+    ]
+  }
+}
+```
+
+- **`~` is expanded** to home directory
+- **Multiple files supported** - useful for shell history (zsh, bash, fish)
+- **Debounced** - rapid file changes are batched (500ms delay)
+- **More efficient** than polling - only reindex when data actually changes
+
+**Shell example** (watches all possible history files):
+
+```json
+{
+  "index": {
+    "enabled": true,
+    "watchFiles": [
+      "~/.zsh_history",
+      "~/.bash_history",
+      "~/.local/share/fish/fish_history"
+    ]
+  }
+}
+```
+
+### Incremental Indexing
+
+For large datasets, support incremental updates:
+
+```python
+if step == "index":
+    mode = input_data.get("mode", "full")
+    since = input_data.get("since")  # Timestamp of last index (for incremental)
+    
+    if mode == "incremental" and since:
+        # Return only items changed since last index
+        new_items = get_items_since(since)
+        removed_ids = get_removed_ids_since(since)
+        print(json.dumps({
+            "type": "index",
+            "mode": "incremental",
+            "items": new_items,
+            "remove": removed_ids  # IDs to remove from index
+        }))
+    else:
+        # Full index - return all items
+        print(json.dumps({
+            "type": "index",
+            "items": get_all_items()
+        }))
+```
+
+### Index Search Isolation
+
+Users can search within a specific plugin's index using the `pluginId:query` prefix:
+
+```
+emoji:smile      # Search only emoji index
+quicklinks:gh    # Search only quicklinks
+clipboard:code   # Search only clipboard
+```
+
+This is automatic for any plugin with `index.enabled: true`.
+
+---
+
 ## Keyboard Navigation
 
 Users navigate with:

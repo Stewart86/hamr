@@ -1,0 +1,11 @@
+{
+  "name": "URL",
+  "description": "Open URLs in browser",
+  "icon": "open_in_browser",
+  "match": {
+    "patterns": [
+      "^[a-zA-Z0-9][a-zA-Z0-9-]*\\.[a-zA-Z]{2,}"
+    ],
+    "priority": 90
+  }
+}

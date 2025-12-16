@@ -1,5 +1,9 @@
 {
   "name": "Snippets",
   "description": "Text snippets for quick insertion",
-  "icon": "content_paste"
+  "icon": "content_paste",
+  "index": {
+    "enabled": true,
+    "watchFiles": ["~/.config/hamr/snippets.json"]
+  }
 }

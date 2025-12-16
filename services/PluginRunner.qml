@@ -87,6 +87,479 @@ Singleton {
      // - command: Direct shell command for simple replay (optional)
      // - entryPoint: Plugin step to replay for complex actions (optional)
      signal actionExecuted(var actionInfo)
+     
+     // Signal when plugin index is updated (for LauncherSearch to rebuild searchables)
+     signal pluginIndexChanged(string pluginId)
+
+    // ==================== PLUGIN INDEXING ====================
+    // Plugins can provide searchable items via step: "index"
+    // These items appear in main search without entering the plugin
+    
+    // Indexed items per plugin: { pluginId: { items: [...], lastIndexed: timestamp } }
+    property var pluginIndexes: ({})
+    
+    // Track which plugins are currently being indexed (to avoid concurrent requests)
+    property var indexingPlugins: ({})
+    
+    // Queue of plugins pending indexing (since we can only run one at a time)
+    property var indexQueue: []
+    
+    // Reindex timers per plugin (created dynamically based on manifest)
+    property var reindexTimers: ({})
+    
+    // Parse reindex interval from manifest string (e.g., "30s", "5m", "1h", "never")
+    function parseReindexInterval(intervalStr) {
+        if (!intervalStr || intervalStr === "never") return 0;
+        
+        const match = intervalStr.match(/^(\d+)(s|m|h)$/);
+        if (!match) return 0;
+        
+        const value = parseInt(match[1], 10);
+        const unit = match[2];
+        
+        switch (unit) {
+            case "s": return value * 1000;
+            case "m": return value * 60 * 1000;
+            case "h": return value * 60 * 60 * 1000;
+            default: return 0;
+        }
+    }
+    
+    // Request index from a plugin
+    // mode: "full" (replace all items) or "incremental" (merge/remove)
+    function indexPlugin(pluginId, mode = "full") {
+        const plugin = root.plugins.find(p => p.id === pluginId);
+        if (!plugin || !plugin.manifest) {
+            console.warn(`[PluginRunner] indexPlugin: Plugin not found: ${pluginId}`);
+            return false;
+        }
+        
+        // Check if plugin supports indexing
+        const indexConfig = plugin.manifest.index;
+        if (!indexConfig || !indexConfig.enabled) {
+            return false;
+        }
+        
+        // Don't queue if already queued or indexing
+        if (root.indexingPlugins[pluginId]) {
+            return false;
+        }
+        if (root.indexQueue.some(item => item.pluginId === pluginId)) {
+            return false;
+        }
+        
+        // Add to queue
+        root.indexQueue = [...root.indexQueue, { pluginId, mode }];
+        
+        // Start processing queue if not already running
+        processIndexQueue();
+        
+        return true;
+    }
+    
+    // Process the next item in the index queue
+    function processIndexQueue() {
+        // Don't start if already indexing or queue is empty
+        if (indexProcess.running || root.indexQueue.length === 0) {
+            return;
+        }
+        
+        // Get next item from queue
+        const next = root.indexQueue[0];
+        root.indexQueue = root.indexQueue.slice(1);
+        
+        const plugin = root.plugins.find(p => p.id === next.pluginId);
+        if (!plugin || !plugin.manifest) {
+            // Skip invalid, process next
+            processIndexQueue();
+            return;
+        }
+        
+        root.indexingPlugins[next.pluginId] = true;
+        
+        const handlerPath = plugin.manifest._handlerPath ?? (plugin.path + "/handler.py");
+        const input = {
+            step: "index",
+            mode: next.mode
+        };
+        
+        // For incremental, include timestamp of last index
+        if (next.mode === "incremental" && root.pluginIndexes[next.pluginId]) {
+            input.since = root.pluginIndexes[next.pluginId].lastIndexed;
+        }
+        
+        const inputJson = JSON.stringify(input);
+        const escapedInput = inputJson.replace(/'/g, "'\\''");
+        
+        // Start indexing process
+        indexProcess.pluginId = next.pluginId;
+        indexProcess.workingDirectory = plugin.path;
+        indexProcess.command = ["bash", "-c", `echo '${escapedInput}' | python3 "${handlerPath}"`];
+        indexProcess.running = true;
+    }
+    
+    // Index all plugins that support indexing (called on startup)
+    // If cache was loaded, use incremental mode for faster startup
+    function indexAllPlugins() {
+        const indexablePlugins = root.plugins.filter(p => p.manifest?.index?.enabled);
+        console.log(`[PluginRunner] Starting indexing for ${indexablePlugins.length} plugins: ${indexablePlugins.map(p => p.id).join(", ")}`);
+        
+        for (const plugin of indexablePlugins) {
+            // Use incremental if we have cached data for this plugin
+            const hasCachedData = root.pluginIndexes[plugin.id]?.items?.length > 0;
+            const mode = hasCachedData ? "incremental" : "full";
+            console.log(`[PluginRunner] Queueing ${plugin.id} for ${mode} index (cached: ${hasCachedData ? root.pluginIndexes[plugin.id].items.length + " items" : "none"})`);
+            root.indexPlugin(plugin.id, mode);
+        }
+    }
+    
+    // Handle index response from plugin
+    function handleIndexResponse(pluginId, response) {
+        root.indexingPlugins[pluginId] = false;
+        
+        if (!response || response.type !== "index") {
+            console.warn(`[PluginRunner] Invalid index response from ${pluginId}`);
+            return;
+        }
+        
+        const isIncremental = response.mode === "incremental";
+        const itemCount = response.items?.length ?? 0;
+        const now = Date.now();
+        
+        if (isIncremental && root.pluginIndexes[pluginId]) {
+            // Incremental: merge new items, remove deleted
+            const existing = root.pluginIndexes[pluginId].items ?? [];
+            const newItems = response.items ?? [];
+            const removeIds = new Set(response.remove ?? []);
+            
+            // Remove deleted items
+            let merged = existing.filter(item => !removeIds.has(item.id));
+            
+            // Update or add new items
+            const existingIds = new Set(merged.map(item => item.id));
+            for (const item of newItems) {
+                if (existingIds.has(item.id)) {
+                    // Update existing
+                    merged = merged.map(i => i.id === item.id ? item : i);
+                } else {
+                    // Add new
+                    merged.push(item);
+                }
+            }
+            
+            root.pluginIndexes[pluginId] = {
+                items: merged,
+                lastIndexed: now
+            };
+            console.log(`[PluginRunner] Indexed ${pluginId}: ${itemCount} items (incremental, merged to ${merged.length})`);
+        } else {
+            // Full: replace all items
+            root.pluginIndexes[pluginId] = {
+                items: response.items ?? [],
+                lastIndexed: now
+            };
+            console.log(`[PluginRunner] Indexed ${pluginId}: ${itemCount} items (full)`);
+        }
+        
+        // Notify listeners (LauncherSearch) that index changed
+        root.pluginIndexChanged(pluginId);
+        
+        // Save cache to disk (debounced)
+        root.saveIndexCache();
+        
+        // Setup reindex timer if configured (fallback for plugins without file watchers)
+        setupReindexTimer(pluginId);
+        
+        // Setup file watchers if configured (preferred over polling)
+        setupFileWatchers(pluginId);
+    }
+    
+    // Setup reindex timer for a plugin based on manifest config
+    function setupReindexTimer(pluginId) {
+        const plugin = root.plugins.find(p => p.id === pluginId);
+        if (!plugin?.manifest?.index) return;
+        
+        const intervalMs = parseReindexInterval(plugin.manifest.index.reindex);
+        if (intervalMs <= 0) return;
+        
+        // Destroy existing timer if any
+        if (root.reindexTimers[pluginId]) {
+            root.reindexTimers[pluginId].destroy();
+        }
+        
+        // Create new timer
+        const timer = Qt.createQmlObject(
+            `import QtQuick; Timer { 
+                interval: ${intervalMs}; 
+                repeat: true; 
+                running: true;
+                property string targetPluginId: "${pluginId}"
+            }`,
+            root,
+            "reindexTimer_" + pluginId
+        );
+        
+        timer.triggered.connect(() => {
+            root.indexPlugin(pluginId, "incremental");
+        });
+        
+        root.reindexTimers[pluginId] = timer;
+    }
+    
+    // ==================== FILE WATCHERS ====================
+    // Plugins can define watchFiles in manifest to trigger reindex on file change.
+    // More efficient than polling - only reindex when data actually changes.
+    //
+    // Manifest format:
+    //   "index": {
+    //     "enabled": true,
+    //     "watchFiles": ["~/.config/hamr/quicklinks.json", "~/.zsh_history"]
+    //   }
+    // ===========================================================
+    
+    // File watchers per plugin: { pluginId: [FileView, ...] }
+    property var fileWatchers: ({})
+    
+    // Debounce timers for file change events (avoid multiple reindexes)
+    property var fileWatcherDebounce: ({})
+    
+    // Expand ~ to home directory
+    function expandPath(path) {
+        if (path.startsWith("~/")) {
+            return Directories.home + path.substring(1);
+        }
+        return path;
+    }
+    
+    // Setup file watchers for a plugin based on manifest config
+    function setupFileWatchers(pluginId) {
+        const plugin = root.plugins.find(p => p.id === pluginId);
+        if (!plugin?.manifest?.index?.watchFiles) return;
+        
+        const watchFiles = plugin.manifest.index.watchFiles;
+        if (!Array.isArray(watchFiles) || watchFiles.length === 0) return;
+        
+        // Destroy existing watchers if any
+        if (root.fileWatchers[pluginId]) {
+            for (const watcher of root.fileWatchers[pluginId]) {
+                watcher.destroy();
+            }
+        }
+        
+        const watchers = [];
+        
+        for (const filePath of watchFiles) {
+            const expandedPath = root.expandPath(filePath);
+            
+            // Create FileView watcher using Qt.createQmlObject
+            // watchChanges: true is required for onFileChanged to fire
+            const watcher = Qt.createQmlObject(
+                `import Quickshell.Io;
+                FileView {
+                    property string targetPluginId: "${pluginId}"
+                    path: "${expandedPath}"
+                    watchChanges: true
+                    onFileChanged: {
+                        root.onWatchedFileChanged(targetPluginId);
+                    }
+                }`,
+                root,
+                "fileWatcher_" + pluginId + "_" + filePath
+            );
+            
+            watchers.push(watcher);
+        }
+        
+        root.fileWatchers[pluginId] = watchers;
+        console.log(`[PluginRunner] Setup ${watchers.length} file watcher(s) for ${pluginId}: ${watchFiles.join(", ")}`);
+    }
+    
+    // Called when a watched file changes - debounced reindex
+    function onWatchedFileChanged(pluginId) {
+        console.log(`[PluginRunner] File change detected for ${pluginId}`);
+        
+        // Debounce: wait 500ms after last change before reindexing
+        // This handles rapid file changes (e.g., multiple writes)
+        if (root.fileWatcherDebounce[pluginId]) {
+            root.fileWatcherDebounce[pluginId].restart();
+            return;
+        }
+        
+        // Create debounce timer
+        const timer = Qt.createQmlObject(
+            `import QtQuick; Timer {
+                interval: 500;
+                repeat: false;
+                running: true;
+                property string targetPluginId: "${pluginId}"
+            }`,
+            root,
+            "fileWatcherDebounce_" + pluginId
+        );
+        
+        timer.triggered.connect(() => {
+            console.log(`[PluginRunner] File changed for ${pluginId}, triggering reindex`);
+            root.indexPlugin(pluginId, "incremental");
+            // Clean up timer after use
+            timer.destroy();
+            delete root.fileWatcherDebounce[pluginId];
+        });
+        
+        root.fileWatcherDebounce[pluginId] = timer;
+    }
+    
+    // Get all indexed items across all plugins (for LauncherSearch)
+    function getAllIndexedItems() {
+        const allItems = [];
+        for (const [pluginId, indexData] of Object.entries(root.pluginIndexes)) {
+            const plugin = root.plugins.find(p => p.id === pluginId);
+            const pluginName = plugin?.manifest?.name ?? pluginId;
+            
+            for (const item of (indexData.items ?? [])) {
+                // Copy item properties and add plugin metadata
+                const enrichedItem = Object.assign({}, item, {
+                    _pluginId: pluginId,
+                    _pluginName: pluginName
+                });
+                allItems.push(enrichedItem);
+            }
+        }
+        return allItems;
+    }
+    
+    // Get indexed items for a specific plugin (for isolated search)
+    function getIndexedItemsForPlugin(pluginId) {
+        const indexData = root.pluginIndexes[pluginId];
+        if (!indexData?.items) return [];
+        
+        const plugin = root.plugins.find(p => p.id === pluginId);
+        const pluginName = plugin?.manifest?.name ?? pluginId;
+        
+        return indexData.items.map(item => Object.assign({}, item, {
+            _pluginId: pluginId,
+            _pluginName: pluginName
+        }));
+    }
+    
+    // Get list of plugins that have indexed items (for prefix autocomplete)
+    function getIndexedPluginIds() {
+        return Object.keys(root.pluginIndexes).filter(id => 
+            root.pluginIndexes[id]?.items?.length > 0
+        );
+    }
+    
+    // Process for indexing plugins (separate from main plugin process)
+    Process {
+        id: indexProcess
+        property string pluginId: ""
+        
+        stdout: StdioCollector {
+            id: indexStdout
+            onStreamFinished: {
+                const output = indexStdout.text.trim();
+                if (!output) {
+                    root.indexingPlugins[indexProcess.pluginId] = false;
+                    // Process next in queue
+                    root.processIndexQueue();
+                    return;
+                }
+                
+                try {
+                    const response = JSON.parse(output);
+                    root.handleIndexResponse(indexProcess.pluginId, response);
+                } catch (e) {
+                    console.warn(`[PluginRunner] Failed to parse index response from ${indexProcess.pluginId}: ${e}`);
+                    root.indexingPlugins[indexProcess.pluginId] = false;
+                }
+                // Process next in queue
+                root.processIndexQueue();
+            }
+        }
+        
+        stderr: SplitParser {
+            onRead: data => console.warn(`[PluginRunner] index stderr (${indexProcess.pluginId}): ${data}`)
+        }
+        
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0) {
+                console.warn(`[PluginRunner] Index process for ${indexProcess.pluginId} exited with code ${exitCode}`);
+                root.indexingPlugins[indexProcess.pluginId] = false;
+                // Process next in queue even on failure
+                root.processIndexQueue();
+            }
+        }
+    }
+    
+    // ==================== INDEX PERSISTENCE ====================
+    // Cache indexes to disk for faster startup.
+    // On startup: load cache, then trigger incremental reindex.
+    // After indexing: save cache to disk.
+    // =============================================================
+    
+    property bool indexCacheLoaded: false
+    
+    // Load cached indexes from disk
+    FileView {
+        id: indexCacheFile
+        path: Directories.pluginIndexCache
+        
+        onLoaded: {
+            try {
+                const data = JSON.parse(indexCacheFile.text());
+                if (data.indexes && typeof data.indexes === "object") {
+                    root.pluginIndexes = data.indexes;
+                    
+                    // Log cache loading stats
+                    const pluginIds = Object.keys(data.indexes);
+                    const totalItems = pluginIds.reduce((sum, id) => sum + (data.indexes[id]?.items?.length ?? 0), 0);
+                    console.log(`[PluginRunner] Loaded index cache: ${pluginIds.length} plugins, ${totalItems} total items`);
+                    for (const pluginId of pluginIds) {
+                        const itemCount = data.indexes[pluginId]?.items?.length ?? 0;
+                        console.log(`[PluginRunner]   - ${pluginId}: ${itemCount} items`);
+                        root.pluginIndexChanged(pluginId);
+                    }
+                }
+            } catch (e) {
+                console.log("[PluginRunner] Failed to parse index cache:", e);
+            }
+            root.indexCacheLoaded = true;
+        }
+        
+        onLoadFailed: error => {
+            if (error !== FileViewError.FileNotFound) {
+                console.log("[PluginRunner] Failed to load index cache:", error);
+            } else {
+                console.log("[PluginRunner] No index cache found, will perform full index");
+            }
+            root.indexCacheLoaded = true;
+        }
+    }
+    
+    // Save indexes to disk (debounced to avoid excessive writes)
+    Timer {
+        id: saveIndexCacheTimer
+        interval: 1000  // Wait 1 second after last index change before saving
+        onTriggered: root.doSaveIndexCache()
+    }
+    
+    function saveIndexCache() {
+        saveIndexCacheTimer.restart();
+    }
+    
+    function doSaveIndexCache() {
+        const pluginIds = Object.keys(root.pluginIndexes);
+        const totalItems = pluginIds.reduce((sum, id) => sum + (root.pluginIndexes[id]?.items?.length ?? 0), 0);
+        console.log(`[PluginRunner] Saving index cache: ${pluginIds.length} plugins, ${totalItems} total items`);
+        
+        const data = {
+            version: 1,
+            savedAt: Date.now(),
+            indexes: root.pluginIndexes
+        };
+        const json = JSON.stringify(data);
+        // Use FileView.setText to write
+        indexCacheFile.setText(json);
+    }
 
     // ==================== PLUGIN DISCOVERY ====================
     
@@ -167,6 +640,8 @@ Singleton {
                 root.pendingPluginStart = "";
                 root.startPlugin(pluginId);
             }
+            // Index all plugins that support indexing
+            root.indexAllPlugins();
             return;
         }
         
@@ -201,14 +676,19 @@ Singleton {
                     
                     // Skip if plugin already exists (prevents duplicates from race conditions)
                     if (!root.plugins.some(p => p.id === manifestLoader.pluginId)) {
-                        const updated = root.plugins.slice();
-                        updated.push({
+                        const newPlugin = {
                             id: manifestLoader.pluginId,
                             path: manifestLoader.pluginPath,
                             manifest: manifest,
                             isBuiltin: manifestLoader.isBuiltin
-                        });
+                        };
+                        
+                        const updated = root.plugins.slice();
+                        updated.push(newPlugin);
                         root.plugins = updated;
+                        
+                        // Build match pattern cache if plugin has patterns
+                        root.buildMatchPatternCache(newPlugin);
                     }
                 } catch (e) {
                     console.warn(`[PluginRunner] Failed to parse manifest for ${manifestLoader.pluginId}:`, e);
@@ -535,6 +1015,56 @@ Singleton {
          sendToPlugin(input);
          return true;
      }
+     
+     // Execute an entryPoint action with UI visible (not replay mode)
+     // Used for indexed items that open a view (e.g., viewing a note)
+     // Returns true if action was initiated, false if plugin not found
+     function executeEntryPoint(pluginId, entryPoint) {
+         console.log(`[PluginRunner] executeEntryPoint: ${pluginId}, ${JSON.stringify(entryPoint)}`);
+         const plugin = root.plugins.find(w => w.id === pluginId);
+         if (!plugin || !plugin.manifest || !entryPoint) {
+             console.log(`[PluginRunner] executeEntryPoint failed: plugin=${!!plugin}, manifest=${!!plugin?.manifest}, entryPoint=${!!entryPoint}`);
+             return false;
+         }
+         
+         const session = generateSessionId();
+         
+         root.activePlugin = {
+             id: plugin.id,
+             path: plugin.path,
+             manifest: plugin.manifest,
+             session: session
+         };
+         root.pluginResults = [];
+         root.pluginCard = null;
+         root.pluginForm = null;
+         root.pluginPrompt = "";
+         root.pluginPlaceholder = "";
+         root.pluginError = "";
+         root.inputMode = "realtime";
+         root.replayMode = false;  // Keep UI visible
+         root.navigationDepth = 1;  // We're entering at depth 1 (not initial view)
+         
+         // Build input from entryPoint
+         const input = {
+             step: entryPoint.step ?? "action",
+             session: session
+         };
+         
+         if (entryPoint.selected) {
+             input.selected = entryPoint.selected;
+             root.lastSelectedItem = entryPoint.selected.id ?? null;
+         }
+         if (entryPoint.action) {
+             input.action = entryPoint.action;
+         }
+         if (entryPoint.query) {
+             input.query = entryPoint.query;
+         }
+         
+         sendToPlugin(input);
+         return true;
+     }
     
     // ==================== INTERNAL ====================
     
@@ -837,5 +1367,99 @@ Singleton {
          }
          return Fuzzy.go(query, root.preppedPlugins, { key: "name", limit: 10 })
              .map(r => r.obj.plugin);
+     }
+     
+     // ==================== MATCH PATTERNS ====================
+     // Plugins can define regex patterns in manifest.json that auto-trigger
+     // the plugin when the user's query matches any pattern.
+     //
+     // Manifest format:
+     //   "match": {
+     //     "patterns": ["^=", "^\\d+\\s*[+\\-*/]", ...],
+     //     "priority": 100  // Higher = checked first (optional, default 0)
+     //   }
+     //
+     // The plugin with highest priority that matches is selected.
+     // If multiple plugins match with same priority, first match wins.
+     // ===========================================================
+     
+     // Compiled regex cache: { pluginId: [RegExp, ...] }
+     property var matchPatternCache: ({})
+     
+     // Build regex cache for a plugin (called when plugins load)
+     function buildMatchPatternCache(plugin) {
+         if (!plugin?.manifest?.match?.patterns) return;
+         
+         const patterns = plugin.manifest.match.patterns;
+         const compiled = [];
+         
+         for (const pattern of patterns) {
+             try {
+                 compiled.push(new RegExp(pattern, "i"));
+             } catch (e) {
+                 console.warn(`[PluginRunner] Invalid match pattern for ${plugin.id}: ${pattern}`);
+             }
+         }
+         
+         if (compiled.length > 0) {
+             root.matchPatternCache[plugin.id] = compiled;
+         }
+     }
+     
+     // Check if query matches any plugin's patterns
+     // Returns: { pluginId, priority } or null if no match
+     function findMatchingPlugin(query) {
+         if (!query || query.trim() === "") return null;
+         
+         let bestMatch = null;
+         let bestPriority = -Infinity;
+         
+         for (const plugin of root.plugins) {
+             if (!plugin?.manifest?.match?.patterns) continue;
+             
+             const patterns = root.matchPatternCache[plugin.id];
+             if (!patterns) continue;
+             
+             const priority = plugin.manifest.match.priority ?? 0;
+             
+             // Skip if we already have a higher priority match
+             if (priority < bestPriority) continue;
+             
+             // Check if any pattern matches
+             for (const regex of patterns) {
+                 if (regex.test(query)) {
+                     if (priority > bestPriority) {
+                         bestPriority = priority;
+                         bestMatch = { pluginId: plugin.id, priority: priority };
+                     }
+                     break;
+                 }
+             }
+         }
+         
+         return bestMatch;
+     }
+     
+     // Check if a plugin has match patterns defined
+     function hasMatchPatterns(pluginId) {
+         return root.matchPatternCache[pluginId] !== undefined;
+     }
+     
+     // ==================== IPC HANDLERS ====================
+     
+     IpcHandler {
+         target: "pluginRunner"
+         
+         // Reindex a specific plugin
+         // Usage: qs -c hamr ipc call pluginRunner reindex <pluginId>
+         function reindex(pluginId: string): void {
+             root.indexPlugin(pluginId, "full");
+         }
+         
+         // Reindex all plugins
+         // Usage: qs -c hamr ipc call pluginRunner reindexAll
+         function reindexAll(): void {
+             root.indexAllPlugins();
+         }
      }
  }

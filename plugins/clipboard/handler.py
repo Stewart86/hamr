@@ -12,7 +12,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 # Cache directory for image thumbnails and OCR
 CACHE_DIR = (
     Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
@@ -314,6 +313,69 @@ def respond(results: list[dict], **kwargs):
     print(json.dumps(response))
 
 
+def entry_to_index_item(entry: str, ocr_texts: dict[str, str]) -> dict:
+    """Convert a clipboard entry to indexable item format for main search."""
+    display = clean_entry(entry)
+    is_img = is_image(entry)
+
+    if is_img:
+        dims = get_image_dimensions(entry)
+        name = f"Image {dims[0]}x{dims[1]}" if dims else "Image"
+        ocr_text = ocr_texts.get(entry, "")
+        keywords = ocr_text.lower().split()[:20] if ocr_text else []  # First 20 words
+        icon = "image"
+        thumbnail = get_image_thumbnail(entry)
+        description = (
+            ocr_text[:60] + "..."
+            if ocr_text and len(ocr_text) > 60
+            else (ocr_text or "Image")
+        )
+    else:
+        # Truncate long text entries
+        name = display[:80] + "..." if len(display) > 80 else display
+        # Use first few words as keywords for searchability
+        keywords = display.lower().split()[:10]
+        icon = "content_paste"
+        thumbnail = None
+        description = "Text"
+
+    entry_id = get_entry_id(entry)
+
+    item = {
+        "id": f"clip:{get_entry_hash(entry)}",
+        "name": name,
+        "description": description,
+        "keywords": keywords,
+        "icon": icon,
+        "verb": "Copy",
+        "actions": [
+            {
+                "id": "delete",
+                "name": "Delete",
+                "icon": "delete",
+                "command": [
+                    "bash",
+                    "-c",
+                    f"printf '%s' '{shell_escape(entry)}' | cliphist delete",
+                ],
+            },
+        ],
+        "execute": {
+            "command": [
+                "bash",
+                "-c",
+                f"printf '%s' '{shell_escape(entry)}' | cliphist decode | wl-copy",
+            ],
+            "notify": "Copied to clipboard",
+        },
+    }
+
+    if thumbnail:
+        item["thumbnail"] = thumbnail
+
+    return item
+
+
 def main():
     input_data = json.load(sys.stdin)
     step = input_data.get("step", "initial")
@@ -327,6 +389,13 @@ def main():
     # Load OCR cache for image text search
     ocr_cache = load_ocr_cache()
     ocr_texts = get_ocr_text_for_entries(entries, ocr_cache)
+
+    # ===== INDEX: Provide searchable items for main search =====
+    if step == "index":
+        # Limit to recent 50 entries for main search (full list available in plugin)
+        items = [entry_to_index_item(e, ocr_texts) for e in entries[:300]]
+        print(json.dumps({"type": "index", "items": items}))
+        return
 
     # Initial: show clipboard list and spawn background OCR indexer
     if step == "initial":

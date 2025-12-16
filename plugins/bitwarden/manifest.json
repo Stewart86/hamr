@@ -1,5 +1,9 @@
 {
   "name": "Bitwarden",
   "description": "Search and copy credentials from Bitwarden vault",
-  "icon": "key"
+  "icon": "key",
+  "index": {
+    "enabled": true,
+    "watchFiles": ["~/.cache/hamr/bitwarden/items.json"]
+  }
 }

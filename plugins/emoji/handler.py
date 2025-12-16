@@ -85,6 +85,8 @@ def format_results(emojis: list[dict]) -> list[dict]:
 
 def copy_to_clipboard(text: str) -> None:
     """Copy text to clipboard using wl-copy."""
+    if TEST_MODE:
+        return  # Skip clipboard in test mode
     try:
         subprocess.run(["wl-copy", text], check=True)
     except FileNotFoundError:
@@ -99,6 +101,8 @@ def copy_to_clipboard(text: str) -> None:
 
 def type_text(text: str) -> None:
     """Type text using wtype (wayland) or xdotool (x11)."""
+    if TEST_MODE:
+        return  # Skip typing in test mode
     try:
         subprocess.run(["wtype", text], check=True)
     except FileNotFoundError:
@@ -107,6 +111,41 @@ def type_text(text: str) -> None:
         except FileNotFoundError:
             # Fallback to clipboard
             copy_to_clipboard(text)
+
+
+def format_index_items(emojis: list[dict]) -> list[dict]:
+    """Format emojis as indexable items for main search.
+
+    Each item includes execute command so it can be run directly from main search
+    without entering the plugin. The execute.name field enables history tracking
+    so frequently used emojis rank higher.
+    """
+    return [
+        {
+            "id": f"emoji:{e['emoji']}",
+            "name": e["description"][:50] if e["description"] else e["emoji"],
+            "keywords": e["description"].split() if e["description"] else [],
+            "icon": e["emoji"],
+            "iconType": "text",
+            "verb": "Copy",
+            "execute": {
+                "command": ["wl-copy", e["emoji"]],
+                "notify": f"Copied {e['emoji']}",
+                "name": f"{e['emoji']} {e['description'][:30]}"
+                if e["description"]
+                else e["emoji"],
+            },
+            "actions": [
+                {
+                    "id": "type",
+                    "name": "Type",
+                    "icon": "keyboard",
+                    "command": ["wtype", e["emoji"]],
+                }
+            ],
+        }
+        for e in emojis
+    ]
 
 
 def main():
@@ -118,6 +157,12 @@ def main():
 
     # Load emojis
     emojis = load_emojis()
+
+    # ===== INDEX: Provide searchable items for main search =====
+    if step == "index":
+        items = format_index_items(emojis)
+        print(json.dumps({"type": "index", "items": items}))
+        return
 
     if step in ("initial", "search"):
         # Search emojis

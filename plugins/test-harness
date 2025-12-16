@@ -297,7 +297,7 @@ class PromptConfig:
         return cls(text=data.get("text", ""))
 
 
-ResponseType = Literal["results", "card", "execute", "imageBrowser", "form", "prompt", "error"]
+ResponseType = Literal["results", "card", "execute", "imageBrowser", "form", "prompt", "error", "match", "index"]
 
 
 @dataclass
@@ -330,7 +330,7 @@ class HamrResponse:
             )
 
         resp_type = data["type"]
-        valid_types = {"results", "card", "execute", "imageBrowser", "form", "prompt", "error"}
+        valid_types = {"results", "card", "execute", "imageBrowser", "form", "prompt", "error", "match", "index"}
         if resp_type not in valid_types:
             raise SchemaValidationError(
                 f"Invalid response type: {resp_type}",
@@ -422,6 +422,14 @@ class HamrResponse:
                 )
             response.message = data["message"]
 
+        elif resp_type == "match":
+            # Match response - result can be null or a single result item
+            pass  # No validation needed, result can be None
+
+        elif resp_type == "index":
+            # Index response - items array for plugin indexing
+            pass  # No validation needed
+
         return response
 
 
@@ -476,6 +484,14 @@ def build_input(args: argparse.Namespace) -> dict:
             input_data["action"] = args.action
         if args.query:
             input_data["query"] = args.query
+
+    elif args.command == "match":
+        input_data["query"] = args.query
+
+    elif args.command == "poll":
+        input_data["query"] = args.query or ""
+
+    # index needs no extra fields
 
     return input_data
 
@@ -597,6 +613,17 @@ Examples:
     p.add_argument("--action", "-a", help="Action ID")
     p.add_argument("--query", "-q", help="Query string")
     p.add_argument("--context", help="Context string")
+
+    # match
+    p = subparsers.add_parser("match", help="Test match pattern step")
+    p.add_argument("--query", "-q", required=True, help="Query that triggered match")
+
+    # index
+    p = subparsers.add_parser("index", help="Test index step")
+
+    # poll
+    p = subparsers.add_parser("poll", help="Test poll step")
+    p.add_argument("--query", "-q", default="", help="Current query")
 
     # raw
     p = subparsers.add_parser("raw", help="Send raw JSON input")

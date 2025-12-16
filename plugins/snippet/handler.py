@@ -217,6 +217,49 @@ def check_ydotool() -> bool:
     return shutil.which("ydotool") is not None
 
 
+def snippet_to_index_item(snippet: dict) -> dict:
+    """Convert a snippet to an index item for main search"""
+    key = snippet["key"]
+    value = snippet.get("value", "")
+    return {
+        "id": f"snippet:{key}",
+        "name": key,
+        "description": truncate_value(value, 50),
+        "keywords": [truncate_value(value, 30)],
+        "icon": "content_paste",
+        "verb": "Copy",
+        "actions": [
+            {
+                "id": "edit",
+                "name": "Edit",
+                "icon": "edit",
+                "entryPoint": {
+                    "step": "action",
+                    "selected": {"id": key},
+                    "action": "edit",
+                },
+                "keepOpen": True,
+            },
+            {
+                "id": "delete",
+                "name": "Delete",
+                "icon": "delete",
+                "entryPoint": {
+                    "step": "action",
+                    "selected": {"id": key},
+                    "action": "delete",
+                },
+            },
+        ],
+        # Default action: copy to clipboard
+        "execute": {
+            "command": ["wl-copy", value],
+            "notify": f"Copied '{key}' to clipboard",
+            "name": f"Copy snippet: {key}",  # Enable history tracking
+        },
+    }
+
+
 def main():
     input_data = json.load(sys.stdin)
     step = input_data.get("step", "initial")
@@ -227,6 +270,12 @@ def main():
 
     snippets = load_snippets()
     selected_id = selected.get("id", "")
+
+    # ===== INDEX: Provide searchable items for main launcher =====
+    if step == "index":
+        items = [snippet_to_index_item(s) for s in snippets]
+        print(json.dumps({"type": "index", "items": items}))
+        return
 
     # ===== INITIAL: Show all snippets =====
     if step == "initial":

@@ -216,6 +216,69 @@ def get_main_menu(quicklinks: list[dict], query: str = "") -> list[dict]:
     return results
 
 
+def quicklink_to_index_item(link: dict) -> dict:
+    """Convert a quicklink to indexable item format for main search."""
+    has_query = "{query}" in link.get("url", "")
+    url = link.get("url", "")
+    name = link["name"]
+
+    # Build keywords from name and aliases
+    keywords = name.lower().split()
+    for alias in link.get("aliases", []):
+        keywords.extend(alias.lower().split())
+
+    item = {
+        "id": f"quicklink:{name}",
+        "name": name,
+        "description": ", ".join(link.get("aliases", []))
+        if link.get("aliases")
+        else ("Search" if has_query else "Open"),
+        "keywords": keywords,
+        "icon": link.get("icon", "link"),
+        "verb": "Search" if has_query else "Open",
+        "actions": [
+            {
+                "id": "edit",
+                "name": "Edit",
+                "icon": "edit",
+                "entryPoint": {
+                    "step": "action",
+                    "selected": {"id": name},
+                    "action": "edit",
+                },
+                "keepOpen": True,
+            },
+            {
+                "id": "delete",
+                "name": "Delete",
+                "icon": "delete",
+                "entryPoint": {
+                    "step": "action",
+                    "selected": {"id": name},
+                    "action": "delete",
+                },
+            },
+        ],
+    }
+
+    # If no query placeholder, can execute directly
+    if not has_query:
+        item["execute"] = {
+            "command": ["xdg-open", url],
+            "name": f"Open {name}",  # Enable history tracking
+        }
+    # If has query, open the plugin for user to enter search term
+    else:
+        item["entryPoint"] = {
+            "step": "action",
+            "selected": {"id": name},
+            "action": "search",
+        }
+        item["keepOpen"] = True
+
+    return item
+
+
 def main():
     input_data = json.load(sys.stdin)
     step = input_data.get("step", "initial")
@@ -226,6 +289,12 @@ def main():
     quicklinks = load_quicklinks()
     selected_id = selected.get("id", "")
     context = input_data.get("context", "")
+
+    # ===== INDEX: Provide searchable items for main search =====
+    if step == "index":
+        items = [quicklink_to_index_item(link) for link in quicklinks]
+        print(json.dumps({"type": "index", "items": items}))
+        return
 
     # ===== INITIAL: Show all quicklinks =====
     if step == "initial":

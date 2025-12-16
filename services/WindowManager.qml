@@ -52,7 +52,7 @@ Singleton {
 	 * Matching strategy:
 	 * 1. Direct match: entry.id matches normalized appId
 	 * 2. Reverse domain extraction: com.microsoft.Edge -> edge, microsoft-edge
-	 * 3. Fallback: Use AppSearch substitutions for known mappings
+	 * 3. Fallback: Use IconResolver substitutions for known mappings
 	 * 
 	 * @param {string} desktopEntryId - The DesktopEntry id (without .desktop extension)
 	 * @returns {list<Toplevel>} Array of open windows for this app
@@ -69,13 +69,13 @@ Singleton {
 			return appWindows.get(normalizedId);
 		}
 
-		// Try substitutions from AppSearch
-		const substitution = AppSearch.substitutions[desktopEntryId];
+		// Try substitutions from IconResolver
+		const substitution = IconResolver.substitutions[desktopEntryId];
 		if (substitution && appWindows.has(substitution.toLowerCase())) {
 			return appWindows.get(substitution.toLowerCase());
 		}
 
-		const substitutionLower = AppSearch.substitutions[normalizedId];
+		const substitutionLower = IconResolver.substitutions[normalizedId];
 		if (substitutionLower && appWindows.has(substitutionLower.toLowerCase())) {
 			return appWindows.get(substitutionLower.toLowerCase());
 		}
