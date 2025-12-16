@@ -5,3 +5,9 @@ __pycache__/
 # QML Language Server config (managed by Quickshell at runtime)
 .qmlls.ini
 CODE_COMPLEXITY.md
+
+# AUR package repo (separate git repo)
+aur/
+
+# Build artifacts
+*.pkg.tar.zst

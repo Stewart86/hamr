@@ -95,7 +95,15 @@ Powered by [qalculate](https://qalculate.github.io/) - supports 150+ currencies 
 
 **Requirements:** Hyprland on Linux (Quickshell is Wayland-only and Hamr uses Hyprland-specific APIs)
 
-### Arch Linux (Recommended)
+### Arch Linux (AUR)
+
+```bash
+# Using paru (or yay, etc.)
+paru -S hamr
+```
+
+<details>
+<summary><strong>Manual installation (from source)</strong></summary>
 
 ```bash
 # Clone the repository
@@ -110,6 +118,8 @@ The install script will:
 - Check for missing dependencies and offer to install them via your AUR helper (paru, yay, etc.)
 - Create a symlink at `~/.config/quickshell/hamr`
 - Set up the user plugins directory at `~/.config/hamr/plugins/`
+
+</details>
 
 <details>
 <summary><strong>What gets installed</strong></summary>
@@ -219,20 +229,26 @@ bind = Ctrl, Space, global, quickshell:hamrToggle
 **2. Start Hamr**
 
 ```bash
-qs -c hamr
+hamr
 ```
 
-After starting, press your keybind (e.g., Super key) to open Hamr.
+After starting, press your keybind (e.g., Ctrl+Space) to open Hamr.
 
 **3. (Optional) Auto-start with Hyprland**
 
 Add to `~/.config/hypr/hyprland.conf`:
 ```bash
-exec-once = qs -c hamr
+exec-once = hamr
 ```
 
 ### Updating
 
+**AUR:**
+```bash
+paru -Syu hamr
+```
+
+**Manual installation:**
 ```bash
 cd /path/to/hamr
 ./install.sh --update
@@ -240,6 +256,14 @@ cd /path/to/hamr
 
 ### Uninstalling
 
+**AUR:**
+```bash
+sudo pacman -R hamr
+# Optionally remove user data:
+rm -rf ~/.config/hamr
+```
+
+**Manual installation:**
 ```bash
 ./install.sh --uninstall
 ```
@@ -247,7 +271,7 @@ cd /path/to/hamr
 <details>
 <summary><strong>Troubleshooting</strong></summary>
 
-**"I ran `qs -c hamr` but nothing appears"**
+**"I ran `hamr` but nothing appears"**
 
 This is expected. Hamr starts hidden and waits for a toggle signal. Make sure you:
 1. Added the keybinding to `~/.config/hypr/hyprland.conf`

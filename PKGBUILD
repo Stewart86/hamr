@@ -1,51 +1,51 @@
-# This PKGBUILD is used by install.sh to define dependencies
-# It is NOT meant to be built with makepkg directly
+# Maintainer: Stewart Wong <siwei.wong@gmail.com>
 pkgname=hamr
 pkgver=0.1.0
 pkgrel=1
-pkgdesc='Hamr - Extensible launcher for Hyprland built with Quickshell'
-arch=(any)
-license=(GPL3)
+pkgdesc='Extensible launcher for Hyprland built with Quickshell'
+arch=('any')
+url='https://github.com/Stewart86/hamr'
+license=('GPL-3.0-or-later')
 depends=(
-    # Core (quickshell-git or illogical-impulse-quickshell-git)
-    quickshell
-    qt6-5compat  # Required for Qt5Compat.GraphicalEffects
+    # Core (quickshell is in extra repo)
+    'quickshell'
+    'qt6-5compat'
 
     # Python runtime
-    python
-    python-click
+    'python'
+    'python-click'
 
     # Thumbnail generation
-    python-loguru
-    python-tqdm
-    python-gobject
-    gnome-desktop-4
+    'python-loguru'
+    'python-tqdm'
+    'python-gobject'
+    'gnome-desktop-4'
 
     # Clipboard
-    wl-clipboard
-    cliphist
+    'wl-clipboard'
+    'cliphist'
 
     # File search
-    fd
-    fzf
+    'fd'
+    'fzf'
 
     # Desktop integration
-    xdg-utils
-    libnotify
-    gtk3
-    hyprland
-    libpulse
-    jq
+    'xdg-utils'
+    'libnotify'
+    'gtk3'
+    'hyprland'
+    'libpulse'
+    'jq'
 
     # Calculator
-    libqalculate
+    'libqalculate'
 
     # Fonts
-    ttf-material-symbols-variable
-    ttf-jetbrains-mono-nerd
-    ttf-readex-pro
+    'ttf-material-symbols-variable'
+    'ttf-jetbrains-mono-nerd'
 )
 optdepends=(
+    'ttf-readex-pro: Reading font for cards (AUR)'
     'tesseract: OCR text extraction for screenshot search'
     'tesseract-data-eng: English OCR language data'
     'imagemagick: Alternative thumbnail generation'
@@ -53,3 +53,21 @@ optdepends=(
     'slurp: Screen region selection for screenshots'
     'wf-recorder: Screen recording'
 )
+source=("git+${url}.git")
+sha256sums=('SKIP')
+install=hamr.install
+
+package() {
+    cd "$srcdir/$pkgname"
+
+    # Install to /etc/xdg/quickshell/hamr (system-wide quickshell config)
+    install -dm755 "$pkgdir/etc/xdg/quickshell/$pkgname"
+    cp -r modules services plugins scripts assets "$pkgdir/etc/xdg/quickshell/$pkgname/"
+    cp *.qml "$pkgdir/etc/xdg/quickshell/$pkgname/"
+
+    # Install hamr command
+    install -Dm755 /dev/stdin "$pkgdir/usr/bin/$pkgname" <<'EOF'
+#!/bin/bash
+exec qs -c hamr "$@"
+EOF
+}
