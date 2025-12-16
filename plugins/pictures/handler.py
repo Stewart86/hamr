@@ -65,13 +65,8 @@ def get_image_list_results(images: list[dict]) -> list[dict]:
 
 
 def get_image_detail_results(image_path: str) -> list[dict]:
-    """Show detail view for a selected image with back option"""
+    """Show detail view for a selected image"""
     return [
-        {
-            "id": "__back__",
-            "name": "Back to list",
-            "icon": "arrow_back",
-        },
         {
             "id": f"open:{image_path}",
             "name": "Open in viewer",
@@ -129,7 +124,15 @@ def main():
         if item_id == "__back__":
             images = find_images()
             results = get_image_list_results(images)
-            print(json.dumps({"type": "results", "results": results}))
+            print(
+                json.dumps(
+                    {
+                        "type": "results",
+                        "results": results,
+                        "navigateBack": True,  # Going back to list
+                    }
+                )
+            )
             return
 
         # Action button clicks (open, copy-path from list view)
@@ -249,7 +252,12 @@ def main():
             results = get_image_detail_results(item_id)
             print(
                 json.dumps(
-                    {"type": "results", "results": results, "inputMode": "realtime"}
+                    {
+                        "type": "results",
+                        "results": results,
+                        "inputMode": "realtime",
+                        "navigateForward": True,  # Drilling into image detail
+                    }
                 )
             )
             return

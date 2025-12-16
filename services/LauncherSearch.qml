@@ -156,6 +156,8 @@ Singleton {
             root.pluginStarting = true;
             root.query = "";
             root.pluginStarting = false;
+            // Reset double-escape timer
+            root.lastEscapeTime = 0;
         }
         return success;
     }
@@ -1575,10 +1577,33 @@ Singleton {
         }
     }
     
+    // ==================== DOUBLE-ESCAPE DETECTION ====================
+    // Double-tap Escape within 300ms to close plugin entirely (skip navigation)
+    property real lastEscapeTime: 0
+    readonly property int doubleEscapeThreshold: 300  // ms
+    
     // Exit plugin mode - should be called on Escape key
+    // Single Escape: go back one step (or close if at initial view)
+    // Double Escape: close plugin entirely regardless of depth
     function exitPlugin() {
-        if (PluginRunner.isActive()) {
+        if (!PluginRunner.isActive()) return;
+        
+        const now = Date.now();
+        const timeSinceLastEscape = now - root.lastEscapeTime;
+        root.lastEscapeTime = now;
+        
+        // Double-escape: close plugin entirely
+        if (timeSinceLastEscape < root.doubleEscapeThreshold && PluginRunner.navigationDepth > 0) {
             PluginRunner.closePlugin();
+            root.query = "";
+            return;
+        }
+        
+        // Single escape: go back one step (or close if at depth 0)
+        const wasAtInitial = PluginRunner.navigationDepth <= 0;
+        PluginRunner.goBack();
+        // Only clear query if we're actually closing the plugin
+        if (wasAtInitial) {
             root.query = "";
         }
     }

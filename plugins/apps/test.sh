@@ -47,17 +47,19 @@ test_category_selection_shows_apps_in_category() {
     local cat_result=$(hamr_test action --id "$(json_get "$result" '.results[1].id')")
     
     assert_type "$cat_result" "results"
-    assert_has_result "$cat_result" "__back__"
+    # Should have navigateForward flag for drilling into category
+    assert_json "$cat_result" '.navigateForward' "true"
 }
 
 test_all_category_shows_apps() {
     local result=$(hamr_test action --id "__cat__:All")
     
     assert_type "$result" "results"
-    assert_has_result "$result" "__back__"
-    # Should have at least some results beyond back button
+    # Should have navigateForward flag for drilling into category
+    assert_json "$result" '.navigateForward' "true"
+    # Should have at least some apps
     local count=$(get_result_count "$result")
-    assert_eq "$([ $count -gt 1 ] && echo 1 || echo 0)" "1" "All category should have apps"
+    assert_eq "$([ $count -gt 0 ] && echo 1 || echo 0)" "1" "All category should have apps"
 }
 
 test_back_button_returns_to_categories() {
@@ -96,8 +98,8 @@ test_search_in_category_with_context() {
     local result=$(hamr_test search --query "text" --context "__cat__:All")
     
     assert_type "$result" "results"
-    # Should have back button in category search
-    assert_has_result "$result" "__back__"
+    # Context should be preserved during search
+    assert_json "$result" '.context' "__cat__:All"
 }
 
 test_search_preserves_placeholder() {
@@ -126,8 +128,8 @@ test_category_context_persists() {
 test_app_selection_returns_execute() {
     local all_result=$(hamr_test action --id "__cat__:All")
     
-    # Get first app ID (skip back button)
-    local app_id=$(json_get "$all_result" '.results[] | select(.id != "__back__") | .id' | head -1)
+    # Get first app ID
+    local app_id=$(json_get "$all_result" '.results[0].id')
     
     if [[ -n "$app_id" && "$app_id" != "null" ]]; then
         local launch=$(hamr_test action --id "$app_id")
@@ -167,6 +169,8 @@ test_back_clears_context() {
     # Context should be null (not set) or empty string
     local context=$(json_get "$result" '.context')
     if [[ "$context" == "null" || "$context" == "" ]]; then
+        # Should also have navigateBack flag
+        assert_json "$result" '.navigateBack' "true"
         return 0
     fi
     echo "Context should be cleared on back, got: $context"

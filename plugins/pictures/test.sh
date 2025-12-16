@@ -229,17 +229,18 @@ test_click_image_shows_detail_view() {
     local detail=$(hamr_test action --id "$image_id")
     
     assert_type "$detail" "results"
-    # Detail view should have back button
-    assert_has_result "$detail" "__back__"
+    # Detail view should have navigateForward flag
+    assert_json "$detail" '.navigateForward' "true"
 }
 
-test_detail_view_shows_back_button() {
+test_detail_view_has_navigate_forward() {
     local initial=$(hamr_test initial)
     local image_id=$(json_get "$initial" '.results[0].id')
     
     local detail=$(hamr_test action --id "$image_id")
     
-    assert_has_result "$detail" "__back__"
+    # Detail view should have navigateForward flag (drilling into image)
+    assert_json "$detail" '.navigateForward' "true"
 }
 
 test_detail_view_shows_action_items() {
@@ -248,9 +249,9 @@ test_detail_view_shows_action_items() {
     
     local detail=$(hamr_test action --id "$image_id")
     
-    # Detail view should have: back, open, copy-path, copy-image, delete
+    # Detail view should have: open, copy-path, copy-image, delete (no back button - UI provides it)
     local count=$(get_result_count "$detail")
-    assert_eq "$count" "5" "Detail view should have 5 items (back + 4 actions)"
+    assert_eq "$count" "4" "Detail view should have 4 action items"
 }
 
 test_back_from_detail_view() {
@@ -421,7 +422,7 @@ run_tests \
     test_search_empty_returns_all \
     test_search_no_match_returns_empty \
     test_click_image_shows_detail_view \
-    test_detail_view_shows_back_button \
+    test_detail_view_has_navigate_forward \
     test_detail_view_shows_action_items \
     test_back_from_detail_view \
     test_open_action_from_list \

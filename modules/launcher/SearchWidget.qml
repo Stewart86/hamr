@@ -478,13 +478,16 @@ Item { // Wrapper
                 Layout.preferredHeight: 34
                 
                 actions: PluginRunner.pluginActions
+                navigationDepth: PluginRunner.navigationDepth
                 
                 onActionClicked: actionId => {
                     PluginRunner.executePluginAction(actionId);
                 }
                 
                 onBackClicked: {
-                    root.cancelSearch();
+                    // Use goBack() to navigate back one step in the plugin
+                    // If at initial view, this will close the plugin
+                    LauncherSearch.exitPlugin();
                 }
             }
 

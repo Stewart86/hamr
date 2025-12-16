@@ -24,6 +24,9 @@ Item {
     // Each action: { id, name, icon, confirm?: string, shortcut?: string }
     property var actions: []
     
+    // Navigation depth (0 = initial view, 1+ = nested views)
+    property int navigationDepth: 0
+    
     // Signal when an action is clicked (after confirmation if needed)
     signal actionClicked(string actionId)
     
@@ -83,6 +86,43 @@ Item {
                 Kbd {
                     Layout.alignment: Qt.AlignVCenter
                     keys: "Esc"
+                }
+            }
+        }
+        
+        // Navigation depth indicator - animated dots showing how deep we are
+        Row {
+            id: depthIndicator
+            Layout.alignment: Qt.AlignVCenter
+            spacing: 4
+            visible: root.navigationDepth > 0
+            
+            Repeater {
+                model: root.navigationDepth
+                
+                delegate: Rectangle {
+                    id: depthDot
+                    required property int index
+                    
+                    width: 6
+                    height: 6
+                    radius: 3
+                    color: Appearance.m3colors.m3primary
+                    opacity: 0.7
+                    
+                    // Animate in when appearing
+                    scale: 0
+                    Component.onCompleted: scaleIn.start()
+                    
+                    NumberAnimation {
+                        id: scaleIn
+                        target: depthDot
+                        property: "scale"
+                        from: 0
+                        to: 1
+                        duration: 150
+                        easing.type: Easing.OutBack
+                    }
                 }
             }
         }

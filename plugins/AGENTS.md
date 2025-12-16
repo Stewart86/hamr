@@ -640,12 +640,14 @@ def main():
     if step == "action":
         item_id = selected.get("id", "")
 
-        # Back navigation
+        # Back navigation - only needed for plugins with nested views
+        # For flat plugins (no drill-down), you can omit this
         if item_id == "__back__":
             print(json.dumps({
                 "type": "results",
                 "results": get_initial_results(),
-                "clearInput": True
+                "clearInput": True,
+                "context": ""
             }))
             return
 
@@ -732,20 +734,79 @@ Users navigate with:
 
 - **Ctrl+J/K** - Move down/up
 - **Ctrl+L** or **Enter** - Select
-- **Escape** - Exit workflow / close launcher
+- **Escape** - Go back one step / exit workflow / close launcher
+
+### Back Navigation
+
+Hamr tracks navigation depth automatically and provides a Back button in the UI. When the user presses **Escape** or clicks the **Back** button:
+
+1. **If in a nested view** (depth > 0): Sends `__back__` action to your handler
+2. **If at initial view** (depth = 0): Closes the plugin entirely
+
+**Navigation depth increases when:**
+- User clicks an item directly (default action, no action button)
+- Handler returns a view with `navigateForward: true`, OR
+- Handler returns a view with a new non-empty context (auto-detected)
+
+**Navigation depth decreases when:**
+- User presses Escape or clicks Back (sends `__back__`)
+- Handler returns a view with `navigateBack: true`
+
+**Navigation depth does NOT change for:**
+- Item action buttons (e.g., "Done", "Delete", "Copy") - these modify the view
+- Plugin toolbar actions (e.g., filters, "Add" mode) - these modify the view
+- Responses with same context or empty context
+- Execute responses (close or stay open, don't navigate)
+
+**Explicit navigation control:**
+```python
+# Drill down into sub-view (depth +1)
+{"type": "results", "results": [...], "navigateForward": True}
+
+# Return to parent view (depth -1)
+{"type": "results", "results": [...], "navigateBack": True}
+
+# Jump to specific depth (e.g., breadcrumb to go back multiple levels)
+{"type": "results", "results": [...], "navigationDepth": 0}  # Jump to root
+```
+
+**For plugins with nested views** (e.g., folder browser, category drill-down), handle `__back__`:
+
+```python
+if step == "action":
+    item_id = selected.get("id", "")
+
+    if item_id == "__back__":
+        print(json.dumps({
+            "type": "results",
+            "results": get_previous_view_results(),
+            "clearInput": True,
+            "context": ""
+        }))
+        return
+```
+
+**For flat plugins** (e.g., clipboard, todo), you don't need navigation flags. Escape simply closes the plugin.
+
+**For nested plugins** (e.g., apps with categories, file browser), use explicit flags:
+- Set `navigateForward: true` when drilling into a sub-view  
+- Set `navigateBack: true` when returning to a parent view (in `__back__` handler)
+
+**Important:** Don't add `__back__` items to your results. The UI provides a Back button automatically.
 
 ---
 
 ## Tips
 
-1. **Always handle `__back__`** - Users expect back navigation
-2. **Use `close: true`** only for final actions
-3. **Keep results under 50** - Performance
-4. **Use thumbnails sparingly** - They load images
-5. **Use `placeholder`** - Helps users know what to type
-6. **Use `context`** - Preserve state across search calls
-7. **Debug with** `journalctl --user -f` - Check for errors
-8. **Test edge cases** - Empty results, errors, special characters
+1. **Handle `__back__`** - Return to previous/initial view when user presses Escape or clicks Back
+2. **Don't add `__back__` to results** - Hamr's UI provides a Back button automatically
+3. **Use `close: true`** only for final actions
+4. **Keep results under 50** - Performance
+5. **Use thumbnails sparingly** - They load images
+6. **Use `placeholder`** - Helps users know what to type
+7. **Use `context`** - Preserve state across search calls
+8. **Debug with** `journalctl --user -f` - Check for errors
+9. **Test edge cases** - Empty results, errors, special characters
 
 ---
 

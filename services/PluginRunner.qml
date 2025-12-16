@@ -39,6 +39,15 @@ Singleton {
     property var lastSelectedItem: null // Last selected item (persisted across search calls)
     property string pluginContext: ""  // Custom context string for multi-step flows
     
+    // Navigation depth - tracks how many steps into the plugin we are
+    // Incremented on action/selection steps, decremented on back
+    // When depth is 0, back/Escape closes the plugin entirely
+    property int navigationDepth: 0
+    
+    // Flags to track pending navigation actions for depth management
+    property bool pendingNavigation: false  // True when action may navigate forward
+    property bool pendingBack: false        // True when goBack() called (back navigation)
+    
     // Plugin-level actions (toolbar buttons, not item-specific)
     // Each action: { id, name, icon, confirm?: string }
     // If confirm is set, show confirmation dialog before executing
@@ -321,6 +330,17 @@ Singleton {
          // Store selection for context in subsequent search calls
          root.lastSelectedItem = itemId;
          
+         // Track the step type for depth management
+         // Navigation depth increases when:
+         // - Default item click (no actionId) that returns a view - user is drilling down
+         // - NOT for action button clicks (actionId set) - these modify current view
+         // - NOT for special IDs that are known to not navigate
+         const nonNavigatingIds = ["__back__", "__empty__", "__form_cancel__"];
+         const isDefaultClick = !actionId;  // No action button clicked, just the item itself
+         if (isDefaultClick && !nonNavigatingIds.includes(itemId)) {
+             root.pendingNavigation = true;
+         }
+         
          const input = {
              step: "action",
              selected: { id: itemId },
@@ -329,6 +349,11 @@ Singleton {
          
          if (actionId) {
              input.action = actionId;
+         }
+         
+         // Include context if set (handler needs it for navigation state)
+         if (root.pluginContext) {
+             input.context = root.pluginContext;
          }
          
          sendToPlugin(input);
@@ -391,7 +416,40 @@ Singleton {
          root.pollInterval = 0;
          root.lastPollQuery = "";
          root.pluginActions = [];
+         root.navigationDepth = 0;
+         root.pendingNavigation = false;
+         root.pendingBack = false;
          root.pluginClosed();
+     }
+     
+     // Go back one step in plugin navigation
+     // If we're at the initial view (depth 0), close the plugin entirely
+     // Otherwise, send __back__ action to the handler
+     function goBack() {
+         if (!root.activePlugin) return;
+         
+         // If at initial view, close the plugin
+         if (root.navigationDepth <= 0) {
+             root.closePlugin();
+             return;
+         }
+         
+         // Mark this as a back navigation (will decrement depth if results returned)
+         root.pendingBack = true;
+         
+         // Send __back__ action to handler - let it decide how to handle navigation
+         const input = {
+             step: "action",
+             selected: { id: "__back__" },
+             session: root.activePlugin.session
+         };
+         
+         // Include context if set (handler may need it to know where to go back to)
+         if (root.pluginContext) {
+             input.context = root.pluginContext;
+         }
+         
+         sendToPlugin(input);
      }
      
      // Check if a plugin is active
@@ -405,6 +463,8 @@ Singleton {
      }
      
      // Execute a plugin-level action (from toolbar button)
+     // These are view-modifying actions (filter, add mode), not navigation
+     // They don't increase depth - Escape closes plugin, not "undoes" the action
      function executePluginAction(actionId) {
          if (!root.activePlugin) return;
          
@@ -506,6 +566,8 @@ Singleton {
          
          if (!response || !response.type) {
              root.pluginError = "Invalid response from plugin";
+             root.pendingNavigation = false;
+             root.pendingBack = false;
              return;
          }
          
@@ -513,6 +575,31 @@ Singleton {
          if (response.session && root.activePlugin) {
              root.activePlugin.session = response.session;
          }
+         
+         // Navigation depth management
+         // Plugin explicitly controls depth via response fields:
+         // - navigationDepth: number → set absolute depth (for jumping multiple levels)
+         // - navigateForward: true   → increment depth by 1 (drilling down)
+         // - navigateBack: true      → decrement depth by 1 (going up)
+         // - neither                 → no depth change (same view, modified data)
+         const isViewResponse = ["results", "card", "form"].includes(response.type);
+         if (isViewResponse) {
+             const hasNavDepth = response.navigationDepth !== undefined && response.navigationDepth !== null;
+             
+             if (hasNavDepth) {
+                 // Explicit absolute depth (for jumping multiple levels)
+                 root.navigationDepth = Math.max(0, parseInt(response.navigationDepth, 10));
+             } else if (response.navigateBack === true || root.pendingBack) {
+                 // Back navigation - decrement depth
+                 root.navigationDepth = Math.max(0, root.navigationDepth - 1);
+             } else if (response.navigateForward === true) {
+                 // Forward navigation - increment depth
+                 root.navigationDepth++;
+             }
+             // No flag = no depth change (action modified view, didn't navigate)
+         }
+         root.pendingNavigation = false;
+         root.pendingBack = false;
          
          switch (response.type) {
               case "results":

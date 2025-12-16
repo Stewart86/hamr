@@ -728,12 +728,15 @@ def main():
             }))
             return
 
-        # Back navigation
+        # Back navigation - only needed for plugins with nested views
+        # For flat plugins (no drill-down), you can omit this
         if item_id == "__back__":
             print(json.dumps({
                 "type": "results",
                 "results": get_initial_results(),
-                "clearInput": True
+                "clearInput": True,
+                "context": "",
+                "navigationDepth": 0  # Return to root
             }))
             return
 
@@ -823,24 +826,102 @@ Users navigate with:
 
 - **Ctrl+J/K** - Move down/up
 - **Ctrl+L** or **Enter** - Select
-- **Escape** - Exit workflow / close launcher
+- **Escape** - Go back one step (single) / close plugin entirely (double-tap)
 - **Ctrl+1 through Ctrl+6** - Execute plugin actions (toolbar buttons)
 - **Tab / Shift+Tab** - Cycle through item action buttons
+
+### Back Navigation
+
+Hamr tracks navigation depth automatically and provides a Back button in the UI.
+
+**Escape key behavior:**
+- **Single Escape**: Go back one level (sends `__back__` to handler)
+- **Double Escape** (within 300ms): Close plugin entirely, regardless of depth
+- **At initial view** (depth = 0): Single Escape closes the plugin
+
+**Back button behavior:**
+- Same as single Escape - goes back one level
+
+**Navigation depth increases when:**
+- Handler returns `navigateForward: true`
+
+**Navigation depth decreases when:**
+- Handler returns `navigateBack: true`, OR
+- Handler returns `navigationDepth: N` (sets absolute depth)
+
+**Navigation depth does NOT change when:**
+- No navigation flags are set (action modified view, didn't navigate)
+- Execute responses (close or stay open, don't affect depth)
+
+**Explicit navigation control:**
+```python
+# Drill down into sub-view (depth +1)
+{"type": "results", "results": [...], "navigateForward": True}
+
+# Return to parent view (depth -1)
+{"type": "results", "results": [...], "navigateBack": True}
+
+# Jump to specific depth (e.g., breadcrumb click to go back multiple levels)
+{"type": "results", "results": [...], "navigationDepth": 0}  # Jump to root
+{"type": "results", "results": [...], "navigationDepth": 2}  # Jump to level 2
+```
+
+**For plugins with nested views** (e.g., folder browser, category drill-down), handle `__back__` to return to the previous view:
+
+```python
+if step == "action":
+    item_id = selected.get("id", "")
+
+    # Handle back navigation (sent by Escape key or Back button)
+    if item_id == "__back__":
+        # Calculate previous level from context
+        prev_level = calculate_previous_level(context)
+        prev_results = get_results_for_level(prev_level)
+        
+        print(json.dumps({
+            "type": "results",
+            "results": prev_results,
+            "context": get_context_for_level(prev_level),
+            "navigationDepth": prev_level,  # Set exact depth
+            "clearInput": True,
+        }))
+        return
+    
+    # Drill down into sub-view
+    if item_id.startswith("folder:"):
+        print(json.dumps({
+            "type": "results",
+            "results": get_folder_contents(item_id),
+            "context": f"{level + 1}:{path}",
+            "navigateForward": True,  # Increment depth
+            "clearInput": True,
+        }))
+        return
+```
+
+**For flat plugins** (e.g., clipboard, todo), you don't need to handle `__back__`. The UI will close the plugin when depth is 0.
+
+**For nested plugins** (e.g., apps with categories, file browser):
+- Set `navigateForward: true` when drilling into a sub-view
+- Set `navigationDepth: N` in `__back__` handler to set exact depth (or use `navigateBack: true` to decrement by 1)
+
+**Important:** Don't add explicit `__back__` items to your results list. Hamr provides a Back button in the UI automatically.
 
 ---
 
 ## Tips
 
-1. **Always handle `__back__`** - Users expect back navigation
-2. **Use `close: true`** only for final actions
-3. **Keep results under 50** - Performance
-4. **Use thumbnails sparingly** - They load images
-5. **Use `placeholder`** - Helps users know what to type
-6. **Use `context`** - Preserve state across search calls
-7. **Use `pluginActions`** - Move common actions (Add, Wipe) to the toolbar
-8. **Use `confirm`** - Require confirmation for dangerous plugin actions
-9. **Debug with** `journalctl --user -f` - Check for errors
-10. **Test edge cases** - Empty results, errors, special characters
+1. **Handle `__back__`** - Return to previous/initial view when user presses Escape or clicks Back
+2. **Don't add `__back__` to results** - Hamr's UI provides a Back button automatically
+3. **Use `close: true`** only for final actions
+4. **Keep results under 50** - Performance
+5. **Use thumbnails sparingly** - They load images
+6. **Use `placeholder`** - Helps users know what to type
+7. **Use `context`** - Preserve state across search calls
+8. **Use `pluginActions`** - Move common actions (Add, Wipe) to the toolbar
+9. **Use `confirm`** - Require confirmation for dangerous plugin actions
+10. **Debug with** `journalctl --user -f` - Check for errors
+11. **Test edge cases** - Empty results, errors, special characters
 
 ---
 

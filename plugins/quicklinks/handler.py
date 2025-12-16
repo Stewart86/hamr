@@ -374,6 +374,7 @@ def main():
                             "inputMode": "submit",
                             "context": f"__search__:{link_name}",
                             "placeholder": search_placeholder,
+                            "navigateForward": True,  # Entering search mode
                             "results": [
                                 {
                                     "id": f"__open_direct__:{link_name}",
@@ -381,11 +382,6 @@ def main():
                                     "description": base_url,
                                     "icon": link.get("icon", "link"),
                                     "verb": "Open",
-                                },
-                                {
-                                    "id": "__back__",
-                                    "name": "Back to quicklinks",
-                                    "icon": "arrow_back",
                                 },
                             ],
                         }
@@ -445,6 +441,7 @@ def main():
                         "context": "",
                         "placeholder": "Search quicklinks...",
                         "pluginActions": get_plugin_actions(),
+                        "navigateBack": True,  # Going back to main list
                     }
                 )
             )
@@ -561,6 +558,7 @@ def main():
                         "clearInput": True,
                         "context": f"__search__:{link['name']}",
                         "placeholder": f"Search {link['name']}... (Enter to search)",
+                        "navigateForward": True,  # Entering search mode
                         "results": [
                             {
                                 "id": f"__open_direct__:{link['name']}",
@@ -568,11 +566,6 @@ def main():
                                 "description": base_url,
                                 "icon": link.get("icon", "link"),
                                 "verb": "Open",
-                            },
-                            {
-                                "id": "__back__",
-                                "name": "Back to quicklinks",
-                                "icon": "arrow_back",
                             },
                         ],
                     }

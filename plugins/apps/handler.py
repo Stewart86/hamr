@@ -390,16 +390,6 @@ def main():
                     }
                 ]
 
-            # Add back button
-            results.insert(
-                0,
-                {
-                    "id": "__back__",
-                    "name": "Back to categories",
-                    "icon": "arrow_back",
-                },
-            )
-
             print(
                 json.dumps(
                     {
@@ -514,6 +504,7 @@ def main():
                         "placeholder": "Search apps or select category...",
                         "clearInput": True,
                         "context": "",  # Clear context
+                        "navigateBack": True,  # Going back to categories
                     }
                 )
             )
@@ -577,15 +568,8 @@ def main():
                 apps = [a for a in all_apps if a.get("display_category") == category]
 
             results = [
-                {
-                    "id": "__back__",
-                    "name": "Back to categories",
-                    "icon": "arrow_back",
-                }
+                app_to_result(a, show_category=(category == "All")) for a in apps[:50]
             ]
-            results.extend(
-                [app_to_result(a, show_category=(category == "All")) for a in apps[:50]]
-            )
 
             print(
                 json.dumps(
@@ -598,6 +582,7 @@ def main():
                         else "Search all apps...",
                         "clearInput": True,
                         "context": selected_id,  # Set category context
+                        "navigateForward": True,  # Drilling into category
                     }
                 )
             )
