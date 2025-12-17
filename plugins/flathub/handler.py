@@ -10,20 +10,111 @@ Features:
 - Detect already installed apps
 """
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
+import time
 import urllib.request
 import urllib.error
+from pathlib import Path
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
 FLATHUB_API = "https://flathub.org/api/v2/search"
 FLATHUB_WEB = "https://flathub.org/apps"
+CACHE_DIR = (
+    Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "hamr" / "flathub"
+)
+CACHE_TTL = 3600
 
 
-def get_installed_apps() -> set[str]:
+def get_cache_path(query: str) -> Path:
+    """Get cache file path for a query"""
+    query_hash = hashlib.md5(query.lower().encode()).hexdigest()
+    return CACHE_DIR / f"{query_hash}.json"
+
+
+def get_cached_results(query: str) -> list[dict] | None:
+    """Get cached search results if valid"""
+    cache_path = get_cache_path(query)
+    if not cache_path.exists():
+        return None
+
+    try:
+        with open(cache_path) as f:
+            cached = json.load(f)
+
+        if time.time() - cached.get("timestamp", 0) < CACHE_TTL:
+            return cached.get("results", [])
+    except Exception:
+        pass
+
+    return None
+
+
+def save_cached_results(query: str, results: list[dict]) -> None:
+    """Save search results to cache"""
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        cache_path = get_cache_path(query)
+        with open(cache_path, "w") as f:
+            json.dump({"timestamp": time.time(), "results": results}, f)
+    except Exception:
+        pass
+
+
+ICON_DIRS = [
+    Path("/var/lib/flatpak/exports/share/icons"),
+    Path.home() / ".local/share/flatpak/exports/share/icons",
+]
+ICON_SIZES = ["128x128", "scalable", "64x64", "48x48", "256x256", "512x512"]
+
+
+def get_app_icon(app_id: str) -> str:
+    """Find icon path for a flatpak app"""
+    for icon_dir in ICON_DIRS:
+        for size in ICON_SIZES:
+            for ext in ["png", "svg"]:
+                icon_path = icon_dir / "hicolor" / size / "apps" / f"{app_id}.{ext}"
+                if icon_path.exists():
+                    return f"file://{icon_path}"
+    return ""
+
+
+def get_installed_apps() -> list[dict]:
+    """Get list of installed Flatpak apps with details"""
+    try:
+        result = subprocess.run(
+            ["flatpak", "list", "--app", "--columns=application,name,description"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            apps = []
+            for line in result.stdout.strip().split("\n"):
+                if not line:
+                    continue
+                parts = line.split("\t")
+                if len(parts) >= 1:
+                    app_id = parts[0]
+                    apps.append(
+                        {
+                            "app_id": app_id,
+                            "name": parts[1] if len(parts) > 1 else app_id,
+                            "summary": parts[2] if len(parts) > 2 else "",
+                            "icon": get_app_icon(app_id),
+                        }
+                    )
+            return apps
+    except Exception:
+        pass
+    return []
+
+
+def get_installed_app_ids() -> set[str]:
     """Get set of installed Flatpak app IDs"""
     try:
         result = subprocess.run(
@@ -40,7 +131,7 @@ def get_installed_apps() -> set[str]:
 
 
 def search_flathub(query: str) -> list[dict]:
-    """Search Flathub API for apps"""
+    """Search Flathub API for apps with caching"""
     if TEST_MODE:
         return [
             {
@@ -63,6 +154,10 @@ def search_flathub(query: str) -> list[dict]:
             },
         ]
 
+    cached = get_cached_results(query)
+    if cached is not None:
+        return cached
+
     try:
         data = json.dumps({"query": query}).encode("utf-8")
         req = urllib.request.Request(
@@ -73,7 +168,9 @@ def search_flathub(query: str) -> list[dict]:
         )
         with urllib.request.urlopen(req, timeout=10) as response:
             result = json.loads(response.read().decode("utf-8"))
-            return result.get("hits", [])
+            hits = result.get("hits", [])
+            save_cached_results(query, hits)
+            return hits
     except Exception:
         return []
 
@@ -108,13 +205,9 @@ def app_to_result(app: dict, installed_apps: set[str]) -> dict:
     actions = []
     if is_installed:
         actions.append({"id": "uninstall", "name": "Uninstall", "icon": "delete"})
-        actions.append(
-            {"id": "open_web", "name": "View on Flathub", "icon": "open_in_new"}
-        )
     else:
-        actions.append(
-            {"id": "open_web", "name": "View on Flathub", "icon": "open_in_new"}
-        )
+        actions.append({"id": "install", "name": "Install", "icon": "download"})
+    actions.append({"id": "open_web", "name": "View on Flathub", "icon": "open_in_new"})
 
     return {
         "id": app_id,
@@ -126,38 +219,96 @@ def app_to_result(app: dict, installed_apps: set[str]) -> dict:
     }
 
 
+def get_plugin_actions(in_search_mode: bool = False) -> list[dict]:
+    """Get plugin-level actions for the action bar"""
+    if in_search_mode:
+        return []
+    return [
+        {
+            "id": "search_new",
+            "name": "Install New",
+            "icon": "add_circle",
+            "shortcut": "Ctrl+1",
+        }
+    ]
+
+
 def main():
     input_data = json.load(sys.stdin)
     step = input_data.get("step", "initial")
     query = input_data.get("query", "").strip()
     selected = input_data.get("selected", {})
     action = input_data.get("action", "")
+    context = input_data.get("context", "")
 
     selected_id = selected.get("id", "")
 
-    # Initial: prompt for search
+    # Initial: show installed apps
     if step == "initial":
+        installed_apps = get_installed_apps()
+        if TEST_MODE:
+            installed_apps = [
+                {
+                    "app_id": "org.mozilla.firefox",
+                    "name": "Firefox",
+                    "summary": "Web Browser",
+                    "icon": "file:///var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/org.mozilla.firefox.png",
+                },
+                {
+                    "app_id": "org.videolan.VLC",
+                    "name": "VLC",
+                    "summary": "Media Player",
+                    "icon": "file:///var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/org.videolan.VLC.png",
+                },
+            ]
+
+        results = []
+        for app in installed_apps:
+            app_id = app.get("app_id", "")
+            result = {
+                "id": app_id,
+                "name": app.get("name", app_id),
+                "description": app.get("summary", "Installed"),
+                "verb": "Open",
+                "actions": [
+                    {"id": "uninstall", "name": "Uninstall", "icon": "delete"},
+                    {
+                        "id": "open_web",
+                        "name": "View on Flathub",
+                        "icon": "open_in_new",
+                    },
+                ],
+            }
+            icon = app.get("icon", "")
+            if icon:
+                result["thumbnail"] = icon
+            results.append(result)
+
+        if not results:
+            results = [
+                {
+                    "id": "__empty__",
+                    "name": "No Flatpak apps installed",
+                    "description": "Type to search Flathub for apps",
+                    "icon": "search",
+                }
+            ]
+
         print(
             json.dumps(
                 {
                     "type": "results",
-                    "results": [
-                        {
-                            "id": "__prompt__",
-                            "name": "Search Flathub",
-                            "description": "Type to search for apps",
-                            "icon": "search",
-                        }
-                    ],
+                    "results": results,
                     "inputMode": "realtime",
-                    "placeholder": "Search Flathub...",
+                    "placeholder": "Search installed apps...",
+                    "pluginActions": get_plugin_actions(),
                 }
             )
         )
         return
 
-    # Search: query Flathub API
-    if step == "search":
+    # Search mode: searching for new apps to install
+    if step == "search" and context == "__search_new__":
         if not query or len(query) < 2:
             print(
                 json.dumps(
@@ -172,14 +323,16 @@ def main():
                             }
                         ],
                         "inputMode": "realtime",
-                        "placeholder": "Search Flathub...",
+                        "placeholder": "Search Flathub for new apps...",
+                        "context": "__search_new__",
+                        "pluginActions": get_plugin_actions(in_search_mode=True),
                     }
                 )
             )
             return
 
         apps = search_flathub(query)
-        installed_apps = get_installed_apps()
+        installed_app_ids = get_installed_app_ids()
 
         if not apps:
             print(
@@ -195,20 +348,98 @@ def main():
                             }
                         ],
                         "inputMode": "realtime",
-                        "placeholder": "Search Flathub...",
+                        "placeholder": "Search Flathub for new apps...",
+                        "context": "__search_new__",
+                        "pluginActions": get_plugin_actions(in_search_mode=True),
                     }
                 )
             )
             return
 
-        results = [app_to_result(app, installed_apps) for app in apps[:15]]
+        results = [app_to_result(app, installed_app_ids) for app in apps[:15]]
         print(
             json.dumps(
                 {
                     "type": "results",
                     "results": results,
                     "inputMode": "realtime",
-                    "placeholder": "Search Flathub...",
+                    "placeholder": "Search Flathub for new apps...",
+                    "context": "__search_new__",
+                    "pluginActions": get_plugin_actions(in_search_mode=True),
+                }
+            )
+        )
+        return
+
+    # Default search: filter installed apps
+    if step == "search":
+        installed_apps = get_installed_apps()
+        if TEST_MODE:
+            installed_apps = [
+                {
+                    "app_id": "org.mozilla.firefox",
+                    "name": "Firefox",
+                    "summary": "Web Browser",
+                    "icon": "file:///var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/org.mozilla.firefox.png",
+                },
+                {
+                    "app_id": "org.videolan.VLC",
+                    "name": "VLC",
+                    "summary": "Media Player",
+                    "icon": "file:///var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/org.videolan.VLC.png",
+                },
+            ]
+
+        # Filter installed apps by query
+        if query:
+            query_lower = query.lower()
+            installed_apps = [
+                app
+                for app in installed_apps
+                if query_lower in app.get("name", "").lower()
+                or query_lower in app.get("app_id", "").lower()
+            ]
+
+        results = []
+        for app in installed_apps:
+            app_id = app.get("app_id", "")
+            result = {
+                "id": app_id,
+                "name": app.get("name", app_id),
+                "description": app.get("summary", "Installed"),
+                "verb": "Open",
+                "actions": [
+                    {"id": "uninstall", "name": "Uninstall", "icon": "delete"},
+                    {
+                        "id": "open_web",
+                        "name": "View on Flathub",
+                        "icon": "open_in_new",
+                    },
+                ],
+            }
+            icon = app.get("icon", "")
+            if icon:
+                result["thumbnail"] = icon
+            results.append(result)
+
+        if not results and query:
+            results = [
+                {
+                    "id": "__empty__",
+                    "name": f"No installed apps match '{query}'",
+                    "description": "Use Ctrl+1 to search Flathub for new apps",
+                    "icon": "search_off",
+                }
+            ]
+
+        print(
+            json.dumps(
+                {
+                    "type": "results",
+                    "results": results,
+                    "inputMode": "realtime",
+                    "placeholder": "Search installed apps...",
+                    "pluginActions": get_plugin_actions(),
                 }
             )
         )
@@ -219,8 +450,100 @@ def main():
         if selected_id in ("__prompt__", "__empty__"):
             return
 
-        installed_apps = get_installed_apps()
-        is_installed = selected_id in installed_apps
+        # Plugin-level action: Install New
+        if selected_id == "__plugin__" and action == "search_new":
+            print(
+                json.dumps(
+                    {
+                        "type": "results",
+                        "results": [
+                            {
+                                "id": "__prompt__",
+                                "name": "Search Flathub",
+                                "description": "Type to search for new apps to install",
+                                "icon": "search",
+                            }
+                        ],
+                        "inputMode": "realtime",
+                        "placeholder": "Search Flathub for new apps...",
+                        "context": "__search_new__",
+                        "clearInput": True,
+                        "pluginActions": get_plugin_actions(in_search_mode=True),
+                        "navigateForward": True,
+                    }
+                )
+            )
+            return
+
+        # Back navigation
+        if selected_id == "__back__":
+            installed_apps = get_installed_apps()
+            if TEST_MODE:
+                installed_apps = [
+                    {
+                        "app_id": "org.mozilla.firefox",
+                        "name": "Firefox",
+                        "summary": "Web Browser",
+                        "icon": "file:///var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/org.mozilla.firefox.png",
+                    },
+                    {
+                        "app_id": "org.videolan.VLC",
+                        "name": "VLC",
+                        "summary": "Media Player",
+                        "icon": "file:///var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/org.videolan.VLC.png",
+                    },
+                ]
+
+            results = []
+            for app in installed_apps:
+                app_id = app.get("app_id", "")
+                result = {
+                    "id": app_id,
+                    "name": app.get("name", app_id),
+                    "description": app.get("summary", "Installed"),
+                    "verb": "Open",
+                    "actions": [
+                        {"id": "uninstall", "name": "Uninstall", "icon": "delete"},
+                        {
+                            "id": "open_web",
+                            "name": "View on Flathub",
+                            "icon": "open_in_new",
+                        },
+                    ],
+                }
+                icon = app.get("icon", "")
+                if icon:
+                    result["thumbnail"] = icon
+                results.append(result)
+
+            if not results:
+                results = [
+                    {
+                        "id": "__empty__",
+                        "name": "No Flatpak apps installed",
+                        "description": "Use Ctrl+1 to search Flathub for apps",
+                        "icon": "search",
+                    }
+                ]
+
+            print(
+                json.dumps(
+                    {
+                        "type": "results",
+                        "results": results,
+                        "inputMode": "realtime",
+                        "placeholder": "Search installed apps...",
+                        "context": "",
+                        "clearInput": True,
+                        "pluginActions": get_plugin_actions(),
+                        "navigationDepth": 0,
+                    }
+                )
+            )
+            return
+
+        installed_app_ids = get_installed_app_ids()
+        is_installed = selected_id in installed_app_ids
         app_name = selected.get("name", selected_id)
 
         # Uninstall action
@@ -254,6 +577,29 @@ def main():
                         "type": "execute",
                         "execute": {
                             "command": ["xdg-open", f"{FLATHUB_WEB}/{selected_id}"],
+                            "close": True,
+                        },
+                    }
+                )
+            )
+            return
+
+        # Install action
+        if action == "install":
+            print(
+                json.dumps(
+                    {
+                        "type": "execute",
+                        "execute": {
+                            "command": [
+                                "bash",
+                                "-c",
+                                f'notify-send "Flathub" "Installing {app_name}..." -a "Hamr" && '
+                                f"(flatpak install --user -y flathub {selected_id} 2>/dev/null || flatpak install -y flathub {selected_id}) && "
+                                f'notify-send "Flathub" "{app_name} installed" -a "Hamr" && '
+                                f"qs -c hamr ipc call pluginRunner reindex apps || "
+                                f'notify-send "Flathub" "Failed to install {app_name}" -a "Hamr"',
+                            ],
                             "close": True,
                         },
                     }
