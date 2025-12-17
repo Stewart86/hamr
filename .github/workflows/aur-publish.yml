@@ -117,8 +117,11 @@ jobs:
             COMMITS=$(git log --pretty=format:"%s" --no-merges -20)
           fi
           
-          # Sort by conventional commit type
-          FEAT=$(echo "$COMMITS" | grep -E "^feat(\(.+\))?:" | sed 's/^/- /' || true)
+          # Detect new plugins added (commits with "add ... plugin" pattern)
+          NEW_PLUGINS=$(echo "$COMMITS" | grep -iE "add.+plugin" | sed 's/.*add \(.*\) plugin.*/\1/' | sed 's/^/- /' || true)
+          
+          # Sort by conventional commit type (exclude plugin additions from features)
+          FEAT=$(echo "$COMMITS" | grep -E "^feat(\(.+\))?:" | grep -viE "add.+plugin" | sed 's/^/- /' || true)
           FIX=$(echo "$COMMITS" | grep -E "^fix(\(.+\))?:" | sed 's/^/- /' || true)
           PERF=$(echo "$COMMITS" | grep -E "^perf(\(.+\))?:" | sed 's/^/- /' || true)
           REFACTOR=$(echo "$COMMITS" | grep -E "^refactor(\(.+\))?:" | sed 's/^/- /' || true)
@@ -130,6 +133,7 @@ jobs:
           
           # Build release notes
           NOTES=""
+          [ -n "$NEW_PLUGINS" ] && NOTES="${NOTES}### New Plugins\n${NEW_PLUGINS}\n\n"
           [ -n "$FEAT" ] && NOTES="${NOTES}### Features\n${FEAT}\n\n"
           [ -n "$FIX" ] && NOTES="${NOTES}### Bug Fixes\n${FIX}\n\n"
           [ -n "$PERF" ] && NOTES="${NOTES}### Performance\n${PERF}\n\n"
