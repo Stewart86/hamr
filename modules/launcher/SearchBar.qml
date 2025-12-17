@@ -57,6 +57,7 @@ RowLayout {
     MaterialShapeWrappedMaterialSymbol {
         id: searchIcon
         Layout.alignment: Qt.AlignVCenter
+        visible: !PluginRunner.isActive()
         iconSize: Appearance.font.pixelSize.huge
         shape: switch(root.searchPrefixType) {
             case SearchBar.SearchPrefixType.Action: return MaterialShape.Shape.Pill;
@@ -78,6 +79,91 @@ RowLayout {
             case SearchBar.SearchPrefixType.WebSearch: return "travel_explore";
             case SearchBar.SearchPrefixType.DefaultSearch: return "search";
             default: return "search";
+        }
+    }
+
+    Item {
+        id: pluginIconContainer
+        Layout.alignment: Qt.AlignVCenter
+        visible: PluginRunner.isActive()
+        implicitWidth: pluginIcon.implicitWidth
+        implicitHeight: pluginIcon.implicitHeight
+        property bool hovered: pluginIconHover.containsMouse
+        
+        onVisibleChanged: {
+            if (visible) {
+                pluginIcon.scale = 0;
+                pluginIconBorder.scale = 0;
+                scaleIn.start();
+            }
+        }
+        
+        MaterialShape {
+            id: pluginIconBorder
+            anchors.centerIn: parent
+            shape: MaterialShape.Shape.Squircle
+            implicitSize: pluginIcon.implicitSize + 4
+            color: Appearance.colors.colPrimary
+            scale: 0
+        }
+        
+        MaterialShapeWrappedMaterialSymbol {
+            id: pluginIcon
+            anchors.centerIn: parent
+            iconSize: Appearance.font.pixelSize.huge
+            shape: MaterialShape.Shape.Squircle
+            color: Appearance.colors.colPrimaryContainer
+            colSymbol: Appearance.colors.colOnPrimaryContainer
+            text: PluginRunner.activePlugin?.manifest?.icon ?? "extension"
+            
+            SequentialAnimation {
+                id: scaleIn
+                ParallelAnimation {
+                    NumberAnimation {
+                        target: pluginIconBorder
+                        property: "scale"
+                        from: 0
+                        to: 1.15
+                        duration: 200
+                        easing.type: Easing.OutBack
+                    }
+                    NumberAnimation {
+                        target: pluginIcon
+                        property: "scale"
+                        from: 0
+                        to: 1.15
+                        duration: 200
+                        easing.type: Easing.OutBack
+                    }
+                }
+                ParallelAnimation {
+                    NumberAnimation {
+                        target: pluginIconBorder
+                        property: "scale"
+                        to: 1.0
+                        duration: 150
+                        easing.type: Easing.InOutQuad
+                    }
+                    NumberAnimation {
+                        target: pluginIcon
+                        property: "scale"
+                        to: 1.0
+                        duration: 150
+                        easing.type: Easing.InOutQuad
+                    }
+                }
+            }
+        }
+        
+        MouseArea {
+            id: pluginIconHover
+            anchors.fill: parent
+            hoverEnabled: true
+            acceptedButtons: Qt.NoButton
+        }
+        
+        StyledToolTip {
+            text: PluginRunner.activePlugin?.manifest?.name ?? ""
         }
     }
 
