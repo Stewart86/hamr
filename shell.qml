@@ -45,6 +45,7 @@ ShellRoot {
         }
 
         function open() {
+            GlobalStates.launcherMinimized = false
             GlobalStates.launcherOpen = true
         }
 
@@ -55,16 +56,15 @@ ShellRoot {
         }
 
         function openWith(prefix: string) {
-            // Open with a specific prefix (e.g., "~" for files, ";" for clipboard)
+            GlobalStates.launcherMinimized = false
             GlobalStates.launcherOpen = true
-            // TODO: Set the search prefix
         }
 
-         function plugin(name: string) {
-             // Start a specific plugin directly
-             GlobalStates.launcherOpen = true
-             LauncherSearch.startPlugin(name)
-         }
+        function plugin(name: string) {
+            GlobalStates.launcherMinimized = false
+            GlobalStates.launcherOpen = true
+            LauncherSearch.startPlugin(name)
+        }
     }
 
     // Global shortcuts for hamr
@@ -74,11 +74,13 @@ ShellRoot {
         name: "hamrToggle"
         description: "Toggle Hamr launcher"
         onPressed: {
-            if (GlobalStates.launcherOpen) {
-                // Toggle off - soft close (preserves state for restore window)
+            if (GlobalStates.launcherOpen && !GlobalStates.launcherMinimized) {
                 GlobalStates.softClose = true
+                GlobalStates.launcherOpen = false
+            } else {
+                GlobalStates.launcherMinimized = false
+                GlobalStates.launcherOpen = true
             }
-            GlobalStates.launcherOpen = !GlobalStates.launcherOpen
         }
     }
 
@@ -86,11 +88,13 @@ ShellRoot {
         name: "hamrToggleRelease"
         description: "Toggle Hamr on key release"
         onReleased: {
-            if (GlobalStates.launcherOpen) {
-                // Toggle off - soft close (preserves state for restore window)
+            if (GlobalStates.launcherOpen && !GlobalStates.launcherMinimized) {
                 GlobalStates.softClose = true
+                GlobalStates.launcherOpen = false
+            } else {
+                GlobalStates.launcherMinimized = false
+                GlobalStates.launcherOpen = true
             }
-            GlobalStates.launcherOpen = !GlobalStates.launcherOpen
         }
     }
 }

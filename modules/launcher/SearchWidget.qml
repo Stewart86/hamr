@@ -150,7 +150,7 @@ Item {
 
              Rectangle {
                 id: searchBarContainer
-                implicitWidth: searchBar.implicitWidth + 12
+                implicitWidth: searchBar.fixedWidth + 12
                 implicitHeight: searchBar.implicitHeight + 12
                 Layout.margins: 6
                 radius: Appearance.rounding.small
@@ -160,7 +160,9 @@ Item {
 
                 SearchBar {
                     id: searchBar
-                    anchors.centerIn: parent
+                    anchors.left: parent.left
+                    anchors.leftMargin: 6
+                    anchors.verticalCenter: parent.verticalCenter
                      Synchronizer on searchingText {
                          property alias source: root.searchingText
                      }
@@ -578,6 +580,20 @@ Item {
                         anchors.right: parent?.right
                         entry: modelData
                         query: StringUtils.cleanOnePrefix(root.searchingText, [Config.options.search.prefix.action, Config.options.search.prefix.app, Config.options.search.prefix.clipboard, Config.options.search.prefix.emojis, Config.options.search.prefix.math, Config.options.search.prefix.shellCommand, Config.options.search.prefix.webSearch])
+                    }
+                }
+
+                Rectangle {
+                    id: depthGradientOverlay
+                    visible: !PluginRunner.isActive()
+                    anchors.fill: parent
+                    radius: resultsContainer.radius
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: "transparent" }
+                        GradientStop { position: 0.50; color: Qt.rgba(0, 0, 0, 0.08) }
+                        GradientStop { position: 0.70; color: Qt.rgba(0, 0, 0, 0.18) }
+                        GradientStop { position: 0.85; color: Qt.rgba(0, 0, 0, 0.32) }
+                        GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.50) }
                     }
                 }
             }

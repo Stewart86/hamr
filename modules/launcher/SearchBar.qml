@@ -17,6 +17,9 @@ RowLayout {
     property bool animateWidth: false
     property alias searchInput: searchInput
     property string searchingText
+    property bool showMinimizeButton: dragHandleArea.containsMouse || minimizeArea.containsMouse
+    
+    readonly property real fixedWidth: 30 + spacing + Appearance.sizes.searchWidth + spacing + 24 + spacing + 24 + 8
     
     signal dragStarted(real mouseX, real mouseY)
     signal dragMoved(real mouseX, real mouseY)
@@ -202,15 +205,12 @@ RowLayout {
         font.pixelSize: Appearance.font.pixelSize.small
         placeholderText: root.pluginPlaceholder !== "" ? root.pluginPlaceholder : 
                          root.exclusiveModePlaceholder !== "" ? root.exclusiveModePlaceholder : "It's hamr time!"
-        implicitWidth: Appearance.sizes.searchWidth
+        implicitWidth: Appearance.sizes.searchWidth + (root.showMinimizeButton ? 0 : 23)
 
         Behavior on implicitWidth {
-            id: searchWidthBehavior
-            enabled: root.animateWidth
             NumberAnimation {
-                duration: 300
-                easing.type: Appearance.animation.elementMove.type
-                easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
+                duration: 150
+                easing.type: Easing.OutCubic
             }
         }
 
@@ -289,6 +289,55 @@ RowLayout {
     }
 
     Item {
+        id: minimizeButton
+        Layout.alignment: Qt.AlignVCenter
+        Layout.leftMargin: root.showMinimizeButton ? 0 : -3
+        implicitWidth: root.showMinimizeButton ? 24 : 0
+        implicitHeight: 24
+        clip: true
+        
+        Behavior on implicitWidth {
+            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+        }
+        Behavior on Layout.leftMargin {
+            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+        }
+        
+        Rectangle {
+            width: 24
+            height: 24
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            radius: Appearance.rounding.full
+            color: minimizeArea.containsMouse ? Appearance.colors.colSurfaceContainerHighest : "transparent"
+            opacity: root.showMinimizeButton ? 1 : 0
+            
+            Behavior on opacity {
+                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+            }
+            
+            MaterialSymbol {
+                anchors.centerIn: parent
+                iconSize: Appearance.font.pixelSize.normal
+                text: "remove"
+                color: minimizeArea.containsMouse ? Appearance.colors.colOnSurface : Appearance.m3colors.m3outline
+            }
+        }
+        
+        MouseArea {
+            id: minimizeArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: GlobalStates.launcherMinimized = true
+        }
+        
+        StyledToolTip {
+            text: "Minimize"
+        }
+    }
+
+    Item {
         Layout.alignment: Qt.AlignVCenter
         implicitWidth: 24
         implicitHeight: 24
@@ -305,7 +354,7 @@ RowLayout {
         MouseArea {
             id: dragHandleArea
             anchors.fill: parent
-            anchors.margins: -8 // Extend hit area
+            anchors.margins: -8
             hoverEnabled: true
             cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
             

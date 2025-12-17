@@ -11,6 +11,7 @@ Singleton {
     id: root
 
     property bool launcherOpen: false
+    property bool launcherMinimized: false
     property bool superReleaseMightTrigger: true
     
     // Soft close: click-outside (preserves state for restore window)

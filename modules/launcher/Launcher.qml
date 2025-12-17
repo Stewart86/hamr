@@ -117,7 +117,7 @@ Scope {
             property bool monitorIsFocused: (Hyprland.focusedMonitor?.id == monitor?.id)
             property alias searchWidget: searchWidget  // Expose for outer scope access
             screen: modelData
-            visible: GlobalStates.launcherOpen && monitorIsFocused
+            visible: GlobalStates.launcherOpen && monitorIsFocused && !GlobalStates.launcherMinimized
 
             WlrLayershell.namespace: "quickshell:hamr"
             WlrLayershell.layer: WlrLayer.Overlay
@@ -294,7 +294,7 @@ Scope {
 
             Item {
                 id: columnLayout
-                visible: GlobalStates.launcherOpen
+                visible: GlobalStates.launcherOpen && !GlobalStates.launcherMinimized
                 
                 // Track if we're dragging to avoid binding loop
                 property bool isDragging: false
@@ -375,6 +375,168 @@ Scope {
                         Persistent.states.launcher.yRatio = yRatio;
                         
                         columnLayout.isDragging = false;
+                    }
+                }
+            }
+
+        }
+    }
+
+    Variants {
+        id: fabVariants
+        model: Quickshell.screens
+        PanelWindow {
+            id: fabWindow
+            required property var modelData
+            readonly property HyprlandMonitor monitor: Hyprland.monitorFor(fabWindow.screen)
+            property bool monitorIsFocused: (Hyprland.focusedMonitor?.id == monitor?.id)
+            screen: modelData
+            visible: GlobalStates.launcherMinimized && monitorIsFocused
+            
+            WlrLayershell.namespace: "quickshell:hamr-fab"
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+            exclusionMode: ExclusionMode.Ignore
+            color: "transparent"
+            
+            mask: Region { item: fabContainer }
+            
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
+            }
+            
+            Item {
+                id: fabContainer
+                property bool isDragging: false
+                
+                x: isDragging ? x : Persistent.states.launcher.minXRatio * fabWindow.width - width / 2
+                y: isDragging ? y : Persistent.states.launcher.minYRatio * fabWindow.height
+                
+                implicitWidth: fabContent.implicitWidth + Appearance.sizes.elevationMargin * 2
+                implicitHeight: fabContent.implicitHeight + Appearance.sizes.elevationMargin * 2
+
+                StyledRectangularShadow {
+                    target: fabContent
+                }
+
+                Rectangle {
+                    id: fabContent
+                    anchors.centerIn: parent
+                    implicitWidth: fabRow.implicitWidth + 16
+                    implicitHeight: fabRow.implicitHeight + 12
+                    radius: Appearance.rounding.full
+                    color: Appearance.colors.colBackgroundSurfaceContainer
+                    border.width: 1
+                    border.color: Appearance.colors.colOutlineVariant
+                    
+                    RowLayout {
+                        id: fabRow
+                        anchors.centerIn: parent
+                        spacing: 8
+                        
+                        MaterialSymbol {
+                            text: "gavel"
+                            iconSize: Appearance.font.pixelSize.large
+                            color: Appearance.colors.colPrimary
+                        }
+                        
+                        StyledText {
+                            text: "hamr"
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            font.weight: Font.Medium
+                            color: Appearance.m3colors.m3onSurface
+                        }
+                        
+                        Item {
+                            implicitWidth: 1
+                            implicitHeight: parent.height
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: 1
+                                height: 16
+                                color: Appearance.colors.colOutlineVariant
+                            }
+                        }
+                        
+                        MaterialSymbol {
+                            text: "drag_indicator"
+                            iconSize: Appearance.font.pixelSize.normal
+                            color: fabDragArea.containsMouse || fabDragArea.pressed 
+                                ? Appearance.colors.colOnSurface 
+                                : Appearance.m3colors.m3outline
+                        }
+                    }
+                    
+                    MouseArea {
+                        id: fabClickArea
+                        anchors.fill: parent
+                        anchors.rightMargin: 36
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            GlobalStates.launcherMinimized = false;
+                            GlobalStates.launcherOpen = true;
+                        }
+                    }
+                    
+                    MouseArea {
+                        id: fabDragArea
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: 36
+                        hoverEnabled: true
+                        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                        
+                        property real dragOffsetX: 0
+                        property real dragOffsetY: 0
+                        
+                        onPressed: mouse => {
+                            fabContainer.isDragging = true;
+                            const containerPos = mapToItem(fabContainer.parent, mouse.x, mouse.y);
+                            dragOffsetX = containerPos.x - fabContainer.x;
+                            dragOffsetY = containerPos.y - fabContainer.y;
+                        }
+                        
+                        onPositionChanged: mouse => {
+                            if (pressed) {
+                                const containerPos = mapToItem(fabContainer.parent, mouse.x, mouse.y);
+                                let newX = containerPos.x - dragOffsetX;
+                                let newY = containerPos.y - dragOffsetY;
+                                
+                                const screenW = fabWindow.width;
+                                const screenH = fabWindow.height;
+                                const margin = Appearance.sizes.elevationMargin;
+                                newX = Math.max(-margin, Math.min(newX, screenW - fabContainer.width + margin));
+                                newY = Math.max(-margin, Math.min(newY, screenH - fabContainer.height + margin));
+                                
+                                fabContainer.x = newX;
+                                fabContainer.y = newY;
+                            }
+                        }
+                        
+                        onReleased: {
+                            const screenW = fabWindow.width;
+                            const screenH = fabWindow.height;
+                            let xRatio = (fabContainer.x + fabContainer.width / 2) / screenW;
+                            let yRatio = fabContainer.y / screenH;
+                            
+                            xRatio = Math.max(0.0, Math.min(1.0, xRatio));
+                            yRatio = Math.max(0.0, Math.min(1.0, yRatio));
+                            
+                            Persistent.states.launcher.minXRatio = xRatio;
+                            Persistent.states.launcher.minYRatio = yRatio;
+                            
+                            fabContainer.isDragging = false;
+                        }
+                    }
+                    
+                    StyledToolTip {
+                        visible: fabClickArea.containsMouse
+                        text: "Expand"
                     }
                 }
             }
