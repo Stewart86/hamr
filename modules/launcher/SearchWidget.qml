@@ -172,13 +172,19 @@ Item {
                     onDragEnded: root.dragEnded()
 
                     onNavigateDown: {
+                        if (appResults.count === 0) return;
                         if (appResults.currentIndex < appResults.count - 1) {
                             appResults.currentIndex++;
+                        } else {
+                            appResults.currentIndex = 0;
                         }
                     }
                     onNavigateUp: {
+                        if (appResults.count === 0) return;
                         if (appResults.currentIndex > 0) {
                             appResults.currentIndex--;
+                        } else {
+                            appResults.currentIndex = appResults.count - 1;
                         }
                     }
                     onSelectCurrent: {
