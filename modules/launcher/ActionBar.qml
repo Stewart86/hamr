@@ -1,17 +1,17 @@
 /**
- * PluginActionBar - Toolbar for plugin-level actions
+ * ActionBar - Unified toolbar for search hints and plugin actions
  * 
- * Displays action buttons for the active plugin. These are global actions
- * that apply to the plugin itself (e.g., "Add", "Wipe", "Refresh") rather
- * than to specific items in the result list.
+ * Renders contextually based on the current mode:
+ * - "hints": Shows search prefix shortcuts (files, clipboard, plugins, etc.)
+ * - "search": Shows back button and search-specific actions (e.g., Wipe All for clipboard)
+ * - "plugin": Shows home/back buttons, navigation depth, and plugin actions
  * 
  * Features:
- * - Home button (double Esc) - returns to main view
- * - Back button (single Esc) - goes back one navigation level
- * - Up to 6 action buttons with icons and keyboard shortcuts
- * - Tooltips show action names on hover
- * - Keyboard shortcuts (Ctrl+1 through Ctrl+6)
- * - Confirmation dialog for dangerous actions (when action has `confirm` field)
+ * - Icon + Kbd buttons with tooltips
+ * - Home button (double Esc) - returns to main view (plugin mode only)
+ * - Back button (single Esc) - goes back one level
+ * - Up to 6 action buttons with keyboard shortcuts
+ * - Confirmation dialog for dangerous actions
  */
 import QtQuick
 import QtQuick.Layouts
@@ -23,36 +23,40 @@ import qs.services
 Item {
     id: root
     
-    // Actions to display (max 6)
-    // Each action: { id, name, icon, confirm?: string, shortcut?: string }
+    // Mode: "hints" | "search" | "plugin"
+    property string mode: "hints"
+    
+    // Actions to display (format depends on mode)
+    // hints mode: [{ icon, key, label }]
+    // search mode: [{ id, icon, name, confirm?, shortcut? }]
+    // plugin mode: [{ id, icon, name, confirm?, shortcut? }]
     property var actions: []
     
-    // Navigation depth (0 = initial view, 1+ = nested views)
+    // Navigation depth (plugin mode only)
     property int navigationDepth: 0
     
-    // Signal when an action is clicked (after confirmation if needed)
-    // wasConfirmed is true if user went through confirmation dialog
-    signal actionClicked(string actionId, bool wasConfirmed)
+    // Hint actions shown on the right side (e.g., navigation hints)
+    property var hintActions: []
     
     // Currently showing confirmation for this action
     property var pendingConfirmAction: null
     
-    // Signal when back button is clicked (go back one level)
+    // Signals
+    signal actionClicked(string actionId, bool wasConfirmed)
     signal backClicked()
-    
-    // Signal when home button is clicked (go back to main view)
     signal homeClicked()
     
-    // Action buttons row
+    // Main content row
     RowLayout {
         id: actionsRow
         anchors.fill: parent
         spacing: 8
         visible: root.pendingConfirmAction === null
         
-        // Home button - goes back to main view
+        // Home button - only in plugin mode
         RippleButton {
             id: homeBtn
+            visible: root.mode === "plugin"
             Layout.fillHeight: true
             implicitWidth: homeContent.implicitWidth + 16
             
@@ -106,13 +110,14 @@ Item {
             }
         }
         
-        // Back button - goes back one level
+        // Back button - in prefix and plugin modes
         RippleButton {
             id: backBtn
+            visible: root.mode === "search" || root.mode === "plugin"
             Layout.fillHeight: true
             implicitWidth: backContent.implicitWidth + 16
-            enabled: root.navigationDepth > 0
-            opacity: root.navigationDepth > 0 ? 1.0 : 0.4
+            enabled: root.mode === "search" || root.navigationDepth > 0
+            opacity: enabled ? 1.0 : 0.4
             
             buttonRadius: 4
             colBackground: "transparent"
@@ -152,12 +157,12 @@ Item {
             }
         }
         
-        // Navigation depth indicator - animated dots showing how deep we are
+        // Navigation depth indicator - only in plugin mode
         Row {
             id: depthIndicator
             Layout.alignment: Qt.AlignVCenter
             spacing: 4
-            visible: root.navigationDepth > 0
+            visible: root.mode === "plugin" && root.navigationDepth > 0
             
             Repeater {
                 model: root.navigationDepth
@@ -172,7 +177,6 @@ Item {
                     color: Appearance.m3colors.m3primary
                     opacity: 0.7
                     
-                    // Animate in when appearing
                     scale: 0
                     Component.onCompleted: scaleIn.start()
                     
@@ -189,6 +193,7 @@ Item {
             }
         }
         
+        // Action buttons
         Repeater {
             model: root.actions.slice(0, 6)
             
@@ -197,11 +202,17 @@ Item {
                 required property var modelData
                 required property int index
                 
-                property string actionId: modelData.id ?? ""
-                property string actionName: modelData.name ?? ""
-                property string actionIcon: modelData.icon ?? "play_arrow"
+                // Support both formats: { key, label, icon } and { id, name, icon, shortcut }
+                property string actionId: modelData.id ?? modelData.key ?? ""
+                property string actionName: modelData.name ?? modelData.label ?? ""
+                property string actionIcon: modelData.icon ?? ""
                 property string confirmMessage: modelData.confirm ?? ""
-                property string shortcutKey: modelData.shortcut ?? `Ctrl+${index + 1}`
+                property string shortcutKey: {
+                    if (modelData.shortcut !== undefined) return modelData.shortcut;
+                    if (modelData.key !== undefined) return modelData.key;
+                    if (root.mode === "plugin") return `Ctrl+${index + 1}`;
+                    return "";
+                }
                 property bool hasConfirm: confirmMessage !== ""
                 
                 Layout.fillHeight: true
@@ -241,6 +252,7 @@ Item {
                         text: actionBtn.actionIcon
                         iconSize: 18
                         color: Appearance.m3colors.m3onSurfaceVariant
+                        visible: actionBtn.actionIcon !== ""
                     }
                     
                     Kbd {
@@ -255,6 +267,27 @@ Item {
         // Spacer
         Item {
             Layout.fillWidth: true
+        }
+        
+        // Hint actions on the right
+        Repeater {
+            model: root.hintActions
+            
+            delegate: RowLayout {
+                id: hintItem
+                required property var modelData
+                spacing: 4
+                
+                Kbd {
+                    keys: hintItem.modelData.key ?? ""
+                }
+                
+                Text {
+                    text: hintItem.modelData.label ?? ""
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.m3colors.m3outline
+                }
+            }
         }
     }
     
@@ -290,7 +323,6 @@ Item {
                 elide: Text.ElideRight
             }
             
-            // Cancel button
             RippleButton {
                 Layout.fillHeight: true
                 implicitWidth: cancelContent.implicitWidth + 16
@@ -316,7 +348,6 @@ Item {
                 }
             }
             
-            // Confirm button
             RippleButton {
                 Layout.fillHeight: true
                 implicitWidth: confirmContent.implicitWidth + 16
@@ -329,7 +360,7 @@ Item {
                     const actionId = root.pendingConfirmAction?.id ?? "";
                     root.pendingConfirmAction = null;
                     if (actionId) {
-                        root.actionClicked(actionId, true);  // Was confirmed
+                        root.actionClicked(actionId, true);
                     }
                 }
                 
@@ -355,26 +386,24 @@ Item {
     
     // Handle keyboard shortcuts
     Keys.onPressed: event => {
-        // Escape cancels confirmation
         if (event.key === Qt.Key_Escape && root.pendingConfirmAction !== null) {
             root.pendingConfirmAction = null;
             event.accepted = true;
             return;
         }
         
-        // Enter confirms pending action
         if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && root.pendingConfirmAction !== null) {
             const actionId = root.pendingConfirmAction?.id ?? "";
             root.pendingConfirmAction = null;
             if (actionId) {
-                root.actionClicked(actionId, true);  // Was confirmed
+                root.actionClicked(actionId, true);
             }
             event.accepted = true;
             return;
         }
         
-        // Ctrl+1 through Ctrl+6 for action shortcuts (only when no confirmation pending)
-        if (root.pendingConfirmAction === null && (event.modifiers & Qt.ControlModifier)) {
+        // Ctrl+1 through Ctrl+6 for plugin action shortcuts
+        if (root.mode === "plugin" && root.pendingConfirmAction === null && (event.modifiers & Qt.ControlModifier)) {
             const keyIndex = event.key - Qt.Key_1;
             if (keyIndex >= 0 && keyIndex < root.actions.length && keyIndex < 6) {
                 const action = root.actions[keyIndex];

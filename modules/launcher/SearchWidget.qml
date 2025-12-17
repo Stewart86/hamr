@@ -181,9 +181,9 @@ Item {
                     }
                     onSelectCurrent: {
                         // If there's a pending confirmation dialog, Enter confirms it
-                        if (pluginActionBar.pendingConfirmAction !== null) {
-                            const actionId = pluginActionBar.pendingConfirmAction?.id ?? "";
-                            pluginActionBar.pendingConfirmAction = null;
+                        if (actionBar.pendingConfirmAction !== null) {
+                            const actionId = actionBar.pendingConfirmAction?.id ?? "";
+                            actionBar.pendingConfirmAction = null;
                             if (actionId) {
                                 // Confirmed actions are typically destructive (wipe, clear)
                                 // They modify the view but don't navigate, so skip depth change
@@ -258,7 +258,7 @@ Item {
                                 const action = actions[index];
                                 if (action.confirm) {
                                     // Show confirmation in action bar
-                                    pluginActionBar.pendingConfirmAction = action;
+                                    actionBar.pendingConfirmAction = action;
                                 } else {
                                     PluginRunner.executePluginAction(action.id);
                                 }
@@ -268,16 +268,16 @@ Item {
                 }
             }
 
-            Item {
-                id: hintBar
-                visible: !PluginRunner.isActive()
+            ActionBar {
+                id: actionBar
+                visible: !Persistent.states.launcher.actionBarHidden
                 Layout.fillWidth: true
                 Layout.leftMargin: 12
                 Layout.rightMargin: 12
                 Layout.bottomMargin: 8
                 Layout.preferredHeight: 34
                 
-                readonly property bool inPrefixMode: {
+                readonly property bool inSearchMode: {
                     const q = root.searchingText;
                     return q.startsWith(Config.options.search.prefix.file) ||
                            q.startsWith(Config.options.search.prefix.clipboard) ||
@@ -290,223 +290,63 @@ Item {
                 
                 readonly property bool inClipboardMode: root.searchingText.startsWith(Config.options.search.prefix.clipboard)
                 
-                RowLayout {
-                    anchors.fill: parent
-                    spacing: 8
-                    visible: !hintBar.inPrefixMode
-
-                    Repeater {
-                        model: [
-                            { key: Config.options.search.prefix.file, label: "files" },
-                            { key: Config.options.search.prefix.clipboard, label: "clipboard" },
-                            { key: Config.options.search.prefix.action, label: "plugins" },
-                            { key: Config.options.search.prefix.shellHistory, label: "shell" },
-                            { key: Config.options.search.prefix.math, label: "math" },
-                            { key: Config.options.search.prefix.emojis, label: "emoji" },
-                        ]
-
-                        RippleButton {
-                            id: prefixBtn
-                            required property var modelData
-                            required property int index
-                            
-                            Layout.fillHeight: true
-                            implicitWidth: prefixContent.implicitWidth + 16
-                            
-                            buttonRadius: 4
-                            colBackground: "transparent"
-                            colBackgroundHover: Appearance.colors.colSurfaceContainerHighest
-                            colRipple: Appearance.colors.colSurfaceContainerHighest
-                            
-                            onClicked: {
-                                 searchBar.searchInput.text = modelData.key;
-                                 LauncherSearch.query = modelData.key;
-                                 root.focusSearchInput();
-                             }
-                             
-                             Rectangle {
-                                anchors.fill: parent
-                                radius: 4
-                                color: "transparent"
-                                border.width: 1
-                                border.color: Appearance.colors.colOutlineVariant
-                            }
-                            
-                            contentItem: RowLayout {
-                                id: prefixContent
-                                spacing: 8
-                                
-                                Kbd {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    keys: prefixBtn.modelData.key
-                                }
-                                
-                                Text {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    text: prefixBtn.modelData.label
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    color: Appearance.m3colors.m3onSurfaceVariant
-                                }
-                            }
+                mode: PluginRunner.isActive() ? "plugin" : (inSearchMode ? "search" : "hints")
+                
+                actions: {
+                    if (PluginRunner.isActive()) {
+                        return PluginRunner.pluginActions;
+                    } else if (inSearchMode) {
+                        const prefixActions = [];
+                        if (inClipboardMode) {
+                            prefixActions.push({ id: "wipe", icon: "delete_sweep", name: "Wipe All" });
                         }
-                    }
-
-                    // Spacer
-                    Item {
-                        Layout.fillWidth: true
-                    }
-                    
-                    Repeater {
-                        model: root.showResults ? [
-                            { key: "^J", label: "down" },
-                            { key: "^K", label: "up" },
-                            { key: "Tab", label: "actions" },
-                        ] : []
-                        
-                        RowLayout {
-                            required property var modelData
-                            spacing: 4
-                            
-                            Kbd {
-                                keys: modelData.key
-                            }
-                            
-                            Text {
-                                text: modelData.label
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                color: Appearance.m3colors.m3outline
-                            }
-                        }
+                        return prefixActions;
+                    } else {
+                        return [
+                            { key: Config.options.search.prefix.file, icon: "folder", label: "Files" },
+                            { key: Config.options.search.prefix.clipboard, icon: "content_paste", label: "Clipboard" },
+                            { key: Config.options.search.prefix.action, icon: "extension", label: "Plugins" },
+                            { key: Config.options.search.prefix.shellHistory, icon: "terminal", label: "Shell" },
+                            { key: Config.options.search.prefix.math, icon: "calculate", label: "Math" },
+                            { key: Config.options.search.prefix.emojis, icon: "emoji_emotions", label: "Emoji" },
+                        ];
                     }
                 }
                 
-                RowLayout {
-                    anchors.fill: parent
-                    spacing: 8
-                    visible: hintBar.inPrefixMode
-                    
-                    RippleButton {
-                        id: backBtn
-                        Layout.fillHeight: true
-                        implicitWidth: backContent.implicitWidth + 16
-                        
-                        buttonRadius: 4
-                        colBackground: "transparent"
-                        colBackgroundHover: Appearance.colors.colSurfaceContainerHighest
-                        colRipple: Appearance.colors.colSurfaceContainerHighest
-                        
-                        onClicked: {
-                             root.cancelSearch();
-                         }
-                         
-                         Rectangle {
-                            anchors.fill: parent
-                            radius: 4
-                            color: "transparent"
-                            border.width: 1
-                            border.color: Appearance.colors.colOutlineVariant
-                        }
-                        
-                        contentItem: RowLayout {
-                            id: backContent
-                            spacing: 8
-                            
-                            MaterialSymbol {
-                                Layout.alignment: Qt.AlignVCenter
-                                text: "arrow_back"
-                                iconSize: 18
-                                color: Appearance.m3colors.m3onSurfaceVariant
-                            }
-                            
-                            Text {
-                                Layout.alignment: Qt.AlignVCenter
-                                text: "Back"
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                color: Appearance.m3colors.m3onSurfaceVariant
-                            }
-                            
-                            Kbd {
-                                Layout.alignment: Qt.AlignVCenter
-                                keys: "Esc"
-                            }
-                        }
-                    }
-                    
-                    RippleButton {
-                        id: wipeBtn
-                        visible: hintBar.inClipboardMode
-                        Layout.fillHeight: true
-                        implicitWidth: wipeContent.implicitWidth + 16
-                        
-                        buttonRadius: 4
-                        colBackground: "transparent"
-                        colBackgroundHover: Appearance.colors.colSurfaceContainerHighest
-                        colRipple: Appearance.colors.colSurfaceContainerHighest
-                        
-                        onClicked: {
-                             Quickshell.exec(["cliphist", "wipe"]);
-                             LauncherSearch.query = Config.options.search.prefix.clipboard;
-                         }
-                         
-                         Rectangle {
-                            anchors.fill: parent
-                            radius: 4
-                            color: "transparent"
-                            border.width: 1
-                            border.color: Appearance.colors.colOutlineVariant
-                        }
-                        
-                        contentItem: RowLayout {
-                            id: wipeContent
-                            spacing: 8
-                            
-                            MaterialSymbol {
-                                Layout.alignment: Qt.AlignVCenter
-                                text: "delete_sweep"
-                                iconSize: 18
-                                color: Appearance.m3colors.m3onSurfaceVariant
-                            }
-                            
-                            Text {
-                                Layout.alignment: Qt.AlignVCenter
-                                text: "Wipe All"
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                color: Appearance.m3colors.m3onSurfaceVariant
-                            }
-                        }
-                    }
-                    
-                    // Spacer
-                    Item {
-                        Layout.fillWidth: true
-                    }
-                }
-            }
-            
-            PluginActionBar {
-                id: pluginActionBar
-                visible: PluginRunner.isActive()
-                Layout.fillWidth: true
-                Layout.leftMargin: 12
-                Layout.rightMargin: 12
-                Layout.bottomMargin: 8
-                Layout.preferredHeight: 34
-                
-                actions: PluginRunner.pluginActions
                 navigationDepth: PluginRunner.navigationDepth
                 
+                hintActions: root.showResults && !PluginRunner.isActive() && !inSearchMode ? [
+                    { key: "^J", label: "down" },
+                    { key: "^K", label: "up" },
+                    { key: "Tab", label: "actions" },
+                ] : []
+                
                 onActionClicked: (actionId, wasConfirmed) => {
-                    // Confirmed actions (destructive) don't navigate
-                    PluginRunner.executePluginAction(actionId, wasConfirmed);
+                    if (PluginRunner.isActive()) {
+                        PluginRunner.executePluginAction(actionId, wasConfirmed);
+                    } else if (actionBar.inSearchMode) {
+                        if (actionId === "wipe") {
+                            Quickshell.exec(["cliphist", "wipe"]);
+                            LauncherSearch.query = Config.options.search.prefix.clipboard;
+                        }
+                    } else {
+                        searchBar.searchInput.text = actionId;
+                        LauncherSearch.query = actionId;
+                        root.focusSearchInput();
+                    }
                 }
                 
                 onBackClicked: {
-                    if (root.showForm) {
-                        PluginRunner.cancelForm();
-                        root.focusSearchInput();
-                        return;
+                    if (PluginRunner.isActive()) {
+                        if (root.showForm) {
+                            PluginRunner.cancelForm();
+                            root.focusSearchInput();
+                            return;
+                        }
+                        PluginRunner.goBack();
+                    } else {
+                        root.cancelSearch();
                     }
-                    PluginRunner.goBack();
                 }
                 
                 onHomeClicked: {

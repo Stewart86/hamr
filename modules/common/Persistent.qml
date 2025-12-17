@@ -160,6 +160,7 @@ Singleton {
                 // Defaults from Config: appearance.launcherXRatio / launcherYRatio
                 property real xRatio: Config.options.appearance?.launcherXRatio ?? 0.5
                 property real yRatio: Config.options.appearance?.launcherYRatio ?? 0.1
+                property bool actionBarHidden: false
             }
         }
     }

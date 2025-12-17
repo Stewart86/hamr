@@ -54,31 +54,53 @@ RowLayout {
         return SearchBar.SearchPrefixType.DefaultSearch;
     }
     
-    MaterialShapeWrappedMaterialSymbol {
-        id: searchIcon
+    Item {
+        id: searchIconContainer
         Layout.alignment: Qt.AlignVCenter
         visible: !PluginRunner.isActive()
-        iconSize: Appearance.font.pixelSize.huge
-        shape: switch(root.searchPrefixType) {
-            case SearchBar.SearchPrefixType.Action: return MaterialShape.Shape.Pill;
-            case SearchBar.SearchPrefixType.App: return MaterialShape.Shape.Clover4Leaf;
-            case SearchBar.SearchPrefixType.Clipboard: return MaterialShape.Shape.Gem;
-            case SearchBar.SearchPrefixType.Emojis: return MaterialShape.Shape.Sunny;
-            case SearchBar.SearchPrefixType.Math: return MaterialShape.Shape.PuffyDiamond;
-            case SearchBar.SearchPrefixType.ShellCommand: return MaterialShape.Shape.PixelCircle;
-            case SearchBar.SearchPrefixType.WebSearch: return MaterialShape.Shape.SoftBurst;
-            default: return MaterialShape.Shape.Circle;
+        implicitWidth: searchIcon.implicitWidth
+        implicitHeight: searchIcon.implicitHeight
+        property bool hovered: searchIconHover.containsMouse
+        
+        MaterialShapeWrappedMaterialSymbol {
+            id: searchIcon
+            anchors.centerIn: parent
+            iconSize: Appearance.font.pixelSize.huge
+            shape: switch(root.searchPrefixType) {
+                case SearchBar.SearchPrefixType.Action: return MaterialShape.Shape.Pill;
+                case SearchBar.SearchPrefixType.App: return MaterialShape.Shape.Clover4Leaf;
+                case SearchBar.SearchPrefixType.Clipboard: return MaterialShape.Shape.Gem;
+                case SearchBar.SearchPrefixType.Emojis: return MaterialShape.Shape.Sunny;
+                case SearchBar.SearchPrefixType.Math: return MaterialShape.Shape.PuffyDiamond;
+                case SearchBar.SearchPrefixType.ShellCommand: return MaterialShape.Shape.PixelCircle;
+                case SearchBar.SearchPrefixType.WebSearch: return MaterialShape.Shape.SoftBurst;
+                default: return MaterialShape.Shape.Circle;
+            }
+            text: switch (root.searchPrefixType) {
+                case SearchBar.SearchPrefixType.Action: return "settings_suggest";
+                case SearchBar.SearchPrefixType.App: return "apps";
+                case SearchBar.SearchPrefixType.Clipboard: return "content_paste_search";
+                case SearchBar.SearchPrefixType.Emojis: return "add_reaction";
+                case SearchBar.SearchPrefixType.Math: return "calculate";
+                case SearchBar.SearchPrefixType.ShellCommand: return "terminal";
+                case SearchBar.SearchPrefixType.WebSearch: return "travel_explore";
+                case SearchBar.SearchPrefixType.DefaultSearch: return "gavel";
+                default: return "gavel";
+            }
         }
-        text: switch (root.searchPrefixType) {
-            case SearchBar.SearchPrefixType.Action: return "settings_suggest";
-            case SearchBar.SearchPrefixType.App: return "apps";
-            case SearchBar.SearchPrefixType.Clipboard: return "content_paste_search";
-            case SearchBar.SearchPrefixType.Emojis: return "add_reaction";
-            case SearchBar.SearchPrefixType.Math: return "calculate";
-            case SearchBar.SearchPrefixType.ShellCommand: return "terminal";
-            case SearchBar.SearchPrefixType.WebSearch: return "travel_explore";
-            case SearchBar.SearchPrefixType.DefaultSearch: return "gavel";
-            default: return "gavel";
+        
+        MouseArea {
+            id: searchIconHover
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                Persistent.states.launcher.actionBarHidden = !Persistent.states.launcher.actionBarHidden;
+            }
+        }
+        
+        StyledToolTip {
+            text: Persistent.states.launcher.actionBarHidden ? "Show action bar" : "Hide action bar"
         }
     }
 
