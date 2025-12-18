@@ -32,6 +32,8 @@ RippleButton {
     }
     property string itemClickActionName: entry?.verb ?? "Open"
     property string itemComment: entry?.comment ?? ""
+    property bool isSuggestion: entry?.isSuggestion ?? false
+    property string suggestionReason: entry?.suggestionReason ?? ""
     property string bigText: entry?.iconType === LauncherSearchResult.IconType.Text ? entry?.iconName ?? "" : ""
     property string materialSymbol: entry.iconType === LauncherSearchResult.IconType.Material ? entry?.iconName ?? "" : ""
     property string thumbnail: entry?.thumbnail ?? ""
@@ -314,11 +316,23 @@ RippleButton {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignVCenter
             spacing: 0
-            StyledText {
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                color: Appearance.colors.colSubtext
+            RowLayout {
+                spacing: 6
                 visible: root.itemType && root.itemType != "App"
-                text: root.itemType
+                
+                StyledText {
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: root.isSuggestion ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                    text: root.isSuggestion ? "Suggested" : root.itemType
+                }
+                
+                MaterialSymbol {
+                    visible: root.isSuggestion
+                    text: "auto_awesome"
+                    iconSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colPrimary
+                    opacity: 0.8
+                }
             }
             RowLayout {
              Repeater {

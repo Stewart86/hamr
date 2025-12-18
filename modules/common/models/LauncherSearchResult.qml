@@ -61,6 +61,13 @@ QtObject {
      // Keep launcher open after execution (for indexed items that show UI)
      property bool keepOpen: false
      
+     // ==================== SMART SUGGESTIONS ====================
+     // Whether this item is a smart suggestion
+     property bool isSuggestion: false
+     
+     // Reason for the suggestion (e.g., "Often used at 9am")
+     property string suggestionReason: ""
+     
      // ==================== RUNNING WINDOW SUPPORT ====================
      // Number of open windows for this app (0 = not running)
      property int windowCount: 0

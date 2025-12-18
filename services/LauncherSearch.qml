@@ -9,6 +9,7 @@ import QtQuick
 import Qt.labs.folderlistmodel
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 
 Singleton {
     id: root
@@ -88,17 +89,31 @@ Singleton {
         }
     }
 
-    // Delegate history functions to HistoryManager service
+    // Delegate history functions to HistoryManager service (with context for smart suggestions)
     function recordSearch(searchType, searchName, searchTerm) {
-        HistoryManager.recordSearch(searchType, searchName, searchTerm);
+        const context = ContextTracker.getContext();
+        context.launchFromEmpty = root.query === "";
+        HistoryManager.recordSearch(searchType, searchName, searchTerm, context);
+        
+        // Record app launch for sequence tracking
+        if (searchType === "app") {
+            ContextTracker.recordLaunch(searchName);
+        }
     }
     
     function recordWorkflowExecution(actionInfo, searchTerm) {
-        HistoryManager.recordWorkflowExecution(actionInfo, searchTerm);
+        const context = ContextTracker.getContext();
+        context.launchFromEmpty = root.query === "";
+        HistoryManager.recordWorkflowExecution(actionInfo, searchTerm, context);
     }
     
     function recordWindowFocus(appId, appName, windowTitle, iconName, searchTerm) {
-        HistoryManager.recordWindowFocus(appId, appName, windowTitle, iconName, searchTerm ?? root.query);
+        const context = ContextTracker.getContext();
+        context.launchFromEmpty = root.query === "";
+        HistoryManager.recordWindowFocus(appId, appName, windowTitle, iconName, searchTerm ?? root.query, context);
+        
+        // Record app focus for sequence tracking
+        ContextTracker.recordLaunch(appId);
     }
     
     function removeHistoryItem(historyType, identifier) {
@@ -701,6 +716,48 @@ Singleton {
         return resultObj;
     }
     
+    // Create suggestion results from SmartSuggestions
+    function createSuggestionResults() {
+        const suggestions = SmartSuggestions.getSuggestions();
+        const allIndexed = PluginRunner.getAllIndexedItems();
+        
+        return suggestions.map(suggestion => {
+            const historyItem = suggestion.item;
+            const appItem = allIndexed.find(idx => idx.appId === historyItem.name);
+            if (!appItem) return null;
+            
+            const appId = appItem.appId;
+            const reason = SmartSuggestions.getPrimaryReason(suggestion);
+            
+            return resultComp.createObject(null, {
+                type: "Suggested",
+                id: appId,
+                name: appItem.name,
+                comment: reason,
+                iconName: appItem.icon,
+                iconType: LauncherSearchResult.IconType.System,
+                verb: "Open",
+                isSuggestion: true,
+                suggestionReason: reason,
+                execute: ((capturedAppItem, capturedAppId) => () => {
+                    const currentWindows = WindowManager.getWindowsForApp(capturedAppId);
+                    if (currentWindows.length === 0) {
+                        root.recordSearch("app", capturedAppId, "");
+                        if (capturedAppItem.execute?.command) {
+                            Quickshell.execDetached(capturedAppItem.execute.command);
+                        }
+                    } else if (currentWindows.length === 1) {
+                        root.recordWindowFocus(capturedAppId, capturedAppItem.name, currentWindows[0].title, capturedAppItem.icon);
+                        WindowManager.focusWindow(currentWindows[0]);
+                        GlobalStates.launcherOpen = false;
+                    } else {
+                        GlobalStates.openWindowPicker(capturedAppId, currentWindows);
+                    }
+                })(appItem, appId)
+            });
+        }).filter(Boolean);
+    }
+    
     property list<var> results: {
          const _pluginActive = PluginRunner.activePlugin !== null;
          const _pluginResults = PluginRunner.pluginResults;
@@ -797,7 +854,11 @@ Singleton {
              const _actionsLoaded = root.allActions.length;
              const _historyLoaded = searchHistoryData.length;
              
-             if (_historyLoaded === 0) return [];
+             // Get smart suggestions first
+             const suggestions = root.createSuggestionResults();
+             const suggestionAppIds = new Set(suggestions.map(s => s.id));
+             
+             if (_historyLoaded === 0) return suggestions;
              
              const recentItems = searchHistoryData
                  .slice()
@@ -934,9 +995,12 @@ Singleton {
                     return null;
                 })
                 .filter(Boolean)
+                // Filter out items that are already in suggestions to avoid duplicates
+                .filter(item => !suggestionAppIds.has(item.id))
                 .slice(0, Config.options.search?.maxRecentItems ?? 20);
             
-             return recentItems;
+             // Prepend suggestions to recent items
+             return [...suggestions, ...recentItems];
          }
 
          const unifiedResults = root.unifiedFuzzySearch(root.query, 50);

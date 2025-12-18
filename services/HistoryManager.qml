@@ -1,6 +1,7 @@
 pragma Singleton
 
 import qs.modules.common
+import qs.modules.common.functions
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -14,6 +15,7 @@ Singleton {
     property int maxRecentSearchTerms: 5
     property int maxTotalScore: 10000
     property int maxAgeDays: 90
+    property int maxSequenceItems: 5
 
     FileView {
         id: searchHistoryFileView
@@ -32,7 +34,6 @@ Singleton {
         }
         onLoadFailed: error => {
             if (error == FileViewError.FileNotFound) {
-                // Create empty history file
                 searchHistoryFileView.setText(JSON.stringify({ history: [] }));
             }
             root.searchHistoryData = [];
@@ -54,7 +55,107 @@ Singleton {
         }
     }
 
-    function recordSearch(searchType, searchName, searchTerm) {
+    function createEmptySmartFields() {
+        return {
+            hourSlotCounts: new Array(24).fill(0),
+            dayOfWeekCounts: new Array(7).fill(0),
+            workspaceCounts: {},
+            monitorCounts: {},
+            launchedAfter: {},
+            sessionStartCount: 0,
+            launchFromEmptyCount: 0,
+            consecutiveDays: 0,
+            lastConsecutiveDate: ""
+        };
+    }
+
+    function updateSmartFields(existing, context) {
+        const now = Date.now();
+        const hour = StatisticalUtils.getHourSlot(now);
+        const day = StatisticalUtils.getDayOfWeek(now);
+        
+        const hourSlotCounts = existing.hourSlotCounts ? existing.hourSlotCounts.slice() : new Array(24).fill(0);
+        const dayOfWeekCounts = existing.dayOfWeekCounts ? existing.dayOfWeekCounts.slice() : new Array(7).fill(0);
+        const workspaceCounts = existing.workspaceCounts ? Object.assign({}, existing.workspaceCounts) : {};
+        const monitorCounts = existing.monitorCounts ? Object.assign({}, existing.monitorCounts) : {};
+        const launchedAfter = existing.launchedAfter ? Object.assign({}, existing.launchedAfter) : {};
+        
+        hourSlotCounts[hour] = (hourSlotCounts[hour] || 0) + 1;
+        dayOfWeekCounts[day] = (dayOfWeekCounts[day] || 0) + 1;
+        
+        if (context && context.workspace) {
+            workspaceCounts[context.workspace] = (workspaceCounts[context.workspace] || 0) + 1;
+        }
+        if (context && context.monitor) {
+            monitorCounts[context.monitor] = (monitorCounts[context.monitor] || 0) + 1;
+        }
+        
+        if (context && context.lastApp) {
+            launchedAfter[context.lastApp] = (launchedAfter[context.lastApp] || 0) + 1;
+            const sorted = Object.entries(launchedAfter).sort((a, b) => b[1] - a[1]);
+            if (sorted.length > root.maxSequenceItems) {
+                const keys = Object.keys(launchedAfter);
+                for (const k of keys) {
+                    delete launchedAfter[k];
+                }
+                for (let i = 0; i < root.maxSequenceItems; i++) {
+                    launchedAfter[sorted[i][0]] = sorted[i][1];
+                }
+            }
+        }
+        
+        let sessionStartCount = existing.sessionStartCount || 0;
+        if (context && context.isSessionStart) {
+            sessionStartCount++;
+        }
+        
+        let launchFromEmptyCount = existing.launchFromEmptyCount || 0;
+        if (context && context.launchFromEmpty) {
+            launchFromEmptyCount++;
+        }
+        
+        const today = new Date().toISOString().split('T')[0];
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        let consecutiveDays = existing.consecutiveDays || 0;
+        let lastConsecutiveDate = existing.lastConsecutiveDate || "";
+        
+        if (lastConsecutiveDate === today) {
+            // Already used today, no change
+        } else if (lastConsecutiveDate === yesterday) {
+            consecutiveDays++;
+            lastConsecutiveDate = today;
+        } else {
+            consecutiveDays = 1;
+            lastConsecutiveDate = today;
+        }
+        
+        return {
+            hourSlotCounts: hourSlotCounts,
+            dayOfWeekCounts: dayOfWeekCounts,
+            workspaceCounts: workspaceCounts,
+            monitorCounts: monitorCounts,
+            launchedAfter: launchedAfter,
+            sessionStartCount: sessionStartCount,
+            launchFromEmptyCount: launchFromEmptyCount,
+            consecutiveDays: consecutiveDays,
+            lastConsecutiveDate: lastConsecutiveDate
+        };
+    }
+
+    function mergeWithSmartFields(baseObj, smartFields) {
+        baseObj.hourSlotCounts = smartFields.hourSlotCounts;
+        baseObj.dayOfWeekCounts = smartFields.dayOfWeekCounts;
+        baseObj.workspaceCounts = smartFields.workspaceCounts;
+        baseObj.monitorCounts = smartFields.monitorCounts;
+        baseObj.launchedAfter = smartFields.launchedAfter;
+        baseObj.sessionStartCount = smartFields.sessionStartCount;
+        baseObj.launchFromEmptyCount = smartFields.launchFromEmptyCount;
+        baseObj.consecutiveDays = smartFields.consecutiveDays;
+        baseObj.lastConsecutiveDate = smartFields.lastConsecutiveDate;
+        return baseObj;
+    }
+
+    function recordSearch(searchType, searchName, searchTerm, context) {
         const now = Date.now();
         const existingIndex = searchHistoryData.findIndex(
             h => h.type === searchType && h.name === searchName
@@ -72,26 +173,29 @@ Singleton {
                 recentTerms = recentTerms.slice(0, root.maxRecentSearchTerms);
             }
             
-            newHistory[existingIndex] = {
+            const smartFields = updateSmartFields(existing, context);
+            
+            newHistory[existingIndex] = mergeWithSmartFields({
                 type: existing.type,
                 name: existing.name,
                 count: existing.count + 1,
                 lastUsed: now,
                 recentSearchTerms: recentTerms
-            };
+            }, smartFields);
         } else {
-            newHistory.unshift({
+            const smartFields = updateSmartFields({}, context);
+            
+            newHistory.unshift(mergeWithSmartFields({
                 type: searchType,
                 name: searchName,
                 count: 1,
                 lastUsed: now,
                 recentSearchTerms: searchTerm ? [searchTerm] : []
-            });
+            }, smartFields));
         }
         
         newHistory = ageAndPruneHistory(newHistory, now);
         
-        // Trim to max items
         if (newHistory.length > root.maxHistoryItems) {
             newHistory = newHistory.slice(0, root.maxHistoryItems);
         }
@@ -100,10 +204,9 @@ Singleton {
         searchHistoryFileView.setText(JSON.stringify({ history: newHistory }, null, 2));
     }
     
-    function recordWorkflowExecution(actionInfo, searchTerm) {
+    function recordWorkflowExecution(actionInfo, searchTerm, context) {
         const now = Date.now();
-        // Use name + workflowId as unique key
-        const key = `${actionInfo.workflowId}:${actionInfo.name}`;
+        const key = actionInfo.workflowId + ":" + actionInfo.name;
         const existingIndex = searchHistoryData.findIndex(
             h => h.type === "workflowExecution" && h.key === key
         );
@@ -120,37 +223,41 @@ Singleton {
                 recentTerms = recentTerms.slice(0, root.maxRecentSearchTerms);
             }
             
-            newHistory[existingIndex] = {
+            const smartFields = updateSmartFields(existing, context);
+            
+            newHistory[existingIndex] = mergeWithSmartFields({
                 type: existing.type,
                 key: existing.key,
                 name: existing.name,
                 workflowId: existing.workflowId,
                 workflowName: existing.workflowName,
                 command: actionInfo.command,
-                entryPoint: actionInfo.entryPoint ?? null,
+                entryPoint: actionInfo.entryPoint || null,
                 icon: actionInfo.icon,
-                iconType: actionInfo.iconType ?? existing.iconType ?? "material",
+                iconType: actionInfo.iconType || existing.iconType || "material",
                 thumbnail: actionInfo.thumbnail,
                 count: existing.count + 1,
                 lastUsed: now,
                 recentSearchTerms: recentTerms
-            };
+            }, smartFields);
         } else {
-            newHistory.unshift({
+            const smartFields = updateSmartFields({}, context);
+            
+            newHistory.unshift(mergeWithSmartFields({
                 type: "workflowExecution",
                 key: key,
                 name: actionInfo.name,
                 workflowId: actionInfo.workflowId,
                 workflowName: actionInfo.workflowName,
                 command: actionInfo.command,
-                entryPoint: actionInfo.entryPoint ?? null,
+                entryPoint: actionInfo.entryPoint || null,
                 icon: actionInfo.icon,
-                iconType: actionInfo.iconType ?? "material",
+                iconType: actionInfo.iconType || "material",
                 thumbnail: actionInfo.thumbnail,
                 count: 1,
                 lastUsed: now,
                 recentSearchTerms: searchTerm ? [searchTerm] : []
-            });
+            }, smartFields));
         }
         
         newHistory = ageAndPruneHistory(newHistory, now);
@@ -163,11 +270,10 @@ Singleton {
         searchHistoryFileView.setText(JSON.stringify({ history: newHistory }, null, 2));
     }
     
-    function recordWindowFocus(appId, appName, windowTitle, iconName, searchTerm) {
+    function recordWindowFocus(appId, appName, windowTitle, iconName, searchTerm, context) {
         const now = Date.now();
         let newHistory = searchHistoryData.slice();
         
-        // Also update the app's history entry with the search term (for frecency)
         if (searchTerm) {
             const appIndex = newHistory.findIndex(h => h.type === "app" && h.name === appId);
             if (appIndex >= 0) {
@@ -177,27 +283,29 @@ Singleton {
                 recentTerms.unshift(searchTerm);
                 recentTerms = recentTerms.slice(0, root.maxRecentSearchTerms);
                 
-                newHistory[appIndex] = {
+                const smartFields = updateSmartFields(existing, context);
+                
+                newHistory[appIndex] = mergeWithSmartFields({
                     type: existing.type,
                     name: existing.name,
                     count: existing.count + 1,
                     lastUsed: now,
                     recentSearchTerms: recentTerms
-                };
+                }, smartFields);
             } else {
-                // Create app entry if it doesn't exist
-                newHistory.unshift({
+                const smartFields = updateSmartFields({}, context);
+                
+                newHistory.unshift(mergeWithSmartFields({
                     type: "app",
                     name: appId,
                     count: 1,
                     lastUsed: now,
                     recentSearchTerms: [searchTerm]
-                });
+                }, smartFields));
             }
         }
         
-        // Use appId + windowTitle as unique key for window focus entry
-        const key = `windowFocus:${appId}:${windowTitle}`;
+        const key = "windowFocus:" + appId + ":" + windowTitle;
         const existingIndex = newHistory.findIndex(
             h => h.type === "windowFocus" && h.key === key
         );
@@ -242,13 +350,49 @@ Singleton {
         
         if (totalCount > root.maxTotalScore) {
             const scaleFactor = (root.maxTotalScore * 0.9) / totalCount;
-            history = history.map(item => ({
-                type: item.type,
-                name: item.name,
-                count: item.count * scaleFactor,
-                lastUsed: item.lastUsed,
-                recentSearchTerms: item.recentSearchTerms
-            }));
+            history = history.map(item => {
+                const scaled = Object.assign({}, item);
+                scaled.count = item.count * scaleFactor;
+                
+                if (scaled.hourSlotCounts) {
+                    scaled.hourSlotCounts = scaled.hourSlotCounts.map(c => c * scaleFactor);
+                }
+                if (scaled.dayOfWeekCounts) {
+                    scaled.dayOfWeekCounts = scaled.dayOfWeekCounts.map(c => c * scaleFactor);
+                }
+                if (scaled.workspaceCounts) {
+                    const ws = {};
+                    const entries = Object.entries(scaled.workspaceCounts);
+                    for (let i = 0; i < entries.length; i++) {
+                        ws[entries[i][0]] = entries[i][1] * scaleFactor;
+                    }
+                    scaled.workspaceCounts = ws;
+                }
+                if (scaled.monitorCounts) {
+                    const mc = {};
+                    const entries = Object.entries(scaled.monitorCounts);
+                    for (let i = 0; i < entries.length; i++) {
+                        mc[entries[i][0]] = entries[i][1] * scaleFactor;
+                    }
+                    scaled.monitorCounts = mc;
+                }
+                if (scaled.launchedAfter) {
+                    const la = {};
+                    const entries = Object.entries(scaled.launchedAfter);
+                    for (let i = 0; i < entries.length; i++) {
+                        la[entries[i][0]] = entries[i][1] * scaleFactor;
+                    }
+                    scaled.launchedAfter = la;
+                }
+                if (scaled.sessionStartCount) {
+                    scaled.sessionStartCount = scaled.sessionStartCount * scaleFactor;
+                }
+                if (scaled.launchFromEmptyCount) {
+                    scaled.launchFromEmptyCount = scaled.launchFromEmptyCount * scaleFactor;
+                }
+                
+                return scaled;
+            });
         }
         
         const maxAgeMs = root.maxAgeDays * 24 * 60 * 60 * 1000;
@@ -260,5 +404,18 @@ Singleton {
         });
         
         return history;
+    }
+    
+    function getAppLaunchCount(appId) {
+        const item = searchHistoryData.find(h => h.type === "app" && h.name === appId);
+        return item ? item.count : 0;
+    }
+    
+    function getAppHistoryItems() {
+        return searchHistoryData.filter(h => h.type === "app");
+    }
+    
+    function getHistoryItem(type, name) {
+        return searchHistoryData.find(h => h.type === type && h.name === name);
     }
 }
