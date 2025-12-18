@@ -40,7 +40,7 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: Run `qs -c hamr` in terminal and paste relevant output
+      description: Run `qs log -c hamr -f` in terminal, reproduce the issue, and paste relevant output
       render: shell
 
   - type: input
