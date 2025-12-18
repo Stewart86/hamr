@@ -14,10 +14,10 @@ import Quickshell.Hyprland
 Scope {
     id: launcherScope
     property bool dontAutoCancelSearch: false
-    
+
     // Track if state is pending cleanup (soft close occurred, waiting for timeout or reopen)
     property bool statePendingCleanup: false
-    
+
     Connections {
         target: GlobalStates
         function onLauncherMinimizedChanged() {
@@ -33,7 +33,7 @@ Scope {
         id: launchTimestampProc
         command: ["bash", "-c", "mkdir -p ~/.cache/hamr && date +%s%3N > ~/.cache/hamr/launch_timestamp"]
     }
-    
+
     // Deferred cleanup timer for soft close (click-outside)
     // When timer fires, actually clean up state
     Timer {
@@ -46,7 +46,7 @@ Scope {
                 launcherScope.statePendingCleanup = false;
                 return;
             }
-            
+
             // Timer expired - perform actual cleanup
             if (PluginRunner.isActive()) {
                 LauncherSearch.closePlugin();
@@ -57,7 +57,7 @@ Scope {
             launcherScope.statePendingCleanup = false;
         }
     }
-    
+
     // Perform immediate cleanup (hard close)
     function performImmediateCleanup() {
         deferredCleanupTimer.stop();
@@ -75,7 +75,7 @@ Scope {
         function onLauncherOpenChanged() {
             if (GlobalStates.launcherOpen) {
                 launchTimestampProc.running = true;
-                
+
                 // === OPENING (single handler, not per-screen) ===
                 if (launcherScope.statePendingCleanup) {
                     // Reopening within restore window - cancel cleanup, preserve state
@@ -88,7 +88,7 @@ Scope {
             } else {
                 // === CLOSING (single handler, not per-screen) ===
                 const restoreWindowMs = Config.options.behavior.stateRestoreWindowMs;
-                
+
                 if (GlobalStates.softClose && restoreWindowMs > 0) {
                     // Soft close (click-outside): defer cleanup, allow state restore
                     launcherScope.statePendingCleanup = true;
@@ -97,19 +97,19 @@ Scope {
                     // Hard close (Escape, execute-with-close, etc.): immediate cleanup
                     launcherScope.performImmediateCleanup();
                 }
-                
+
                 // Reset softClose flag for next close
                 GlobalStates.softClose = false;
-                
+
                 // Reset dontAutoCancelSearch
                 launcherScope.dontAutoCancelSearch = false;
-                
+
                 // Hide action hint
                 GlobalStates.hideActionHint();
             }
         }
     }
-    
+
     // Helper to cancel search - needs to call into the correct screen's searchWidget
     function cancelSearchOnAllScreens() {
         for (let i = 0; i < launcherVariants.instances.length; i++) {
@@ -151,24 +151,26 @@ Scope {
                 right: true
             }
 
-             FocusGrab {
-                 id: grab
-                 window: root
-                 active: false
-                 focusTarget: searchWidget.searchInput
-                 
-                 property bool canBeActive: root.monitorIsFocused
-             }
-             
-             // Re-grab focus when user clicks anywhere on the launcher content
-             function regrabFocus() {
-                 if (!GlobalStates.launcherOpen) return;
-                 if (GlobalStates.imageBrowserOpen) return;
-                 if (!grab.canBeActive) return;
-                 
-                 grab.regrabFocus();
-             }
+            FocusGrab {
+                id: grab
+                window: root
+                active: false
+                focusTarget: searchWidget.searchInput
 
+                property bool canBeActive: root.monitorIsFocused
+            }
+
+            // Re-grab focus when user clicks anywhere on the launcher content
+            function regrabFocus() {
+                if (!GlobalStates.launcherOpen)
+                    return;
+                if (GlobalStates.imageBrowserOpen)
+                    return;
+                if (!grab.canBeActive)
+                    return;
+
+                grab.regrabFocus();
+            }
 
             Connections {
                 target: GlobalStates
@@ -243,16 +245,14 @@ Scope {
                 MouseArea {
                     anchors.fill: parent
                     visible: GlobalStates.launcherOpen
-                    onClicked: (mouse) => {
+                    onClicked: mouse => {
                         const content = searchWidget.contentItem;
                         const contentMapped = content.mapToItem(fullScreenBackground, 0, 0);
 
-                        if (mouse.x < contentMapped.x || mouse.x > contentMapped.x + content.width ||
-                            mouse.y < contentMapped.y || mouse.y > contentMapped.y + content.height) {
+                        if (mouse.x < contentMapped.x || mouse.x > contentMapped.x + content.width || mouse.y < contentMapped.y || mouse.y > contentMapped.y + content.height) {
                             const action = Config.options.behavior?.clickOutsideAction ?? "intuitive";
-                            const shouldMinimize = action === "minimize" || 
-                                (action === "intuitive" && Persistent.states.launcher.hasUsedMinimize);
-                            
+                            const shouldMinimize = action === "minimize" || (action === "intuitive" && Persistent.states.launcher.hasUsedMinimize);
+
                             if (shouldMinimize) {
                                 GlobalStates.launcherMinimized = true;
                                 // Start deferred cleanup timer so state resets after timeout
@@ -277,7 +277,7 @@ Scope {
                 opacity: GlobalStates.actionHintVisible ? 1 : 0
                 scale: GlobalStates.actionHintVisible ? 1 : 0.9
                 z: 1000
-                
+
                 // Convert global position to local
                 x: {
                     const localPos = fullScreenBackground.mapFromGlobal(GlobalStates.actionHintPosition.x, GlobalStates.actionHintPosition.y);
@@ -287,30 +287,36 @@ Scope {
                     const localPos = fullScreenBackground.mapFromGlobal(GlobalStates.actionHintPosition.x, GlobalStates.actionHintPosition.y);
                     return localPos.y;
                 }
-                
+
                 implicitWidth: hintContent.implicitWidth + 12
                 implicitHeight: hintContent.implicitHeight + 6
                 radius: 4
                 color: Appearance.colors.colSurfaceContainerHigh
                 border.width: 1
                 border.color: Appearance.colors.colOutlineVariant
-                
+
                 Behavior on opacity {
-                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                    NumberAnimation {
+                        duration: 150
+                        easing.type: Easing.OutCubic
+                    }
                 }
                 Behavior on scale {
-                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                    NumberAnimation {
+                        duration: 150
+                        easing.type: Easing.OutCubic
+                    }
                 }
-                
+
                 RowLayout {
                     id: hintContent
                     anchors.centerIn: parent
                     spacing: 6
-                    
+
                     Kbd {
                         keys: GlobalStates.actionHintKey
                     }
-                    
+
                     Text {
                         text: GlobalStates.actionHintName
                         font.pixelSize: Appearance.font.pixelSize.smallest
@@ -322,14 +328,14 @@ Scope {
             Item {
                 id: columnLayout
                 visible: GlobalStates.launcherOpen && !GlobalStates.launcherMinimized
-                
+
                 // Track if we're dragging to avoid binding loop
                 property bool isDragging: false
-                
+
                 // Calculate position from stored ratios (only when not dragging)
                 x: isDragging ? x : Persistent.states.launcher.xRatio * fullScreenBackground.width - width / 2
                 y: isDragging ? y : Persistent.states.launcher.yRatio * fullScreenBackground.height
-                
+
                 implicitWidth: searchWidget.implicitWidth
                 implicitHeight: searchWidget.implicitHeight
 
@@ -357,14 +363,14 @@ Scope {
                     Synchronizer on searchingText {
                         property alias source: root.searchingText
                     }
-                    
+
                     // Re-grab focus when user clicks on the launcher widget
                     onUserInteracted: root.regrabFocus()
-                    
+
                     // Drag offset from mouse to widget origin
                     property real dragOffsetX: 0
                     property real dragOffsetY: 0
-                    
+
                     onDragStarted: (mouseX, mouseY) => {
                         columnLayout.isDragging = true;
                         // Calculate offset from global mouse position to columnLayout origin
@@ -372,43 +378,42 @@ Scope {
                         dragOffsetX = mouseX - widgetGlobalPos.x;
                         dragOffsetY = mouseY - widgetGlobalPos.y;
                     }
-                    
+
                     onDragMoved: (mouseX, mouseY) => {
                         // Convert global mouse position to fullScreenBackground coordinates
                         const bgGlobalPos = fullScreenBackground.mapToGlobal(0, 0);
                         let newX = mouseX - bgGlobalPos.x - dragOffsetX;
                         let newY = mouseY - bgGlobalPos.y - dragOffsetY;
-                        
+
                         // Clamp to keep widget visible on screen
                         const screenW = fullScreenBackground.width;
                         const screenH = fullScreenBackground.height;
                         const topMargin = Appearance.sizes.elevationMargin * 20;
                         newX = Math.max(0, Math.min(newX, screenW - columnLayout.width));
                         newY = Math.max(-topMargin, Math.min(newY, screenH - columnLayout.height));
-                        
+
                         columnLayout.x = newX;
                         columnLayout.y = newY;
                     }
-                    
+
                     onDragEnded: {
                         // Save position as ratio for resolution independence
                         const screenW = fullScreenBackground.width;
                         const screenH = fullScreenBackground.height;
                         let xRatio = (columnLayout.x + columnLayout.width / 2) / screenW;
                         let yRatio = columnLayout.y / screenH;
-                        
+
                         // Clamp ratios to keep widget on screen (0.0-1.0)
                         xRatio = Math.max(0.0, Math.min(1.0, xRatio));
                         yRatio = Math.max(0.0, Math.min(1.0, yRatio));
-                        
+
                         Persistent.states.launcher.xRatio = xRatio;
                         Persistent.states.launcher.yRatio = yRatio;
-                        
+
                         columnLayout.isDragging = false;
                     }
                 }
             }
-
         }
     }
 
@@ -422,29 +427,31 @@ Scope {
             property bool monitorIsFocused: (Hyprland.focusedMonitor?.id == monitor?.id)
             screen: modelData
             visible: GlobalStates.launcherMinimized && monitorIsFocused
-            
+
             WlrLayershell.namespace: "quickshell:hamr-fab"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
-            
-            mask: Region { item: fabContainer }
-            
+
+            mask: Region {
+                item: fabContainer
+            }
+
             anchors {
                 top: true
                 bottom: true
                 left: true
                 right: true
             }
-            
+
             Item {
                 id: fabContainer
                 property bool isDragging: false
-                
+
                 x: isDragging ? x : Persistent.states.launcher.minXRatio * fabWindow.width - width / 2
                 y: isDragging ? y : Persistent.states.launcher.minYRatio * fabWindow.height - Appearance.sizes.elevationMargin
-                
+
                 implicitWidth: fabContent.implicitWidth + Appearance.sizes.elevationMargin * 2
                 implicitHeight: fabContent.implicitHeight + Appearance.sizes.elevationMargin * 2
 
@@ -461,28 +468,70 @@ Scope {
                     color: Appearance.colors.colBackgroundSurfaceContainer
                     border.width: 1
                     border.color: Appearance.colors.colOutlineVariant
-                    
+
+                    property bool rawHover: fabDragArea.containsMouse || fabCloseArea.containsMouse
+                    property bool showCloseButton: rawHover || closeButtonHideDelay.running
+
+                    onRawHoverChanged: {
+                        if (rawHover) {
+                            closeButtonHideDelay.stop();
+                        } else {
+                            closeButtonHideDelay.start();
+                        }
+                    }
+
+                    Timer {
+                        id: closeButtonHideDelay
+                        interval: 300
+                        repeat: false
+                    }
+
                     RowLayout {
                         id: fabRow
                         anchors.centerIn: parent
                         spacing: 8
-                        
+
                         MaterialSymbol {
                             text: "gavel"
                             iconSize: Appearance.font.pixelSize.large
                             color: Appearance.colors.colPrimary
                         }
-                        
+
                         StyledText {
+                            id: fabHamrText
                             text: "hamr"
                             font.pixelSize: Appearance.font.pixelSize.small
                             font.weight: Font.Medium
                             color: Appearance.m3colors.m3onSurface
+                            Layout.preferredWidth: fabContent.showCloseButton ? 0 : implicitWidth
+                            Layout.rightMargin: fabContent.showCloseButton ? -fabRow.spacing : 0
+                            opacity: fabContent.showCloseButton ? 0 : 1
+                            clip: true
+
+                            Behavior on Layout.preferredWidth {
+                                NumberAnimation {
+                                    duration: 150
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
+                            Behavior on Layout.rightMargin {
+                                NumberAnimation {
+                                    duration: 150
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: 150
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
                         }
-                        
+
                         Item {
                             implicitWidth: 1
                             implicitHeight: parent.height
+
                             Rectangle {
                                 anchors.centerIn: parent
                                 width: 1
@@ -490,20 +539,76 @@ Scope {
                                 color: Appearance.colors.colOutlineVariant
                             }
                         }
-                        
+
+                        Item {
+                            id: fabCloseButton
+                            Layout.alignment: Qt.AlignVCenter
+                            implicitWidth: fabContent.showCloseButton ? fabHamrText.implicitWidth : 0
+                            implicitHeight: 24
+                            clip: true
+                            
+                            Behavior on implicitWidth {
+                                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                            }
+
+                            Rectangle {
+                                width: 24
+                                height: 24
+                                anchors.centerIn: parent
+                                radius: Appearance.rounding.full
+                                color: fabCloseArea.containsMouse ? Appearance.colors.colSurfaceContainerHighest : "transparent"
+                                opacity: fabContent.showCloseButton ? 1 : 0
+
+                                Behavior on opacity {
+                                    NumberAnimation {
+                                        duration: 150
+                                        easing.type: Easing.OutCubic
+                                    }
+                                }
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    iconSize: Appearance.font.pixelSize.normal
+                                    text: "close"
+                                    color: fabCloseArea.containsMouse ? Appearance.colors.colOnSurface : Appearance.m3colors.m3outline
+                                }
+                            }
+
+                            MouseArea {
+                                id: fabCloseArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    Persistent.states.launcher.hasUsedMinimize = false;
+                                    GlobalStates.launcherMinimized = false;
+                                    GlobalStates.launcherOpen = false;
+                                }
+                            }
+
+                            StyledToolTip {
+                                parent: fabCloseArea
+                                text: "Close"
+                                visible: fabCloseArea.containsMouse && fabCloseButton.implicitWidth > 0
+                            }
+                        }
+
                         MaterialSymbol {
                             text: "drag_indicator"
                             iconSize: Appearance.font.pixelSize.normal
-                            color: fabDragArea.containsMouse || fabDragArea.pressed 
-                                ? Appearance.colors.colOnSurface 
-                                : Appearance.m3colors.m3outline
+                            color: fabDragArea.containsMouse || fabDragArea.pressed ? Appearance.colors.colOnSurface : Appearance.m3colors.m3outline
+                            Layout.leftMargin: fabContent.showCloseButton ? 0 : -fabRow.spacing
+                            
+                            Behavior on Layout.leftMargin {
+                                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                            }
                         }
                     }
-                    
+
                     MouseArea {
                         id: fabClickArea
                         anchors.fill: parent
-                        anchors.rightMargin: 36
+                        anchors.rightMargin: fabContent.showCloseButton ? 60 : 36
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
@@ -516,7 +621,7 @@ Scope {
                             GlobalStates.launcherOpen = true;
                         }
                     }
-                    
+
                     MouseArea {
                         id: fabDragArea
                         anchors.right: parent.right
@@ -525,51 +630,51 @@ Scope {
                         width: 36
                         hoverEnabled: true
                         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-                        
+
                         property real dragOffsetX: 0
                         property real dragOffsetY: 0
-                        
+
                         onPressed: mouse => {
                             fabContainer.isDragging = true;
                             const containerPos = mapToItem(fabContainer.parent, mouse.x, mouse.y);
                             dragOffsetX = containerPos.x - fabContainer.x;
                             dragOffsetY = containerPos.y - fabContainer.y;
                         }
-                        
+
                         onPositionChanged: mouse => {
                             if (pressed) {
                                 const containerPos = mapToItem(fabContainer.parent, mouse.x, mouse.y);
                                 let newX = containerPos.x - dragOffsetX;
                                 let newY = containerPos.y - dragOffsetY;
-                                
+
                                 const screenW = fabWindow.width;
                                 const screenH = fabWindow.height;
                                 const margin = Appearance.sizes.elevationMargin;
                                 newX = Math.max(-margin, Math.min(newX, screenW - fabContainer.width + margin));
                                 newY = Math.max(-margin, Math.min(newY, screenH - fabContainer.height + margin));
-                                
+
                                 fabContainer.x = newX;
                                 fabContainer.y = newY;
                             }
                         }
-                        
+
                         onReleased: {
                             const screenW = fabWindow.width;
                             const screenH = fabWindow.height;
                             const margin = Appearance.sizes.elevationMargin;
                             let xRatio = (fabContainer.x + fabContainer.width / 2) / screenW;
                             let yRatio = (fabContainer.y + margin) / screenH;
-                            
+
                             xRatio = Math.max(0.0, Math.min(1.0, xRatio));
                             yRatio = Math.max(0.0, Math.min(1.0, yRatio));
-                            
+
                             Persistent.states.launcher.minXRatio = xRatio;
                             Persistent.states.launcher.minYRatio = yRatio;
-                            
+
                             fabContainer.isDragging = false;
                         }
                     }
-                    
+
                     StyledToolTip {
                         visible: fabClickArea.containsMouse
                         text: "Expand"
