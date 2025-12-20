@@ -256,6 +256,23 @@ Add to `~/.config/hypr/hyprland.conf`:
 exec-once = hamr
 ```
 
+**4. (Optional) Pass shell environment variables**
+
+By default, Hamr inherits environment from the display manager, not your shell profile. If you need plugins to access environment variables set in your shell (e.g., `BW_SESSION` for Bitwarden), launch Hamr through an interactive login shell:
+
+```bash
+# Zsh
+exec-once = zsh -ic "hamr"
+
+# Bash
+exec-once = bash -ic "hamr"
+
+# Fish
+exec-once = fish -c "hamr"
+```
+
+This ensures variables exported in `.zshrc`, `.bashrc`, or `config.fish` are available to Hamr and its plugins.
+
 ### Updating
 
 **AUR:**

@@ -5,7 +5,7 @@ Bitwarden workflow handler - search and copy credentials from Bitwarden vault.
 Requires:
 - bw (Bitwarden CLI) installed and in PATH
 - User must login and unlock vault manually: `bw login && bw unlock`
-- Session token saved to ~/.bw_session or BW_SESSION env var
+- BW_SESSION env var (preferred) or session file (~/.bw_session) as fallback
 """
 
 import json
@@ -104,10 +104,16 @@ BW_PATH = find_bw()
 
 
 def get_session() -> str | None:
-    """Get session from file locations (env var often stale in graphical apps)"""
+    """Get session from BW_SESSION env var or file locations as fallback"""
     if TEST_MODE:
-        return "mock-session-token"  # Return fake session in test mode
+        return "mock-session-token"
 
+    # Prefer env var (works when quickshell is launched via login shell)
+    session = os.environ.get("BW_SESSION")
+    if session:
+        return session
+
+    # Fall back to file-based session
     home = Path.home()
     session_files = [
         home / ".bw_session",
@@ -121,8 +127,7 @@ def get_session() -> str | None:
             if session:
                 return session
 
-    # Fall back to env var
-    return os.environ.get("BW_SESSION")
+    return None
 
 
 def run_bw(args: list[str], session: str | None = None) -> tuple[bool, str]:
