@@ -525,6 +525,11 @@ def get_all_settings(config: dict) -> list[dict]:
     for category, settings in SETTINGS_SCHEMA.items():
         for key, info in settings.items():
             setting_type = info.get("type", "string")
+
+            # Skip actionBarHintsJson - we show individual actions instead
+            if setting_type == "actionbarhints":
+                continue
+
             current = get_current_value(config, category, key)
 
             result: dict = {
@@ -552,6 +557,31 @@ def get_all_settings(config: dict) -> list[dict]:
                 ]
 
             results.append(result)
+
+    # Add individual action bar hints as searchable items
+    hints = get_action_bar_hints(config)
+    for i in range(6):
+        if i < len(hints):
+            hint = hints[i]
+            prefix = hint.get("prefix", "")
+            icon = hint.get("icon", "extension")
+            label = hint.get("label", "")
+            plugin = hint.get("plugin", "")
+            desc = f"Action Bar Hints | {prefix} → {label} ({plugin})"
+        else:
+            icon = "add"
+            desc = "Action Bar Hints | (not configured)"
+
+        results.append(
+            {
+                "id": f"action:{i + 1}",
+                "name": f"Action {i + 1}",
+                "description": desc,
+                "icon": icon,
+                "verb": "Configure",
+            }
+        )
+
     return results
 
 
