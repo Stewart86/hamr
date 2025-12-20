@@ -144,6 +144,28 @@ test_action_empty_closes_launcher() {
     assert_closes "$result"
 }
 
+test_result_has_move_actions() {
+    local result=$(hamr_test initial)
+    # Window on workspace 1 should have move actions for workspace 2 and 3
+    local move_2=$(json_get "$result" '.results[0].actions[] | select(.id == "move:2") | .id')
+    local move_3=$(json_get "$result" '.results[0].actions[] | select(.id == "move:3") | .id')
+    assert_eq "$move_2" "move:2"
+    assert_eq "$move_3" "move:3"
+}
+
+test_result_move_action_format() {
+    local result=$(hamr_test initial)
+    # Window on workspace 1 should have move:2 and move:3 actions
+    local move_action=$(json_get "$result" '.results[0].actions[1].id')
+    assert_contains "$move_action" "move:"
+}
+
+test_action_move_refreshes() {
+    local result=$(hamr_test action --id "window:0x55587961e9a0" --action "move:2")
+    assert_type "$result" "results"
+    assert_contains "$result" "Moved"
+}
+
 # ============================================================================
 # Run
 # ============================================================================
@@ -164,10 +186,13 @@ run_tests \
     test_result_has_focus_verb \
     test_result_has_close_action \
     test_result_has_system_icon_type \
+    test_result_has_move_actions \
+    test_result_move_action_format \
     test_search_filters_by_title \
     test_search_filters_by_class \
     test_search_case_insensitive \
     test_search_no_match_shows_empty \
     test_action_focus_closes_launcher \
     test_action_close_refreshes \
+    test_action_move_refreshes \
     test_action_empty_closes_launcher

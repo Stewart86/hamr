@@ -39,6 +39,12 @@ MOCK_WINDOWS = [
     },
 ]
 
+MOCK_WORKSPACES = [
+    {"id": 1, "name": "1"},
+    {"id": 2, "name": "2"},
+    {"id": 3, "name": "3"},
+]
+
 
 def get_windows() -> list[dict]:
     """Get all open windows from Hyprland"""
@@ -56,6 +62,25 @@ def get_windows() -> list[dict]:
         # Sort by focusHistoryID (most recently focused first)
         windows.sort(key=lambda w: w.get("focusHistoryID", 999))
         return windows
+    except (subprocess.CalledProcessError, FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
+def get_workspaces() -> list[dict]:
+    """Get all workspaces from Hyprland"""
+    if TEST_MODE:
+        return MOCK_WORKSPACES
+
+    try:
+        result = subprocess.run(
+            ["hyprctl", "workspaces", "-j"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        workspaces = json.loads(result.stdout)
+        workspaces.sort(key=lambda w: w.get("id", 0))
+        return workspaces
     except (subprocess.CalledProcessError, FileNotFoundError, json.JSONDecodeError):
         return []
 
@@ -86,17 +111,44 @@ def window_to_index_item(window: dict) -> dict:
     }
 
 
-def window_to_result(window: dict) -> dict:
+def window_to_result(window: dict, workspaces: list[dict] | None = None) -> dict:
     """Convert window to result format (for workflow mode)"""
     address = window.get("address", "")
     title = window.get("title", "")
     window_class = window.get("class", "")
     workspace = window.get("workspace", {})
-    workspace_name = workspace.get("name", str(workspace.get("id", "")))
+    workspace_id = workspace.get("id", 0)
+    workspace_name = workspace.get("name", str(workspace_id))
 
     description = window_class
     if workspace_name:
         description = f"{window_class} (workspace {workspace_name})"
+
+    actions = [
+        {"id": "close", "name": "Close Window", "icon": "close"},
+    ]
+
+    if workspaces:
+        number_icons = {
+            1: "looks_one",
+            2: "looks_two",
+            3: "looks_3",
+            4: "looks_4",
+            5: "looks_5",
+            6: "looks_6",
+        }
+        for ws in workspaces:
+            ws_id = ws.get("id", 0)
+            ws_name = ws.get("name", str(ws_id))
+            if ws_id != workspace_id and ws_id > 0:
+                icon = number_icons.get(ws_id, "drive_file_move")
+                actions.append(
+                    {
+                        "id": f"move:{ws_id}",
+                        "name": f"Move to Workspace {ws_name}",
+                        "icon": icon,
+                    }
+                )
 
     return {
         "id": f"window:{address}",
@@ -105,9 +157,7 @@ def window_to_result(window: dict) -> dict:
         "icon": window_class,
         "iconType": "system",
         "verb": "Focus",
-        "actions": [
-            {"id": "close", "name": "Close Window", "icon": "close"},
-        ],
+        "actions": actions,
     }
 
 
@@ -143,6 +193,27 @@ def close_window(address: str) -> tuple[bool, str]:
         return False, f"Failed to close window {address}"
 
 
+def move_window_to_workspace(address: str, workspace_id: int) -> tuple[bool, str]:
+    """Move a window to a workspace (silently, without switching to it)"""
+    if TEST_MODE:
+        return True, f"Moved window {address} to workspace {workspace_id}"
+
+    try:
+        subprocess.run(
+            [
+                "hyprctl",
+                "dispatch",
+                "movetoworkspacesilent",
+                f"{workspace_id},address:{address}",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        return True, f"Moved to workspace {workspace_id}"
+    except subprocess.CalledProcessError:
+        return False, f"Failed to move window to workspace {workspace_id}"
+
+
 def main():
     input_data = json.load(sys.stdin)
     step = input_data.get("step", "initial")
@@ -151,6 +222,7 @@ def main():
     action = input_data.get("action", "")
 
     windows = get_windows()
+    workspaces = get_workspaces()
 
     if step == "index":
         items = [window_to_index_item(w) for w in windows]
@@ -158,7 +230,7 @@ def main():
         return
 
     if step == "initial":
-        results = [window_to_result(w) for w in windows]
+        results = [window_to_result(w, workspaces) for w in windows]
         if not results:
             results = [
                 {
@@ -188,7 +260,7 @@ def main():
             if query_lower in w.get("title", "").lower()
             or query_lower in w.get("class", "").lower()
         ]
-        results = [window_to_result(w) for w in filtered]
+        results = [window_to_result(w, workspaces) for w in filtered]
         if not results:
             results = [
                 {
@@ -220,9 +292,34 @@ def main():
 
             if action == "close":
                 success, message = close_window(address)
-                # Refresh window list after close
                 windows = get_windows()
-                results = [window_to_result(w) for w in windows]
+                workspaces = get_workspaces()
+                results = [window_to_result(w, workspaces) for w in windows]
+                if not results:
+                    results = [
+                        {
+                            "id": "__empty__",
+                            "name": "No windows open",
+                            "icon": "info",
+                        }
+                    ]
+                print(
+                    json.dumps(
+                        {
+                            "type": "results",
+                            "results": results,
+                            "notify": message if success else None,
+                        }
+                    )
+                )
+                return
+
+            if action.startswith("move:"):
+                workspace_id = int(action.replace("move:", ""))
+                success, message = move_window_to_workspace(address, workspace_id)
+                windows = get_windows()
+                workspaces = get_workspaces()
+                results = [window_to_result(w, workspaces) for w in windows]
                 if not results:
                     results = [
                         {
@@ -245,8 +342,6 @@ def main():
             # Default action: focus and close launcher
             success, message = focus_window(address)
             if success:
-                # Don't record history - window addresses are ephemeral
-                # and would be invalid after the window is closed/reopened
                 print(json.dumps({"type": "execute", "execute": {"close": True}}))
             else:
                 print(json.dumps({"type": "error", "message": message}))
