@@ -39,23 +39,32 @@ Symlinked to `~/.config/quickshell/` for testing.
 
 When user says "push and bump version" or "release":
 
-1. **Update version in PKGBUILD**:
+1. **Check for uncommitted changes to determine if version bump should be patch version or minor version**:
+
+    ```bash
+    git status --porcelain
+    ```
+
+    If there are no features or features don't seem significant update, bump the version as a patch version (e.g., `0.1.1` -> `0.1.2`).
+    Else, bump the version as a minor version (e.g., `0.1.1` -> `0.2.0`).
+
+2. **Update version in PKGBUILD**:
     - `pkgver` - bump for code changes (e.g., `0.1.1` -> `0.2.0`)
     - `pkgrel` - bump for PKGBUILD-only changes, reset to `1` on pkgver bump
 
-2. **Commit and push**:
+3. **Commit and push**:
 
     ```bash
     git add -A && git commit -m "chore: bump version to X.Y.Z" && git push
     ```
 
-3. **Create and push tag**:
+4. **Create and push tag**:
 
     ```bash
     git tag vX.Y.Z && git push origin vX.Y.Z
     ```
 
-4. **GitHub Actions will automatically**:
+5. **GitHub Actions will automatically**:
     - Update AUR package
     - Create GitHub Release with sorted release notes (by conventional commit type)
 
