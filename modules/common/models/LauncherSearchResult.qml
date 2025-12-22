@@ -77,4 +77,12 @@ QtObject {
      
      // Whether this app has running windows
      property bool isRunning: windowCount > 0
+     
+     // ==================== PREVIEW PANEL SUPPORT ====================
+     // Preview data object for side panel display
+     // Structure: { type: "image"|"markdown"|"text"|"metadata", 
+     //              content: string, title: string, 
+     //              metadata: [{label, value}], actions: [{id, name, icon}],
+     //              detachable: bool }
+     property var preview: undefined
 }

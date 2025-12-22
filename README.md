@@ -37,6 +37,7 @@ Hamr is an extensible launcher for Hyprland built with [Quickshell](https://quic
 - **Extensible plugins** - Language-agnostic handlers with simple JSON protocol (Python, Bash, Go, Rust, etc.)
 - **History tracking** - Search, plugin actions, and shell command history
 - **Smart suggestions** - Context-aware app suggestions based on time, workspace, and usage patterns
+- **Preview panel** - Drawer-style side panel shows rich previews (images, markdown, metadata) on hover/selection; pin previews to screen
 - **Draggable & persistent position** - Drag the launcher anywhere on screen; position remembered across sessions
 - **State restoration** - Click outside to dismiss, reopen within 30s to resume where you left off (configurable)
 
@@ -397,6 +398,7 @@ Each plugin is either:
 |------------|-------------|
 | **Multi-step navigation** | Show lists, let users drill down, navigate back |
 | **Rich cards** | Display markdown content (definitions, previews, help) |
+| **Preview panel** | Side panel with image/markdown/text preview, pinnable to screen |
 | **Multi-field forms** | Forms with text, textarea, select, checkbox fields |
 | **Image thumbnails** | Show image previews in result lists |
 | **Action buttons** | Add context actions per item (copy, delete, open folder) |

@@ -330,6 +330,116 @@ Scope {
                 }
             }
 
+            // Preview Panel - drawer style, slides out from the side of the launcher
+            // Defined BEFORE columnLayout so it renders underneath
+            Item {
+                id: previewPanelContainer
+                visible: GlobalStates.launcherOpen && !GlobalStates.launcherMinimized
+                
+                property var previewItem: GlobalStates.previewItem
+                property string currentItemId: previewItem?.id ?? ""
+                property bool hasPreview: GlobalStates.previewPanelVisible
+                
+                property real launcherRight: columnLayout.x + columnLayout.width
+                property real launcherLeft: columnLayout.x
+                property real launcherY: columnLayout.y
+                property real screenW: fullScreenBackground.width
+                property real screenH: fullScreenBackground.height
+                
+                readonly property real panelWidth: Appearance.sizes.searchWidth * 0.75
+                readonly property real overlapRight: 32
+                readonly property real overlapLeft: 12
+                
+                readonly property bool showOnRight: {
+                    const rightSpace = screenW - launcherRight;
+                    const leftSpace = launcherLeft;
+                    return rightSpace >= panelWidth - overlapRight || rightSpace >= leftSpace;
+                }
+                
+                // Open position (overlapping with launcher)
+                readonly property real openX: showOnRight 
+                    ? launcherRight - overlapRight
+                    : launcherLeft - panelWidth + overlapLeft
+                
+                // Closed position (hidden behind launcher)
+                readonly property real closedX: showOnRight
+                    ? launcherRight - panelWidth + overlapRight
+                    : launcherLeft - overlapLeft
+                
+                // Drawer state: closed -> opening -> open -> closing -> closed
+                property bool drawerOpen: false
+                property var pendingItem: null
+                
+                onCurrentItemIdChanged: {
+                    if (hasPreview) {
+                        if (drawerOpen) {
+                            // New item selected while open - slide out then back in
+                            pendingItem = previewItem;
+                            drawerOpen = false;
+                        } else {
+                            // First item - just open
+                            drawerOpen = true;
+                        }
+                    }
+                }
+                
+                onHasPreviewChanged: {
+                    if (!hasPreview) {
+                        drawerOpen = false;
+                        pendingItem = null;
+                    } else if (!drawerOpen) {
+                        drawerOpen = true;
+                    }
+                }
+                
+                x: drawerOpen ? openX : closedX
+                y: launcherY + Appearance.sizes.elevationMargin * 20
+                
+                opacity: drawerOpen ? 1 : 0
+                
+                implicitWidth: previewPanel.implicitWidth + Appearance.sizes.elevationMargin * 2
+                implicitHeight: previewPanel.implicitHeight + Appearance.sizes.elevationMargin * 2
+                
+                // Drawer slide animation
+                Behavior on x {
+                    enabled: !columnLayout.isDragging
+                    NumberAnimation {
+                        id: slideAnim
+                        duration: 180
+                        easing.type: Easing.OutCubic
+                        
+                        onRunningChanged: {
+                            if (!running && !previewPanelContainer.drawerOpen && previewPanelContainer.pendingItem) {
+                                // Finished closing, now open with new item
+                                previewPanelContainer.drawerOpen = true;
+                                previewPanelContainer.pendingItem = null;
+                            }
+                        }
+                    }
+                }
+                
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 150
+                        easing.type: Easing.OutCubic
+                    }
+                }
+                
+                StyledRectangularShadow {
+                    target: previewPanel
+                }
+                
+                PreviewPanel {
+                    id: previewPanel
+                    anchors.centerIn: parent
+                    item: previewPanelContainer.previewItem
+                    
+                    onDetachRequested: (globalX, globalY) => {
+                        GlobalStates.detachCurrentPreview(globalX, globalY);
+                    }
+                }
+            }
+
             Item {
                 id: columnLayout
                 visible: GlobalStates.launcherOpen && !GlobalStates.launcherMinimized
@@ -869,6 +979,20 @@ Scope {
                 GlobalStates.launcherOpen = true;
                 return;
             }
+        }
+    }
+
+    // Detached preview panels - persist independently of the launcher
+    Variants {
+        id: detachedPreviewVariants
+        model: GlobalStates.detachedPreviews
+        
+        DetachedPreviewPanel {
+            required property var modelData
+            previewData: modelData
+            initialX: modelData.x
+            initialY: modelData.y
+            visible: true
         }
     }
 }

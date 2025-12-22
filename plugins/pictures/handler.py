@@ -55,6 +55,21 @@ def get_image_list_results(images: list[dict]) -> list[dict]:
             "description": format_size(img["size"]),
             "icon": "image",
             "thumbnail": img["path"],
+            "preview": {
+                "type": "image",
+                "content": img["path"],
+                "title": img["name"],
+                "metadata": [
+                    {"label": "Size", "value": format_size(img["size"])},
+                    {"label": "Path", "value": img["path"]},
+                ],
+                "actions": [
+                    {"id": "open", "name": "Open", "icon": "open_in_new"},
+                    {"id": "copy-path", "name": "Copy Path", "icon": "content_copy"},
+                    {"id": "copy-image", "name": "Copy Image", "icon": "image"},
+                ],
+                "detachable": True,
+            },
             "actions": [
                 {"id": "open", "name": "Open", "icon": "open_in_new"},
                 {"id": "copy-path", "name": "Copy Path", "icon": "content_copy"},

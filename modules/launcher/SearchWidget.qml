@@ -474,8 +474,11 @@ Item {
                      onCurrentIndexChanged: {
                         if (currentIndex >= 0 && currentIndex < LauncherSearch.results.length) {
                             selectedItemKey = LauncherSearch.results[currentIndex]?.key ?? "";
+                            // Update preview panel with selected item
+                            GlobalStates.setPreviewItem(LauncherSearch.results[currentIndex]);
                         } else {
                             selectedItemKey = "";
+                            GlobalStates.clearPreviewItem();
                         }
                     }
 

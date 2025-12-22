@@ -111,6 +111,12 @@ RippleButton {
         }
         updateActionToolTip();
     }
+    
+    onHoveredChanged: {
+        if (hovered && entry) {
+            GlobalStates.setPreviewItem(entry);
+        }
+    }
 
     implicitHeight: rowLayout.implicitHeight + root.buttonVerticalPadding * 2
     implicitWidth: rowLayout.implicitWidth + root.buttonHorizontalPadding * 2

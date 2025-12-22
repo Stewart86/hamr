@@ -386,7 +386,56 @@ When user selects an image, handler receives:
 
 ---
 
-### 6. `prompt` - Show Input Prompt
+### 6. `preview` - Side Panel Preview
+
+Add a `preview` field to result items to show rich content in a side panel when the item is hovered or selected. Users can pin previews to the screen.
+
+```python
+{
+    "type": "results",
+    "results": [
+        {
+            "id": "image-1",
+            "name": "sunset.jpg",
+            "icon": "image",
+            "thumbnail": "/path/to/sunset.jpg",
+            "preview": {
+                "type": "image",                    # "image", "markdown", "text", or "metadata"
+                "content": "/path/to/sunset.jpg",  # Image path or text content
+                "title": "Sunset Photo",           # Panel title
+                "metadata": [                      # Optional: key-value pairs
+                    {"label": "Size", "value": "3840x2160"},
+                    {"label": "Date", "value": "2024-01-15"}
+                ],
+                "actions": [                       # Optional: action buttons
+                    {"id": "open", "name": "Open", "icon": "open_in_new"},
+                    {"id": "copy", "name": "Copy", "icon": "content_copy"}
+                ],
+                "detachable": true                 # Allow pinning to screen (default: true)
+            }
+        }
+    ]
+}
+```
+
+| Preview Type | Content Field | Description |
+|--------------|---------------|-------------|
+| `image` | File path | Shows image with optional metadata below |
+| `markdown` | Markdown text | Renders markdown content |
+| `text` | Plain text | Monospace text display |
+| `metadata` | (uses metadata array) | Key-value pairs only |
+
+**Behavior:**
+- Panel slides out as a drawer from the launcher side
+- Shows on mouse hover or keyboard selection
+- Pin button detaches preview to a floating panel that persists after launcher closes
+- Detached panels are draggable and independently closable
+
+**Example plugins:** [`pictures/`](pictures/handler.py) - Image preview with metadata, [`notes/`](notes/handler.py) - Markdown preview
+
+---
+
+### 7. `prompt` - Show Input Prompt
 
 Display a simple text prompt.
 
@@ -401,7 +450,7 @@ Display a simple text prompt.
 
 ---
 
-### 7. `error` - Show Error
+### 8. `error` - Show Error
 
 Display an error message.
 

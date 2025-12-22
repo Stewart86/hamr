@@ -314,6 +314,7 @@ Singleton {
                  pluginItemId: itemId,
                  pluginActions: item.actions ?? [],
                  thumbnail: item.thumbnail ?? "",
+                 preview: item.preview ?? undefined,
                  actions: itemActions,
                  execute: ((capturedItemId, capturedExecuteCommand, capturedExecuteNotify, capturedExecuteName, capturedPluginId, capturedPluginName, capturedIconName) => () => {
                      if (capturedExecuteCommand) {
@@ -610,6 +611,15 @@ Singleton {
         }
         // At depth 0 with single Esc: do nothing, just record the time for double-tap detection
         return true;
+    }
+
+    function executePreviewAction(item, actionId) {
+        if (!item || !actionId) return;
+        
+        // Execute the action through the plugin system
+        if (item.pluginItemId && PluginRunner.isActive()) {
+            PluginRunner.selectItem(item.pluginItemId, actionId);
+        }
     }
 
     Timer {

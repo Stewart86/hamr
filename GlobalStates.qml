@@ -98,4 +98,46 @@ Singleton {
         windowPickerSelected(toplevel);
         closeWindowPicker();
     }
+
+    // Preview panel state
+    property var previewItem: null
+    property bool previewPanelVisible: previewItem !== null && previewItem.preview !== undefined
+    
+    // Detached preview panels (list of preview data objects that are pinned)
+    property var detachedPreviews: []
+    
+    // Signal when a preview is detached
+    signal previewDetached(var previewData, real x, real y)
+    
+    function setPreviewItem(item) {
+        previewItem = item;
+    }
+    
+    function clearPreviewItem() {
+        previewItem = null;
+    }
+    
+    function detachCurrentPreview(screenX, screenY) {
+        if (previewItem && previewItem.preview) {
+            const detachedData = {
+                id: Date.now().toString(),
+                preview: previewItem.preview,
+                name: previewItem.name ?? "",
+                x: screenX,
+                y: screenY
+            };
+            detachedPreviews = [...detachedPreviews, detachedData];
+            previewDetached(detachedData, screenX, screenY);
+            return detachedData;
+        }
+        return null;
+    }
+    
+    function closeDetachedPreview(id) {
+        detachedPreviews = detachedPreviews.filter(p => p.id !== id);
+    }
+    
+    function clearAllDetachedPreviews() {
+        detachedPreviews = [];
+    }
 }

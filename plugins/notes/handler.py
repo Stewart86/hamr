@@ -101,6 +101,16 @@ def get_note_results(notes: list[dict], show_add: bool = False) -> list[dict]:
                 "icon": "sticky_note_2",
                 "description": description,
                 "verb": "View",
+                "preview": {
+                    "type": "markdown",
+                    "content": format_note_card(note),
+                    "title": title,
+                    "actions": [
+                        {"id": "edit", "name": "Edit", "icon": "edit"},
+                        {"id": "copy", "name": "Copy", "icon": "content_copy"},
+                    ],
+                    "detachable": True,
+                },
                 "actions": [
                     {"id": "view", "name": "View", "icon": "visibility"},
                     {"id": "edit", "name": "Edit", "icon": "edit"},

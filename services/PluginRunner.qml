@@ -951,6 +951,18 @@ Singleton {
          return true;
      }
     
+    // Execute a detached preview action (has its own command)
+    function executeDetachedPreviewAction(action) {
+        if (!action) return;
+        
+        if (action.command) {
+            Quickshell.execDetached(action.command);
+        }
+        if (action.notify) {
+            Quickshell.execDetached(["notify-send", "Preview", action.notify, "-a", "Shell"]);
+        }
+    }
+    
     // ==================== INTERNAL ====================
     
     function generateSessionId() {
