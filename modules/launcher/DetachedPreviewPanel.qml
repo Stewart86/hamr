@@ -190,10 +190,14 @@ PanelWindow {
                             }
                             
                             onReleased: {
-                                // Save final position so binding uses it when isDragging becomes false
                                 panelContainer.posX = panelContainer.x;
                                 panelContainer.posY = panelContainer.y;
                                 panelContainer.isDragging = false;
+                                GlobalStates.updateDetachedPreviewPosition(
+                                    root.previewData.id,
+                                    panelContainer.posX + root.panelWidth / 2,
+                                    panelContainer.posY + 20
+                                );
                             }
                         }
                     }

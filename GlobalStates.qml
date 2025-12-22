@@ -105,6 +105,22 @@ Singleton {
     
     // Detached preview panels (list of preview data objects that are pinned)
     property var detachedPreviews: []
+    property bool _detachedPreviewsLoaded: false
+    onDetachedPreviewsChanged: {
+        if (_detachedPreviewsLoaded && Persistent.ready) {
+            Persistent.states.launcher.detachedPreviews = detachedPreviews;
+        }
+    }
+    
+    Connections {
+        target: Persistent
+        function onReadyChanged() {
+            if (Persistent.ready && !root._detachedPreviewsLoaded) {
+                root.detachedPreviews = Persistent.states.launcher.detachedPreviews ?? [];
+                root._detachedPreviewsLoaded = true;
+            }
+        }
+    }
     
     // Signal when a preview is detached
     signal previewDetached(var previewData, real x, real y)
@@ -126,7 +142,9 @@ Singleton {
                 x: screenX,
                 y: screenY
             };
-            detachedPreviews = [...detachedPreviews, detachedData];
+            const newList = detachedPreviews.slice();
+            newList.push(detachedData);
+            detachedPreviews = newList;
             previewDetached(detachedData, screenX, screenY);
             return detachedData;
         }
@@ -139,5 +157,20 @@ Singleton {
     
     function clearAllDetachedPreviews() {
         detachedPreviews = [];
+    }
+    
+    function updateDetachedPreviewPosition(id, newX, newY) {
+        detachedPreviews = detachedPreviews.map(p => {
+            if (p.id === id) {
+                return {
+                    id: p.id,
+                    preview: p.preview,
+                    name: p.name,
+                    x: newX,
+                    y: newY
+                };
+            }
+            return p;
+        });
     }
 }

@@ -167,6 +167,7 @@ Singleton {
                 property real minYRatio: 0.9
                 property bool minimized: false
                 property bool hasUsedMinimize: false
+                property list<var> detachedPreviews: []
             }
         }
     }
