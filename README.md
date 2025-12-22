@@ -99,17 +99,7 @@ Powered by [qalculate](https://qalculate.github.io/) - supports 150+ currencies,
 
 ## Screenshots
 
-![Hamr Overview](assets/screenshots/hamr-overview.png)
-**Recent history at your fingertips** - Open Hamr to see your most-used plugins, shell commands, and actions ranked by frecency. Wallpaper thumbnails show exactly which wallpaper you set last time.
-
-![Hamr App Search](assets/screenshots/hamr-app-search.png)
-**Unified search across everything** - Apps, emojis, and more in one place. Fuzzy matching highlights what you're looking for, with app descriptions and running window indicators.
-
-![Hamr Plugins](assets/screenshots/hamr-plugins.png)
-**Extensible plugin system** - Type `/` to browse all available plugins. From Bitwarden passwords to AI-powered plugin creation, each plugin communicates via simple JSON over stdin/stdout.
-
-![Hamr Clipboard](assets/screenshots/hamr-clipboard.png)
-**Clipboard history with OCR search** - Type `;` to search your clipboard history. Images show thumbnails with OCR text extraction for searchable screenshots. Filter by type (Images/Text) and quick copy/delete actions.
+![Hamr Main View](assets/screenshots/hamr-main-view.png)
 
 ## Installation
 
