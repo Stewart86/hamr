@@ -5,7 +5,7 @@ Bitwarden workflow handler - search and copy credentials from Bitwarden vault.
 Requires:
 - bw (Bitwarden CLI) installed and in PATH
 - User must login and unlock vault manually: `bw login && bw unlock`
-- BW_SESSION env var (preferred) or session file (~/.bw_session) as fallback
+- BW_SESSION env var must be set (launch Quickshell from a login shell)
 """
 
 import json
@@ -58,14 +58,23 @@ MOCK_VAULT_ITEMS = [
     },
 ]
 
-# Cache directory for vault items
+# Cache directory for vault items (use runtime dir for security - never persists to disk)
 CACHE_DIR = (
-    Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+    Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
     / "hamr"
     / "bitwarden"
 )
 ITEMS_CACHE_FILE = CACHE_DIR / "items.json"
 CACHE_MAX_AGE_SECONDS = 300  # 5 minutes
+
+# Migrate: remove old cache from ~/.cache (security fix)
+_OLD_CACHE_DIR = (
+    Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+    / "hamr"
+    / "bitwarden"
+)
+if _OLD_CACHE_DIR.exists():
+    shutil.rmtree(_OLD_CACHE_DIR, ignore_errors=True)
 
 
 def find_bw() -> str | None:
@@ -104,30 +113,11 @@ BW_PATH = find_bw()
 
 
 def get_session() -> str | None:
-    """Get session from BW_SESSION env var or file locations as fallback"""
+    """Get session from BW_SESSION env var"""
     if TEST_MODE:
         return "mock-session-token"
 
-    # Prefer env var (works when quickshell is launched via login shell)
-    session = os.environ.get("BW_SESSION")
-    if session:
-        return session
-
-    # Fall back to file-based session
-    home = Path.home()
-    session_files = [
-        home / ".bw_session",
-        home / ".config" / "bw" / "session",
-        home / ".cache" / "bw" / "session",
-    ]
-
-    for sf in session_files:
-        if sf.exists():
-            session = sf.read_text().strip()
-            if session:
-                return session
-
-    return None
+    return os.environ.get("BW_SESSION")
 
 
 def run_bw(args: list[str], session: str | None = None) -> tuple[bool, str]:
@@ -590,7 +580,8 @@ def main():
             "Bitwarden CLI Required",
             "**Bitwarden CLI (`bw`) is not installed.**\n\n"
             "Install with: `npm install -g @bitwarden/cli`\n\n"
-            "Then login and unlock:\n```bash\nbw login\nexport BW_SESSION=$(bw unlock --raw)\necho $BW_SESSION > ~/.bw_session\n```",
+            "Then login and unlock:\n```bash\nbw login\nbw unlock\n```\n\n"
+            "Ensure Quickshell is launched from a login shell so it inherits `BW_SESSION`.",
         )
         return
 
@@ -600,7 +591,8 @@ def main():
         respond_card(
             "Session Required",
             "**No Bitwarden session found.**\n\n"
-            "Please login and unlock your vault:\n```bash\nbw login\nexport BW_SESSION=$(bw unlock --raw)\necho $BW_SESSION > ~/.bw_session\n```",
+            "Please login and unlock your vault:\n```bash\nbw login\nbw unlock\n```\n\n"
+            "Ensure Quickshell is launched from a login shell so it inherits `BW_SESSION`.",
         )
         return
 
@@ -611,7 +603,7 @@ def main():
             respond_card(
                 "No Items Found",
                 "Either your vault is empty, locked, or the session expired.\n\n"
-                "Try unlocking:\n```bash\nexport BW_SESSION=$(bw unlock --raw)\necho $BW_SESSION > ~/.bw_session\n```",
+                "Try unlocking: `bw unlock` and restart Quickshell from a login shell.",
             )
             return
 
