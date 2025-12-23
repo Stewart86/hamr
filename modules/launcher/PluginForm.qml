@@ -51,20 +51,19 @@ Rectangle {
     // Reset field values when a new form is shown
     onFormChanged: {
         if (form) {
-            // Generate a simple form ID from title + field count
-            let newFormId = (form.title ?? "") + "_" + (form.fields?.length ?? 0);
-            if (newFormId !== currentFormId) {
-                // New form - reset stored values and initialize from defaults
-                fieldValues = {};
-                if (form.fields) {
-                    for (let field of form.fields) {
-                        if (field.id) {
-                            fieldValues[field.id] = field.default ?? "";
-                        }
+            // Always reset password fields for security, and reset all fields on new form
+            let newFormId = form.id ?? ((form.title ?? "") + "_" + (form.fields?.length ?? 0));
+            
+            // Reset stored values and initialize from defaults
+            fieldValues = {};
+            if (form.fields) {
+                for (let field of form.fields) {
+                    if (field.id) {
+                        fieldValues[field.id] = field.default ?? "";
                     }
                 }
-                currentFormId = newFormId;
             }
+            currentFormId = newFormId;
         }
     }
     

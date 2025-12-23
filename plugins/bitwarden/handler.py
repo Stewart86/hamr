@@ -4,8 +4,9 @@ Bitwarden workflow handler - search and copy credentials from Bitwarden vault.
 
 Requires:
 - bw (Bitwarden CLI) installed and in PATH
-- User must login and unlock vault manually: `bw login && bw unlock`
-- BW_SESSION env var must be set (launch Quickshell from a login shell)
+- python-keyring (optional, for secure session storage)
+
+The plugin will guide users through login/unlock if no session is found.
 """
 
 import json
@@ -14,6 +15,21 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+# Optional keyring support for secure session storage
+KEYRING_SERVICE = "hamr-bitwarden"
+KEYRING_USERNAME = "session"
+
+
+def _get_keyring():  # type: ignore
+    """Lazy import keyring module"""
+    try:
+        import importlib
+
+        return importlib.import_module("keyring")
+    except ImportError:
+        return None
+
 
 # Test mode - return mock data instead of calling real Bitwarden CLI
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
@@ -65,7 +81,28 @@ CACHE_DIR = (
     / "bitwarden"
 )
 ITEMS_CACHE_FILE = CACHE_DIR / "items.json"
+LAST_EMAIL_FILE = CACHE_DIR / "last_email"
 CACHE_MAX_AGE_SECONDS = 300  # 5 minutes
+
+
+def get_last_email() -> str:
+    """Get last used email for login convenience"""
+    if LAST_EMAIL_FILE.exists():
+        try:
+            return LAST_EMAIL_FILE.read_text().strip()
+        except OSError:
+            pass
+    return ""
+
+
+def save_last_email(email: str):
+    """Save last used email"""
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        LAST_EMAIL_FILE.write_text(email)
+    except OSError:
+        pass
+
 
 # Migrate: remove old cache from ~/.cache (security fix)
 _OLD_CACHE_DIR = (
@@ -112,12 +149,123 @@ def find_bw() -> str | None:
 BW_PATH = find_bw()
 
 
+def get_bw_status(session: str | None = None) -> dict:
+    """Get Bitwarden CLI status, optionally with session to check if unlocked"""
+    if TEST_MODE:
+        return {"status": "unlocked", "userEmail": "test@example.com"}
+
+    success, output = run_bw(["status"], session=session)
+    if success:
+        try:
+            return json.loads(output)
+        except json.JSONDecodeError:
+            pass
+    return {"status": "unauthenticated"}
+
+
+def get_session_from_keyring() -> str | None:
+    """Get session from keyring"""
+    kr = _get_keyring()
+    if not kr:
+        return None
+    try:
+        return kr.get_password(KEYRING_SERVICE, KEYRING_USERNAME)
+    except Exception:
+        return None
+
+
+def save_session_to_keyring(session: str) -> bool:
+    """Save session to keyring"""
+    kr = _get_keyring()
+    if not kr:
+        return False
+    try:
+        kr.set_password(KEYRING_SERVICE, KEYRING_USERNAME, session)
+        return True
+    except Exception:
+        return False
+
+
+def clear_session_from_keyring() -> bool:
+    """Clear session from keyring"""
+    kr = _get_keyring()
+    if not kr:
+        return False
+    try:
+        kr.delete_password(KEYRING_SERVICE, KEYRING_USERNAME)
+        return True
+    except Exception:
+        return False
+
+
 def get_session() -> str | None:
-    """Get session from BW_SESSION env var"""
+    """Get session from keyring"""
     if TEST_MODE:
         return "mock-session-token"
 
-    return os.environ.get("BW_SESSION")
+    return get_session_from_keyring()
+
+
+def unlock_vault(password: str) -> tuple[bool, str]:
+    """Unlock vault with master password, returns (success, session_or_error)"""
+    if TEST_MODE:
+        return True, "mock-session-token"
+
+    if not BW_PATH:
+        return False, "Bitwarden CLI not found"
+
+    try:
+        result = subprocess.run(
+            [BW_PATH, "unlock", "--raw", password],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={**os.environ, "NODE_NO_WARNINGS": "1"},
+        )
+        if result.returncode == 0:
+            session = result.stdout.strip()
+            if session:
+                # Save to keyring for future use
+                save_session_to_keyring(session)
+                return True, session
+        return False, result.stderr.strip() or "Failed to unlock"
+    except subprocess.TimeoutExpired:
+        return False, "Unlock timed out"
+    except Exception as e:
+        return False, str(e)
+
+
+def login_vault(email: str, password: str, code: str = "") -> tuple[bool, str]:
+    """Login to vault, returns (success, session_or_error)"""
+    if TEST_MODE:
+        return True, "mock-session-token"
+
+    if not BW_PATH:
+        return False, "Bitwarden CLI not found"
+
+    try:
+        args = [BW_PATH, "login", "--raw", email, password]
+        if code:
+            args.extend(["--code", code])
+
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env={**os.environ, "NODE_NO_WARNINGS": "1"},
+        )
+        if result.returncode == 0:
+            session = result.stdout.strip()
+            if session:
+                save_session_to_keyring(session)
+                return True, session
+        error = result.stderr.strip() or result.stdout.strip()
+        return False, error or "Failed to login"
+    except subprocess.TimeoutExpired:
+        return False, "Login timed out"
+    except Exception as e:
+        return False, str(e)
 
 
 def run_bw(args: list[str], session: str | None = None) -> tuple[bool, str]:
@@ -342,8 +490,44 @@ def get_plugin_actions(cache_age: float | None = None) -> list[dict]:
             "name": sync_name,
             "icon": "sync",
             "shortcut": "Ctrl+1",
-        }
+        },
+        {
+            "id": "lock",
+            "name": "Lock Vault",
+            "icon": "lock",
+            "shortcut": "Ctrl+2",
+        },
     ]
+
+
+def lock_vault() -> tuple[bool, str]:
+    """Lock the vault and clear session"""
+    if TEST_MODE:
+        return True, "Vault locked"
+
+    if not BW_PATH:
+        return False, "Bitwarden CLI not found"
+
+    # Clear session from keyring
+    clear_session_from_keyring()
+
+    # Clear items cache
+    clear_items_cache()
+
+    # Lock via bw CLI
+    try:
+        result = subprocess.run(
+            [BW_PATH, "lock"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env={**os.environ, "NODE_NO_WARNINGS": "1"},
+        )
+        if result.returncode == 0:
+            return True, "Vault locked"
+        return False, result.stderr.strip() or "Failed to lock"
+    except Exception as e:
+        return False, str(e)
 
 
 def get_item_icon(item: dict) -> str:
@@ -451,6 +635,25 @@ def respond_execute(
     if entry_point:
         execute["entryPoint"] = entry_point
     print(json.dumps({"type": "execute", "execute": execute}))
+
+
+def respond_form(
+    form_id: str, title: str, fields: list[dict], submit_label: str = "Submit"
+):
+    """Send form response for user input"""
+    print(
+        json.dumps(
+            {
+                "type": "form",
+                "form": {
+                    "id": form_id,
+                    "title": title,
+                    "fields": fields,
+                    "submitLabel": submit_label,
+                },
+            }
+        )
+    )
 
 
 def item_to_index_item(item: dict) -> dict:
@@ -574,25 +777,173 @@ def main():
             print(json.dumps({"type": "index", "items": items}))
         return
 
+    # Handle form submissions (login/unlock)
+    if step == "form":
+        form_id = input_data.get("formId", "")
+        form_data = input_data.get("formData", {})
+
+        if form_id == "unlock":
+            password = form_data.get("password", "")
+            if not password:
+                respond_card("Error", "Password is required")
+                return
+            success, result = unlock_vault(password)
+            if success:
+                # Session saved to keyring, now fetch items and show results
+                items = fetch_all_items(result)
+                if items:
+                    save_items_cache(items)
+                    results = format_item_results(items)
+                    cache_age = get_cache_age()
+                    print(
+                        json.dumps(
+                            {
+                                "type": "results",
+                                "results": results,
+                                "inputMode": "realtime",
+                                "placeholder": "Vault unlocked! Search...",
+                                "pluginActions": get_plugin_actions(cache_age),
+                            }
+                        )
+                    )
+                else:
+                    respond_card(
+                        "Vault Unlocked",
+                        "Vault unlocked but no items found. Your vault may be empty.",
+                    )
+            else:
+                respond_card("Unlock Failed", f"**Error:** {result}")
+            return
+
+        if form_id == "login":
+            email = form_data.get("email", "")
+            password = form_data.get("password", "")
+            code = form_data.get("code", "")
+            if not email or not password:
+                respond_card("Error", "Email and password are required")
+                return
+            success, result = login_vault(email, password, code)
+            if success:
+                # Save email for next login convenience
+                save_last_email(email)
+                # Fetch items and show results
+                items = fetch_all_items(result)
+                if items:
+                    save_items_cache(items)
+                    results = format_item_results(items)
+                    cache_age = get_cache_age()
+                    print(
+                        json.dumps(
+                            {
+                                "type": "results",
+                                "results": results,
+                                "inputMode": "realtime",
+                                "placeholder": "Logged in! Search...",
+                                "pluginActions": get_plugin_actions(cache_age),
+                            }
+                        )
+                    )
+                else:
+                    respond_card(
+                        "Logged In",
+                        "Logged in but no items found. Your vault may be empty.",
+                    )
+            else:
+                # Check if 2FA is required
+                if (
+                    "Two-step" in result
+                    or "two-step" in result
+                    or "code" in result.lower()
+                ):
+                    respond_form(
+                        "login",
+                        "Two-Factor Authentication Required",
+                        [
+                            {"id": "email", "type": "hidden", "value": email},
+                            {"id": "password", "type": "hidden", "value": password},
+                            {
+                                "id": "code",
+                                "label": "2FA Code",
+                                "type": "text",
+                                "placeholder": "Enter your 2FA code",
+                            },
+                        ],
+                        submit_label="Verify",
+                    )
+                else:
+                    respond_card("Login Failed", f"**Error:** {result}")
+            return
+
     # Check bw is installed
     if not BW_PATH:
         respond_card(
             "Bitwarden CLI Required",
             "**Bitwarden CLI (`bw`) is not installed.**\n\n"
-            "Install with: `npm install -g @bitwarden/cli`\n\n"
-            "Then login and unlock:\n```bash\nbw login\nbw unlock\n```\n\n"
-            "Ensure Quickshell is launched from a login shell so it inherits `BW_SESSION`.",
+            "Install with: `npm install -g @bitwarden/cli`",
         )
         return
 
-    # Get session
+    # Check keyring for session first (fast path)
+    # If session exists, it's valid because we clear it on lock/logout
     session = get_session()
-    if not session:
+
+    if session:
+        # Session exists - vault is unlocked, proceed directly
+        pass
+    else:
+        # No session - check bw status to determine what to show
+        status = get_bw_status()
+        bw_status = status.get("status", "unauthenticated")
+
+        if bw_status == "unauthenticated":
+            # Not logged in - show login form
+            clear_items_cache()
+            last_email = get_last_email()
+            respond_form(
+                "login",
+                "Login to Bitwarden",
+                [
+                    {
+                        "id": "email",
+                        "label": "Email",
+                        "type": "email",
+                        "placeholder": "your@email.com",
+                        "default": last_email,
+                    },
+                    {
+                        "id": "password",
+                        "label": "Master Password",
+                        "type": "password",
+                        "placeholder": "Enter your master password",
+                    },
+                ],
+                submit_label="Login",
+            )
+            return
+
+        if bw_status == "locked":
+            # Logged in but locked - show unlock form
+            user_email = status.get("userEmail", "")
+            respond_form(
+                "unlock",
+                f"Unlock Vault ({user_email})" if user_email else "Unlock Vault",
+                [
+                    {
+                        "id": "password",
+                        "label": "Master Password",
+                        "type": "password",
+                        "placeholder": "Enter your master password",
+                    },
+                ],
+                submit_label="Unlock",
+            )
+            return
+
+        # Status is unlocked but no session in keyring (edge case - external unlock)
         respond_card(
             "Session Required",
-            "**No Bitwarden session found.**\n\n"
-            "Please login and unlock your vault:\n```bash\nbw login\nbw unlock\n```\n\n"
-            "Ensure Quickshell is launched from a login shell so it inherits `BW_SESSION`.",
+            "Vault is unlocked but session not found.\n\n"
+            "Please lock and unlock again via this plugin, or install `python-keyring`.",
         )
         return
 
@@ -673,6 +1024,18 @@ def main():
                     }
                 )
             )
+            return
+
+        # Plugin-level action: lock vault
+        if item_id == "__plugin__" and action == "lock":
+            success, message = lock_vault()
+            if success:
+                respond_execute(
+                    notify="Vault locked",
+                    close=True,
+                )
+            else:
+                respond_card("Error", f"Failed to lock vault: {message}")
             return
 
         # Legacy sync button (keep for backwards compatibility)

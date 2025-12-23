@@ -722,6 +722,7 @@ Singleton {
          
          const input = {
              step: "form",
+             formId: root.pluginForm?.id ?? "",
              formData: formData,
              session: root.activePlugin.session
          };
