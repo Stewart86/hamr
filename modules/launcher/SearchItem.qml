@@ -124,10 +124,10 @@ RippleButton {
     
     property bool isSelected: root.ListView.isCurrentItem
     colBackground: (root.down || root.keyboardDown) ? Appearance.colors.colPrimaryContainerActive : 
-        (root.isSelected ? Appearance.colors.colSurfaceContainerLow :
+        (root.isSelected ? Appearance.colors.colSurfaceContainerHigh :
         ((root.hovered || root.focus) ? Appearance.colors.colPrimaryContainer : 
-        ColorUtils.transparentize(Appearance.colors.colPrimaryContainer, 1)))
-    colBackgroundHover: root.isSelected ? Appearance.colors.colSurfaceContainerLow : Appearance.colors.colPrimaryContainer
+        "transparent"))
+    colBackgroundHover: root.isSelected ? Appearance.colors.colSurfaceContainerHighest : Appearance.colors.colPrimaryContainer
     colRipple: Appearance.colors.colPrimaryContainerActive
     
     // Border for selected item

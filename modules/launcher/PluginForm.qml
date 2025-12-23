@@ -666,7 +666,7 @@ Rectangle {
                     }
                     
                     background: Rectangle {
-                        color: Appearance.m3colors.m3surfaceContainerHigh
+                        color: Appearance.colors.colSurfaceContainerHigh
                         border.color: Appearance.colors.colOutlineVariant
                         border.width: 1
                         radius: Appearance.rounding.small

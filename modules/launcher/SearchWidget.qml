@@ -581,10 +581,10 @@ Item {
                     radius: resultsContainer.radius
                     gradient: Gradient {
                         GradientStop { position: 0.0; color: "transparent" }
-                        GradientStop { position: 0.50; color: Qt.rgba(0, 0, 0, 0.08) }
-                        GradientStop { position: 0.70; color: Qt.rgba(0, 0, 0, 0.18) }
-                        GradientStop { position: 0.85; color: Qt.rgba(0, 0, 0, 0.32) }
-                        GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.50) }
+                        GradientStop { position: 0.60; color: Qt.rgba(0, 0, 0, 0.03) }
+                        GradientStop { position: 0.80; color: Qt.rgba(0, 0, 0, 0.08) }
+                        GradientStop { position: 0.95; color: Qt.rgba(0, 0, 0, 0.15) }
+                        GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.20) }
                     }
                 }
             }

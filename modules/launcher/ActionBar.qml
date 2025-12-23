@@ -296,7 +296,7 @@ Item {
         id: confirmDialog
         visible: root.pendingConfirmAction !== null
         anchors.fill: parent
-        color: Appearance.m3colors.m3surfaceContainer
+        color: Appearance.colors.colSurfaceContainer
         radius: 4
         border.width: 1
         border.color: Appearance.colors.colOutlineVariant
