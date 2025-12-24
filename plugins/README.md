@@ -582,6 +582,8 @@ if step == "index":
 | `appId` | string | App identifier (for grouping) |
 | `verb` | string | Action text (e.g., "Open", "Focus") |
 | `execute.command` | string[] | Command to run when selected |
+| `execute.name` | string | Display name for history tracking |
+| `keepOpen` | bool | Keep launcher open after execution (default: false) |
 | `actions` | array | Secondary action buttons |
 
 ### Automatic Reindexing
@@ -1085,6 +1087,8 @@ For desktop application icons from `.desktop` files, set `"iconType": "system"`:
 | [`wallpaper/`](wallpaper/)         | `/wallpaper`     | Wallpaper selector                  | imageBrowser, history tracking                 |
 | [`create-plugin/`](create-plugin/) | `/create-plugin` | AI plugin creator                   | OpenCode integration                           |
 | [`notes/`](notes/)                 | `/notes`         | Quick notes manager                 | Form API, pluginActions                        |
+| [`player/`](player/)               | `/player`        | Media player controls               | playerctl, indexed actions                     |
+| [`sound/`](sound/)                 | `/sound`         | System volume controls              | wpctl, keepOpen, indexed actions               |
 | [`topcpu/`](topcpu/)               | `/topcpu`        | Process monitor (CPU)               | Polling API, process management                |
 | [`topmem/`](topmem/)               | `/topmem`        | Process monitor (memory)            | Polling API, process management                |
 

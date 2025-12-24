@@ -76,11 +76,13 @@ All plugins are indexed and searchable directly from the main bar - no prefix re
 | `flathub` | Search and install apps from Flathub |
 | `notes` | Quick notes with multi-line content support |
 | `pictures` | Browse images with thumbnails |
+| `player` | Media player controls via playerctl (play/pause, next, prev, shuffle, loop) |
 | `power` | System power and session controls (shutdown, reboot, suspend, logout) |
 | `quicklinks` | Web search with customizable quicklinks |
 | `screenrecord` | Screen recording with auto-trim (wf-recorder) |
 | `screenshot` | Browse screenshots with OCR text search |
 | `settings` | Configure Hamr launcher options |
+| `sound` | System volume controls (volume up/down, mute, mic mute) |
 | `shell` | Shell command history (zsh/bash/fish) |
 | `snippet` | Text snippets for quick insertion |
 | `todo` | Simple todo list manager |
