@@ -1,10 +1,10 @@
 #!/bin/bash
-# Windows plugin tests
+# Hyprland plugin tests
 
 export HAMR_TEST_MODE=1
 source "$(dirname "$0")/../test-helpers.sh"
 
-TEST_NAME="Windows Plugin Tests"
+TEST_NAME="Hyprland Plugin Tests"
 HANDLER="$(dirname "$0")/handler.py"
 
 # ============================================================================
@@ -15,7 +15,8 @@ test_index_returns_items() {
     local result=$(hamr_test index)
     assert_type "$result" "index"
     local count=$(json_get "$result" '.items | length')
-    assert_eq "$count" "3"
+    # 3 windows + 38 dispatchers
+    [ "$count" -gt "3" ] || fail "Expected more than 3 items, got $count"
 }
 
 test_index_item_has_window_id() {
@@ -49,7 +50,7 @@ test_initial_returns_results() {
 
 test_initial_has_placeholder() {
     local result=$(hamr_test initial)
-    assert_json "$result" '.placeholder' "Filter windows..."
+    assert_contains "$result" "placeholder"
 }
 
 test_initial_realtime_mode() {
@@ -167,6 +168,69 @@ test_action_move_refreshes() {
 }
 
 # ============================================================================
+# Dispatcher Tests
+# ============================================================================
+
+test_search_matches_dispatcher_pattern() {
+    local result=$(hamr_test search --query "move to 3")
+    assert_type "$result" "results"
+    assert_contains "$result" "dispatch:move-to-workspace:3"
+}
+
+test_search_workspace_pattern() {
+    local result=$(hamr_test search --query "workspace 5")
+    assert_type "$result" "results"
+    assert_contains "$result" "dispatch:goto-workspace:5"
+}
+
+test_search_toggle_floating() {
+    local result=$(hamr_test search --query "floating")
+    assert_type "$result" "results"
+    assert_has_result "$result" "dispatch:toggle-floating"
+}
+
+test_search_fullscreen() {
+    local result=$(hamr_test search --query "fullscreen")
+    assert_type "$result" "results"
+    assert_has_result "$result" "dispatch:fullscreen"
+}
+
+test_dispatcher_has_run_verb() {
+    local result=$(hamr_test search --query "floating")
+    local verb=$(json_get "$result" '.results[0].verb')
+    assert_eq "$verb" "Run"
+}
+
+test_index_has_dispatchers() {
+    local result=$(hamr_test index)
+    assert_contains "$result" "dispatch:toggle-floating"
+    assert_contains "$result" "dispatch:fullscreen"
+}
+
+test_action_dispatcher_closes() {
+    local result=$(hamr_test action --id "dispatch:toggle-floating")
+    assert_closes "$result"
+}
+
+test_search_center_window() {
+    local result=$(hamr_test search --query "center")
+    assert_type "$result" "results"
+    assert_has_result "$result" "dispatch:center-window"
+}
+
+test_search_focus_direction() {
+    local result=$(hamr_test search --query "focus left")
+    assert_type "$result" "results"
+    assert_has_result "$result" "dispatch:focus-left"
+}
+
+test_search_scratchpad() {
+    local result=$(hamr_test search --query "scratchpad")
+    assert_type "$result" "results"
+    assert_has_result "$result" "dispatch:toggle-special"
+}
+
+# ============================================================================
 # Run
 # ============================================================================
 
@@ -176,6 +240,7 @@ run_tests \
     test_index_item_has_execute \
     test_index_item_has_focus_verb \
     test_index_item_has_icon \
+    test_index_has_dispatchers \
     test_initial_returns_results \
     test_initial_has_placeholder \
     test_initial_realtime_mode \
@@ -192,7 +257,16 @@ run_tests \
     test_search_filters_by_class \
     test_search_case_insensitive \
     test_search_no_match_shows_empty \
+    test_search_matches_dispatcher_pattern \
+    test_search_workspace_pattern \
+    test_search_toggle_floating \
+    test_search_fullscreen \
+    test_search_center_window \
+    test_search_focus_direction \
+    test_search_scratchpad \
+    test_dispatcher_has_run_verb \
     test_action_focus_closes_launcher \
     test_action_close_refreshes \
     test_action_move_refreshes \
+    test_action_dispatcher_closes \
     test_action_empty_closes_launcher

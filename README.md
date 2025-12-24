@@ -28,6 +28,8 @@ Hamr is an extensible launcher for Hyprland built with [Quickshell](https://quic
 
 **Keyboard-First** - Full functionality without touching the mouse. Vim-style navigation (Ctrl+J/K), quick action shortcuts (Ctrl+1-6), and muscle-memory-friendly bindings.
 
+**Your Shortcuts, Your Way** - First time, type "move to workspace 3". Next time, just "w3". Hamr learns your patterns and creates personal shortcuts automatically. No configuration, no aliases to maintain.
+
 ## Features
 
 - **Frecency-based ranking** - Results sorted by frequency + recency (inspired by [zoxide](https://github.com/ajeetdsouza/zoxide))
@@ -86,7 +88,37 @@ Powered by [qalculate](https://qalculate.github.io/) - supports 150+ currencies,
 | `wallpaper` | `/wallpaper` | Wallpaper selector (illogical-impulse) |
 | `webapp` | `/webapp` | Install and manage web apps |
 | `whats-that-word` | `/whats-that-word` | Find words from descriptions or fix misspellings |
-| `windows` | `/windows` | Switch between open windows (auto-updates on window changes) |
+| `hyprland` | `/hyprland` | Window management, dispatchers, and global shortcuts |
+
+### Hyprland Integration
+
+Forgot which keybinding moves a window to workspace 3? Can't remember the shortcut for toggling floating mode? No problem. Just type what you want in plain English and Hamr handles the rest.
+
+The `hyprland` plugin provides natural language access to Hyprland window management - no need to memorize keybindings or dig through config files.
+
+**Window Management:**
+- `toggle floating`, `fullscreen`, `maximize`, `pin`, `center window`
+- `close window`, `focus left/right/up/down`
+- `move window left/right/up/down`, `swap left/right/up/down`
+
+**Workspace Navigation:**
+- `workspace 3`, `go to 5`, `next workspace`, `previous workspace`
+- `move to 2`, `move to workspace 4 silent`
+- `scratchpad`, `empty workspace`
+
+**Window Groups (Tabs):**
+- `create group` - Make current window a group
+- `join group left/right` - Add window to adjacent group
+- `remove from group`, `next in group`, `prev in group`
+
+**Global Shortcuts:**
+Every app that registers DBus global shortcuts becomes instantly searchable. That obscure "Toggle side panel" shortcut from your browser extension? Just type `side panel`. The screen recording hotkey you set up months ago? Type `record`. No need to remember Ctrl+Alt+Shift+whatever - describe what you want and Hamr finds it.
+
+**Monitor Control:**
+- `next monitor`, `prev monitor`
+- `move workspace to monitor`, `swap workspaces`
+
+Commands are saved to history for quick access. Even better: after using "move to workspace 3" a few times, just type `w3` or `m3` - Hamr learns your shortcuts automatically. Type `/hyprland` to browse all available commands, or search directly from the main bar.
 
 ### Simple Actions (Scripts)
 

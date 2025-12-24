@@ -1,7 +1,7 @@
 {
-  "name": "Windows",
-  "description": "Switch between open windows",
-  "icon": "tab",
+  "name": "Hyprland",
+  "description": "Window management and Hyprland dispatchers",
+  "icon": "desktop_windows",
   "index": {
     "enabled": true,
     "watchHyprlandEvents": ["openwindow", "closewindow"],
