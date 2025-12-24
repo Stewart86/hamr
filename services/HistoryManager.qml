@@ -286,6 +286,7 @@ Singleton {
                 icon: actionInfo.icon,
                 iconType: actionInfo.iconType || existing.iconType || "material",
                 thumbnail: actionInfo.thumbnail,
+                keepOpen: actionInfo.keepOpen || existing.keepOpen || false,
                 count: existing.count + 1,
                 lastUsed: now,
                 recentSearchTerms: recentTerms
@@ -304,6 +305,7 @@ Singleton {
                 icon: actionInfo.icon,
                 iconType: actionInfo.iconType || "material",
                 thumbnail: actionInfo.thumbnail,
+                keepOpen: actionInfo.keepOpen || false,
                 count: 1,
                 lastUsed: now,
                 recentSearchTerms: searchTerm ? [searchTerm] : []

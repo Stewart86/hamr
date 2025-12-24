@@ -186,6 +186,8 @@ Singleton {
             ? dependencies.launcherSearchResult.IconType.System
             : dependencies.launcherSearchResult.IconType.Material;
 
+        const itemKeepOpen = item.keepOpen === true;
+        
         return {
             matchType: resultMatchType,
             fuzzyScore: fuzzyScore,
@@ -197,7 +199,8 @@ Singleton {
                 iconType: iconType,
                 thumbnail: item.thumbnail || "",
                 verb: "Run",
-                execute: ((capturedItem, capturedQuery) => () => {
+                keepOpen: itemKeepOpen,
+                execute: ((capturedItem, capturedQuery, capturedKeepOpen) => () => {
                     dependencies.recordWorkflowExecution({
                         name: capturedItem.name,
                         command: capturedItem.command,
@@ -206,14 +209,19 @@ Singleton {
                         iconType: capturedItem.iconType,
                         thumbnail: capturedItem.thumbnail,
                         workflowId: capturedItem.workflowId,
-                        workflowName: capturedItem.workflowName
+                        workflowName: capturedItem.workflowName,
+                        keepOpen: capturedKeepOpen
                     }, capturedQuery);
                     if (capturedItem.command && capturedItem.command.length > 0) {
                         Quickshell.execDetached(capturedItem.command);
                     } else if (capturedItem.entryPoint && capturedItem.workflowId) {
-                        PluginRunner.replayAction(capturedItem.workflowId, capturedItem.entryPoint);
+                        if (capturedKeepOpen) {
+                            PluginRunner.executeEntryPoint(capturedItem.workflowId, capturedItem.entryPoint);
+                        } else {
+                            PluginRunner.replayAction(capturedItem.workflowId, capturedItem.entryPoint);
+                        }
                     }
-                })(item, query)
+                })(item, query, itemKeepOpen)
             })
         };
     }
@@ -334,24 +342,22 @@ Singleton {
             verb = windowCount > 0 ? "Focus" : "Open";
         }
 
-        return {
-            matchType: resultMatchType,
-            fuzzyScore: fuzzyScore,
-            frecency: frecency,
-            result: dependencies.resultComponent.createObject(null, {
-                type: isAppItem ? "App" : (item._pluginName ?? "Plugin"),
-                id: appId,  // For window tracking
-                name: item.name,
-                comment: item.description ?? "",
-                iconName: item.icon ?? 'extension',
-                iconType: iconType,
-                thumbnail: item.thumbnail ?? "",
-                verb: verb,
-                keepOpen: item.keepOpen ?? false,
-                windowCount: windowCount,
-                windows: windows,
-                actions: itemActions,
-                execute: ((capturedItem, capturedQuery, capturedAppId, capturedIsApp) => () => {
+        const itemKeepOpen = item.keepOpen === true;
+
+        const resultObj = dependencies.resultComponent.createObject(null, {
+            type: isAppItem ? "App" : (item._pluginName ?? "Plugin"),
+            id: appId,  // For window tracking
+            name: item.name,
+            comment: item.description ?? "",
+            iconName: item.icon ?? 'extension',
+            iconType: iconType,
+            thumbnail: item.thumbnail ?? "",
+            verb: verb,
+            keepOpen: itemKeepOpen,
+            windowCount: windowCount,
+            windows: windows,
+            actions: itemActions,
+            execute: ((capturedItem, capturedQuery, capturedAppId, capturedIsApp) => () => {
                     if (capturedIsApp) {
                         const currentWindows = WindowManager.getWindowsForApp(capturedAppId);
                         const currentWindowCount = currentWindows.length;
@@ -406,12 +412,19 @@ Singleton {
                                 iconType: capturedItem.iconType ?? "material",
                                 thumbnail: capturedItem.thumbnail ?? "",
                                 workflowId: capturedItem._pluginId,
-                                workflowName: capturedItem._pluginName
+                                workflowName: capturedItem._pluginName,
+                                keepOpen: capturedItem.keepOpen === true
                             }, capturedQuery);
                         }
                     }
                 })(item, query, appId, isAppItem)
-            })
+        });
+        
+        return {
+            matchType: resultMatchType,
+            fuzzyScore: fuzzyScore,
+            frecency: frecency,
+            result: resultObj
         };
     }
 }
