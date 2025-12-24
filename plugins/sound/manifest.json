@@ -1,0 +1,9 @@
+{
+  "name": "Sound",
+  "description": "System volume and audio controls",
+  "icon": "volume_up",
+  "index": {
+    "enabled": true,
+    "reindex": "never"
+  }
+}
