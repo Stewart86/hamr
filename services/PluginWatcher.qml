@@ -119,10 +119,16 @@ Singleton {
                 `import Quickshell.Io;
                 FileView {
                     property string targetPluginId: "${pluginId}"
-                    path: "${expandedPath}"
+                    property string watchPath: "${expandedPath}"
+                    path: watchPath
                     watchChanges: true
                     onFileChanged: {
                         root.onFileChanged(targetPluginId);
+                    }
+                    onLoadFailed: error => {
+                        if (error === FileViewError.FileNotFound) {
+                            console.log("[PluginWatcher] Watched file not found (ignoring): " + watchPath);
+                        }
                     }
                 }`,
                 root,
@@ -151,9 +157,15 @@ Singleton {
                 `import Qt.labs.folderlistmodel;
                 FolderListModel {
                     property string targetPluginId: "${pluginId}"
+                    property string watchPath: "${expandedPath}"
                     folder: "file://${expandedPath}"
                     showFiles: true
                     showDirs: false
+                    onStatusChanged: {
+                        if (status === FolderListModel.Null) {
+                            console.log("[PluginWatcher] Watched directory not found (ignoring): " + watchPath);
+                        }
+                    }
                     onCountChanged: {
                         if (status === FolderListModel.Ready) {
                             root.onDirChanged(targetPluginId);
