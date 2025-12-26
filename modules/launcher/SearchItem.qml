@@ -213,8 +213,9 @@ RippleButton {
             return
         }
 
-        GlobalStates.launcherOpen = false
-        Qt.callLater(() => root.itemExecute())
+        // Execute first, then close launcher (closing can be slow due to animations)
+        root.itemExecute()
+        Qt.callLater(() => { GlobalStates.launcherOpen = false })
     }
     Keys.onPressed: (event) => {
          if (event.key === Qt.Key_Delete && event.modifiers === Qt.ShiftModifier) {
