@@ -16,23 +16,9 @@ Singleton {
     property int maxTotalScore: 10000
     property int maxAgeDays: 90
     property int maxSequenceItems: 5
-    property bool _pendingSave: false
 
-    Timer {
-        id: saveDebounceTimer
-        interval: 500
-        repeat: false
-        onTriggered: {
-            if (root._pendingSave) {
-                searchHistoryFileView.setText(JSON.stringify({ history: root.searchHistoryData }, null, 2));
-                root._pendingSave = false;
-            }
-        }
-    }
-
-    function deferredSave() {
-        root._pendingSave = true;
-        saveDebounceTimer.restart();
+    function saveHistory() {
+        searchHistoryFileView.setText(JSON.stringify({ history: root.searchHistoryData }, null, 2));
     }
 
     FileView {
@@ -111,7 +97,7 @@ Singleton {
 
         if (newHistory.length !== searchHistoryData.length) {
             searchHistoryData = newHistory;
-            searchHistoryFileView.setText(JSON.stringify({ history: newHistory }, null, 2));
+            Qt.callLater(saveHistory);
         }
     }
 
@@ -269,7 +255,7 @@ Singleton {
         }
 
         searchHistoryData = newHistory;
-        searchHistoryFileView.setText(JSON.stringify({ history: newHistory }, null, 2));
+        Qt.callLater(saveHistory);
     }
 
     function recordWorkflowExecution(actionInfo, searchTerm, context) {
@@ -337,7 +323,7 @@ Singleton {
         }
 
         searchHistoryData = newHistory;
-        searchHistoryFileView.setText(JSON.stringify({ history: newHistory }, null, 2));
+        Qt.callLater(saveHistory);
     }
 
     function recordWindowFocus(appId, appName, windowTitle, iconName, searchTerm, context) {
@@ -412,7 +398,7 @@ Singleton {
         }
 
         searchHistoryData = newHistory;
-        deferredSave();
+        Qt.callLater(saveHistory);
     }
 
     function ageAndPruneHistory(history, now) {
