@@ -10,7 +10,6 @@ import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Widgets
-import Quickshell.Hyprland
 
 RippleButton {
     id: root

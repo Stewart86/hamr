@@ -11,7 +11,6 @@ import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Hyprland
 
 Scope {
     id: launcherScope
@@ -143,9 +142,8 @@ Scope {
             id: root
             required property var modelData
             property string searchingText: ""
-            readonly property HyprlandMonitor monitor: Hyprland.monitorFor(root.screen)
-            property bool monitorIsFocused: (Hyprland.focusedMonitor?.id == monitor?.id)
-            property alias searchWidget: searchWidget  // Expose for outer scope access
+            property bool monitorIsFocused: root.screen.name === CompositorService.focusedScreenName
+            property alias searchWidget: searchWidget
             screen: modelData
             visible: GlobalStates.launcherOpen && monitorIsFocused && !GlobalStates.launcherMinimized
 
@@ -550,8 +548,7 @@ Scope {
         PanelWindow {
             id: fabWindow
             required property var modelData
-            readonly property HyprlandMonitor monitor: Hyprland.monitorFor(fabWindow.screen)
-            property bool monitorIsFocused: (Hyprland.focusedMonitor?.id == monitor?.id)
+            property bool monitorIsFocused: fabWindow.screen.name === CompositorService.focusedScreenName
             screen: modelData
             visible: GlobalStates.launcherMinimized && monitorIsFocused
 
@@ -953,10 +950,10 @@ Scope {
         const hints = Config.options.search.actionBarHints ?? [];
         const clipboardHint = hints.find(h => h.plugin === "clipboard");
         if (!clipboardHint) return;
-        
+
         for (let i = 0; i < launcherVariants.instances.length; i++) {
             let panelWindow = launcherVariants.instances[i];
-            if (panelWindow.modelData.name == Hyprland.focusedMonitor.name) {
+            if (panelWindow.monitorIsFocused) {
                 launcherScope.dontAutoCancelSearch = true;
                 panelWindow.setSearchingText(clipboardHint.prefix);
                 GlobalStates.launcherOpen = true;
@@ -976,10 +973,10 @@ Scope {
         const hints = Config.options.search.actionBarHints ?? [];
         const emojiHint = hints.find(h => h.plugin === "emoji");
         if (!emojiHint) return;
-        
+
         for (let i = 0; i < launcherVariants.instances.length; i++) {
             let panelWindow = launcherVariants.instances[i];
-            if (panelWindow.modelData.name == Hyprland.focusedMonitor.name) {
+            if (panelWindow.monitorIsFocused) {
                 launcherScope.dontAutoCancelSearch = true;
                 panelWindow.setSearchingText(emojiHint.prefix);
                 GlobalStates.launcherOpen = true;

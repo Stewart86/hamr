@@ -12,7 +12,9 @@ paru -S hamr
 
 </div>
 
-Hamr is an extensible launcher for Hyprland built with [Quickshell](https://quickshell.outfoxxed.me/). Extend it with plugins in any language using a simple JSON protocol.
+Hamr is an extensible launcher for Wayland compositors built with [Quickshell](https://quickshell.outfoxxed.me/). Extend it with plugins in any language using a simple JSON protocol.
+
+**Supported Compositors:** Hyprland, Niri
 
 ![Hamr Main View](assets/screenshots/hamr-main-view.png)
 
@@ -135,7 +137,7 @@ Commands are saved to history for quick access. Even better: after using "move t
 
 ## Installation
 
-**Requirements:** Hyprland on Linux (Quickshell is Wayland-only and Hamr uses Hyprland-specific APIs)
+**Requirements:** Linux with a supported Wayland compositor (Hyprland or Niri)
 
 ### Arch Linux (AUR)
 
@@ -173,7 +175,8 @@ The install script will:
 | Python | `python`, `python-click`, `python-loguru`, `python-tqdm`, `python-gobject`, `gnome-desktop-4` |
 | Clipboard | `wl-clipboard`, `cliphist` |
 | File search | `fd`, `fzf` |
-| Desktop | `xdg-utils`, `libnotify`, `gtk3`, `hyprland`, `libpulse`, `jq` |
+| Desktop | `xdg-utils`, `libnotify`, `gtk3`, `libpulse`, `jq` |
+| Compositor | `hyprland` or `niri` |
 | Calculator | `libqalculate` |
 | Fonts | `ttf-material-symbols-variable`, `ttf-jetbrains-mono-nerd`, `ttf-readex-pro` |
 
@@ -196,8 +199,12 @@ If you prefer to install dependencies manually:
 # Using paru (or yay, etc.)
 paru -S quickshell python python-click python-loguru python-tqdm \
     python-gobject gnome-desktop-4 wl-clipboard cliphist fd fzf \
-    xdg-utils libnotify gtk3 hyprland libpulse jq libqalculate \
+    xdg-utils libnotify gtk3 libpulse jq libqalculate \
     ttf-material-symbols-variable ttf-jetbrains-mono-nerd ttf-readex-pro
+
+# Plus your compositor (one of):
+paru -S hyprland  # or
+paru -S niri
 
 # Optional
 paru -S tesseract imagemagick bitwarden-cli slurp wf-recorder
@@ -257,32 +264,69 @@ fc-cache -fv
 
 ### Post-Installation Setup
 
-**1. Add Hyprland keybinding (required)**
+Hamr starts hidden and listens for a toggle signal. Configure your compositor to toggle Hamr with a keybinding.
 
-Hamr starts hidden and listens for a toggle signal. Add this to `~/.config/hypr/hyprland.conf`:
+<details open>
+<summary><strong>Hyprland</strong></summary>
+
+Add to `~/.config/hypr/hyprland.conf`:
 
 ```bash
-# Toggle Hamr with Ctrl+Space
-bind = Ctrl, Space, global, quickshell:hamrToggle
+# Autostart hamr
+exec-once = hamr
 
-# Or use Super+Space
-# bind = Super, Space, global, quickshell:hamrToggle
+# Toggle Hamr with Super key (tap to toggle)
+bind = SUPER, SUPER_L, global, quickshell:hamrToggle
+bindr = SUPER, SUPER_L, global, quickshell:hamrToggleRelease
+
+# Or toggle with Ctrl+Space
+bind = Ctrl, Space, global, quickshell:hamrToggle
 ```
 
-**2. Start Hamr**
+Reload config: `hyprctl reload`
+
+</details>
+
+<details>
+<summary><strong>Niri</strong></summary>
+
+**1. Enable systemd service (recommended):**
+
+```bash
+systemctl --user enable hamr.service
+systemctl --user add-wants niri.service hamr.service
+systemctl --user start hamr.service
+```
+
+**2. Add keybinding to `~/.config/niri/config.kdl`:**
+
+```kdl
+binds {
+    // Toggle Hamr with Ctrl+Space
+    Ctrl+Space { spawn "qs" "ipc" "call" "hamr" "toggle"; }
+
+    // Or with Mod+Space (Super key)
+    Mod+Space { spawn "qs" "ipc" "call" "hamr" "toggle"; }
+}
+```
+
+**Alternative: Manual autostart (without systemd)**
+
+If you prefer not to use systemd, add to `~/.config/niri/config.kdl`:
+
+```kdl
+spawn-at-startup "hamr"
+```
+
+</details>
+
+**Start Hamr manually (for testing):**
 
 ```bash
 hamr
 ```
 
 After starting, press your keybind (e.g., Ctrl+Space) to open Hamr.
-
-**3. (Optional) Auto-start with Hyprland**
-
-Add to `~/.config/hypr/hyprland.conf`:
-```bash
-exec-once = hamr
-```
 
 ### Updating
 
@@ -317,8 +361,8 @@ rm -rf ~/.config/hamr
 **"I ran `hamr` but nothing appears"**
 
 This is expected. Hamr starts hidden and waits for a toggle signal. Make sure you:
-1. Added the keybinding to `~/.config/hypr/hyprland.conf`
-2. Reloaded Hyprland config: `hyprctl reload`
+1. Added the keybinding to your compositor config (see Post-Installation Setup above)
+2. Reloaded your compositor config
 3. Press your keybind (e.g., Super key or Ctrl+Space)
 
 **Check dependencies**

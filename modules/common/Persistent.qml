@@ -12,12 +12,18 @@ Singleton {
     property string filePath: `${root.fileDir}/${root.fileName}`
 
     property bool ready: false
-    property string previousHyprlandInstanceSignature: ""
-    property bool isNewHyprlandInstance: previousHyprlandInstanceSignature !== states.hyprlandInstanceSignature
+    property string previousCompositorInstance: ""
+    property bool isNewCompositorInstance: previousCompositorInstance !== states.compositorInstance
+
+    // Legacy alias for backward compatibility
+    property alias isNewHyprlandInstance: root.isNewCompositorInstance
 
     onReadyChanged: {
-        root.previousHyprlandInstanceSignature = root.states.hyprlandInstanceSignature
-        root.states.hyprlandInstanceSignature = Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") || ""
+        root.previousCompositorInstance = root.states.compositorInstance
+        // Use Hyprland signature or Niri socket path as instance identifier
+        const hyprlandSig = Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") ?? "";
+        const niriSocket = Quickshell.env("NIRI_SOCKET") ?? "";
+        root.states.compositorInstance = hyprlandSig || niriSocket || "";
     }
 
     Timer {
@@ -60,7 +66,9 @@ Singleton {
         adapter: JsonAdapter {
             id: persistentStatesJsonAdapter
 
-            property string hyprlandInstanceSignature: ""
+            property string compositorInstance: ""
+            // Legacy alias
+            property alias hyprlandInstanceSignature: persistentStatesJsonAdapter.compositorInstance
 
             property JsonObject ai: JsonObject {
                 property string model

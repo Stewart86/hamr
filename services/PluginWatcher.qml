@@ -4,7 +4,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Qt.labs.folderlistmodel
 import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Io
 import qs.modules.common
 
@@ -15,7 +14,7 @@ import qs.modules.common
  * Supports:
  *   - watchFiles: Reindex when specific files change
  *   - watchDirs: Reindex when directory contents change
- *   - watchHyprlandEvents: Reindex on Hyprland IPC events
+ *   - watchCompositorEvents: Reindex on compositor IPC events (Hyprland/Niri)
  *   - reindex: Periodic reindexing (e.g., "30s", "5m", "1h")
  */
 Singleton {
@@ -35,11 +34,8 @@ Singleton {
     // Debounce timers for file/dir change events
     property var debounceTimers: ({})
     
-    // Hyprland event watchers: { pluginId: { events: [...], debounce: ms } }
-    property var hyprlandWatchers: ({})
-    
-    // Debounce timers for Hyprland events
-    property var hyprlandDebounce: ({})
+    // Compositor event watchers: { pluginId: { events: [...], debounce: ms } }
+    property var compositorWatchers: ({})
 
     // Parse reindex interval from manifest string (e.g., "30s", "5m", "1h", "never")
     function parseReindexInterval(intervalStr: string): int {
@@ -74,7 +70,7 @@ Singleton {
         setupReindexTimer(pluginId, manifest);
         setupFileWatchers(pluginId, manifest);
         setupDirWatchers(pluginId, manifest);
-        setupHyprlandWatcher(pluginId, manifest);
+        setupCompositorWatcher(pluginId, manifest);
     }
 
     // Setup periodic reindex timer
@@ -183,19 +179,19 @@ Singleton {
         console.log(`[PluginWatcher] Setup ${watchers.length} dir watcher(s) for ${pluginId}`);
     }
 
-    // Setup Hyprland event watcher
-    function setupHyprlandWatcher(pluginId: string, manifest: var): void {
-        const events = manifest.index.watchHyprlandEvents;
+    function setupCompositorWatcher(pluginId: string, manifest: var): void {
+        // Support both old and new property names
+        const events = manifest.index.watchCompositorEvents ?? manifest.index.watchHyprlandEvents;
         if (!Array.isArray(events) || events.length === 0) return;
-        if (root.hyprlandWatchers[pluginId]) return;
-        
+        if (root.compositorWatchers[pluginId]) return;
+
         const debounce = manifest.index.debounce ?? 200;
-        root.hyprlandWatchers[pluginId] = {
+        root.compositorWatchers[pluginId] = {
             events: events,
             debounce: debounce
         };
-        
-        console.log(`[PluginWatcher] Setup Hyprland watcher for ${pluginId}: events=[${events.join(", ")}], debounce=${debounce}ms`);
+
+        console.log(`[PluginWatcher] Setup compositor watcher for ${pluginId}: events=[${events.join(", ")}], debounce=${debounce}ms`);
     }
 
     // Handle file change - debounced
@@ -208,11 +204,8 @@ Singleton {
         debounceReindex(pluginId, 1000, "incremental");
     }
 
-    // Handle Hyprland event
-    function onHyprlandEvent(event: var): void {
-        const eventName = event.name;
-        
-        for (const [pluginId, config] of Object.entries(root.hyprlandWatchers)) {
+    function onCompositorEvent(eventName: string): void {
+        for (const [pluginId, config] of Object.entries(root.compositorWatchers)) {
             if (!config.events.includes(eventName)) continue;
             debounceReindex(pluginId, config.debounce, "full");
         }
@@ -246,11 +239,10 @@ Singleton {
         root.debounceTimers[pluginId] = timer;
     }
 
-    // Connect to Hyprland events
     Connections {
-        target: Hyprland
-        function onRawEvent(event) {
-            root.onHyprlandEvent(event);
+        target: CompositorService
+        function onCompositorEvent(eventName, eventData) {
+            root.onCompositorEvent(eventName);
         }
     }
 }

@@ -2,7 +2,6 @@ import qs.modules.common
 import qs.services
 import QtQuick
 import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Io
 pragma Singleton
 pragma ComponentBehavior: Bound

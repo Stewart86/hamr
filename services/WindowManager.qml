@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 
 import qs.modules.common
 import qs.modules.common.functions
+import qs.services
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
@@ -93,7 +94,41 @@ Singleton {
 
 	function focusWindow(toplevel) {
 		if (!toplevel) return;
+
+		if (CompositorService.isNiri) {
+			const niriWindow = findNiriWindowForToplevel(toplevel);
+			if (niriWindow && niriWindow.id !== undefined) {
+				NiriService.focusWindow(niriWindow.id);
+				return;
+			}
+		}
+
 		toplevel.activate();
+	}
+
+	function findNiriWindowForToplevel(toplevel) {
+		if (!CompositorService.isNiri) return null;
+
+		const appId = toplevel.appId?.toLowerCase() ?? "";
+		const title = toplevel.title ?? "";
+
+		for (const niriWindow of NiriService.windows) {
+			const niriAppId = niriWindow.app_id?.toLowerCase() ?? "";
+			const niriTitle = niriWindow.title ?? "";
+
+			if (niriAppId === appId && niriTitle === title) {
+				return niriWindow;
+			}
+		}
+
+		for (const niriWindow of NiriService.windows) {
+			const niriAppId = niriWindow.app_id?.toLowerCase() ?? "";
+			if (niriAppId === appId) {
+				return niriWindow;
+			}
+		}
+
+		return null;
 	}
 
 	function closeWindow(toplevel) {

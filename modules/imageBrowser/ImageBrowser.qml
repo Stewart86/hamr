@@ -8,7 +8,6 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Hyprland
 
 Scope {
     id: root
@@ -23,8 +22,7 @@ Scope {
 
         sourceComponent: PanelWindow {
             id: panelWindow
-            readonly property HyprlandMonitor monitor: Hyprland.monitorFor(panelWindow.screen)
-            property bool monitorIsFocused: (Hyprland.focusedMonitor?.id == monitor?.id)
+            property bool monitorIsFocused: panelWindow.screen.name === CompositorService.focusedScreenName
 
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.namespace: "quickshell:imageBrowser"

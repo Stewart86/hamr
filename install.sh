@@ -275,7 +275,84 @@ install_hamr() {
     echo "Start hamr with:"
     echo "  qs -c hamr"
     echo ""
-    echo "Or add to your compositor config for autostart."
+    
+    # Detect compositor and show appropriate instructions
+    if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
+        show_hyprland_instructions
+    elif [[ -n "${NIRI_SOCKET:-}" ]]; then
+        show_niri_instructions
+    else
+        echo "Add to your compositor config for autostart."
+        echo ""
+        echo "For Hyprland, run: ./install.sh --hyprland-config"
+        echo "For Niri, run: ./install.sh --niri-config"
+    fi
+}
+
+show_hyprland_instructions() {
+    echo "Hyprland detected! Add to ~/.config/hypr/hyprland.conf:"
+    echo ""
+    echo "  # Autostart hamr"
+    echo "  exec-once = qs -c hamr"
+    echo ""
+    echo "  # Toggle hamr with Super key"
+    echo "  bind = SUPER, SUPER_L, global, quickshell:hamrToggle"
+    echo "  bindr = SUPER, SUPER_L, global, quickshell:hamrToggleRelease"
+    echo ""
+    echo "  # Or with Ctrl+Space"
+    echo "  bind = CTRL, Space, global, quickshell:hamrToggle"
+    echo ""
+}
+
+show_niri_instructions() {
+    echo "Niri detected!"
+    echo ""
+    echo "1. Enable systemd service (recommended):"
+    echo "   ./install.sh --enable-service"
+    echo ""
+    echo "2. Add keybinding to ~/.config/niri/config.kdl:"
+    echo ""
+    echo "   binds {"
+    echo "       // Toggle hamr with Ctrl+Space"
+    echo "       Ctrl+Space { spawn \"qs\" \"ipc\" \"call\" \"hamr\" \"toggle\"; }"
+    echo ""
+    echo "       // Or with Super key (Mod key)"
+    echo "       Mod+Space { spawn \"qs\" \"ipc\" \"call\" \"hamr\" \"toggle\"; }"
+    echo "   }"
+    echo ""
+}
+
+install_systemd_service() {
+    local service_src="$SCRIPT_DIR/hamr.service"
+    local service_dest="$HOME/.config/systemd/user/hamr.service"
+    
+    if [[ ! -f "$service_src" ]]; then
+        error "hamr.service not found in $SCRIPT_DIR"
+    fi
+    
+    mkdir -p "$HOME/.config/systemd/user"
+    cp "$service_src" "$service_dest"
+    info "Installed systemd service: $service_dest"
+    
+    systemctl --user daemon-reload
+    systemctl --user enable hamr.service
+    systemctl --user add-wants niri.service hamr.service
+    info "Enabled hamr.service (will start with niri.service)"
+    
+    echo ""
+    echo "To start now: systemctl --user start hamr.service"
+    echo "To check status: systemctl --user status hamr.service"
+    echo "To view logs: journalctl --user -u hamr.service -f"
+}
+
+disable_systemd_service() {
+    systemctl --user stop hamr.service 2>/dev/null || true
+    systemctl --user disable hamr.service 2>/dev/null || true
+    # Remove the wants link
+    rm -f "$HOME/.config/systemd/user/niri.service.wants/hamr.service" 2>/dev/null || true
+    rm -f "$HOME/.config/systemd/user/hamr.service"
+    systemctl --user daemon-reload
+    info "Disabled and removed hamr.service"
 }
 
 update_hamr() {
@@ -337,16 +414,36 @@ case "${1:-}" in
     --check|-c)
         check_dependencies
         ;;
+    --hyprland-config)
+        show_hyprland_instructions
+        ;;
+    --niri-config)
+        show_niri_instructions
+        ;;
+    --enable-service)
+        install_systemd_service
+        ;;
+    --disable-service)
+        disable_systemd_service
+        ;;
     --help|-h)
         echo "Usage: $0 [OPTIONS]"
         echo ""
         echo "Options:"
-        echo "  --check, -c      Check dependencies only"
-        echo "  --update, -U     Update hamr via git pull"
-        echo "  --uninstall, -u  Remove hamr installation"
-        echo "  --help, -h       Show this help"
+        echo "  --check, -c        Check dependencies only"
+        echo "  --update, -U       Update hamr via git pull"
+        echo "  --uninstall, -u    Remove hamr installation"
+        echo "  --hyprland-config  Show Hyprland configuration instructions"
+        echo "  --niri-config      Show Niri configuration instructions"
+        echo "  --enable-service   Install and enable systemd user service (for Niri)"
+        echo "  --disable-service  Disable and remove systemd user service"
+        echo "  --help, -h         Show this help"
         echo ""
         echo "Without options, installs hamr by creating a symlink in ~/.config/quickshell/"
+        echo ""
+        echo "Supported compositors:"
+        echo "  - Hyprland (full support with global shortcuts)"
+        echo "  - Niri (full support via IPC + systemd)"
         ;;
     *)
         check_dependencies

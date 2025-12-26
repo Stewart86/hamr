@@ -14,7 +14,6 @@ import QtQuick
 import QtQuick.Window
 import Quickshell
 import Quickshell.Io
-import Quickshell.Hyprland
 import qs.services
 
 ShellRoot {
@@ -37,11 +36,17 @@ ShellRoot {
         target: "hamr"
 
         function toggle() {
-            if (GlobalStates.launcherOpen) {
-                // Toggle off - soft close (preserves state for restore window)
-                GlobalStates.softClose = true
+            if (GlobalStates.launcherOpen && !GlobalStates.launcherMinimized) {
+                if (Persistent.states.launcher.hasUsedMinimize ?? false) {
+                    GlobalStates.launcherMinimized = true
+                } else {
+                    GlobalStates.softClose = true
+                    GlobalStates.launcherOpen = false
+                }
+            } else {
+                GlobalStates.launcherMinimized = false
+                GlobalStates.launcherOpen = true
             }
-            GlobalStates.launcherOpen = !GlobalStates.launcherOpen
         }
 
         function open() {
@@ -50,7 +55,6 @@ ShellRoot {
         }
 
         function close() {
-            // Explicit close request - hard close
             GlobalStates.softClose = false
             GlobalStates.launcherOpen = false
         }
@@ -67,43 +71,11 @@ ShellRoot {
         }
     }
 
-    // Global shortcuts for hamr
+    // Global shortcuts - Hyprland only (uses GlobalShortcut protocol)
     // Hyprland bind format: bind = <modifiers>, <key>, global, quickshell:<name>
-    
-    GlobalShortcut {
-        name: "hamrToggle"
-        description: "Toggle Hamr launcher"
-        onPressed: {
-            if (GlobalStates.launcherOpen && !GlobalStates.launcherMinimized) {
-                if (Persistent.states.launcher.hasUsedMinimize ?? false) {
-                    GlobalStates.launcherMinimized = true
-                } else {
-                    GlobalStates.softClose = true
-                    GlobalStates.launcherOpen = false
-                }
-            } else {
-                GlobalStates.launcherMinimized = false
-                GlobalStates.launcherOpen = true
-            }
-        }
-    }
-
-    GlobalShortcut {
-        name: "hamrToggleRelease"
-        description: "Toggle Hamr on key release"
-        onReleased: {
-            if (GlobalStates.launcherOpen && !GlobalStates.launcherMinimized) {
-                if (Persistent.states.launcher.hasUsedMinimize ?? false) {
-                    GlobalStates.launcherMinimized = true
-                } else {
-                    GlobalStates.softClose = true
-                    GlobalStates.launcherOpen = false
-                }
-            } else {
-                GlobalStates.launcherMinimized = false
-                GlobalStates.launcherOpen = true
-            }
-        }
+    Loader {
+        active: CompositorService.isHyprland
+        sourceComponent: HyprlandShortcuts {}
     }
 }
 
