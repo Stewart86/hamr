@@ -1,25 +1,52 @@
 #!/usr/bin/env bash
-# switchwall.sh - Standalone wallpaper and theme switcher for Hamr
-#
-# This is a simplified standalone version. For advanced theming with
-# Material You color generation, see end-4's illogical-impulse:
-# https://github.com/end-4/dots-hyprland
+# switchwall.sh - Wallpaper and theme switcher for Hamr
 #
 # Usage:
 #   switchwall.sh --image /path/to/image.jpg [--mode dark|light]
 #   switchwall.sh --mode dark|light --noswitch
-#   switchwall.sh --color [hex_color|clear]
+#   switchwall.sh --color <hex_color>
 #
 # Supported wallpaper backends (auto-detected):
-#   - swww (recommended for Hyprland)
+#   - awww (recommended for Wayland)
+#   - swww (legacy name for awww)
 #   - hyprpaper (via hyprctl)
 #   - swaybg
 #   - feh (X11)
+#
+# Theme generation:
+#   Uses matugen to generate Material You colors.
+#   Outputs to DMS colors file for DankMaterialShell integration.
 
 set -euo pipefail
 
+DMS_COLORS_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/DankMaterialShell/dms-colors.json"
+NIRI_HAMR_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/niri/hamr"
+NIRI_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/niri/config.kdl"
+
+# Setup niri hamr integration (creates dir and adds include if needed)
+setup_niri() {
+    [[ -z "${NIRI_SOCKET:-}" ]] && return
+    
+    # Create hamr directory
+    mkdir -p "$NIRI_HAMR_DIR"
+    
+    # Create empty colors.kdl if it doesn't exist
+    [[ -f "$NIRI_HAMR_DIR/colors.kdl" ]] || touch "$NIRI_HAMR_DIR/colors.kdl"
+    
+    # Add include to niri config if not present
+    if [[ -f "$NIRI_CONFIG" ]] && ! grep -q 'include "hamr/colors.kdl"' "$NIRI_CONFIG"; then
+        echo 'include "hamr/colors.kdl"' >> "$NIRI_CONFIG"
+    fi
+}
+
 # Detect available wallpaper backend
 detect_backend() {
+    if command -v awww &>/dev/null; then
+        if awww query &>/dev/null 2>&1; then
+            echo "awww"
+            return
+        fi
+    fi
     if command -v swww &>/dev/null; then
         if swww query &>/dev/null 2>&1; then
             echo "swww"
@@ -50,6 +77,9 @@ set_wallpaper() {
     backend=$(detect_backend)
     
     case "$backend" in
+        awww)
+            awww img "$image" --transition-type fade --transition-duration 1
+            ;;
         swww)
             swww img "$image" --transition-type fade --transition-duration 1
             ;;
@@ -65,13 +95,60 @@ set_wallpaper() {
             feh --bg-fill "$image"
             ;;
         none)
-            notify-send "Wallpaper" "No wallpaper backend found. Install swww, hyprpaper, swaybg, or feh."
+            notify-send "Wallpaper" "No wallpaper backend found. Install awww, swww, hyprpaper, swaybg, or feh."
             return 1
             ;;
     esac
 }
 
-# Set color scheme (dark/light mode)
+# Generate colors with matugen and output DMS-compatible format
+# matugen outputs all variants (dark, default, light) in one run
+generate_colors() {
+    local source_type="$1"  # "image" or "color"
+    local source_value="$2" # path or hex color
+    
+    if ! command -v matugen &>/dev/null; then
+        return 1
+    fi
+    
+    local tmp_json=$(mktemp)
+    trap "rm -f '$tmp_json'" EXIT
+    
+    # Generate colors (matugen outputs dark/default/light variants for each color)
+    if [[ "$source_type" == "image" ]]; then
+        matugen image "$source_value" --mode dark --type scheme-tonal-spot --dry-run -j hex > "$tmp_json" 2>/dev/null
+    else
+        matugen color hex "$source_value" --mode dark --type scheme-tonal-spot --dry-run -j hex > "$tmp_json" 2>/dev/null
+    fi
+    
+    # Convert to DMS format using jq
+    # matugen format: { colors: { primary: { dark: "#xxx", light: "#xxx" }, ... } }
+    # DMS format: { colors: { dark: { primary: "#xxx", ... }, light: { primary: "#xxx", ... } } }
+    if command -v jq &>/dev/null && [[ -s "$tmp_json" ]]; then
+        mkdir -p "$(dirname "$DMS_COLORS_FILE")"
+        jq '{
+            colors: {
+                dark: (.colors | with_entries(.value = .value.dark)),
+                light: (.colors | with_entries(.value = .value.light))
+            }
+        }' "$tmp_json" > "$DMS_COLORS_FILE"
+    fi
+    
+    # Also run matugen normally for user templates (hamr, gtk, niri, etc.)
+    if [[ "$source_type" == "image" ]]; then
+        matugen image "$source_value" --mode dark --type scheme-tonal-spot
+    else
+        matugen color hex "$source_value" --mode dark --type scheme-tonal-spot
+    fi
+    
+    # Reload niri config to apply new colors
+    if [[ -n "${NIRI_SOCKET:-}" ]]; then
+        setup_niri
+        niri msg action load-config-file &>/dev/null || true
+    fi
+}
+
+# Set color scheme (dark/light mode) via gsettings
 set_color_scheme() {
     local mode="$1"
     
@@ -89,7 +166,7 @@ set_color_scheme() {
 # Main
 main() {
     local image=""
-    local mode=""
+    local mode="dark"
     local noswitch=""
     local color=""
     
@@ -108,14 +185,12 @@ main() {
                 shift
                 ;;
             --color)
-                # Color support is a placeholder - requires matugen or similar
-                # For full Material You theming, use illogical-impulse
                 if [[ -n "${2:-}" && "$2" != --* ]]; then
                     color="$2"
                     shift 2
                 else
-                    notify-send "Accent Color" "Color theming requires matugen. See illogical-impulse for full support."
-                    shift
+                    echo "Error: --color requires a hex color value"
+                    exit 1
                 fi
                 ;;
             *)
@@ -128,23 +203,29 @@ main() {
         esac
     done
     
-    # Set color scheme if mode specified
-    if [[ -n "$mode" ]]; then
-        set_color_scheme "$mode"
+    # Set gsettings color scheme
+    set_color_scheme "$mode"
+    
+    # Handle color-only mode (no image)
+    if [[ -n "$color" ]]; then
+        generate_colors "color" "$color" || true
+        return
     fi
     
     # Set wallpaper unless --noswitch
     if [[ -z "$noswitch" && -n "$image" ]]; then
         if [[ -f "$image" ]]; then
             set_wallpaper "$image"
+            generate_colors "image" "$image" || true
         else
             notify-send "Wallpaper" "File not found: $image"
             exit 1
         fi
-    fi
-    
-    if [[ -n "$color" ]]; then
-        notify-send "Accent Color" "Set to $color (requires matugen for actual theming)"
+    elif [[ -n "$image" ]]; then
+        # --noswitch with image: just generate colors, don't change wallpaper
+        if [[ -f "$image" ]]; then
+            generate_colors "image" "$image" || true
+        fi
     fi
 }
 
