@@ -13,6 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+IS_NIRI = bool(os.environ.get("NIRI_SOCKET"))
+
 
 def get_path_binaries() -> list[str]:
     """Get all executable binaries from $PATH directories."""
@@ -119,8 +121,14 @@ def make_terminal_cmd_for_index(cmd: str, execute: bool = True) -> list[str]:
     cmd_repr = repr(cmd)
     enter_key = "&& ydotool key 28:1 28:0" if execute else ""
 
-    # Inline version for index items
-    script = f"""
+    if IS_NIRI:
+        script = f"""
+niri msg action spawn -- {terminal}
+sleep 0.3
+ydotool type --key-delay=0 -- {cmd_repr} {enter_key}
+"""
+    else:
+        script = f"""
 hyprctl dispatch exec '[float] {terminal}'
 for i in $(seq 1 50); do
     active=$(hyprctl activewindow -j 2>/dev/null | jq -r '.class // empty' 2>/dev/null)
@@ -168,9 +176,17 @@ def make_terminal_cmd(cmd: str, floating: bool = True) -> list[str]:
     terminal = os.environ.get("TERMINAL", "ghostty")
     cmd_repr = repr(cmd)
 
-    # Wait for terminal window to become active instead of fixed sleep
-    # Uses hyprctl to poll for active window class matching terminal
-    wait_script = f"""
+    if IS_NIRI:
+        # Niri doesn't have hyprctl - use simple sleep approach
+        wait_script = f"""
+niri msg action spawn -- {terminal}
+sleep 0.3
+ydotool type --key-delay=0 -- {cmd_repr} && ydotool key 28:1 28:0
+"""
+    else:
+        # Wait for terminal window to become active instead of fixed sleep
+        # Uses hyprctl to poll for active window class matching terminal
+        wait_script = f"""
 terminal_class="{terminal}"
 hyprctl dispatch exec '{f"[float] " if floating else ""}{terminal}'
 for i in $(seq 1 50); do
