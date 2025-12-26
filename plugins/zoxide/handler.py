@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
+IS_NIRI = bool(os.environ.get("NIRI_SOCKET"))
 
 MAX_ITEMS = 50
 
@@ -67,7 +68,7 @@ def get_mock_dirs() -> list[dict]:
 def make_terminal_cmd(path: str) -> list[str]:
     """Build command to open terminal at directory.
 
-    Uses terminal's native --working-directory flag via hyprctl dispatch exec.
+    Uses terminal's native --working-directory flag.
     For ghostty with gtk-single-instance, we disable it for this invocation
     to ensure the working directory is respected.
     """
@@ -75,23 +76,27 @@ def make_terminal_cmd(path: str) -> list[str]:
     terminal_name = os.path.basename(terminal).lower()
 
     if terminal_name in ("ghostty",):
-        # Ghostty with single-instance needs special handling
-        cmd = f"{terminal} --gtk-single-instance=false --working-directory={path}"
+        cmd_parts = [
+            terminal,
+            "--gtk-single-instance=false",
+            f"--working-directory={path}",
+        ]
     elif terminal_name in ("kitty",):
-        cmd = f"{terminal} -d {path}"
+        cmd_parts = [terminal, "-d", path]
     elif terminal_name in ("alacritty",):
-        cmd = f"{terminal} --working-directory {path}"
+        cmd_parts = [terminal, "--working-directory", path]
     elif terminal_name in ("wezterm", "wezterm-gui"):
-        cmd = f"{terminal} start --cwd {path}"
+        cmd_parts = [terminal, "start", "--cwd", path]
     elif terminal_name in ("konsole",):
-        cmd = f"{terminal} --workdir {path}"
+        cmd_parts = [terminal, "--workdir", path]
     elif terminal_name in ("foot",):
-        cmd = f"{terminal} -D {path}"
+        cmd_parts = [terminal, "-D", path]
     else:
-        # Default: most terminals support --working-directory
-        cmd = f"{terminal} --working-directory={path}"
+        cmd_parts = [terminal, f"--working-directory={path}"]
 
-    return ["hyprctl", "dispatch", "exec", cmd]
+    if IS_NIRI:
+        return ["niri", "msg", "action", "spawn", "--"] + cmd_parts
+    return ["hyprctl", "dispatch", "exec", "--", *cmd_parts]
 
 
 def dir_to_index_item(dir_info: dict) -> dict:

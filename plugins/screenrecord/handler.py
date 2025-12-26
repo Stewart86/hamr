@@ -15,6 +15,7 @@ from pathlib import Path
 
 # Test mode - mock external tool calls
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
+IS_NIRI = bool(os.environ.get("NIRI_SOCKET"))
 
 # Directories
 VIDEOS_DIR = Path.home() / "Videos"
@@ -45,13 +46,23 @@ def get_focused_monitor() -> str:
     if TEST_MODE:
         return "eDP-1"  # Mock monitor name
     try:
-        result = subprocess.run(
-            ["hyprctl", "monitors", "-j"], capture_output=True, text=True, timeout=5
-        )
-        monitors = json.loads(result.stdout)
-        for monitor in monitors:
-            if monitor.get("focused"):
-                return monitor.get("name", "")
+        if IS_NIRI:
+            result = subprocess.run(
+                ["niri", "msg", "-j", "focused-output"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            output = json.loads(result.stdout)
+            return output.get("name", "")
+        else:
+            result = subprocess.run(
+                ["hyprctl", "monitors", "-j"], capture_output=True, text=True, timeout=5
+            )
+            monitors = json.loads(result.stdout)
+            for monitor in monitors:
+                if monitor.get("focused"):
+                    return monitor.get("name", "")
     except (
         subprocess.TimeoutExpired,
         json.JSONDecodeError,
