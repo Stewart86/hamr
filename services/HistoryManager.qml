@@ -16,6 +16,24 @@ Singleton {
     property int maxTotalScore: 10000
     property int maxAgeDays: 90
     property int maxSequenceItems: 5
+    property bool _pendingSave: false
+
+    Timer {
+        id: saveDebounceTimer
+        interval: 500
+        repeat: false
+        onTriggered: {
+            if (root._pendingSave) {
+                searchHistoryFileView.setText(JSON.stringify({ history: root.searchHistoryData }, null, 2));
+                root._pendingSave = false;
+            }
+        }
+    }
+
+    function deferredSave() {
+        root._pendingSave = true;
+        saveDebounceTimer.restart();
+    }
 
     FileView {
         id: searchHistoryFileView
@@ -394,7 +412,7 @@ Singleton {
         }
 
         searchHistoryData = newHistory;
-        searchHistoryFileView.setText(JSON.stringify({ history: newHistory }, null, 2));
+        deferredSave();
     }
 
     function ageAndPruneHistory(history, now) {

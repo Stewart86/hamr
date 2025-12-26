@@ -124,10 +124,12 @@ Singleton {
     function recordWindowFocus(appId, appName, windowTitle, iconName, searchTerm) {
         const context = ContextTracker.getContext();
         context.launchFromEmpty = root.query === "";
-        HistoryManager.recordWindowFocus(appId, appName, windowTitle, iconName, searchTerm ?? root.query, context);
-
-        // Record app focus for sequence tracking
-        ContextTracker.recordLaunch(appId);
+        const term = searchTerm ?? root.query;
+        
+        Qt.callLater(() => {
+            HistoryManager.recordWindowFocus(appId, appName, windowTitle, iconName, term, context);
+            ContextTracker.recordLaunch(appId);
+        });
     }
 
     function removeHistoryItem(historyType, identifier) {

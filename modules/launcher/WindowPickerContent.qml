@@ -154,21 +154,20 @@ Rectangle {
             
             contentItem: ColumnLayout {
                 id: previewContainer
-                // Size based on screencopy view like the dock does
-                implicitWidth: screencopyView.implicitWidth
-                implicitHeight: screencopyView.implicitHeight + titleRow.implicitHeight + spacing
+                implicitWidth: previewItem.implicitWidth
+                implicitHeight: previewItem.implicitHeight + titleRow.implicitHeight + spacing
                 spacing: 4
                 
                 // Title bar with close button
                 RowLayout {
                     id: titleRow
-                    Layout.preferredWidth: screencopyView.implicitWidth
+                    Layout.preferredWidth: previewItem.implicitWidth
                     spacing: 4
                     
                     StyledText {
                         text: root.windows[index]?.title ?? "Unknown"
                         Layout.fillWidth: true
-                        Layout.preferredWidth: screencopyView.implicitWidth - closeButton.width - parent.spacing
+                        Layout.preferredWidth: previewItem.implicitWidth - closeButton.width - parent.spacing
                         elide: Text.ElideRight
                         color: Appearance.colors.colOnSurface
                         font.pixelSize: Appearance.font.pixelSize.small
@@ -192,19 +191,47 @@ Rectangle {
                     }
                 }
                 
-                ScreencopyView {
-                    id: screencopyView
-                    captureSource: root.windows[index] ?? null
-                    live: true
-                    paintCursor: true
-                    constraintSize: Qt.size(root.maxPreviewWidth, root.maxPreviewHeight)
+                Item {
+                    id: previewItem
                     
-                    layer.enabled: true
-                    layer.effect: OpacityMask {
-                        maskSource: Rectangle {
-                            width: screencopyView.width
-                            height: screencopyView.height
-                            radius: Appearance.rounding.small
+                    property bool useScreencopy: CompositorService.isHyprland
+                    
+                    implicitWidth: useScreencopy ? screencopyView.implicitWidth : fallbackPreview.implicitWidth
+                    implicitHeight: useScreencopy ? screencopyView.implicitHeight : fallbackPreview.implicitHeight
+                    
+                    ScreencopyView {
+                        id: screencopyView
+                        visible: previewItem.useScreencopy
+                        captureSource: previewItem.useScreencopy ? (root.windows[index] ?? null) : null
+                        live: true
+                        paintCursor: true
+                        constraintSize: Qt.size(root.maxPreviewWidth, root.maxPreviewHeight)
+                        
+                        layer.enabled: true
+                        layer.effect: OpacityMask {
+                            maskSource: Rectangle {
+                                width: screencopyView.width
+                                height: screencopyView.height
+                                radius: Appearance.rounding.small
+                            }
+                        }
+                    }
+                    
+                    Rectangle {
+                        id: fallbackPreview
+                        visible: !previewItem.useScreencopy
+                        
+                        implicitWidth: Math.min(root.maxPreviewWidth, 200)
+                        implicitHeight: Math.min(root.maxPreviewHeight, 150)
+                        
+                        color: Appearance.colors.colSurfaceContainerHigh
+                        radius: Appearance.rounding.small
+                        
+                        IconImage {
+                            anchors.centerIn: parent
+                            source: Quickshell.iconPath(IconResolver.guessIcon(root.windows[index]?.appId ?? ""), "application-x-executable")
+                            width: 64
+                            height: 64
                         }
                     }
                 }
