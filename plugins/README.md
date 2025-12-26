@@ -33,6 +33,32 @@ The handler just needs to be executable and read JSON from stdin, write JSON to 
 
 ---
 
+## Compositor Support
+
+Hamr supports multiple Wayland compositors. By default, plugins are assumed to only work on Hyprland. To specify compositor compatibility, add the `supportedCompositors` field to your manifest:
+
+```json
+{
+  "name": "My Plugin",
+  "supportedCompositors": ["*"],
+  ...
+}
+```
+
+| Value | Description |
+|-------|-------------|
+| `["*"]` | Works on all compositors (universal) |
+| `["hyprland"]` | Hyprland only (default if not specified) |
+| `["niri"]` | Niri only |
+| `["hyprland", "niri"]` | Specific compositors |
+
+Plugins using compositor-specific APIs should specify their requirements:
+- Uses `hyprctl` → `["hyprland"]`
+- Uses `niri msg` → `["niri"]`
+- Uses generic tools (wl-copy, notify-send) → `["*"]`
+
+---
+
 ## Quick Start
 
 ### Simple Action (Script)
