@@ -1,5 +1,6 @@
 {
   "name": "Player",
   "description": "Media player controls via playerctl",
-  "icon": "play_circle"
+  "icon": "play_circle",
+  "supportedCompositors": ["*"]
 }

@@ -2,6 +2,7 @@
   "name": "Sound",
   "description": "System volume and audio controls",
   "icon": "volume_up",
+  "supportedCompositors": ["*"],
   "index": {
     "enabled": true,
     "reindex": "never"

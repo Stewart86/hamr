@@ -3,6 +3,7 @@
   "description": "Look up word definitions",
   "icon": "menu_book",
   "version": "1.0",
+  "supportedCompositors": ["*"],
   
   "steps": {
     "initial": {

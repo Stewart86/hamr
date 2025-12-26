@@ -2,6 +2,7 @@
   "name": "URL",
   "description": "Open URLs in browser",
   "icon": "open_in_browser",
+  "supportedCompositors": ["*"],
   "match": {
     "patterns": [
       "^[a-zA-Z0-9][a-zA-Z0-9-]*\\.[a-zA-Z]{2,}"

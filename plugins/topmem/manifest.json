@@ -2,5 +2,6 @@
   "name": "Top Memory",
   "description": "Processes sorted by memory usage",
   "icon": "memory",
+  "supportedCompositors": ["*"],
   "poll": 2000
 }

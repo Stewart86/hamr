@@ -2,6 +2,7 @@
   "name": "Clipboard",
   "description": "Browse and manage clipboard history",
   "icon": "content_paste",
+  "supportedCompositors": ["*"],
   "index": {
     "enabled": true,
     "watchFiles": ["~/.cache/cliphist/db"]

@@ -2,6 +2,7 @@
   "name": "Notes",
   "description": "Quick notes - create, read, edit, delete",
   "icon": "sticky_note_2",
+  "supportedCompositors": ["*"],
   "index": {
     "enabled": true,
     "watchFiles": ["~/.config/hamr/notes.json"]

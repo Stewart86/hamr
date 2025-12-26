@@ -2,6 +2,7 @@
   "name": "Calculate",
   "description": "Calculator with currency, units, and temperature conversion",
   "icon": "calculate",
+  "supportedCompositors": ["*"],
   "match": {
     "patterns": [
       "^=",

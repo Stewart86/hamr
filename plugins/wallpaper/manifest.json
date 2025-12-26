@@ -1,5 +1,6 @@
 {
     "name": "Wallpaper",
     "description": "Browse and set wallpapers",
-    "icon": "wallpaper"
+    "icon": "wallpaper",
+    "supportedCompositors": ["*"]
 }

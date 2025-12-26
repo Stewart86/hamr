@@ -2,6 +2,7 @@
   "name": "Web Apps",
   "description": "Install and manage web apps",
   "icon": "web",
+  "supportedCompositors": ["*"],
   "index": {
     "enabled": true,
     "watchFiles": ["~/.config/hamr/webapps.json"]

@@ -2,5 +2,6 @@
   "name": "Top CPU",
   "description": "Processes sorted by CPU usage",
   "icon": "speed",
+  "supportedCompositors": ["*"],
   "poll": 2000
 }

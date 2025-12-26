@@ -2,6 +2,7 @@
   "name": "Apps",
   "description": "Browse and launch applications",
   "icon": "apps",
+  "supportedCompositors": ["*"],
   "index": {
     "enabled": true,
     "watchDirs": [

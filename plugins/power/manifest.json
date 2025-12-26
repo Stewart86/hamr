@@ -2,6 +2,7 @@
   "name": "Power",
   "description": "System power and session controls",
   "icon": "power_settings_new",
+  "supportedCompositors": ["*"],
   "index": {
     "enabled": true,
     "reindex": "never"

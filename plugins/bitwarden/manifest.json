@@ -2,6 +2,7 @@
   "name": "Bitwarden",
   "description": "Search and copy credentials from Bitwarden vault",
   "icon": "key",
+  "supportedCompositors": ["*"],
   "index": {
     "enabled": true,
     "watchFiles": ["~/.cache/hamr/bitwarden/items.json"]

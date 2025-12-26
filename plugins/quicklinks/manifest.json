@@ -2,6 +2,7 @@
   "name": "Quicklinks",
   "description": "Search the web with quicklinks",
   "icon": "link",
+  "supportedCompositors": ["*"],
   "index": {
     "enabled": true,
     "watchFiles": ["~/.config/hamr/quicklinks.json"]

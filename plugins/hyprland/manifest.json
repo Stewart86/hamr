@@ -2,6 +2,7 @@
   "name": "Hyprland",
   "description": "Window management and Hyprland dispatchers",
   "icon": "desktop_windows",
+  "supportedCompositors": ["hyprland"],
   "index": {
     "enabled": true,
     "watchHyprlandEvents": ["openwindow", "closewindow"],

@@ -2,6 +2,7 @@
   "name": "Emoji",
   "description": "Search and copy emojis",
   "icon": "emoji_emotions",
+  "supportedCompositors": ["*"],
   "index": {
     "enabled": true,
     "reindex": "never"

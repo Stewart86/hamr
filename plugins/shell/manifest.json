@@ -2,6 +2,7 @@
   "name": "Shell",
   "description": "Run commands and search shell history",
   "icon": "terminal",
+  "supportedCompositors": ["*"],
   "index": {
     "enabled": true,
     "watchFiles": [

@@ -2,6 +2,7 @@
   "name": "Snippets",
   "description": "Text snippets for quick insertion",
   "icon": "content_paste",
+  "supportedCompositors": ["*"],
   "index": {
     "enabled": true,
     "watchFiles": ["~/.config/hamr/snippets.json"]

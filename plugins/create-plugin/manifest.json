@@ -3,6 +3,7 @@
     "description": "AI helper to create new workflow plugins",
     "icon": "extension",
     "version": "1.0",
+    "supportedCompositors": ["*"],
 
     "steps": {
         "initial": {
