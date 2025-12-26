@@ -552,19 +552,33 @@ Singleton {
                     
                     // Skip if plugin already exists (prevents duplicates from race conditions)
                     if (!root.plugins.some(p => p.id === manifestLoader.pluginId)) {
-                        const newPlugin = {
-                            id: manifestLoader.pluginId,
-                            path: manifestLoader.pluginPath,
-                            manifest: manifest,
-                            isBuiltin: manifestLoader.isBuiltin
-                        };
+                        // Check compositor compatibility
+                        // Default to ["hyprland"] if not specified (backward compatibility)
+                        const supportedCompositors = manifest.supportedCompositors ?? ["hyprland"];
+                        const currentCompositor = CompositorService.compositor;
                         
-                        const updated = root.plugins.slice();
-                        updated.push(newPlugin);
-                        root.plugins = updated;
+                        // Check if plugin supports current compositor
+                        // "*" means all compositors are supported
+                        const isSupported = supportedCompositors.includes("*") || 
+                                           supportedCompositors.includes(currentCompositor);
                         
-                        // Build match pattern cache if plugin has patterns
-                        root.buildMatchPatternCache(newPlugin);
+                        if (!isSupported) {
+                            console.log(`[PluginRunner] Skipping plugin ${manifestLoader.pluginId}: not supported on ${currentCompositor} (supports: ${supportedCompositors.join(", ")})`);
+                        } else {
+                            const newPlugin = {
+                                id: manifestLoader.pluginId,
+                                path: manifestLoader.pluginPath,
+                                manifest: manifest,
+                                isBuiltin: manifestLoader.isBuiltin
+                            };
+                            
+                            const updated = root.plugins.slice();
+                            updated.push(newPlugin);
+                            root.plugins = updated;
+                            
+                            // Build match pattern cache if plugin has patterns
+                            root.buildMatchPatternCache(newPlugin);
+                        }
                     }
                 } catch (e) {
                     console.warn(`[PluginRunner] Failed to parse manifest for ${manifestLoader.pluginId}:`, e);
