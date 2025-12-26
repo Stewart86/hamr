@@ -3,10 +3,11 @@
 Wallpaper workflow handler - browse and set wallpapers using the image browser.
 
 Supports multiple wallpaper backends with automatic detection:
-1. swww (recommended for Hyprland)
-2. hyprctl hyprpaper
-3. swaybg
-4. feh (X11 fallback)
+1. awww (swww renamed, recommended for Wayland)
+2. swww (legacy name)
+3. hyprctl hyprpaper
+4. swaybg
+5. feh (X11 fallback)
 
 For theme integration (dark/light mode), place a custom script at:
   ~/.config/hamr/scripts/switchwall.sh
@@ -28,31 +29,30 @@ TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 PICTURES_DIR = Path.home() / "Pictures"
 WALLPAPERS_DIR = PICTURES_DIR / "Wallpapers"
 
-# Switchwall script paths (popular dotfiles first, then hamr fallback)
-# Add more dotfile paths here as needed
+# Switchwall script path
 XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-SWITCHWALL_PATHS = [
-    XDG_CONFIG
-    / "quickshell"
-    / "ii"
-    / "scripts"
-    / "colors"
-    / "switchwall.sh",  # end-4 illogical-impulse
-    XDG_CONFIG / "hamr" / "scripts" / "switchwall.sh",  # hamr standalone
-]
+SWITCHWALL_PATH = XDG_CONFIG / "hamr" / "scripts" / "switchwall.sh"
 
 
 def find_switchwall_script() -> Path | None:
-    """Find switchwall script (popular dotfiles first, then hamr fallback)."""
-    for script in SWITCHWALL_PATHS:
-        if script.exists() and os.access(script, os.X_OK):
-            return script
+    """Find switchwall script at ~/.config/hamr/scripts/switchwall.sh."""
+    if SWITCHWALL_PATH.exists() and os.access(SWITCHWALL_PATH, os.X_OK):
+        return SWITCHWALL_PATH
     return None
 
 
 def detect_wallpaper_backend() -> str | None:
     """Detect available wallpaper backend."""
-    # Check for swww daemon
+    # Check for awww (swww renamed to awww)
+    if shutil.which("awww"):
+        try:
+            result = subprocess.run(["awww", "query"], capture_output=True, timeout=2)
+            if result.returncode == 0:
+                return "awww"
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+
+    # Check for swww daemon (legacy name)
     if shutil.which("swww"):
         try:
             result = subprocess.run(["swww", "query"], capture_output=True, timeout=2)
@@ -92,6 +92,17 @@ def build_wallpaper_command(image_path: str, mode: str) -> list[str]:
 
     # Detect backend
     backend = detect_wallpaper_backend()
+
+    if backend == "awww":
+        return [
+            "awww",
+            "img",
+            image_path,
+            "--transition-type",
+            "fade",
+            "--transition-duration",
+            "1",
+        ]
 
     if backend == "swww":
         return [
