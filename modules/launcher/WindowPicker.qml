@@ -5,6 +5,7 @@ import qs.modules.common.widgets
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Hyprland
 
 Scope {
     id: root
@@ -19,7 +20,10 @@ Scope {
 
         sourceComponent: PanelWindow {
             id: panelWindow
-            property bool monitorIsFocused: panelWindow.screen.name === CompositorService.focusedScreenName
+            readonly property var hyprlandMonitor: Hyprland.monitorFor(panelWindow.screen)
+            readonly property bool monitorIsFocused: CompositorService.isHyprland
+                ? (Hyprland.focusedMonitor?.id === hyprlandMonitor?.id)
+                : (panelWindow.screen.name === CompositorService.focusedScreenName)
 
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.namespace: "quickshell:windowPicker"
