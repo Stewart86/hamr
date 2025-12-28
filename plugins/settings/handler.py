@@ -714,11 +714,17 @@ def get_plugin_actions(in_form: bool = False) -> list[dict]:
         return []
     return [
         {
+            "id": "clear_cache",
+            "name": "Clear Cache",
+            "icon": "delete_sweep",
+            "confirm": "Clear plugin index cache? Plugins will reindex on next launch.",
+        },
+        {
             "id": "reset_all",
             "name": "Reset All",
             "icon": "restart_alt",
             "confirm": "Reset all settings to defaults? This cannot be undone.",
-        }
+        },
     ]
 
 
@@ -872,6 +878,30 @@ def main():
         return
 
     if step == "action":
+        if selected_id == "__plugin__" and action == "clear_cache":
+            cache_path = Path.home() / ".config/hamr/plugin-indexes.json"
+            try:
+                if cache_path.exists():
+                    cache_path.unlink()
+                print(
+                    json.dumps(
+                        {
+                            "type": "execute",
+                            "execute": {
+                                "notify": "Cache cleared. Restart Hamr to reindex plugins.",
+                                "close": True,
+                            },
+                        }
+                    )
+                )
+            except Exception as e:
+                print(
+                    json.dumps(
+                        {"type": "error", "message": f"Failed to clear cache: {e}"}
+                    )
+                )
+            return
+
         if selected_id == "__plugin__" and action == "reset_all":
             if save_config({}):
                 print(
