@@ -11,6 +11,7 @@ import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Hyprland
 
 Scope {
     id: launcherScope
@@ -142,7 +143,10 @@ Scope {
             id: root
             required property var modelData
             property string searchingText: ""
-            property bool monitorIsFocused: root.screen.name === CompositorService.focusedScreenName
+            readonly property var hyprlandMonitor: Hyprland.monitorFor(root.screen)
+            readonly property bool monitorIsFocused: CompositorService.isHyprland 
+                ? (Hyprland.focusedMonitor?.id == hyprlandMonitor?.id)
+                : (modelData.name === CompositorService.focusedScreenName)
             property alias searchWidget: searchWidget
             screen: modelData
             visible: GlobalStates.launcherOpen && monitorIsFocused && !GlobalStates.launcherMinimized
@@ -548,7 +552,10 @@ Scope {
         PanelWindow {
             id: fabWindow
             required property var modelData
-            property bool monitorIsFocused: fabWindow.screen.name === CompositorService.focusedScreenName
+            readonly property var hyprlandMonitor: Hyprland.monitorFor(fabWindow.screen)
+            readonly property bool monitorIsFocused: CompositorService.isHyprland 
+                ? (Hyprland.focusedMonitor?.id == hyprlandMonitor?.id)
+                : (modelData.name === CompositorService.focusedScreenName)
             screen: modelData
             visible: GlobalStates.launcherMinimized && monitorIsFocused
 

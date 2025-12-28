@@ -71,14 +71,18 @@ Singleton {
         return Quickshell.screens.length > 0 ? Quickshell.screens[0] : null;
     }
 
+    readonly property string hyprlandFocusedMonitorName: Hyprland.focusedMonitor?.name ?? ""
+    readonly property string niriFocusedMonitorName: NiriService.currentOutput ?? ""
+    readonly property string defaultScreenName: Quickshell.screens.length > 0 ? Quickshell.screens[0].name : ""
+    
     readonly property string focusedScreenName: {
-        if (isHyprland) {
-            return Hyprland.focusedMonitor?.name ?? "";
+        if (compositor === "hyprland") {
+            return hyprlandFocusedMonitorName;
         }
-        if (isNiri) {
-            return NiriService.currentOutput ?? "";
+        if (compositor === "niri") {
+            return niriFocusedMonitorName;
         }
-        return Quickshell.screens.length > 0 ? Quickshell.screens[0].name : "";
+        return defaultScreenName;
     }
 
     function isScreenFocused(screen) {
