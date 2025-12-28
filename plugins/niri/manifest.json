@@ -1,0 +1,9 @@
+{
+  "name": "Niri",
+  "description": "Window management and Niri actions",
+  "icon": "desktop_windows",
+  "supportedCompositors": ["niri"],
+  "index": {
+    "enabled": true
+  }
+}

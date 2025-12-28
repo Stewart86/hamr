@@ -94,7 +94,8 @@ All plugins are indexed and searchable directly from the main bar - no prefix re
 | `wallpaper` | Wallpaper selector (illogical-impulse) |
 | `webapp` | Install and manage web apps |
 | `whats-that-word` | Find words from descriptions or fix misspellings |
-| `hyprland` | Window management, dispatchers, and global shortcuts |
+| `hyprland` | Window management, dispatchers, and global shortcuts (Hyprland only) |
+| `niri` | Window management and compositor actions (Niri only) |
 
 ### Hyprland Integration
 
@@ -125,6 +126,41 @@ Every app that registers DBus global shortcuts becomes instantly searchable. Tha
 - `move workspace to monitor`, `swap workspaces`
 
 Commands are saved to history for quick access. Even better: after using "move to workspace 3" a few times, just type `w3` or `m3` - Hamr learns your shortcuts automatically. Type `/hyprland` to browse all available commands, or search directly from the main bar.
+
+### Niri Integration
+
+The `niri` plugin provides natural language access to Niri window management, optimized for Niri's scrollable tiling layout.
+
+**Window Management:**
+- `close window`, `fullscreen`, `toggle floating`, `center column`
+- `maximize column`, `toggle tabbed` (column tabbed display)
+
+**Column Operations:**
+- `consume window` - Add window to the right into the focused column
+- `expel window` - Move focused window out of column
+- `expand column` - Expand column to available width
+- `focus column left/right`, `move column left/right`
+
+**Window Movement:**
+- `focus window up/down`, `move window up/down`
+- `swap window left/right`
+
+**Workspace Navigation:**
+- `focus workspace up/down`, `focus workspace previous`
+- `move window to workspace up/down`
+- `move column to workspace up/down`
+
+**Monitor Control:**
+- `focus monitor left/right/up/down/next/previous`
+- `move window to monitor left/right`
+- `move column to monitor left/right`
+
+**Utilities:**
+- `toggle overview`, `screenshot`, `screenshot window`, `screenshot screen`
+- `show hotkey overlay`, `switch keyboard layout`
+- `power off monitors`, `power on monitors`
+
+Type `/niri` to browse all available actions, or search directly from the main bar.
 
 ### Simple Actions (Scripts)
 
