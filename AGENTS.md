@@ -25,6 +25,8 @@
 
 This is the **hamr** launcher - a standalone search bar / launcher for Quickshell.
 
+**Supported Compositors:** Hyprland, Niri
+
 ## Repository
 
 This repo lives at:
