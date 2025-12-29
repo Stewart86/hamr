@@ -94,6 +94,7 @@ All plugins are indexed and searchable directly from the main bar - no prefix re
 | `wallpaper` | Wallpaper selector (illogical-impulse) |
 | `webapp` | Install and manage web apps |
 | `whats-that-word` | Find words from descriptions or fix misspellings |
+| `zoxide` | Jump to frequently used directories |
 | `hyprland` | Window management, dispatchers, and global shortcuts (Hyprland only) |
 | `niri` | Window management and compositor actions (Niri only) |
 
