@@ -618,6 +618,37 @@ Singleton {
         return true;
     }
 
+    function handleBrowserEscape(browserType) {
+        const now = Date.now();
+        const timeSinceLastEscape = now - root.lastEscapeTime;
+        root.lastEscapeTime = now;
+
+        if (browserType === "grid") {
+            const isInitialView = GlobalStates.gridBrowserConfig?.isInitialView ?? false;
+            if (timeSinceLastEscape < root.doubleEscapeThreshold) {
+                // Double-escape: exit plugin entirely
+                GlobalStates.closeGridBrowser();
+                root.exitPlugin();
+            } else if (!isInitialView) {
+                // Single-escape at depth > 0: go back (cancel)
+                GlobalStates.cancelGridBrowser();
+            }
+            // Single-escape at initial view: do nothing, wait for double-tap
+        } else if (browserType === "image") {
+            const isInitialView = GlobalStates.imageBrowserConfig?.isInitialView ?? false;
+            if (timeSinceLastEscape < root.doubleEscapeThreshold) {
+                // Double-escape: exit plugin entirely
+                GlobalStates.closeImageBrowser();
+                root.exitPlugin();
+            } else if (!isInitialView) {
+                // Single-escape at depth > 0: go back (cancel)
+                GlobalStates.cancelImageBrowser();
+            }
+            // Single-escape at initial view: do nothing, wait for double-tap
+        }
+        return true;
+    }
+
     function executePreviewAction(item, actionId) {
         if (!item || !actionId) return;
         

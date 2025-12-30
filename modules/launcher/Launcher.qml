@@ -484,13 +484,11 @@ Scope {
 
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) {
-                        // Priority: imageBrowser > plugin > exclusive mode > minimize/close launcher
-                        if (GlobalStates.imageBrowserOpen) {
-                            if (GlobalStates.imageBrowserConfig?.workflowId) {
-                                GlobalStates.cancelImageBrowser();
-                            } else {
-                                GlobalStates.closeImageBrowser();
-                            }
+                        // Priority: gridBrowser > imageBrowser > plugin > exclusive mode > minimize/close launcher
+                        if (GlobalStates.gridBrowserOpen) {
+                            LauncherSearch.handleBrowserEscape("grid");
+                        } else if (GlobalStates.imageBrowserOpen) {
+                            LauncherSearch.handleBrowserEscape("image");
                         } else if (PluginRunner.isActive()) {
                             LauncherSearch.handlePluginEscape();
                         } else if (LauncherSearch.isInExclusiveMode()) {
