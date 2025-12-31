@@ -229,7 +229,10 @@ Rectangle {
                         
                         IconImage {
                             anchors.centerIn: parent
-                            source: Quickshell.iconPath(IconResolver.guessIcon(root.windows[index]?.appId ?? ""), "application-x-executable")
+                            source: {
+                                const resolved = IconResolver.guessIcon(root.windows[index]?.appId ?? "");
+                                return resolved.startsWith("/") ? "file://" + resolved : Quickshell.iconPath(resolved, "application-x-executable");
+                            }
                             width: 64
                             height: 64
                         }

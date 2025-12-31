@@ -295,7 +295,11 @@ RippleButton {
             IconImage {
                 visible: !thumbnailRect.visible && root.iconType === LauncherSearchResult.IconType.System
                 anchors.centerIn: parent
-                source: root.iconName ? Quickshell.iconPath(IconResolver.guessIcon(root.iconName), "image-missing") : ""
+                source: {
+                    if (!root.iconName) return "";
+                    const resolved = IconResolver.guessIcon(root.iconName);
+                    return resolved.startsWith("/") ? "file://" + resolved : Quickshell.iconPath(resolved, "image-missing");
+                }
                 width: 32
                 height: 32
             }
@@ -449,7 +453,7 @@ RippleButton {
                         anchors.centerIn: parent
                         active: actionButton.iconType === LauncherSearchResult.IconType.System && actionButton.iconName !== ""
                         sourceComponent: IconImage {
-                            source: Quickshell.iconPath(actionButton.iconName)
+                            source: actionButton.iconName.startsWith("/") ? "file://" + actionButton.iconName : Quickshell.iconPath(actionButton.iconName)
                             implicitSize: 20
                         }
                     }

@@ -67,6 +67,9 @@ Singleton {
     function guessIcon(str) {
         if (!str || str.length == 0) return "image-missing";
 
+        // If it's an absolute path, return as-is
+        if (str.startsWith("/")) return str;
+
         // Quickshell's desktop entry lookup
         const entry = DesktopEntries.byId(str);
         if (entry) return entry.icon;
