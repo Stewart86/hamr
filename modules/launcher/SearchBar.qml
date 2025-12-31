@@ -225,6 +225,8 @@ RowLayout {
     signal navigateLeft()
     signal navigateRight()
     signal selectCurrent()
+    signal navigateBack()
+    signal exitPluginImmediate()
 
     ToolbarTextField {
         id: searchInput
@@ -262,6 +264,24 @@ RowLayout {
          signal executePluginAction(int index)
 
          Keys.onPressed: event => {
+             // Backspace navigation - must be handled here before TextField consumes it
+             if (event.key === Qt.Key_Backspace) {
+                 if (event.modifiers & Qt.ControlModifier) {
+                     // Ctrl+Backspace: exit plugin immediately
+                     root.exitPluginImmediate();
+                     event.accepted = true;
+                     return;
+                 }
+                 // If input is empty, navigate back
+                 if (searchInput.text === "") {
+                     root.navigateBack();
+                     event.accepted = true;
+                     return;
+                 }
+                 // Otherwise let TextField handle normal backspace
+                 return;
+             }
+             
              if (event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier))) {
                 searchInput.cycleActionPrev();
                 event.accepted = true;
@@ -274,6 +294,17 @@ RowLayout {
             }
             
              if (event.modifiers & Qt.ControlModifier) {
+                 // Ctrl+H: in grid/image browser move left, otherwise navigate back
+                 if (event.key === Qt.Key_H) {
+                     if (GlobalStates.imageBrowserOpen || GlobalStates.gridBrowserOpen) {
+                         root.navigateLeft();
+                     } else {
+                         root.navigateBack();
+                     }
+                     event.accepted = true;
+                     return;
+                 }
+                 
                  const pluginActionIndex = event.key - Qt.Key_1;
                 if (pluginActionIndex >= 0 && pluginActionIndex <= 5) {
                     searchInput.executePluginAction(pluginActionIndex);
@@ -292,11 +323,6 @@ RowLayout {
                     return;
                 }
                 
-                if (event.key === Qt.Key_H) {
-                    root.navigateLeft();
-                    event.accepted = true;
-                    return;
-                }
                 if (event.key === Qt.Key_J) {
                     root.navigateDown();
                     event.accepted = true;

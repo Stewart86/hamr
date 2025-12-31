@@ -66,10 +66,11 @@ FocusScope {
     }
 
     Keys.onPressed: event => {
+        // Escape is handled by Launcher.qml
         if (event.key === Qt.Key_Escape) {
-            root.cancelled();
-            event.accepted = true;
+            return;
         } else if (event.key === Qt.Key_H && !(event.modifiers & Qt.ShiftModifier)) {
+            // H or Ctrl+H: move left in grid
             root.moveSelection(-1);
             event.accepted = true;
         } else if (event.key === Qt.Key_L) {

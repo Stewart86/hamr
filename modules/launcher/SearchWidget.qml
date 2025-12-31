@@ -75,34 +75,40 @@ Item {
         LauncherSearch.query = text;
     }
 
+    function navigateBack() {
+        // Navigate back one level: gridBrowser > imageBrowser > plugin > exclusive mode > clear search
+        if (GlobalStates.gridBrowserOpen) {
+            const isInitialView = GlobalStates.gridBrowserConfig?.isInitialView ?? false;
+            if (!isInitialView) {
+                GlobalStates.cancelGridBrowser();
+            } else {
+                GlobalStates.closeGridBrowser();
+                LauncherSearch.exitPlugin();
+            }
+        } else if (GlobalStates.imageBrowserOpen) {
+            const isInitialView = GlobalStates.imageBrowserConfig?.isInitialView ?? false;
+            if (!isInitialView) {
+                GlobalStates.cancelImageBrowser();
+            } else {
+                GlobalStates.closeImageBrowser();
+                LauncherSearch.exitPlugin();
+            }
+        } else if (PluginRunner.isActive()) {
+            if (PluginRunner.navigationDepth > 0) {
+                PluginRunner.goBack();
+            } else {
+                LauncherSearch.exitPlugin();
+            }
+        } else if (LauncherSearch.isInExclusiveMode()) {
+            LauncherSearch.exitExclusiveMode();
+        } else if (root.searchingText !== "") {
+            root.cancelSearch();
+        }
+    }
+
     Keys.onPressed: event => {
          if (event.key === Qt.Key_Escape)
              return;
-
-         if (event.key === Qt.Key_Backspace) {
-            if (!searchBar.searchInput.activeFocus) {
-                root.focusSearchInput();
-                if (event.modifiers & Qt.ControlModifier) {
-                 let text = searchBar.searchInput.text;
-                     let pos = searchBar.searchInput.cursorPosition;
-                     if (pos > 0) {
-                         let left = text.slice(0, pos);
-                         let match = left.match(/(\s*\S+)\s*$/);
-                         let deleteLen = match ? match[0].length : 1;
-                         searchBar.searchInput.text = text.slice(0, pos - deleteLen) + text.slice(pos);
-                         searchBar.searchInput.cursorPosition = pos - deleteLen;
-                     }
-                 } else {
-                     if (searchBar.searchInput.cursorPosition > 0) {
-                         searchBar.searchInput.text = searchBar.searchInput.text.slice(0, searchBar.searchInput.cursorPosition - 1) + searchBar.searchInput.text.slice(searchBar.searchInput.cursorPosition);
-                         searchBar.searchInput.cursorPosition -= 1;
-                     }
-                 }
-                 searchBar.searchInput.cursorPosition = searchBar.searchInput.text.length;
-                 event.accepted = true;
-             }
-             return;
-        }
 
          if (event.text && event.text.length === 1 && event.key !== Qt.Key_Enter && event.key !== Qt.Key_Return && event.key !== Qt.Key_Delete && event.text.charCodeAt(0) >= 0x20) {
             if (!searchBar.searchInput.activeFocus) {
@@ -193,6 +199,21 @@ Item {
                      onDragStarted: (mouseX, mouseY) => root.dragStarted(mouseX, mouseY)
                     onDragMoved: (mouseX, mouseY) => root.dragMoved(mouseX, mouseY)
                     onDragEnded: root.dragEnded()
+                    
+                    onNavigateBack: root.navigateBack()
+                    onExitPluginImmediate: {
+                        if (GlobalStates.gridBrowserOpen) {
+                            GlobalStates.closeGridBrowser();
+                            LauncherSearch.exitPlugin();
+                        } else if (GlobalStates.imageBrowserOpen) {
+                            GlobalStates.closeImageBrowser();
+                            LauncherSearch.exitPlugin();
+                        } else if (PluginRunner.isActive()) {
+                            LauncherSearch.exitPlugin();
+                        } else if (LauncherSearch.isInExclusiveMode()) {
+                            LauncherSearch.exitExclusiveMode();
+                        }
+                    }
 
                     onNavigateDown: {
                         if (root.showImageBrowser) {
@@ -413,21 +434,7 @@ Item {
                 
                 navigationDepth: PluginRunner.navigationDepth
                 
-                hintActions: {
-                    if (root.showImageBrowser || root.showGridBrowser) {
-                        return [
-                            { key: "^hjkl", label: "navigate" },
-                            { key: "Enter", label: "select" },
-                        ];
-                    } else if (root.showResults && !PluginRunner.isActive() && !inSearchMode) {
-                        return [
-                            { key: "^J", label: "down" },
-                            { key: "^K", label: "up" },
-                            { key: "Tab", label: "actions" },
-                        ];
-                    }
-                    return [];
-                }
+                showBrowserKeys: root.showImageBrowser || root.showGridBrowser
                 
                 onActionClicked: (actionId, wasConfirmed) => {
                     if (root.showImageBrowser) {
@@ -480,6 +487,10 @@ Item {
                         GlobalStates.closeGridBrowser();
                     }
                     LauncherSearch.exitPlugin();
+                }
+                
+                onKeybindingHelpRequested: {
+                    keybindingMapPopup.visible = !keybindingMapPopup.visible;
                 }
             }
 
@@ -823,5 +834,33 @@ Item {
                 }
             }
         }
+    }
+    
+    // Keybinding map popup - centered on the widget
+    KeybindingMap {
+        id: keybindingMapPopup
+        visible: false
+        showBrowserKeys: root.showImageBrowser || root.showGridBrowser
+        
+        anchors.centerIn: parent
+        z: 100
+        
+        // Close on any key press or mouse click outside
+        Connections {
+            target: GlobalStates
+            function onLauncherOpenChanged() {
+                if (!GlobalStates.launcherOpen) {
+                    keybindingMapPopup.visible = false;
+                }
+            }
+        }
+    }
+    
+    // Click outside to close keybinding map
+    MouseArea {
+        anchors.fill: parent
+        visible: keybindingMapPopup.visible
+        z: 99
+        onClicked: keybindingMapPopup.visible = false
     }
 }

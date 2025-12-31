@@ -494,30 +494,16 @@ Scope {
 
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) {
-                        // Priority: gridBrowser > imageBrowser > plugin > exclusive mode > minimize/close launcher
-                        if (GlobalStates.gridBrowserOpen) {
-                            LauncherSearch.handleBrowserEscape("grid");
-                        } else if (GlobalStates.imageBrowserOpen) {
-                            LauncherSearch.handleBrowserEscape("image");
-                        } else if (PluginRunner.isActive()) {
-                            LauncherSearch.handlePluginEscape();
-                        } else if (LauncherSearch.isInExclusiveMode()) {
-                            LauncherSearch.exitExclusiveMode();
-                        } else if (Persistent.states.launcher.hasUsedMinimize) {
+                        // Escape: minimize if user has used minimize before, otherwise soft close
+                        if (Persistent.states.launcher.hasUsedMinimize) {
                             GlobalStates.launcherMinimized = true;
                         } else {
-                            GlobalStates.softClose = false;
+                            GlobalStates.softClose = true;
                             GlobalStates.launcherOpen = false;
                         }
+                        event.accepted = true;
                     } else if (event.key === Qt.Key_M && (event.modifiers & Qt.ControlModifier)) {
                         GlobalStates.launcherMinimized = true;
-                        event.accepted = true;
-                    } else if (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier)) {
-                        // Pin current preview to screen
-                        if (GlobalStates.previewPanelVisible && previewPanelLoader.item) {
-                            const globalPos = previewPanelLoader.item.mapToGlobal(previewPanelLoader.item.width / 2, 0);
-                            GlobalStates.detachCurrentPreview(globalPos.x, globalPos.y);
-                        }
                         event.accepted = true;
                     }
                 }

@@ -131,7 +131,7 @@ Singleton {
                 }
                 // Action button shortcuts (Ctrl + key)
                 // Default: u, i, o, p for actions 1-4
-                // Note: j/k are used for navigation, l for select
+                // Note: j/k are used for navigation, l for select, Ctrl+Shift+P for pin preview
                 property list<string> actionKeys: ["u", "i", "o", "p"]
                 // Action bar hints - customizable prefix shortcuts shown in the action bar
                 // Stored as JSON string to work around Quickshell JsonAdapter limitation with arrays of objects

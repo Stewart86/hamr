@@ -218,7 +218,6 @@ Singleton {
              root.pluginStarting = true;
              root.query = "";
              root.pluginStarting = false;
-             root.lastEscapeTime = 0;
          }
         return success;
     }
@@ -227,7 +226,6 @@ Singleton {
          const success = PluginRunner.startPlugin(pluginId);
          if (success) {
              root.exclusiveMode = "";
-             root.lastEscapeTime = 0;
              matchPatternSearchTimer.query = initialQuery;
              matchPatternSearchTimer.restart();
          }
@@ -593,60 +591,10 @@ Singleton {
          }
      }
 
-    property real lastEscapeTime: 0
-    readonly property int doubleEscapeThreshold: 300
-
     function exitPlugin() {
         if (!PluginRunner.isActive()) return;
         PluginRunner.closePlugin();
         root.query = "";
-    }
-
-    function handlePluginEscape() {
-        if (!PluginRunner.isActive()) return false;
-
-        const now = Date.now();
-        const timeSinceLastEscape = now - root.lastEscapeTime;
-        root.lastEscapeTime = now;
-
-        if (timeSinceLastEscape < root.doubleEscapeThreshold) {
-            root.exitPlugin();
-        } else if (PluginRunner.navigationDepth > 0) {
-            PluginRunner.goBack();
-        }
-        // At depth 0 with single Esc: do nothing, just record the time for double-tap detection
-        return true;
-    }
-
-    function handleBrowserEscape(browserType) {
-        const now = Date.now();
-        const timeSinceLastEscape = now - root.lastEscapeTime;
-        root.lastEscapeTime = now;
-
-        if (browserType === "grid") {
-            const isInitialView = GlobalStates.gridBrowserConfig?.isInitialView ?? false;
-            if (timeSinceLastEscape < root.doubleEscapeThreshold) {
-                // Double-escape: exit plugin entirely
-                GlobalStates.closeGridBrowser();
-                root.exitPlugin();
-            } else if (!isInitialView) {
-                // Single-escape at depth > 0: go back (cancel)
-                GlobalStates.cancelGridBrowser();
-            }
-            // Single-escape at initial view: do nothing, wait for double-tap
-        } else if (browserType === "image") {
-            const isInitialView = GlobalStates.imageBrowserConfig?.isInitialView ?? false;
-            if (timeSinceLastEscape < root.doubleEscapeThreshold) {
-                // Double-escape: exit plugin entirely
-                GlobalStates.closeImageBrowser();
-                root.exitPlugin();
-            } else if (!isInitialView) {
-                // Single-escape at depth > 0: go back (cancel)
-                GlobalStates.cancelImageBrowser();
-            }
-            // Single-escape at initial view: do nothing, wait for double-tap
-        }
-        return true;
     }
 
     function executePreviewAction(item, actionId) {

@@ -249,7 +249,7 @@ Rectangle {
                     }
                     
                     Kbd {
-                        keys: "Esc"
+                        keys: "Bksp"
                     }
                 }
                 

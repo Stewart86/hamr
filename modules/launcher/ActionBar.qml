@@ -35,8 +35,8 @@ Item {
     // Navigation depth (plugin mode only)
     property int navigationDepth: 0
     
-    // Hint actions shown on the right side (e.g., navigation hints)
-    property var hintActions: []
+    // Whether to show browser-style keys (hjkl for grid navigation)
+    property bool showBrowserKeys: false
     
     // Currently showing confirmation for this action
     property var pendingConfirmAction: null
@@ -45,6 +45,7 @@ Item {
     signal actionClicked(string actionId, bool wasConfirmed)
     signal backClicked()
     signal homeClicked()
+    signal keybindingHelpRequested()
     
     // Main content row
     RowLayout {
@@ -98,13 +99,13 @@ Item {
                     Kbd {
                         anchors.right: parent.right
                         anchors.bottom: parent.bottom
-                        keys: "Esc"
+                        keys: "^Bksp"
                         opacity: 0.5
                     }
                     
                     Kbd {
                         id: stackedKbd
-                        keys: "Esc"
+                        keys: "^Bksp"
                     }
                 }
             }
@@ -152,7 +153,7 @@ Item {
                 
                 Kbd {
                     Layout.alignment: Qt.AlignVCenter
-                    keys: "Esc"
+                    keys: "Bksp"
                 }
             }
         }
@@ -269,22 +270,38 @@ Item {
             Layout.fillWidth: true
         }
         
-        // Hint actions on the right
-        Repeater {
-            model: root.hintActions
+        // Keybinding help button
+        RippleButton {
+            id: keybindingBtn
+            Layout.fillHeight: true
+            implicitWidth: keybindingContent.implicitWidth + 12
             
-            delegate: RowLayout {
-                id: hintItem
-                required property var modelData
+            buttonRadius: 4
+            colBackground: "transparent"
+            colBackgroundHover: Appearance.colors.colSurfaceContainerHighest
+            colRipple: Appearance.colors.colSurfaceContainerHighest
+            
+            onClicked: root.keybindingHelpRequested()
+            
+            StyledToolTip {
+                text: "Keyboard shortcuts"
+            }
+            
+            contentItem: RowLayout {
+                id: keybindingContent
                 spacing: 4
                 
-                Kbd {
-                    keys: hintItem.modelData.key ?? ""
+                MaterialSymbol {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: "keyboard"
+                    iconSize: 16
+                    color: Appearance.m3colors.m3outline
                 }
                 
                 Text {
-                    text: hintItem.modelData.label ?? ""
+                    text: "?"
                     font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.Medium
                     color: Appearance.m3colors.m3outline
                 }
             }
@@ -343,7 +360,7 @@ Item {
                     }
                     
                     Kbd {
-                        keys: "Esc"
+                        keys: "Bksp"
                     }
                 }
             }
@@ -400,7 +417,7 @@ Item {
     
     // Handle keyboard shortcuts
     Keys.onPressed: event => {
-        if (event.key === Qt.Key_Escape && root.pendingConfirmAction !== null) {
+        if (event.key === Qt.Key_Backspace && root.pendingConfirmAction !== null) {
             root.pendingConfirmAction = null;
             event.accepted = true;
             return;
