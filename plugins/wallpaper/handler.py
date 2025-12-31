@@ -25,14 +25,35 @@ from pathlib import Path
 # Test mode for development
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
-# Default wallpaper directory
+# Config and default paths
+XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+HAMR_CONFIG_PATH = XDG_CONFIG / "hamr" / "config.json"
 PICTURES_DIR = Path.home() / "Pictures"
-WALLPAPERS_DIR = PICTURES_DIR / "Wallpapers"
+DEFAULT_WALLPAPERS_DIR = PICTURES_DIR / "Wallpapers"
+
+
+def get_wallpaper_dir() -> Path:
+    """Get wallpaper directory from config or use default."""
+    if HAMR_CONFIG_PATH.exists():
+        try:
+            with open(HAMR_CONFIG_PATH) as f:
+                config = json.load(f)
+                wallpaper_dir = config.get("paths", {}).get("wallpaperDir", "")
+                if wallpaper_dir:
+                    expanded = Path(wallpaper_dir).expanduser()
+                    if expanded.exists() and expanded.is_dir():
+                        return expanded
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    if DEFAULT_WALLPAPERS_DIR.exists():
+        return DEFAULT_WALLPAPERS_DIR
+    return PICTURES_DIR
+
 
 # Switchwall script paths (in order of preference)
 SCRIPT_DIR = Path(__file__).parent
 HAMR_DIR = SCRIPT_DIR.parent.parent
-XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
 
 SWITCHWALL_PATHS = [
     HAMR_DIR / "scripts" / "colors" / "switchwall.sh",  # bundled with hamr
@@ -154,9 +175,7 @@ def main():
     # Initial or search: show the image browser
     if step in ("initial", "search"):
         # Determine initial directory
-        initial_dir = (
-            str(WALLPAPERS_DIR) if WALLPAPERS_DIR.exists() else str(PICTURES_DIR)
-        )
+        initial_dir = str(get_wallpaper_dir())
 
         has_custom_script = find_switchwall_script() is not None
 
