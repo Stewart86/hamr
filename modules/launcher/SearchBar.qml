@@ -71,7 +71,7 @@ RowLayout {
         MaterialShapeWrappedMaterialSymbol {
             id: searchIcon
             anchors.centerIn: parent
-            iconSize: Appearance.font.pixelSize.huge
+            iconSize: Math.round(Appearance.sizes.searchInputHeight * 0.5)
             shape: switch(root.searchPrefixType) {
                 case SearchBar.SearchPrefixType.Action: return MaterialShape.Shape.Pill;
                 case SearchBar.SearchPrefixType.App: return MaterialShape.Shape.Clover4Leaf;
@@ -138,7 +138,7 @@ RowLayout {
         MaterialShapeWrappedMaterialSymbol {
             id: pluginIcon
             anchors.centerIn: parent
-            iconSize: Appearance.font.pixelSize.huge
+            iconSize: Math.round(Appearance.sizes.searchInputHeight * 0.5)
             shape: MaterialShape.Shape.Squircle
             color: Appearance.colors.colPrimaryContainer
             colSymbol: Appearance.colors.colOnPrimaryContainer
@@ -235,7 +235,8 @@ RowLayout {
         Layout.fillWidth: root.expandSearchInput
         implicitHeight: Appearance.sizes.searchInputHeight
         focus: GlobalStates.launcherOpen
-        font.pixelSize: Appearance.font.pixelSize.small
+        font.pixelSize: Math.round(Appearance.sizes.searchInputHeight * 0.30)
+        padding: Math.round(Appearance.sizes.searchInputHeight * 0.2)
         placeholderText: root.imageBrowserPlaceholder !== "" ? root.imageBrowserPlaceholder :
                          root.pluginPlaceholder !== "" ? root.pluginPlaceholder : 
                          root.exclusiveModePlaceholder !== "" ? root.exclusiveModePlaceholder : "It's hamr time!"
