@@ -225,7 +225,9 @@ test_text_entry_shows_text_description() {
     set_clipboard_entries "1	Some text"
     local result=$(hamr_test initial)
     
-    assert_json "$result" '.results[] | select(.name == "Some text") | .description' "Text"
+    # Description now includes age label
+    local desc=$(json_get "$result" '.results[] | select(.name == "Some text") | .description')
+    assert_contains "$desc" "Text"
 }
 
 # ============================================================================
@@ -243,14 +245,17 @@ test_image_entry_shows_image_icon() {
     set_clipboard_entries "1	[[image binary data 640x480]]"
     local result=$(hamr_test initial)
     
-    assert_json "$result" '.results[] | select(.description == "Image") | .icon' "image"
+    # First result is the image entry
+    assert_json "$result" '.results[0].icon' "image"
 }
 
 test_image_entry_shows_image_description() {
     set_clipboard_entries "1	[[image binary data 640x480]]"
     local result=$(hamr_test initial)
     
-    assert_json "$result" '.results[] | select(.description == "Image") | .description' "Image"
+    # Description now includes age label
+    local desc=$(json_get "$result" '.results[0].description')
+    assert_contains "$desc" "Image"
 }
 
 # ============================================================================
@@ -552,6 +557,21 @@ test_fuzzy_partial_match_fails() {
     assert_not_contains "$result" "Testing"
 }
 
+test_entry_shows_age_label() {
+    set_clipboard_entries "1	First entry
+2	Second entry
+3	Third entry"
+    local result=$(hamr_test initial)
+    
+    # First entry should show "Just now"
+    local first_desc=$(json_get "$result" '.results[0].description')
+    assert_contains "$first_desc" "Just now"
+    
+    # Second entry should show "Moments ago"
+    local second_desc=$(json_get "$result" '.results[1].description')
+    assert_contains "$second_desc" "Moments ago"
+}
+
 # ============================================================================
 # Run
 # ============================================================================
@@ -605,4 +625,5 @@ run_tests \
     test_delete_stays_open \
     test_fuzzy_discontinuous_chars \
     test_fuzzy_all_chars_required \
-    test_fuzzy_partial_match_fails
+    test_fuzzy_partial_match_fails \
+    test_entry_shows_age_label

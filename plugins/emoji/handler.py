@@ -17,6 +17,39 @@ TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 PLUGIN_DIR = Path(__file__).parent
 EMOJIS_FILE = PLUGIN_DIR / "emojis.txt"
 
+# Recently used emojis tracking
+CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "hamr"
+RECENT_EMOJIS_FILE = CACHE_DIR / "recent-emojis.json"
+MAX_RECENT_EMOJIS = 20
+
+
+def load_recent_emojis() -> list[str]:
+    """Load recently used emojis from cache"""
+    if TEST_MODE:
+        return []
+    if not RECENT_EMOJIS_FILE.exists():
+        return []
+    try:
+        return json.loads(RECENT_EMOJIS_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def save_recent_emoji(emoji: str) -> None:
+    """Save emoji to recent list (most recent first)"""
+    if TEST_MODE:
+        return
+    recents = load_recent_emojis()
+    if emoji in recents:
+        recents.remove(emoji)
+    recents.insert(0, emoji)
+    recents = recents[:MAX_RECENT_EMOJIS]
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        RECENT_EMOJIS_FILE.write_text(json.dumps(recents))
+    except OSError:
+        pass
+
 
 def load_emojis() -> list[dict]:
     """Load emojis from text file. Format: emoji description keywords"""
@@ -80,18 +113,46 @@ def format_results(emojis: list[dict]) -> list[dict]:
     ]
 
 
-def format_grid_items(emojis: list[dict]) -> list[dict]:
-    """Format emojis as grid items for gridBrowser."""
-    return [
-        {
-            "id": e["emoji"],
-            "name": e["description"][:20] if e["description"] else "",
-            "keywords": e["description"].split() if e["description"] else [],
-            "icon": e["emoji"],
-            "iconType": "text",
-        }
-        for e in emojis
-    ]
+def format_grid_items(
+    emojis: list[dict], recent_emojis: list[str] | None = None
+) -> list[dict]:
+    """Format emojis as grid items for gridBrowser.
+
+    If recent_emojis is provided, prepend them to the grid.
+    """
+    items = []
+
+    # Add recently used emojis first (with special styling)
+    if recent_emojis:
+        emoji_lookup = {e["emoji"]: e for e in emojis}
+        for emoji_char in recent_emojis:
+            if emoji_char in emoji_lookup:
+                e = emoji_lookup[emoji_char]
+                items.append(
+                    {
+                        "id": e["emoji"],
+                        "name": e["description"][:20] if e["description"] else "",
+                        "keywords": e["description"].split()
+                        if e["description"]
+                        else [],
+                        "icon": e["emoji"],
+                        "iconType": "text",
+                    }
+                )
+
+    # Add all emojis (will include duplicates of recent, but that's OK for grid)
+    for e in emojis:
+        items.append(
+            {
+                "id": e["emoji"],
+                "name": e["description"][:20] if e["description"] else "",
+                "keywords": e["description"].split() if e["description"] else [],
+                "icon": e["emoji"],
+                "iconType": "text",
+            }
+        )
+
+    return items
 
 
 def copy_to_clipboard(text: str) -> None:
@@ -175,8 +236,9 @@ def main():
         return
 
     if step == "initial":
-        # Show all emojis in grid view
-        grid_items = format_grid_items(emojis)
+        # Show all emojis in grid view, with recently used at the top
+        recent_emojis = load_recent_emojis()
+        grid_items = format_grid_items(emojis, recent_emojis)
         print(
             json.dumps(
                 {
@@ -228,6 +290,7 @@ def main():
 
         if action_id == "type":
             type_text(emoji)
+            save_recent_emoji(emoji)
             print(
                 json.dumps(
                     {
@@ -238,6 +301,7 @@ def main():
             )
         else:
             copy_to_clipboard(emoji)
+            save_recent_emoji(emoji)
             print(
                 json.dumps(
                     {

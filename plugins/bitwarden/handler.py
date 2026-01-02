@@ -44,6 +44,7 @@ MOCK_VAULT_ITEMS = [
             "username": "testuser@example.com",
             "password": "mock-password-123",
             "totp": "JBSWY3DPEHPK3PXP",
+            "uris": [{"uri": "https://github.com"}],
         },
         "notes": "Personal GitHub account",
     },
@@ -55,6 +56,10 @@ MOCK_VAULT_ITEMS = [
             "username": "testuser@gmail.com",
             "password": "mock-google-pass",
             "totp": None,
+            "uris": [
+                {"uri": "https://google.com"},
+                {"uri": "https://mail.google.com"},
+            ],
         },
         "notes": "",
     },
@@ -583,15 +588,34 @@ def get_item_icon(item: dict) -> str:
     return icons.get(item_type, "key")
 
 
+def get_item_uris(item: dict) -> list[str]:
+    """Extract URIs from vault item"""
+    login = item.get("login", {}) or {}
+    uris = login.get("uris", []) or []
+    return [u.get("uri", "") for u in uris if u.get("uri")]
+
+
+def open_url(url: str) -> None:
+    """Open URL in default browser"""
+    if TEST_MODE:
+        return
+    subprocess.Popen(
+        ["xdg-open", url],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def format_item_results(items: list[dict]) -> list[dict]:
     """Format vault items as results"""
     results = []
     for item in items:
         item_id = item.get("id", "")
         name = item.get("name", "Unknown")
-        login = item.get("login", {})
+        login = item.get("login", {}) or {}
         username = login.get("username", "")
         has_totp = bool(login.get("totp"))
+        uris = get_item_uris(item)
 
         actions = []
         if username:
@@ -604,6 +628,10 @@ def format_item_results(items: list[dict]) -> list[dict]:
             )
         if has_totp:
             actions.append({"id": "copy_totp", "name": "Copy TOTP", "icon": "schedule"})
+        if uris:
+            actions.append(
+                {"id": "open_url", "name": "Open URL", "icon": "open_in_new"}
+            )
 
         results.append(
             {
@@ -714,6 +742,7 @@ def item_to_index_item(item: dict) -> dict:
     username = login.get("username", "")
     has_password = bool(login.get("password"))
     has_totp = bool(login.get("totp"))
+    uris = get_item_uris(item)
 
     # Build actions with entryPoints (no passwords stored!)
     actions = []
@@ -753,6 +782,19 @@ def item_to_index_item(item: dict) -> dict:
                     "step": "action",
                     "selected": {"id": item_id},
                     "action": "copy_totp",
+                },
+            }
+        )
+    if uris:
+        actions.append(
+            {
+                "id": "open_url",
+                "name": "Open URL",
+                "icon": "open_in_new",
+                "entryPoint": {
+                    "step": "action",
+                    "selected": {"id": item_id},
+                    "action": "open_url",
                 },
             }
         )
@@ -1194,6 +1236,26 @@ def main():
                 )
             else:
                 respond_card("Error", "Failed to get TOTP code")
+            return
+
+        # Open URL in browser
+        if action == "open_url":
+            uris = get_item_uris(item)
+            if uris:
+                url = uris[0]  # Open first URL
+                open_url(url)
+                respond_execute(
+                    notify=f"Opening {url[:40]}{'...' if len(url) > 40 else ''}",
+                    name=f"Open URL: {name}",
+                    icon="open_in_new",
+                    entry_point={
+                        "step": "action",
+                        "selected": {"id": item_id},
+                        "action": "open_url",
+                    },
+                )
+            else:
+                respond_card("Error", "No URL found for this item")
             return
 
         # Default: copy password or username (from cache - instant)

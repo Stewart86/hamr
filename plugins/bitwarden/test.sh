@@ -607,6 +607,39 @@ test_plugin_actions_include_logout() {
     assert_contains "$result" '"icon": "logout"'
 }
 
+test_item_with_uri_has_open_url_action() {
+    # Items with URIs should have Open URL action
+    local items='[{"id":"i1","type":1,"name":"GitHub","login":{"username":"u","password":"p","uris":[{"uri":"https://github.com"}]},"notes":""}]'
+    set_cache_items "$items"
+    
+    local result=$(hamr_test initial)
+    
+    assert_contains "$result" '"id": "open_url"'
+    assert_contains "$result" '"icon": "open_in_new"'
+}
+
+test_item_without_uri_no_open_url_action() {
+    # Items without URIs should not have Open URL action
+    local items='[{"id":"i1","type":1,"name":"Item","login":{"username":"u","password":"p"},"notes":""}]'
+    set_cache_items "$items"
+    
+    local result=$(hamr_test initial)
+    
+    assert_not_contains "$result" '"id": "open_url"'
+}
+
+test_open_url_action() {
+    # Open URL action should return execute with notify
+    local items='[{"id":"i1","type":1,"name":"GitHub","login":{"username":"u","password":"p","uris":[{"uri":"https://github.com"}]},"notes":""}]'
+    set_cache_items "$items"
+    
+    local result=$(hamr_test action --id "i1" --action "open_url")
+    
+    assert_type "$result" "execute"
+    assert_closes "$result"
+    assert_contains "$result" "Opening"
+}
+
 # ============================================================================
 # Run
 # ============================================================================
@@ -645,4 +678,7 @@ run_tests \
     test_action_response_has_icon \
     test_lock_action \
     test_logout_action \
-    test_plugin_actions_include_logout
+    test_plugin_actions_include_logout \
+    test_item_with_uri_has_open_url_action \
+    test_item_without_uri_no_open_url_action \
+    test_open_url_action

@@ -50,6 +50,25 @@ test_action_copies_result() {
     assert_contains "$result" "wl-copy"
 }
 
+test_initial_shows_prompt_when_no_history() {
+    # In test mode, history is always empty
+    local result=$(hamr_test initial)
+    assert_type "$result" "prompt"
+}
+
+test_history_item_action() {
+    # Test that history items can be copied
+    local result=$(hamr_test raw --input '{"step": "action", "selected": {"id": "history:2+2"}}')
+    assert_type "$result" "execute"
+    assert_contains "$result" "wl-copy"
+}
+
+test_clear_history_action() {
+    local result=$(hamr_test raw --input '{"step": "action", "selected": {"id": "__plugin__"}, "action": "clear_history"}')
+    assert_type "$result" "prompt"
+    assert_contains "$result" "cleared"
+}
+
 run_tests \
     test_initial_shows_prompt \
     test_match_basic_math \
@@ -57,4 +76,7 @@ run_tests \
     test_match_temperature \
     test_match_percentage \
     test_search_shows_result \
-    test_action_copies_result
+    test_action_copies_result \
+    test_initial_shows_prompt_when_no_history \
+    test_history_item_action \
+    test_clear_history_action

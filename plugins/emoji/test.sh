@@ -161,6 +161,15 @@ test_no_match_returns_empty() {
     assert_eq "$count" "0"
 }
 
+test_recent_emojis_not_loaded_in_test_mode() {
+    # In test mode, recent emojis should be empty (not loaded from disk)
+    local result=$(hamr_test initial)
+    assert_type "$result" "gridBrowser"
+    # Grid should still have items
+    local count=$(json_get "$result" '.gridBrowser.items | length')
+    [[ "$count" -gt 50 ]] || { echo "Expected >50 items, got $count"; return 1; }
+}
+
 # ============================================================================
 # Run
 # ============================================================================
@@ -186,4 +195,5 @@ run_tests \
     test_index_items_have_execute_name \
     test_index_items_have_id_prefix \
     test_empty_query_returns_many \
-    test_no_match_returns_empty
+    test_no_match_returns_empty \
+    test_recent_emojis_not_loaded_in_test_mode

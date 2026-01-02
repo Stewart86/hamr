@@ -17,8 +17,66 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
+
+# Calculation history tracking
+CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "hamr"
+CALC_HISTORY_FILE = CACHE_DIR / "calc-history.json"
+MAX_HISTORY_ITEMS = 10
+
+
+def load_calc_history() -> list[dict]:
+    """Load calculation history from cache.
+
+    Returns list of {"query": "2+2", "result": "4"} dicts, most recent first.
+    """
+    if TEST_MODE:
+        return []
+    if not CALC_HISTORY_FILE.exists():
+        return []
+    try:
+        return json.loads(CALC_HISTORY_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def save_calc_history(query: str, result: str) -> None:
+    """Save calculation to history (most recent first)."""
+    if TEST_MODE:
+        return
+    history = load_calc_history()
+    # Remove duplicates of same query
+    history = [h for h in history if h.get("query") != query]
+    history.insert(0, {"query": query, "result": result})
+    history = history[:MAX_HISTORY_ITEMS]
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        CALC_HISTORY_FILE.write_text(json.dumps(history))
+    except OSError:
+        pass
+
+
+def get_plugin_actions() -> list[dict]:
+    """Get plugin-level actions for the action bar"""
+    return [
+        {
+            "id": "clear_history",
+            "name": "Clear History",
+            "icon": "delete_sweep",
+            "shortcut": "Ctrl+1",
+        },
+    ]
+
+
+def clear_calc_history() -> None:
+    """Clear all calculation history"""
+    if CALC_HISTORY_FILE.exists():
+        try:
+            CALC_HISTORY_FILE.unlink()
+        except OSError:
+            pass
 
 
 CURRENCY_SYMBOL_MAP = {
@@ -87,8 +145,6 @@ ALL_CURRENCY_CODES = [
     "BTC",
     "ETH",
 ]
-
-
 
 
 def preprocess_thousand_separators(expr: str) -> str:
@@ -201,8 +257,6 @@ def preprocess_expression(query: str, math_prefix: str = "=") -> str:
     return expr
 
 
-
-
 def calculate(expr: str) -> str | None:
     """Run qalc and return result, or None on error."""
     if TEST_MODE:
@@ -240,13 +294,12 @@ def calculate(expr: str) -> str | None:
         return None
 
 
-
-
 def main():
     input_data = json.load(sys.stdin)
     step = input_data.get("step", "initial")
     query = input_data.get("query", "").strip()
     selected = input_data.get("selected", {})
+    action = input_data.get("action", "")
 
     if step == "match":
         if not query:
@@ -283,16 +336,42 @@ def main():
         return
 
     if step == "initial":
-        print(
-            json.dumps(
-                {
-                    "type": "prompt",
-                    "prompt": {
-                        "text": "Enter expression (e.g., 2+2, $50 to EUR, 10c)..."
-                    },
-                }
+        # Show history if available
+        history = load_calc_history()
+        if history:
+            results = []
+            for h in history:
+                results.append(
+                    {
+                        "id": f"history:{h['query']}",
+                        "name": h["result"],
+                        "description": h["query"],
+                        "icon": "history",
+                        "verb": "Copy",
+                    }
+                )
+            print(
+                json.dumps(
+                    {
+                        "type": "results",
+                        "results": results,
+                        "inputMode": "realtime",
+                        "placeholder": "Enter expression (e.g., 2+2, $50 to EUR, 10c)...",
+                        "pluginActions": get_plugin_actions(),
+                    }
+                )
             )
-        )
+        else:
+            print(
+                json.dumps(
+                    {
+                        "type": "prompt",
+                        "prompt": {
+                            "text": "Enter expression (e.g., 2+2, $50 to EUR, 10c)..."
+                        },
+                    }
+                )
+            )
         return
 
     if step == "search":
@@ -356,12 +435,50 @@ def main():
     if step == "action":
         item_id = selected.get("id", "")
 
+        # Plugin action: clear history
+        if item_id == "__plugin__" and action == "clear_history":
+            clear_calc_history()
+            print(
+                json.dumps(
+                    {
+                        "type": "prompt",
+                        "prompt": {"text": "History cleared. Enter expression..."},
+                    }
+                )
+            )
+            return
+
+        # History item selected - copy the result
+        if item_id.startswith("history:"):
+            original_query = item_id[8:]  # Remove "history:" prefix
+            expr = preprocess_expression(original_query)
+            result = calculate(expr)
+            if result:
+                print(
+                    json.dumps(
+                        {
+                            "type": "execute",
+                            "execute": {
+                                "command": ["wl-copy", result],
+                                "notify": f"Copied: {result}",
+                                "name": f"Calculate: {original_query} = {result}",
+                                "icon": "calculate",
+                                "close": True,
+                            },
+                        }
+                    )
+                )
+            else:
+                print(json.dumps({"type": "error", "message": "Could not calculate"}))
+            return
+
         if item_id == "calc_result":
             # Re-calculate to get current result
             expr = preprocess_expression(query)
             result = calculate(expr)
 
             if result:
+                save_calc_history(query, result)
                 print(
                     json.dumps(
                         {

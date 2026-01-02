@@ -209,6 +209,24 @@ def fuzzy_match(query: str, text: str) -> bool:
     return qi == len(query)
 
 
+def format_entry_age(index: int) -> str:
+    """Format entry age based on position in list.
+
+    Since cliphist doesn't provide timestamps, we use position as a proxy.
+    Position 0-2: very recent, 3-9: recent, 10-24: earlier, 25+: older
+    """
+    if index == 0:
+        return "Just now"
+    elif index < 3:
+        return "Moments ago"
+    elif index < 10:
+        return "Recent"
+    elif index < 25:
+        return "Earlier"
+    else:
+        return "Older"
+
+
 def get_entry_results(
     entries: list[str],
     query: str = "",
@@ -219,6 +237,7 @@ def get_entry_results(
     """Convert clipboard entries to result format"""
     results = []
     ocr_texts = ocr_texts or {}
+    entry_index = 0
 
     for entry in entries:
         # Stop once we have enough results
@@ -240,6 +259,8 @@ def get_entry_results(
                 continue
 
         display = clean_entry(entry)
+        age_label = format_entry_age(entry_index)
+        entry_index += 1
 
         # For images, show dimensions and OCR preview if available
         if is_img:
@@ -251,16 +272,16 @@ def get_entry_results(
                 ocr_preview = ocr_text.replace("\n", " ")[:60]
                 if len(ocr_text) > 60:
                     ocr_preview += "..."
-                entry_type = ocr_preview
+                entry_type = f"{age_label} · {ocr_preview}"
             else:
-                entry_type = "Image"
+                entry_type = f"{age_label} · Image"
             icon = "image"
             thumbnail = get_image_thumbnail(entry)
         else:
             # Truncate long text entries
             if len(display) > 100:
                 display = display[:100] + "..."
-            entry_type = "Text"
+            entry_type = f"{age_label} · Text"
             icon = "content_paste"
             thumbnail = None
 
