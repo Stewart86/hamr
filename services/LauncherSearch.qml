@@ -852,7 +852,7 @@ Singleton {
          }
 
          if (root.query == "") {
-             if (!root.historyLoaded || !PluginRunner.pluginsLoaded) return [];
+             if (!root.historyLoaded || !PluginRunner.pluginsLoaded || !PluginRunner.indexCacheLoaded) return [];
 
              const _actionsLoaded = root.allActions.length;
              const _historyLoaded = searchHistoryData.length;

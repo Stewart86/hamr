@@ -401,47 +401,49 @@ Singleton {
     function ageAndPruneHistory(history, now) {
         let totalCount = history.reduce((sum, item) => sum + item.count, 0);
 
-        // Scale counts in-place to avoid creating new arrays
+        // Scale counts if total exceeds max - must create new objects to avoid mutating originals
         if (totalCount > root.maxTotalScore) {
             const scaleFactor = (root.maxTotalScore * 0.9) / totalCount;
-            for (const item of history) {
-                item.count *= scaleFactor;
+            history = history.map(item => {
+                const scaled = JSON.parse(JSON.stringify(item));
+                scaled.count *= scaleFactor;
 
-                if (item.hourSlotCounts) {
-                    for (let i = 0; i < item.hourSlotCounts.length; i++) {
-                        item.hourSlotCounts[i] *= scaleFactor;
+                if (scaled.hourSlotCounts) {
+                    for (let i = 0; i < scaled.hourSlotCounts.length; i++) {
+                        scaled.hourSlotCounts[i] *= scaleFactor;
                     }
                 }
-                if (item.dayOfWeekCounts) {
-                    for (let i = 0; i < item.dayOfWeekCounts.length; i++) {
-                        item.dayOfWeekCounts[i] *= scaleFactor;
+                if (scaled.dayOfWeekCounts) {
+                    for (let i = 0; i < scaled.dayOfWeekCounts.length; i++) {
+                        scaled.dayOfWeekCounts[i] *= scaleFactor;
                     }
                 }
-                if (item.workspaceCounts) {
-                    for (const k of Object.keys(item.workspaceCounts)) {
-                        item.workspaceCounts[k] *= scaleFactor;
+                if (scaled.workspaceCounts) {
+                    for (const k of Object.keys(scaled.workspaceCounts)) {
+                        scaled.workspaceCounts[k] *= scaleFactor;
                     }
                 }
-                if (item.monitorCounts) {
-                    for (const k of Object.keys(item.monitorCounts)) {
-                        item.monitorCounts[k] *= scaleFactor;
+                if (scaled.monitorCounts) {
+                    for (const k of Object.keys(scaled.monitorCounts)) {
+                        scaled.monitorCounts[k] *= scaleFactor;
                     }
                 }
-                if (item.launchedAfter) {
-                    for (const k of Object.keys(item.launchedAfter)) {
-                        item.launchedAfter[k] *= scaleFactor;
+                if (scaled.launchedAfter) {
+                    for (const k of Object.keys(scaled.launchedAfter)) {
+                        scaled.launchedAfter[k] *= scaleFactor;
                     }
                 }
-                if (item.sessionStartCount) {
-                    item.sessionStartCount *= scaleFactor;
+                if (scaled.sessionStartCount) {
+                    scaled.sessionStartCount *= scaleFactor;
                 }
-                if (item.resumeFromIdleCount) {
-                    item.resumeFromIdleCount *= scaleFactor;
+                if (scaled.resumeFromIdleCount) {
+                    scaled.resumeFromIdleCount *= scaleFactor;
                 }
-                if (item.launchFromEmptyCount) {
-                    item.launchFromEmptyCount *= scaleFactor;
+                if (scaled.launchFromEmptyCount) {
+                    scaled.launchFromEmptyCount *= scaleFactor;
                 }
-            }
+                return scaled;
+            });
         }
 
         const maxAgeMs = root.maxAgeDays * 24 * 60 * 60 * 1000;
