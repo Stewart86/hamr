@@ -17,61 +17,55 @@ source "$SCRIPT_DIR/../test-helpers.sh"
 TEST_NAME="Pictures Plugin Tests"
 HANDLER="$SCRIPT_DIR/handler.py"
 
-# Test downloads directory
-TEST_DOWNLOADS_DIR="${TMPDIR:-/tmp}/hamr-test-downloads-$$"
+# Test pictures directory
+TEST_PICTURES_DIR="${TMPDIR:-/tmp}/hamr-test-pictures-$$"
 
 # ============================================================================
 # Setup / Teardown
 # ============================================================================
 
 setup() {
-    # Create test downloads directory with sample images
-    mkdir -p "$TEST_DOWNLOADS_DIR"
+    # Create test pictures directory with sample images
+    mkdir -p "$TEST_PICTURES_DIR"
     
     # Create fake image files with different timestamps
-    # Touch files and set timestamps using date arithmetic
-    touch "$TEST_DOWNLOADS_DIR/photo1.jpg"
-    touch "$TEST_DOWNLOADS_DIR/screenshot.png"
-    touch "$TEST_DOWNLOADS_DIR/diagram.svg"
-    touch "$TEST_DOWNLOADS_DIR/wallpaper.webp"
-    touch "$TEST_DOWNLOADS_DIR/My Vacation Photo.jpeg"
+    touch "$TEST_PICTURES_DIR/photo1.jpg"
+    touch "$TEST_PICTURES_DIR/screenshot.png"
+    touch "$TEST_PICTURES_DIR/diagram.svg"
+    touch "$TEST_PICTURES_DIR/wallpaper.webp"
+    touch "$TEST_PICTURES_DIR/My Vacation Photo.jpeg"
     
     # Set timestamps using faketime or by sleeping and touching
     # Most recent first, oldest last
     sleep 1
-    touch "$TEST_DOWNLOADS_DIR/wallpaper.webp"  # Most recent
+    touch "$TEST_PICTURES_DIR/wallpaper.webp"  # Most recent
     sleep 1
-    touch "$TEST_DOWNLOADS_DIR/My Vacation Photo.jpeg"
+    touch "$TEST_PICTURES_DIR/My Vacation Photo.jpeg"
     sleep 1
-    touch "$TEST_DOWNLOADS_DIR/diagram.svg"
+    touch "$TEST_PICTURES_DIR/diagram.svg"
     sleep 1
-    touch "$TEST_DOWNLOADS_DIR/screenshot.png"
+    touch "$TEST_PICTURES_DIR/screenshot.png"
     sleep 1
-    touch "$TEST_DOWNLOADS_DIR/photo1.jpg"  # Oldest
+    touch "$TEST_PICTURES_DIR/photo1.jpg"  # Oldest
     
-    # Override HOME temporarily to use test downloads dir
-    export HOME="$TEST_DOWNLOADS_DIR/../"
-    mkdir -p "$TEST_DOWNLOADS_DIR/../Downloads"
-    mv "$TEST_DOWNLOADS_DIR"/* "$TEST_DOWNLOADS_DIR/../Downloads/" 2>/dev/null || true
-    rm -rf "$TEST_DOWNLOADS_DIR"
-    TEST_DOWNLOADS_DIR="$TEST_DOWNLOADS_DIR/../Downloads"
+    # Set XDG_PICTURES_DIR to use test directory
+    export XDG_PICTURES_DIR="$TEST_PICTURES_DIR"
 }
 
 teardown() {
-    # Clean up test downloads
-    rm -rf "$TEST_DOWNLOADS_DIR" 2>/dev/null || true
-    rm -rf "$TEST_DOWNLOADS_DIR/.." 2>/dev/null || true
+    # Clean up test pictures
+    rm -rf "$TEST_PICTURES_DIR" 2>/dev/null || true
 }
 
 before_each() {
-    # Ensure test downloads exist for each test
-    if [[ ! -d "$TEST_DOWNLOADS_DIR" ]]; then
-        mkdir -p "$TEST_DOWNLOADS_DIR"
-        touch "$TEST_DOWNLOADS_DIR/photo1.jpg"
-        touch "$TEST_DOWNLOADS_DIR/screenshot.png"
-        touch "$TEST_DOWNLOADS_DIR/diagram.svg"
-        touch "$TEST_DOWNLOADS_DIR/wallpaper.webp"
-        touch "$TEST_DOWNLOADS_DIR/My Vacation Photo.jpeg"
+    # Ensure test pictures exist for each test
+    if [[ ! -d "$TEST_PICTURES_DIR" ]]; then
+        mkdir -p "$TEST_PICTURES_DIR"
+        touch "$TEST_PICTURES_DIR/photo1.jpg"
+        touch "$TEST_PICTURES_DIR/screenshot.png"
+        touch "$TEST_PICTURES_DIR/diagram.svg"
+        touch "$TEST_PICTURES_DIR/wallpaper.webp"
+        touch "$TEST_PICTURES_DIR/My Vacation Photo.jpeg"
     fi
 }
 
@@ -80,11 +74,11 @@ before_each() {
 # ============================================================================
 
 count_images() {
-    find "$TEST_DOWNLOADS_DIR" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.gif" -o -iname "*.webp" -o -iname "*.bmp" -o -iname "*.svg" \) 2>/dev/null | wc -l
+    find "$TEST_PICTURES_DIR" -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.gif" -o -iname "*.webp" -o -iname "*.bmp" -o -iname "*.svg" \) 2>/dev/null | wc -l
 }
 
 image_exists() {
-    [[ -f "$TEST_DOWNLOADS_DIR/$1" ]]
+    [[ -f "$TEST_PICTURES_DIR/$1" ]]
 }
 
 # ============================================================================
@@ -105,7 +99,7 @@ test_initial_shows_images() {
     # Should have at least 5 test images
     if [[ $count -lt 5 ]]; then
         echo "Expected at least 5 images, got $count"
-        echo "Images: $(ls -1 "$TEST_DOWNLOADS_DIR" 2>/dev/null || echo 'none')"
+        echo "Images: $(ls -1 "$TEST_PICTURES_DIR" 2>/dev/null || echo 'none')"
         return 1
     fi
 }
@@ -397,8 +391,8 @@ test_all_responses_valid_json() {
     assert_ok hamr_test action --id "$image_id" --action "open"
 }
 
-test_handles_missing_downloads_gracefully() {
-    # This test would need to temporarily remove the Downloads directory
+test_handles_missing_pictures_gracefully() {
+    # This test would need to temporarily remove the Pictures directory
     # For now, we just verify the handler doesn't crash
     assert_ok hamr_test initial
 }
@@ -435,4 +429,4 @@ run_tests \
     test_open_action_has_thumbnail \
     test_copy_path_shows_notification \
     test_all_responses_valid_json \
-    test_handles_missing_downloads_gracefully
+    test_handles_missing_pictures_gracefully

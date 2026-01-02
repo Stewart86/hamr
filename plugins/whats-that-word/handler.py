@@ -258,14 +258,6 @@ def main():
                                 ],
                             }
                         )
-                    results.append(
-                        {
-                            "id": "__retry__",
-                            "name": "Try again",
-                            "description": "Get different suggestions",
-                            "icon": "refresh",
-                        }
-                    )
                     print(
                         json.dumps(
                             {

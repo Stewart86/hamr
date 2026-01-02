@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
 """
-Pictures workflow handler - searches for images in ~/Downloads/
+Pictures workflow handler - searches for images in XDG Pictures directory
 Demonstrates multi-turn workflow: browse -> select -> actions
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
-DOWNLOADS_DIR = Path.home() / "Downloads"
+PICTURES_DIR = Path(os.environ.get("XDG_PICTURES_DIR", Path.home() / "Pictures"))
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"}
 
 
 def find_images(query: str = "") -> list[dict]:
-    """Find images in Downloads folder, optionally filtered by query"""
+    """Find images in Pictures folder, optionally filtered by query"""
     images = []
 
-    if not DOWNLOADS_DIR.exists():
+    if not PICTURES_DIR.exists():
         return images
 
-    for file in DOWNLOADS_DIR.iterdir():
+    for file in PICTURES_DIR.iterdir():
         if file.is_file() and file.suffix.lower() in IMAGE_EXTENSIONS:
             if not query or query.lower() in file.name.lower():
                 images.append(

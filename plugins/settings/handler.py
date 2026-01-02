@@ -1163,10 +1163,6 @@ def main():
             )
             return
 
-            # Show edit form for the action
-            show_action_edit_form(action_num, config)
-            return
-
         if selected_id.startswith("setting:"):
             path = selected_id.split(":", 1)[1]
             parts = path.rsplit(".", 1)

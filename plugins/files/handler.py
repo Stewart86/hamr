@@ -202,11 +202,12 @@ def get_file_icon(path: str) -> str:
 
 def format_size(size: int) -> str:
     """Format file size in human readable format"""
+    size_float = float(size)
     for unit in ["B", "KB", "MB", "GB"]:
-        if size < 1024:
-            return f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{size:.1f} TB"
+        if size_float < 1024:
+            return f"{size_float:.1f} {unit}"
+        size_float /= 1024
+    return f"{size_float:.1f} TB"
 
 
 def get_file_preview(path: str) -> dict | None:
