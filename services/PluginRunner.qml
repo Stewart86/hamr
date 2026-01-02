@@ -279,12 +279,12 @@ Singleton {
     // Get all indexed items across all plugins (for LauncherSearch)
     function getAllIndexedItems() {
         const allItems = [];
+        const pluginMap = new Map(root.plugins.map(p => [p.id, p]));
         for (const [pluginId, indexData] of Object.entries(root.pluginIndexes)) {
-            const plugin = root.plugins.find(p => p.id === pluginId);
+            const plugin = pluginMap.get(pluginId);
             const pluginName = plugin?.manifest?.name ?? pluginId;
             
             for (const item of (indexData.items ?? [])) {
-                // Copy item properties and add plugin metadata
                 const enrichedItem = Object.assign({}, item, {
                     _pluginId: pluginId,
                     _pluginName: pluginName

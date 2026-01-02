@@ -721,9 +721,8 @@ Singleton {
     }
 
     // Create suggestion results from SmartSuggestions
-    function createSuggestionResults() {
+    function createSuggestionResults(allIndexed) {
         const suggestions = SmartSuggestions.getSuggestions();
-        const allIndexed = PluginRunner.getAllIndexedItems();
 
         return suggestions.map(suggestion => {
             const historyItem = suggestion.item;
@@ -858,12 +857,13 @@ Singleton {
              const _actionsLoaded = root.allActions.length;
              const _historyLoaded = searchHistoryData.length;
 
+             const allIndexed = PluginRunner.getAllIndexedItems();
+
              // Get smart suggestions first
-             const suggestions = root.createSuggestionResults();
+             const suggestions = root.createSuggestionResults(allIndexed);
              const suggestionAppIds = new Set(suggestions.map(s => s.id));
 
              if (_historyLoaded === 0) return suggestions;
-
              const recentItems = searchHistoryData
                  .slice()
                  .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))
@@ -876,7 +876,6 @@ Singleton {
                      });
 
                     if (item.type === "app") {
-                        const allIndexed = PluginRunner.getAllIndexedItems();
                         const appItem = allIndexed.find(idx => idx.appId === item.name);
                         if (!appItem) return null;
                         const appId = appItem.appId;
