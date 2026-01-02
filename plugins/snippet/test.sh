@@ -511,6 +511,41 @@ test_response_has_type() {
     fi
 }
 
+test_snippet_with_date_variable() {
+    set_snippets '{"snippets": [{"key": "today", "value": "Date: {date}"}]}'
+    local result=$(hamr_test action --id "today" --action "copy")
+    
+    assert_type "$result" "execute"
+    # Should contain expanded date in YYYY-MM-DD format
+    assert_contains "$result" "$(date +%Y-%m-%d)"
+}
+
+test_snippet_with_user_variable() {
+    set_snippets '{"snippets": [{"key": "sig", "value": "By {user}"}]}'
+    local result=$(hamr_test action --id "sig" --action "copy")
+    
+    assert_type "$result" "execute"
+    assert_contains "$result" "$USER"
+}
+
+test_snippet_with_clipboard_variable() {
+    set_snippets '{"snippets": [{"key": "paste", "value": "Pasted: {clipboard}"}]}'
+    local result=$(hamr_test action --id "paste" --action "copy")
+    
+    assert_type "$result" "execute"
+    # In test mode, clipboard returns "clipboard_content"
+    assert_contains "$result" "clipboard_content"
+}
+
+test_snippet_with_multiple_variables() {
+    set_snippets '{"snippets": [{"key": "full", "value": "{user} on {date}"}]}'
+    local result=$(hamr_test action --id "full" --action "copy")
+    
+    assert_type "$result" "execute"
+    assert_contains "$result" "$USER"
+    assert_contains "$result" "$(date +%Y-%m-%d)"
+}
+
 # ============================================================================
 # Run
 # ============================================================================
@@ -563,4 +598,8 @@ run_tests \
     test_very_long_key_name \
     test_multiple_snippets_same_prefix \
     test_all_responses_valid_json \
-    test_response_has_type
+    test_response_has_type \
+    test_snippet_with_date_variable \
+    test_snippet_with_user_variable \
+    test_snippet_with_clipboard_variable \
+    test_snippet_with_multiple_variables

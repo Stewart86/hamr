@@ -572,6 +572,32 @@ test_entry_shows_age_label() {
     assert_contains "$second_desc" "Moments ago"
 }
 
+test_entry_has_pin_action() {
+    set_clipboard_entries "1	Pin me"
+    local result=$(hamr_test initial)
+    
+    local actions=$(json_get "$result" '.results[] | select(.name == "Pin me") | .actions[].id' | tr '\n' ',')
+    assert_contains "$actions" "pin"
+}
+
+test_pin_action_returns_results() {
+    set_clipboard_entries "1	To pin
+2	Another"
+    local result=$(hamr_test action --id "1	To pin" --action "pin")
+    
+    assert_type "$result" "results"
+}
+
+test_unpin_action_returns_results() {
+    set_clipboard_entries "1	Pinned entry"
+    # First pin it
+    hamr_test action --id "1	Pinned entry" --action "pin" > /dev/null
+    # Then unpin
+    local result=$(hamr_test action --id "1	Pinned entry" --action "unpin")
+    
+    assert_type "$result" "results"
+}
+
 # ============================================================================
 # Run
 # ============================================================================
@@ -626,4 +652,7 @@ run_tests \
     test_fuzzy_discontinuous_chars \
     test_fuzzy_all_chars_required \
     test_fuzzy_partial_match_fails \
-    test_entry_shows_age_label
+    test_entry_shows_age_label \
+    test_entry_has_pin_action \
+    test_pin_action_returns_results \
+    test_unpin_action_returns_results

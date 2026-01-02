@@ -7,10 +7,33 @@ Demonstrates multi-turn workflow: browse -> select -> actions
 import json
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
+
+# Test mode for development
+TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
 PICTURES_DIR = Path(os.environ.get("XDG_PICTURES_DIR", Path.home() / "Pictures"))
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"}
+
+
+def get_image_dimensions(path: str) -> tuple[int, int] | None:
+    """Get image dimensions using PIL if available, else return None"""
+    if TEST_MODE:
+        return (1920, 1080)  # Mock dimensions
+    try:
+        from PIL import Image
+
+        with Image.open(path) as img:
+            return img.size
+    except Exception:
+        return None
+
+
+def format_date(timestamp: float) -> str:
+    """Format timestamp to human readable date"""
+    dt = datetime.fromtimestamp(timestamp)
+    return dt.strftime("%Y-%m-%d %H:%M")
 
 
 def find_images(query: str = "") -> list[dict]:
@@ -49,35 +72,57 @@ def format_size(size: float) -> str:
 
 def get_image_list_results(images: list[dict]) -> list[dict]:
     """Convert images to result format for browsing"""
-    return [
-        {
-            "id": img["id"],
-            "name": img["name"],
-            "description": format_size(img["size"]),
-            "icon": "image",
-            "thumbnail": img["path"],
-            "preview": {
-                "type": "image",
-                "content": img["path"],
-                "title": img["name"],
-                "metadata": [
-                    {"label": "Size", "value": format_size(img["size"])},
-                    {"label": "Path", "value": img["path"]},
-                ],
+    results = []
+    for img in images:
+        # Build metadata with dimensions if available
+        metadata = [
+            {"label": "Size", "value": format_size(img["size"])},
+        ]
+
+        # Try to get image dimensions
+        dims = get_image_dimensions(img["path"])
+        if dims:
+            metadata.append({"label": "Dimensions", "value": f"{dims[0]} x {dims[1]}"})
+
+        # Add modification date
+        metadata.append({"label": "Modified", "value": format_date(img["mtime"])})
+        metadata.append({"label": "Path", "value": img["path"]})
+
+        # Build description with dimensions if available
+        description = format_size(img["size"])
+        if dims:
+            description = f"{dims[0]}x{dims[1]} · {description}"
+
+        results.append(
+            {
+                "id": img["id"],
+                "name": img["name"],
+                "description": description,
+                "icon": "image",
+                "thumbnail": img["path"],
+                "preview": {
+                    "type": "image",
+                    "content": img["path"],
+                    "title": img["name"],
+                    "metadata": metadata,
+                    "actions": [
+                        {"id": "open", "name": "Open", "icon": "open_in_new"},
+                        {
+                            "id": "copy-path",
+                            "name": "Copy Path",
+                            "icon": "content_copy",
+                        },
+                        {"id": "copy-image", "name": "Copy Image", "icon": "image"},
+                    ],
+                    "detachable": True,
+                },
                 "actions": [
                     {"id": "open", "name": "Open", "icon": "open_in_new"},
                     {"id": "copy-path", "name": "Copy Path", "icon": "content_copy"},
-                    {"id": "copy-image", "name": "Copy Image", "icon": "image"},
                 ],
-                "detachable": True,
-            },
-            "actions": [
-                {"id": "open", "name": "Open", "icon": "open_in_new"},
-                {"id": "copy-path", "name": "Copy Path", "icon": "content_copy"},
-            ],
-        }
-        for img in images
-    ]
+            }
+        )
+    return results
 
 
 def get_image_detail_results(image_path: str) -> list[dict]:

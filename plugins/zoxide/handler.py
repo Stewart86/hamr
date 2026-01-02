@@ -99,6 +99,26 @@ def make_terminal_cmd(path: str) -> list[str]:
     return ["hyprctl", "dispatch", "exec", "--", *cmd_parts]
 
 
+def get_directory_preview(path: str) -> str:
+    """Get a preview of directory contents (first 20 items)."""
+    try:
+        path_obj = Path(path)
+        if not path_obj.exists() or not path_obj.is_dir():
+            return ""
+
+        items = []
+        for item in sorted(path_obj.iterdir())[:20]:
+            prefix = "/" if item.is_dir() else " "
+            items.append(f"{prefix} {item.name}")
+
+        if len(list(path_obj.iterdir())) > 20:
+            items.append(f"  ... and more")
+
+        return "\n".join(items) if items else "(empty directory)"
+    except (PermissionError, OSError):
+        return "(permission denied)"
+
+
 def dir_to_index_item(dir_info: dict) -> dict:
     """Convert directory info to indexable item format."""
     path = dir_info["path"]
@@ -113,6 +133,12 @@ def dir_to_index_item(dir_info: dict) -> dict:
 
     path_parts = [p for p in path.lower().split("/") if p]
 
+    # Get directory contents preview
+    if TEST_MODE:
+        preview_content = "/ subdir1\n/ subdir2\n  file1.txt\n  file2.py"
+    else:
+        preview_content = get_directory_preview(path)
+
     return {
         "id": f"zoxide:{path}",
         "name": name,
@@ -121,6 +147,14 @@ def dir_to_index_item(dir_info: dict) -> dict:
         "keywords": path_parts,
         "verb": "Open",
         "execute": {"command": make_terminal_cmd(path)},
+        "preview": {
+            "type": "text",
+            "content": preview_content,
+            "title": name,
+            "metadata": [
+                {"label": "Path", "value": display_path},
+            ],
+        },
         "actions": [
             {
                 "id": "files",

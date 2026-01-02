@@ -149,12 +149,12 @@ test_images_have_icon() {
 test_images_show_file_size() {
     local result=$(hamr_test initial)
     
-    # Description should contain file size
+    # Description should contain file size (may also have dimensions)
     local description=$(json_get "$result" '.results[0].description')
     
-    # Should match format like "0.0 B" or "1.5 KB"
-    if [[ ! "$description" =~ ^[0-9.]+\ (B|KB|MB|GB|TB)$ ]]; then
-        echo "Expected description to be file size, got: $description"
+    # Should contain file size format like "0.0 B" or "1.5 KB"
+    if [[ ! "$description" =~ (B|KB|MB|GB|TB) ]]; then
+        echo "Expected description to contain file size, got: $description"
         return 1
     fi
 }
@@ -397,6 +397,31 @@ test_handles_missing_pictures_gracefully() {
     assert_ok hamr_test initial
 }
 
+test_preview_has_dimensions_metadata() {
+    local result=$(hamr_test initial)
+    
+    # Preview should have dimensions in metadata
+    local dims=$(json_get "$result" '.results[0].preview.metadata[] | select(.label == "Dimensions") | .value')
+    # In test mode, dimensions are mocked to 1920x1080
+    assert_contains "$dims" "1920"
+}
+
+test_preview_has_modified_date() {
+    local result=$(hamr_test initial)
+    
+    # Preview should have Modified date
+    local modified=$(json_get "$result" '.results[0].preview.metadata[] | select(.label == "Modified") | .value')
+    assert_eq "$([ -n "$modified" ] && echo 1 || echo 0)" "1" "Should have modified date"
+}
+
+test_description_includes_dimensions() {
+    local result=$(hamr_test initial)
+    
+    # Description should include dimensions in test mode
+    local description=$(json_get "$result" '.results[0].description')
+    assert_contains "$description" "1920x1080"
+}
+
 # ============================================================================
 # Run
 # ============================================================================
@@ -429,4 +454,7 @@ run_tests \
     test_open_action_has_thumbnail \
     test_copy_path_shows_notification \
     test_all_responses_valid_json \
-    test_handles_missing_pictures_gracefully
+    test_handles_missing_pictures_gracefully \
+    test_preview_has_dimensions_metadata \
+    test_preview_has_modified_date \
+    test_description_includes_dimensions

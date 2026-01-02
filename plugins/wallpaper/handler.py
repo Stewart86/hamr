@@ -17,6 +17,7 @@ The script will be called with: switchwall.sh --image <path> --mode <dark|light>
 
 import json
 import os
+import random
 import shutil
 import subprocess
 import sys
@@ -27,9 +28,56 @@ TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
 # Config and default paths
 XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+XDG_CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
 HAMR_CONFIG_PATH = XDG_CONFIG / "hamr" / "config.json"
+WALLPAPER_HISTORY_FILE = XDG_CACHE / "hamr" / "wallpaper-history.json"
 PICTURES_DIR = Path.home() / "Pictures"
 DEFAULT_WALLPAPERS_DIR = PICTURES_DIR / "Wallpapers"
+MAX_HISTORY_ITEMS = 10
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+
+
+def load_wallpaper_history() -> list[str]:
+    """Load wallpaper history from cache (most recent first)"""
+    if not WALLPAPER_HISTORY_FILE.exists():
+        return []
+    try:
+        return json.loads(WALLPAPER_HISTORY_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def save_wallpaper_to_history(path: str) -> None:
+    """Save wallpaper path to history"""
+    if TEST_MODE:
+        return
+    history = load_wallpaper_history()
+    if path in history:
+        history.remove(path)
+    history.insert(0, path)
+    history = history[:MAX_HISTORY_ITEMS]
+    try:
+        WALLPAPER_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        WALLPAPER_HISTORY_FILE.write_text(json.dumps(history))
+    except OSError:
+        pass
+
+
+def get_random_wallpaper(directory: Path) -> str | None:
+    """Get a random wallpaper from the directory"""
+    if not directory.exists():
+        return None
+
+    wallpapers = [
+        f
+        for f in directory.iterdir()
+        if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+    ]
+
+    if not wallpapers:
+        return None
+
+    return str(random.choice(wallpapers))
 
 
 def get_wallpaper_dir() -> Path:
@@ -167,10 +215,146 @@ def build_wallpaper_command(image_path: str, mode: str) -> list[str]:
     ]
 
 
+def get_plugin_actions() -> list[dict]:
+    """Get plugin-level actions for the action bar"""
+    return [
+        {
+            "id": "random",
+            "name": "Random",
+            "icon": "shuffle",
+            "shortcut": "Ctrl+1",
+        },
+        {
+            "id": "history",
+            "name": "History",
+            "icon": "history",
+            "shortcut": "Ctrl+2",
+        },
+    ]
+
+
 def main():
     input_data = json.load(sys.stdin)
     step = input_data.get("step", "initial")
     selected = input_data.get("selected", {})
+    action = input_data.get("action", "")
+    context = input_data.get("context", "")
+
+    # Handle plugin actions
+    if step == "action" and selected.get("id") == "__plugin__":
+        wallpaper_dir = get_wallpaper_dir()
+
+        if action == "random":
+            random_path = get_random_wallpaper(wallpaper_dir)
+            if random_path:
+                mode = "dark"
+                command = build_wallpaper_command(random_path, mode)
+                filename = Path(random_path).name
+                save_wallpaper_to_history(random_path)
+                print(
+                    json.dumps(
+                        {
+                            "type": "execute",
+                            "execute": {
+                                "command": command,
+                                "name": f"Random wallpaper: {filename}",
+                                "icon": "shuffle",
+                                "thumbnail": random_path,
+                                "close": True,
+                            },
+                        }
+                    )
+                )
+            else:
+                print(json.dumps({"type": "error", "message": "No wallpapers found"}))
+            return
+
+        if action == "history":
+            history = load_wallpaper_history()
+            if not history:
+                print(
+                    json.dumps(
+                        {
+                            "type": "results",
+                            "results": [
+                                {
+                                    "id": "__empty__",
+                                    "name": "No wallpaper history",
+                                    "icon": "info",
+                                    "description": "Set a wallpaper to see it here",
+                                }
+                            ],
+                            "pluginActions": get_plugin_actions(),
+                            "context": "history",
+                        }
+                    )
+                )
+                return
+
+            results = []
+            for path in history:
+                if Path(path).exists():
+                    filename = Path(path).name
+                    results.append(
+                        {
+                            "id": f"history:{path}",
+                            "name": filename,
+                            "description": path,
+                            "icon": "image",
+                            "thumbnail": path,
+                            "verb": "Set",
+                        }
+                    )
+
+            if not results:
+                results.append(
+                    {
+                        "id": "__empty__",
+                        "name": "No wallpaper history",
+                        "icon": "info",
+                        "description": "Previous wallpapers no longer exist",
+                    }
+                )
+
+            print(
+                json.dumps(
+                    {
+                        "type": "results",
+                        "results": results,
+                        "pluginActions": get_plugin_actions(),
+                        "context": "history",
+                    }
+                )
+            )
+            return
+
+    # Handle history item selection
+    if step == "action" and selected.get("id", "").startswith("history:"):
+        file_path = selected.get("id")[8:]  # Remove "history:" prefix
+        if not Path(file_path).exists():
+            print(json.dumps({"type": "error", "message": "File no longer exists"}))
+            return
+
+        mode = "dark"
+        command = build_wallpaper_command(file_path, mode)
+        filename = Path(file_path).name
+        save_wallpaper_to_history(file_path)
+
+        print(
+            json.dumps(
+                {
+                    "type": "execute",
+                    "execute": {
+                        "command": command,
+                        "name": f"Set wallpaper: {filename}",
+                        "icon": "wallpaper",
+                        "thumbnail": file_path,
+                        "close": True,
+                    },
+                }
+            )
+        )
+        return
 
     # Initial or search: show the image browser
     if step in ("initial", "search"):
@@ -200,6 +384,7 @@ def main():
                         "title": "Select Wallpaper",
                         "actions": actions,
                     },
+                    "pluginActions": get_plugin_actions(),
                 }
             )
         )
@@ -222,6 +407,9 @@ def main():
         # Build command to set wallpaper
         command = build_wallpaper_command(file_path, mode)
         filename = Path(file_path).name
+
+        # Save to history
+        save_wallpaper_to_history(file_path)
 
         print(
             json.dumps(

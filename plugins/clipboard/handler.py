@@ -19,9 +19,49 @@ CACHE_DIR = (
     / "clipboard-thumbs"
 )
 OCR_CACHE_FILE = CACHE_DIR / "ocr-index.json"
+PINNED_FILE = CACHE_DIR / "pinned.json"
 SCRIPT_DIR = Path(__file__).parent
 # Max thumbnail size (width or height)
 MAX_THUMB_SIZE = 256
+
+
+def load_pinned_entries() -> list[str]:
+    """Load pinned entry hashes from cache"""
+    if not PINNED_FILE.exists():
+        return []
+    try:
+        return json.loads(PINNED_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def save_pinned_entries(pinned: list[str]) -> None:
+    """Save pinned entry hashes to cache"""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    PINNED_FILE.write_text(json.dumps(pinned))
+
+
+def pin_entry(entry: str) -> None:
+    """Pin an entry (by hash)"""
+    entry_hash = get_entry_hash(entry)
+    pinned = load_pinned_entries()
+    if entry_hash not in pinned:
+        pinned.insert(0, entry_hash)
+        save_pinned_entries(pinned)
+
+
+def unpin_entry(entry: str) -> None:
+    """Unpin an entry (by hash)"""
+    entry_hash = get_entry_hash(entry)
+    pinned = load_pinned_entries()
+    if entry_hash in pinned:
+        pinned.remove(entry_hash)
+        save_pinned_entries(pinned)
+
+
+def is_pinned(entry: str) -> bool:
+    """Check if entry is pinned"""
+    return get_entry_hash(entry) in load_pinned_entries()
 
 
 def get_clipboard_entries() -> list[str]:
@@ -237,9 +277,20 @@ def get_entry_results(
     """Convert clipboard entries to result format"""
     results = []
     ocr_texts = ocr_texts or {}
+    pinned_hashes = set(load_pinned_entries())
+
+    # Sort entries: pinned first, then by original order
+    def sort_key(entry: str) -> tuple[int, int]:
+        entry_hash = get_entry_hash(entry)
+        is_pin = entry_hash in pinned_hashes
+        # Pinned items first (0), then regular items (1)
+        # Within each group, maintain original order
+        return (0 if is_pin else 1, entries.index(entry))
+
+    sorted_entries = sorted(entries, key=sort_key)
     entry_index = 0
 
-    for entry in entries:
+    for entry in sorted_entries:
         # Stop once we have enough results
         if len(results) >= limit:
             break
@@ -285,14 +336,22 @@ def get_entry_results(
             icon = "content_paste"
             thumbnail = None
 
+        entry_is_pinned = get_entry_hash(entry) in pinned_hashes
+        pin_action = (
+            {"id": "unpin", "name": "Unpin", "icon": "push_pin"}
+            if entry_is_pinned
+            else {"id": "pin", "name": "Pin", "icon": "push_pin"}
+        )
+
         result = {
             "id": entry,
             "name": display,
             "icon": icon,
-            "description": entry_type,
+            "description": ("Pinned · " if entry_is_pinned else "") + entry_type,
             "verb": "Paste",
             "actions": [
                 {"id": "copy", "name": "Copy", "icon": "content_copy"},
+                pin_action,
                 {"id": "delete", "name": "Delete", "icon": "delete"},
             ],
         }
@@ -611,6 +670,24 @@ def main():
             respond(
                 get_entry_results(entries, query, context, ocr_texts),
                 active_filter=context,
+            )
+            return
+
+        if action == "pin":
+            pin_entry(entry)
+            respond(
+                get_entry_results(entries, query, context, ocr_texts),
+                active_filter=context,
+                navigate_forward=False,
+            )
+            return
+
+        if action == "unpin":
+            unpin_entry(entry)
+            respond(
+                get_entry_results(entries, query, context, ocr_texts),
+                active_filter=context,
+                navigate_forward=False,
             )
             return
 

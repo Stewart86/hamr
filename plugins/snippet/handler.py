@@ -15,8 +15,11 @@ Note: Uses a delay before typing to allow focus to return to previous window
 
 import json
 import os
+import re
+import subprocess
 import sys
 import shutil
+from datetime import datetime
 from pathlib import Path
 
 # Test mode - mock external tool availability
@@ -25,6 +28,73 @@ TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 SNIPPETS_PATH = Path.home() / ".config/hamr/snippets.json"
 # Delay in ms before typing to allow focus to return
 TYPE_DELAY_MS = 150
+
+
+def get_clipboard_content() -> str:
+    """Get current clipboard content"""
+    if TEST_MODE:
+        return "clipboard_content"
+    try:
+        result = subprocess.run(
+            ["wl-paste", "-n"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        return result.stdout if result.returncode == 0 else ""
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return ""
+
+
+def expand_variables(value: str) -> str:
+    """Expand variables in snippet value.
+
+    Supported variables:
+    - {date} - Current date (YYYY-MM-DD)
+    - {time} - Current time (HH:MM:SS)
+    - {datetime} - Current date and time (YYYY-MM-DD HH:MM:SS)
+    - {year} - Current year
+    - {month} - Current month (01-12)
+    - {day} - Current day (01-31)
+    - {clipboard} - Current clipboard content
+    - {user} - Current username
+    - {home} - Home directory path
+    """
+    now = datetime.now()
+
+    replacements = {
+        "{date}": now.strftime("%Y-%m-%d"),
+        "{time}": now.strftime("%H:%M:%S"),
+        "{datetime}": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "{year}": now.strftime("%Y"),
+        "{month}": now.strftime("%m"),
+        "{day}": now.strftime("%d"),
+        "{clipboard}": get_clipboard_content(),
+        "{user}": os.environ.get("USER", ""),
+        "{home}": str(Path.home()),
+    }
+
+    result = value
+    for var, replacement in replacements.items():
+        result = result.replace(var, replacement)
+
+    return result
+
+
+def has_variables(value: str) -> bool:
+    """Check if value contains any expandable variables"""
+    variables = [
+        "{date}",
+        "{time}",
+        "{datetime}",
+        "{year}",
+        "{month}",
+        "{day}",
+        "{clipboard}",
+        "{user}",
+        "{home}",
+    ]
+    return any(var in value for var in variables)
 
 
 def load_snippets() -> list[dict]:
@@ -220,10 +290,15 @@ def snippet_to_index_item(snippet: dict) -> dict:
     """Convert a snippet to an index item for main search"""
     key = snippet["key"]
     value = snippet.get("value", "")
+    has_vars = has_variables(value)
+    description = truncate_value(value, 50)
+    if has_vars:
+        description = "(has variables) " + description
+
     return {
         "id": f"snippet:{key}",
         "name": key,
-        "description": truncate_value(value, 50),
+        "description": description,
         "keywords": [truncate_value(value, 30)],
         "icon": "content_paste",
         "verb": "Copy",
@@ -250,11 +325,11 @@ def snippet_to_index_item(snippet: dict) -> dict:
                 },
             },
         ],
-        # Default action: copy to clipboard
-        "execute": {
-            "command": ["wl-copy", value],
-            "notify": f"Copied '{key}' to clipboard",
-            "name": f"Copy snippet: {key}",  # Enable history tracking
+        # Default action: copy to clipboard (use entryPoint for variable expansion)
+        "entryPoint": {
+            "step": "action",
+            "selected": {"id": key},
+            "action": "copy",
         },
     }
 
@@ -467,12 +542,13 @@ def main():
         if action == "copy":
             snippet = next((s for s in snippets if s["key"] == selected_id), None)
             if snippet:
+                expanded_value = expand_variables(snippet["value"])
                 print(
                     json.dumps(
                         {
                             "type": "execute",
                             "execute": {
-                                "command": ["wl-copy", snippet["value"]],
+                                "command": ["wl-copy", expanded_value],
                                 "name": f"Copy snippet: {selected_id}",
                                 "icon": "content_copy",
                                 "notify": f"Copied '{selected_id}' to clipboard",
@@ -530,12 +606,13 @@ def main():
         # Check ydotool availability
         if not check_ydotool():
             # Fallback to clipboard
+            expanded_value = expand_variables(snippet["value"])
             print(
                 json.dumps(
                     {
                         "type": "execute",
                         "execute": {
-                            "command": ["wl-copy", snippet["value"]],
+                            "command": ["wl-copy", expanded_value],
                             "name": f"Copy snippet: {selected_id}",
                             "icon": "content_copy",
                             "notify": f"ydotool not found. Copied '{selected_id}' to clipboard instead.",
@@ -549,7 +626,8 @@ def main():
         # Use ydotool to type the snippet value
         # Add delay to allow launcher to close and focus to return
         # Using bash to chain sleep + ydotool
-        value = snippet["value"]
+        raw_value = snippet["value"]
+        expanded_value = expand_variables(raw_value)
         print(
             json.dumps(
                 {
@@ -558,7 +636,7 @@ def main():
                         "command": [
                             "bash",
                             "-c",
-                            f"sleep 0.{TYPE_DELAY_MS} && ydotool type --key-delay 0 -- {repr(value)}",
+                            f"sleep 0.{TYPE_DELAY_MS} && ydotool type --key-delay 0 -- {repr(expanded_value)}",
                         ],
                         "name": f"Insert snippet: {selected_id}",
                         "icon": "content_paste",

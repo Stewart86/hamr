@@ -298,6 +298,32 @@ test_all_responses_valid() {
     assert_ok hamr_test search --query "test"
 }
 
+test_initial_has_plugin_actions() {
+    local result=$(hamr_test initial)
+    
+    assert_contains "$result" "pluginActions"
+}
+
+test_random_action_available() {
+    local result=$(hamr_test initial)
+    
+    local random_id=$(json_get "$result" '.pluginActions[] | select(.id == "random") | .id')
+    assert_eq "$random_id" "random"
+}
+
+test_history_action_available() {
+    local result=$(hamr_test initial)
+    
+    local history_id=$(json_get "$result" '.pluginActions[] | select(.id == "history") | .id')
+    assert_eq "$history_id" "history"
+}
+
+test_history_action_shows_results() {
+    local result=$(hamr_test action --id "__plugin__" --action "history")
+    
+    assert_type "$result" "results"
+}
+
 # ============================================================================
 # Run
 # ============================================================================
@@ -332,4 +358,8 @@ run_tests \
     test_default_action_works \
     test_execute_response_has_command_array \
     test_multiple_files_with_different_names \
-    test_all_responses_valid
+    test_all_responses_valid \
+    test_initial_has_plugin_actions \
+    test_random_action_available \
+    test_history_action_available \
+    test_history_action_shows_results

@@ -97,6 +97,23 @@ test_initial_step_returns_error() {
     assert_type "$result" "error"
 }
 
+test_index_items_have_preview() {
+    local result=$(hamr_test index)
+    
+    local preview_type=$(json_get "$result" '.items[0].preview.type')
+    assert_eq "$preview_type" "text"
+    
+    local preview_content=$(json_get "$result" '.items[0].preview.content')
+    assert_eq "$([ -n "$preview_content" ] && echo 1 || echo 0)" "1" "Preview content should not be empty"
+}
+
+test_index_items_have_preview_title() {
+    local result=$(hamr_test index)
+    
+    local preview_title=$(json_get "$result" '.items[0].preview.title')
+    assert_eq "$([ -n "$preview_title" ] && echo 1 || echo 0)" "1" "Preview title should not be empty"
+}
+
 test_index_valid_json() {
     local result=$(hamr_test index)
     
@@ -122,4 +139,6 @@ run_tests \
     test_index_items_have_icon \
     test_incremental_index_returns_mode \
     test_initial_step_returns_error \
+    test_index_items_have_preview \
+    test_index_items_have_preview_title \
     test_index_valid_json
