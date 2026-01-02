@@ -317,7 +317,7 @@ class PromptConfig:
         return cls(text=data.get("text", ""))
 
 
-ResponseType = Literal["results", "card", "execute", "imageBrowser", "gridBrowser", "form", "prompt", "error", "match", "index"]
+ResponseType = Literal["results", "card", "execute", "imageBrowser", "gridBrowser", "form", "prompt", "error", "match", "index", "noop"]
 
 
 @dataclass
@@ -347,11 +347,11 @@ class HamrResponse:
         if "type" not in data:
             raise SchemaValidationError(
                 "Response missing required 'type' field",
-                expected="one of: results, card, execute, imageBrowser, form, prompt, error",
+                expected="one of: results, card, execute, imageBrowser, form, prompt, error, noop",
             )
 
         resp_type = data["type"]
-        valid_types = {"results", "card", "execute", "imageBrowser", "gridBrowser", "form", "prompt", "error", "match", "index"}
+        valid_types = {"results", "card", "execute", "imageBrowser", "gridBrowser", "form", "prompt", "error", "match", "index", "noop"}
         if resp_type not in valid_types:
             raise SchemaValidationError(
                 f"Invalid response type: {resp_type}",

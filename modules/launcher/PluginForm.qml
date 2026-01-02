@@ -9,6 +9,7 @@
  *   - textarea: Multi-line text input
  *   - select: Dropdown selection
  *   - checkbox: Boolean toggle
+ *   - switch: Toggle switch (horizontal)
  *   - password: Hidden text input
  */
 import qs
@@ -37,10 +38,19 @@ Rectangle {
     // Emitted when cancel is requested but fields have data (needs confirmation)
     signal cancelRequested()
     
+    // Emitted when a slider value changes (for live updates)
+    signal sliderValueChanged(string fieldId, real value)
+    
+    // Emitted when a switch value changes (for live updates)
+    signal switchValueChanged(string fieldId, bool value)
+    
     property string title: form?.title ?? ""
     property string submitLabel: form?.submitLabel ?? "Submit"
     property string cancelLabel: form?.cancelLabel ?? "Cancel"
     property var fields: form?.fields ?? []
+    
+    // Whether form uses live updates (no submit button needed)
+    property bool liveUpdate: form?.liveUpdate ?? false
     
     // Store field values separately to persist across visibility changes
     // Key: field id, Value: current value
@@ -71,9 +81,16 @@ Rectangle {
     }
     
     Layout.fillWidth: true
+    Layout.leftMargin: 6
+    Layout.rightMargin: 6
+    Layout.bottomMargin: 6
+    Layout.topMargin: 4
     implicitHeight: Math.min(500, formColumn.implicitHeight + 32)
     
-    color: "transparent"
+    radius: Appearance.rounding.small
+    color: Appearance.colors.colSurfaceContainerLow
+    border.width: 1
+    border.color: Appearance.colors.colOutlineVariant
     
     // Collect form data from all fields
     function collectFormData() {
@@ -221,6 +238,8 @@ Rectangle {
                                 case "textarea": return textAreaField;
                                 case "select": return selectField;
                                 case "checkbox": return checkboxField;
+                                case "switch": return switchField;
+                                case "slider": return sliderField;
                                 case "password": return passwordField;
                                 default: return textField;
                             }
@@ -236,16 +255,18 @@ Rectangle {
             }
         }
         
-        // Separator before buttons
+        // Separator before buttons (hidden for live update forms)
         Rectangle {
             Layout.fillWidth: true
+            visible: !root.liveUpdate
             height: 1
             color: Appearance.colors.colOutlineVariant
         }
         
-        // Button row
+        // Button row (hidden for live update forms - changes apply immediately)
         RowLayout {
             Layout.fillWidth: true
+            visible: !root.liveUpdate
             spacing: 12
             
             Item { Layout.fillWidth: true }
@@ -819,6 +840,216 @@ Rectangle {
                     onClicked: checkboxInput.checked = !checkboxInput.checked
                     cursorShape: Qt.PointingHandCursor
                 }
+            }
+        }
+    }
+    
+    // Switch field (toggle switch)
+    Component {
+        id: switchField
+        
+        ColumnLayout {
+            id: switchFieldRoot
+            property var fieldData: ({})
+            property bool value: switchToggle.checked
+            
+            function focusInput() {
+                switchToggle.forceActiveFocus();
+            }
+            
+            // Get initial checked state from stored value or default
+            function getInitialChecked() {
+                let stored = root.getFieldValue(fieldData.id, null);
+                if (stored !== null && stored !== "") {
+                    return stored === true || stored === "true";
+                }
+                return fieldData.default ?? false;
+            }
+            
+            spacing: 8
+            
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    
+                    StyledText {
+                        visible: fieldData.label ?? false
+                        text: fieldData.label ?? ""
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        font.weight: Font.Medium
+                        color: Appearance.m3colors.m3onSurface
+                    }
+                    
+                    StyledText {
+                        visible: fieldData.hint ?? false
+                        text: fieldData.hint ?? ""
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: Appearance.colors.colSubtext
+                    }
+                }
+                
+                Rectangle {
+                    id: switchTrack
+                    implicitWidth: 44
+                    implicitHeight: 24
+                    radius: 12
+                    color: switchToggle.checked ? Appearance.colors.colPrimary : Appearance.colors.colSurfaceContainerHigh
+                    border.width: switchToggle.checked ? 0 : 1
+                    border.color: Appearance.colors.colOutlineVariant
+                    
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: 200
+                        }
+                    }
+                    
+                    Rectangle {
+                        id: switchThumb
+                        width: 20
+                        height: 20
+                        radius: 10
+                        color: switchToggle.checked ? Appearance.m3colors.m3onPrimary : Appearance.m3colors.m3outline
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: switchToggle.checked ? parent.width - width - 2 : 2
+                        
+                        Behavior on x {
+                            NumberAnimation {
+                                duration: 200
+                            }
+                        }
+                        
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: 200
+                            }
+                        }
+                    }
+                    
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: switchToggle.checked = !switchToggle.checked
+                    }
+                }
+            }
+            
+            CheckBox {
+                id: switchToggle
+                visible: false
+                checked: switchFieldRoot.getInitialChecked()
+                
+                // Persist value on change and notify immediately (like sliders)
+                onCheckedChanged: {
+                    root.updateFieldValue(fieldData.id, checked)
+                    root.switchValueChanged(fieldData.id, checked)
+                }
+                
+                Keys.onPressed: event => {
+                    if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                        switchToggle.checked = !switchToggle.checked;
+                        event.accepted = true;
+                        return;
+                    }
+                    if (event.key === Qt.Key_Escape) {
+                        root.tryCancel();
+                        event.accepted = true;
+                        return;
+                    }
+                    // Backspace to cancel form
+                    if (event.key === Qt.Key_Backspace) {
+                        root.tryCancel();
+                        event.accepted = true;
+                        return;
+                    }
+                    if ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+                        if (root.validateForm()) {
+                            root.submitted(root.collectFormData());
+                        }
+                        event.accepted = true;
+                        return;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Slider field
+    Component {
+        id: sliderField
+        
+        ColumnLayout {
+            id: sliderFieldRoot
+            property var fieldData: ({})
+            property real value: slider.clampedValue
+            
+            function focusInput() {
+                slider.forceActiveFocus();
+            }
+            
+            spacing: 4
+            
+            StyledText {
+                visible: fieldData.label ?? false
+                text: (fieldData.label ?? "") + (fieldData.required ? " *" : "")
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.weight: Font.Medium
+                color: Appearance.m3colors.m3onSurface
+            }
+            
+            Slider {
+                id: slider
+                Layout.fillWidth: true
+                
+                min: fieldData.min ?? 0
+                max: fieldData.max ?? 100
+                step: fieldData.step ?? 1
+                unit: fieldData.unit ?? ""
+                
+                // Initialize from stored value or default
+                value: root.getFieldValue(fieldData.id, fieldData.default ?? fieldData.min ?? 0)
+                
+                // Set display value format - use step precision (unit is appended by Slider)
+                displayValue: fieldData.displayValue ?? ""
+                
+                // Persist value on change and notify for live updates
+                onValueCommitted: (newValue) => {
+                    root.updateFieldValue(fieldData.id, newValue)
+                    if (root.liveUpdate) {
+                        root.sliderValueChanged(fieldData.id, newValue)
+                    }
+                }
+                
+                Keys.onPressed: event => {
+                    if (event.key === Qt.Key_Escape) {
+                        root.tryCancel();
+                        event.accepted = true;
+                        return;
+                    }
+                    // Backspace to cancel form
+                    if (event.key === Qt.Key_Backspace) {
+                        root.tryCancel();
+                        event.accepted = true;
+                        return;
+                    }
+                    if ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+                        if (root.validateForm()) {
+                            root.submitted(root.collectFormData());
+                        }
+                        event.accepted = true;
+                        return;
+                    }
+                }
+            }
+            
+            StyledText {
+                visible: fieldData.hint ?? false
+                text: fieldData.hint ?? ""
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: Appearance.colors.colSubtext
             }
         }
     }

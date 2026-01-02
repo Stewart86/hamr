@@ -188,8 +188,173 @@ Display a list of selectable items.
 |-------|-------------|
 | `verb` | Primary action text shown on hover. Triggered by Enter or click. Use contextual verbs like "Done" / "Undone" for todos, "Open" for files, "Copy" for clipboard items. |
 | `actions` | Up to 4 secondary action buttons. Each needs `id`, `name`, and `icon`. Shown as icon buttons on hover. |
+| `badges` | Up to 5 compact badges shown beside item name. See Visual Enhancements below. |
+| `graph` | Line graph data shown in place of icon. See Visual Enhancements below. |
+| `gauge` | Circular progress indicator shown in place of icon. See Visual Enhancements below. |
+| `progress` | Horizontal progress bar shown below name (replaces description). See Visual Enhancements below. |
 
 **Example plugins:** [`quicklinks/`](quicklinks/handler.py), [`todo/`](todo/handler.py), [`bitwarden/`](bitwarden/handler.py)
+
+---
+
+### Slider Items
+
+Slider items are a special result type for adjustable values (volume, brightness, etc.).
+
+```python
+{
+    "type": "results",
+    "results": [
+        {
+            "id": "volume",
+            "type": "slider",           # Makes this a slider item
+            "name": "Volume",
+            "icon": "volume_up",
+            "value": 75,                # Current value
+            "min": 0,                   # Minimum value
+            "max": 100,                 # Maximum value
+            "step": 5,                  # Step increment
+            "unit": "%",                # Optional: unit suffix (e.g., "%", "px", "ms")
+            "displayValue": "75%"       # Optional: override display text entirely
+        }
+    ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `value` | number | Current slider value |
+| `min` | number | Minimum value |
+| `max` | number | Maximum value |
+| `step` | number | Step increment (also determines decimal precision) |
+| `unit` | string | Unit suffix appended to value (e.g., `"%"`, `"px"`, `"ms"`) |
+| `displayValue` | string | Override display text entirely (ignores unit) |
+
+**Receiving slider changes:**
+
+When user drags the slider or clicks +/- buttons, handler receives:
+
+```python
+{
+    "step": "action",
+    "selected": {"id": "volume"},
+    "action": "slider",
+    "value": 80,                         # New value
+    "context": "...",
+    "session": "..."
+}
+```
+
+Handler should update the actual value (e.g., system volume) and return updated results:
+
+```python
+if action == "slider":
+    item_id = selected.get("id")
+    new_value = input_data.get("value", 0)
+    
+    # Apply the change
+    set_volume(item_id, new_value)
+    
+    # Return updated results
+    return {
+        "type": "results",
+        "results": get_all_sliders(),  # With updated values
+        "navigateForward": False        # Don't change navigation
+    }
+```
+
+---
+
+### Visual Enhancements
+
+Result items can display additional visual elements for quick data overview.
+
+#### Badges
+
+Small circular indicators shown beside the item name (like avatar initials or status dots). Max 5 badges per item.
+
+```python
+{
+    "id": "task-1",
+    "name": "Review PR",
+    "icon": "task",
+    "badges": [
+        {"text": "JD"},                                    # Initials
+        {"text": "!", "background": "#f44336", "color": "#ffffff"},  # Alert
+        {"image": "/path/to/avatar.png"},                  # Avatar image
+    ]
+}
+```
+
+| Badge Field | Type | Description |
+|-------------|------|-------------|
+| `text` | string | 1-3 characters (displayed as initials) |
+| `image` | string | Image path for avatar (overrides text) |
+| `background` | string | Background color (hex, e.g., "#e53935") |
+| `color` | string | Text color (hex, e.g., "#ffffff") |
+
+#### Graph
+
+Simple line graph shown in place of the icon. Use for trends, history data.
+
+```python
+{
+    "id": "cpu-monitor",
+    "name": "CPU Usage",
+    "graph": {
+        "data": [45, 52, 48, 61, 55, 50, 47],  # Y values (array of numbers)
+        "min": 0,                               # Optional: min Y value
+        "max": 100                              # Optional: max Y value
+    }
+}
+```
+
+If `min`/`max` not provided, auto-scales from data.
+
+#### Gauge
+
+Circular progress indicator shown in place of the icon. Use for percentages, quotas, levels.
+
+```python
+{
+    "id": "disk-usage",
+    "name": "Disk Space",
+    "gauge": {
+        "value": 75,           # Current value
+        "max": 100,            # Maximum value
+        "label": "75%"         # Optional: center label text
+    }
+}
+```
+
+#### Progress Bar
+
+Horizontal progress bar shown below the item name (replaces description). Use for download progress, sync status, or any linear progress indicator.
+
+```python
+{
+    "id": "download-1",
+    "name": "Downloading file.zip",
+    "icon": "downloading",
+    "progress": {
+        "value": 65,           # Current value
+        "max": 100,            # Maximum value
+        "label": "65%",        # Optional: text shown beside bar
+        "color": "#4caf50"     # Optional: custom bar color (hex)
+    }
+}
+```
+
+| Progress Field | Type | Description |
+|----------------|------|-------------|
+| `value` | number | Current progress value |
+| `max` | number | Maximum value (default: 100) |
+| `label` | string | Optional text shown beside the bar |
+| `color` | string | Optional custom color (hex, e.g., "#4caf50") |
+
+**Note:** When `progress` is provided, it replaces the `description` field in the item display.
+
+**Priority:** If multiple visual elements are provided, priority is: `graph` > `gauge` > `thumbnail` > `icon`. Progress bar is independent and shows below the name.
 
 ---
 
@@ -615,6 +780,8 @@ Display a form dialog for collecting multiple inputs at once.
 | `email` | Email input with validation | `placeholder`, `required`, `default`, `hint` |
 | `password` | Masked password input | `placeholder`, `required`, `hint` |
 | `hidden` | Hidden field (not displayed) | `value` (required) |
+| `switch` | Toggle switch (on/off) | `default` (bool), `hint` |
+| `slider` | Range slider | `min`, `max`, `step`, `default`, `hint` |
 
 **Field properties:**
 
@@ -629,6 +796,122 @@ Display a form dialog for collecting multiple inputs at once.
 | `hint` | string | Help text shown below field |
 | `rows` | int | Textarea height (default: 4) |
 | `value` | string | Value for hidden fields |
+| `min` | number | Minimum value (slider) |
+| `max` | number | Maximum value (slider) |
+| `step` | number | Step increment (slider) |
+
+**Switch and slider fields:**
+
+```python
+{
+    "type": "form",
+    "form": {
+        "title": "Settings",
+        "fields": [
+            {
+                "id": "notifications",
+                "type": "switch",
+                "label": "Enable notifications",
+                "default": True,
+                "hint": "Receive alerts when tasks complete"
+            },
+            {
+                "id": "volume",
+                "type": "slider",
+                "label": "Volume",
+                "min": 0,
+                "max": 100,
+                "step": 5,
+                "unit": "%",
+                "default": 75,
+                "hint": "Adjust audio level"
+            }
+        ]
+    }
+}
+```
+
+**Live update forms:**
+
+For forms where changes should apply immediately (no submit button), set `liveUpdate: true`:
+
+```python
+{
+    "type": "form",
+    "form": {
+        "title": "Appearance",
+        "liveUpdate": True,  # Changes apply on slider release
+        "fields": [
+            {
+                "id": "opacity",
+                "type": "slider",
+                "label": "Opacity",
+                "min": 0,
+                "max": 1,
+                "step": 0.05,
+                "default": 0.8,
+            }
+        ]
+    },
+    "context": "liveform:appearance"
+}
+```
+
+When a slider value changes in a live form, handler receives:
+
+```python
+{
+    "step": "formSlider",
+    "fieldId": "opacity",
+    "value": 0.75,
+    "context": "liveform:appearance",
+    "session": "..."
+}
+```
+
+Handler should apply the change and return `noop`:
+
+```python
+if step == "formSlider":
+    field_id = input_data.get("fieldId", "")
+    value = input_data.get("value", 0)
+    
+    # Apply the change
+    save_setting(field_id, value)
+    
+    # Return noop - UI already shows new value
+    print(json.dumps({"type": "noop"}))
+    return
+```
+
+**Example plugin:** [`settings/`](settings/handler.py) - Uses live form for appearance settings
+
+When a switch value changes in a live form, handler receives:
+
+```python
+{
+    "step": "formSwitch",
+    "fieldId": "enableFeature",
+    "value": true,
+    "context": "liveform:settings",
+    "session": "..."
+}
+```
+
+Handler should apply the change and return `noop`:
+
+```python
+if step == "formSwitch":
+    field_id = input_data.get("fieldId", "")
+    value = input_data.get("value", False)
+    
+    # Apply the change
+    save_setting(field_id, value)
+    
+    # Return noop - UI already shows new value
+    print(json.dumps({"type": "noop"}))
+    return
+```
 
 **Hidden fields for multi-step forms:**
 
@@ -790,6 +1073,39 @@ Display an error message.
     "message": "Something went wrong"
 }
 ```
+
+---
+
+### 11. `noop` - No Operation
+
+Signal that the action was handled but no UI update is needed. Use this for optimistic updates where the UI already reflects the change (e.g., slider adjustments).
+
+```python
+{
+    "type": "noop"
+}
+```
+
+**When to use `noop`:**
+
+| Use Case | Why |
+|----------|-----|
+| Slider value changes | UI already shows new position from drag |
+| Toggle states with immediate visual feedback | Checkbox/switch already toggled |
+| Background operations | Action completed, no UI change needed |
+
+**Important:** Even when returning `noop`, your handler should still handle errors properly. If an error occurs during the action, return an `error` response instead:
+
+```python
+def handle_slider(item_id: str, value: int) -> None:
+    try:
+        apply_value(item_id, value)
+        print(json.dumps({"type": "noop"}))
+    except Exception as e:
+        print(json.dumps({"type": "error", "message": str(e)}))
+```
+
+**Example plugin:** [`sound/`](sound/handler.py) - Uses `noop` for volume slider adjustments
 
 ---
 
@@ -1552,6 +1868,7 @@ Users navigate with:
 - **Escape** - Go back one step (single) / close plugin entirely (double-tap)
 - **Ctrl+1 through Ctrl+6** - Execute plugin actions (toolbar buttons)
 - **Tab / Shift+Tab** - Cycle through item action buttons
+- **Ctrl+Shift+H/L** - Decrease/increase slider value (for slider items)
 
 ### Back Navigation
 
@@ -1949,6 +2266,7 @@ The test-harness validates all response types against the Hamr protocol:
 | `form`          | `type`, `form.fields[]` with `id`, `type`|
 | `prompt`        | `type`, `prompt` object                  |
 | `error`         | `type`, `message`                        |
+| `noop`          | `type` only                              |
 
 ### Exit Codes
 

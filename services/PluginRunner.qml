@@ -698,41 +698,99 @@ Singleton {
          sendToPlugin(input);
      }
     
-     // Select an item and optionally execute an action
-     function selectItem(itemId, actionId) {
-         if (!root.activePlugin) return;
-         
-         // Store selection for context in subsequent search calls
-         root.lastSelectedItem = itemId;
-         
-         // Track the step type for depth management
-         // Navigation depth increases when:
-         // - Default item click (no actionId) that returns a view - user is drilling down
-         // - NOT for action button clicks (actionId set) - these modify current view
-         // - NOT for special IDs that are known to not navigate
-         const nonNavigatingIds = ["__back__", "__empty__", "__form_cancel__"];
-         const isDefaultClick = !actionId;  // No action button clicked, just the item itself
-         if (isDefaultClick && !nonNavigatingIds.includes(itemId)) {
-             root.pendingNavigation = true;
-         }
-         
-         const input = {
-             step: "action",
-             selected: { id: itemId },
-             session: root.activePlugin.session
-         };
-         
-         if (actionId) {
-             input.action = actionId;
-         }
-         
-         // Include context if set (handler needs it for navigation state)
-         if (root.pluginContext) {
-             input.context = root.pluginContext;
-         }
-         
-         sendToPlugin(input);
-     }
+      // Select an item and optionally execute an action
+      function selectItem(itemId, actionId) {
+          if (!root.activePlugin) return;
+          
+          // Store selection for context in subsequent search calls
+          root.lastSelectedItem = itemId;
+          
+          // Track the step type for depth management
+          // Navigation depth increases when:
+          // - Default item click (no actionId) that returns a view - user is drilling down
+          // - NOT for action button clicks (actionId set) - these modify current view
+          // - NOT for special IDs that are known to not navigate
+          const nonNavigatingIds = ["__back__", "__empty__", "__form_cancel__"];
+          const isDefaultClick = !actionId;  // No action button clicked, just the item itself
+          if (isDefaultClick && !nonNavigatingIds.includes(itemId)) {
+              root.pendingNavigation = true;
+          }
+          
+          const input = {
+              step: "action",
+              selected: { id: itemId },
+              session: root.activePlugin.session
+          };
+          
+          if (actionId) {
+              input.action = actionId;
+          }
+          
+          // Include context if set (handler needs it for navigation state)
+          if (root.pluginContext) {
+              input.context = root.pluginContext;
+          }
+          
+          sendToPlugin(input);
+      }
+      
+      // Send slider value change to active plugin (for result item sliders)
+      function sliderValueChanged(itemId, value) {
+          if (!root.activePlugin) return;
+          
+          const input = {
+              step: "action",
+              selected: { id: itemId },
+              action: "slider",
+              value: value,
+              session: root.activePlugin.session
+          };
+          
+          // Include context if set
+          if (root.pluginContext) {
+              input.context = root.pluginContext;
+          }
+          
+          sendToPlugin(input);
+      }
+      
+      // Send form slider value change to active plugin (for live form updates)
+      function formSliderValueChanged(fieldId, value) {
+          if (!root.activePlugin) return;
+          
+          const input = {
+              step: "formSlider",
+              fieldId: fieldId,
+              value: value,
+              session: root.activePlugin.session
+          };
+          
+          // Include context if set
+          if (root.pluginContext) {
+              input.context = root.pluginContext;
+          }
+          
+          sendToPlugin(input);
+      }
+      
+      // Send form switch value change to active plugin (for live form updates)
+      function formSwitchValueChanged(fieldId, value) {
+          if (!root.activePlugin) return;
+          
+          const input = {
+              step: "formSwitch",
+              fieldId: fieldId,
+              value: value,
+              session: root.activePlugin.session
+          };
+          
+          // Include context if set
+          if (root.pluginContext) {
+              input.context = root.pluginContext;
+          }
+          
+          sendToPlugin(input);
+      }
     
      // Submit form data to active plugin
      function submitForm(formData) {
@@ -1208,6 +1266,10 @@ Singleton {
              case "error":
                  root.pluginError = response.message ?? "Unknown error";
                  console.warn(`[PluginRunner] Error: ${root.pluginError}`);
+                 break;
+             
+             case "noop":
+                 // No operation - used for actions that don't need UI refresh (e.g., slider adjustments)
                  break;
                  
              default:

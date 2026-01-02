@@ -85,4 +85,22 @@ QtObject {
      //              metadata: [{label, value}], actions: [{id, name, icon}],
      //              detachable: bool }
      property var preview: undefined
+     
+     // ==================== SLIDER ITEM SUPPORT ====================
+     // For resultType === "slider" items
+     property real value: 0
+     property real min: 0
+     property real max: 100
+     property real step: 1
+     property string displayValue: ""
+     
+     // ==================== VISUAL ENHANCEMENTS ====================
+     // Badges: array of { label, value, icon, image }
+     property var badges: []
+     // Graph: { data: number[], min?, max? }
+     property var graph: null
+     // Gauge: { value, max, label? }
+     property var gauge: null
+     // Progress: { value, max, label?, color? }
+     property var progress: null
 }

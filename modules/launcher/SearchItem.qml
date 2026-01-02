@@ -36,6 +36,28 @@ RippleButton {
     property string bigText: entry?.iconType === LauncherSearchResult.IconType.Text ? entry?.iconName ?? "" : ""
     property string materialSymbol: entry?.iconType === LauncherSearchResult.IconType.Material ? entry?.iconName ?? "" : ""
     property string thumbnail: entry?.thumbnail ?? ""
+    property var badges: entry?.badges ?? []
+    property var graphData: entry?.graph ?? null
+    property var gaugeData: entry?.gauge ?? null
+    // Progress bar properties
+    property var progressData: entry?.progress ?? null
+    property bool hasProgress: progressData !== null
+    // Slider item properties
+    property bool isSliderItem: entry?.resultType === "slider" || entry?.type === "slider"
+    property real sliderValue: entry?.value ?? 0
+    property real sliderMin: entry?.min ?? 0
+    property real sliderMax: entry?.max ?? 100
+    property real sliderStep: entry?.step ?? 1
+    property string sliderDisplayValue: entry?.displayValue ?? ""
+    property string sliderUnit: entry?.unit ?? ""
+    
+    function adjustSlider(direction) {
+        if (!isSliderItem) return
+        const delta = direction * sliderStep
+        const newValue = Math.max(sliderMin, Math.min(sliderMax, itemSlider.value + delta))
+        itemSlider.value = newValue
+        PluginRunner.sliderValueChanged(entry?.id ?? "", newValue)
+    }
     // Check running state dynamically from WindowManager for apps
     // This ensures correct state even for history items (type "Recent")
     property int windowCount: {
@@ -218,6 +240,20 @@ RippleButton {
         Qt.callLater(() => { GlobalStates.launcherOpen = false })
     }
     Keys.onPressed: (event) => {
+         // Slider keyboard controls (arrow keys)
+         if (root.isSliderItem) {
+             if (event.key === Qt.Key_Left) {
+                 root.adjustSlider(-1)
+                 event.accepted = true
+                 return
+             }
+             if (event.key === Qt.Key_Right) {
+                 root.adjustSlider(1)
+                 event.accepted = true
+                 return
+             }
+         }
+         
          if (event.key === Qt.Key_Delete && event.modifiers === Qt.ShiftModifier) {
              const deleteAction = root.entry.actions.find(action => action.name === "Delete" || action.name === "Remove");
 
@@ -261,7 +297,7 @@ RippleButton {
         Item {
             id: iconContainer
             Layout.alignment: Qt.AlignVCenter
-            visible: root.thumbnail !== "" || root.iconType !== LauncherSearchResult.IconType.None
+            visible: root.thumbnail !== "" || root.iconType !== LauncherSearchResult.IconType.None || root.graphData !== null || root.gaugeData !== null
              
              property int containerSize: Appearance.sizes.resultIconSize
             implicitWidth: containerSize
@@ -292,8 +328,24 @@ RippleButton {
                 }
             }
             
+            LineGraph {
+                visible: !thumbnailRect.visible && root.graphData !== null
+                anchors.centerIn: parent
+                data: root.graphData?.data ?? []
+                size: Appearance.sizes.resultIconSize
+            }
+            
+            Gauge {
+                visible: !thumbnailRect.visible && root.gaugeData !== null && root.graphData === null
+                anchors.centerIn: parent
+                value: root.gaugeData?.value ?? 0
+                max: root.gaugeData?.max ?? 100
+                label: root.gaugeData?.label ?? ""
+                size: Appearance.sizes.resultIconSize
+            }
+            
             IconImage {
-                visible: !thumbnailRect.visible && root.iconType === LauncherSearchResult.IconType.System
+                visible: !thumbnailRect.visible && root.iconType === LauncherSearchResult.IconType.System && root.graphData === null && root.gaugeData === null
                 anchors.centerIn: parent
                 source: {
                     if (!root.iconName) return "";
@@ -305,7 +357,7 @@ RippleButton {
             }
             
             MaterialSymbol {
-                visible: !thumbnailRect.visible && root.iconType === LauncherSearchResult.IconType.Material
+                visible: !thumbnailRect.visible && root.iconType === LauncherSearchResult.IconType.Material && root.graphData === null && root.gaugeData === null
                 anchors.centerIn: parent
                 text: root.materialSymbol
                 iconSize: 26
@@ -313,7 +365,7 @@ RippleButton {
             }
             
             StyledText {
-                visible: !thumbnailRect.visible && root.iconType === LauncherSearchResult.IconType.Text
+                visible: !thumbnailRect.visible && root.iconType === LauncherSearchResult.IconType.Text && root.graphData === null && root.gaugeData === null
                 anchors.centerIn: parent
                 text: root.bigText
                 font.pixelSize: Appearance.font.pixelSize.larger
@@ -345,24 +397,27 @@ RippleButton {
                 }
             }
             RowLayout {
-             Repeater {
-                     model: (root.query == root.itemName ? [] : root.urls).slice(0, 3)
+                spacing: 4
+                
+                Repeater {
+                    model: (root.query == root.itemName ? [] : root.urls).slice(0, 3)
                     Favicon {
                         required property var modelData
                         size: parent.height
                         url: modelData
                     }
                 }
-                 StyledText {
-                     Layout.fillWidth: true
-                     id: nameText
-                     textFormat: Text.StyledText
+                
+                StyledText {
+                    id: nameText
+                    textFormat: Text.StyledText
                     font.pixelSize: Appearance.font.pixelSize.small
                     font.family: Appearance.font.family[root.fontType]
                     color: Appearance.m3colors.m3onSurface
                     horizontalAlignment: Text.AlignLeft
                     elide: Text.ElideRight
                     text: root.displayContent
+                    Layout.fillWidth: root.badges.length === 0
 
                     HoverHandler {
                         id: nameHover
@@ -375,27 +430,114 @@ RippleButton {
                         anchors.left: nameText.left
                     }
                 }
+                
+                Item { Layout.fillWidth: true }
             }
              StyledText {
                  Layout.fillWidth: true
-                visible: root.itemComment !== ""
-                font.pixelSize: Appearance.font.pixelSize.smaller
+                visible: root.itemComment !== "" && !root.hasProgress
+                font.pixelSize: Appearance.font.pixelSize.smallest
                 font.family: Appearance.font.family.monospace
                 color: Appearance.colors.colSubtext
                 horizontalAlignment: Text.AlignLeft
                 elide: Text.ElideMiddle
                 text: root.itemComment
             }
+            
+            // Progress bar
+            RowLayout {
+                visible: root.hasProgress
+                Layout.fillWidth: true
+                spacing: 8
+                
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 4
+                    radius: 2
+                    color: Appearance.colors.colSurfaceContainerHigh
+                    
+                    Rectangle {
+                        width: parent.width * ((root.progressData?.value ?? 0) / (root.progressData?.max ?? 100))
+                        height: parent.height
+                        radius: parent.radius
+                        color: root.progressData?.color ? Qt.color(root.progressData.color) : Appearance.colors.colPrimary
+                        
+                        Behavior on width {
+                            NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                        }
+                    }
+                }
+                
+                StyledText {
+                    visible: root.progressData?.label ?? false
+                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.family: Appearance.font.family.monospace
+                    color: Appearance.colors.colSubtext
+                    text: root.progressData?.label ?? ""
+                }
+            }
+        }
+
+        // Slider for slider items
+        Slider {
+            id: itemSlider
+            visible: root.isSliderItem
+            Layout.alignment: Qt.AlignVCenter
+            Layout.preferredWidth: 200
+            min: root.sliderMin
+            max: root.sliderMax
+            step: root.sliderStep
+            displayValue: root.sliderDisplayValue
+            unit: root.sliderUnit
+            
+            // Initialize value from entry, but don't bind (allows local updates)
+            Component.onCompleted: value = root.sliderValue
+            
+            // Update only when entry changes (new item selected)
+            Connections {
+                target: root
+                function onEntryChanged() {
+                    if (root.isSliderItem) {
+                        itemSlider.value = root.sliderValue
+                    }
+                }
+            }
+            
+            onValueCommitted: (newValue) => {
+                PluginRunner.sliderValueChanged(root.entry?.id ?? "", newValue)
+            }
+        }
+        
+        // Badges for slider items
+        RowLayout {
+            visible: root.isSliderItem && root.badges.length > 0
+            Layout.alignment: Qt.AlignVCenter
+            spacing: 8
+            
+            Repeater {
+                model: root.badges.slice(0, 5)
+                
+                delegate: Badge {
+                    required property var modelData
+                    text: modelData.text ?? ""
+                    image: modelData.image ?? ""
+                    icon: modelData.icon ?? ""
+                    backgroundColor: modelData.background ? Qt.color(modelData.background) : Appearance.colors.colSurfaceContainerHighest
+                    textColor: modelData.color ? Qt.color(modelData.color) : Appearance.m3colors.m3onSurface
+                }
+            }
         }
 
         RowLayout {
+            visible: !root.isSliderItem
             Layout.alignment: Qt.AlignVCenter
             Layout.fillHeight: false
             spacing: 4
             
+            // Primary action hint (shown when selected)
             RowLayout {
                 id: primaryActionHint
-                Layout.rightMargin: 10
+                Layout.rightMargin: 6
                 spacing: 4
                 opacity: root.isSelected ? 1 : 0
                 visible: opacity > 0
@@ -412,6 +554,21 @@ RippleButton {
                     text: root.itemClickActionName
                     font.pixelSize: Appearance.font.pixelSize.smallest
                     color: Appearance.m3colors.m3outline
+                }
+            }
+            
+            // Badges (always shown)
+            Repeater {
+                model: root.badges.slice(0, 5)
+                
+                delegate: Badge {
+                    required property var modelData
+                    Layout.rightMargin: 4
+                    text: modelData.text ?? ""
+                    image: modelData.image ?? ""
+                    icon: modelData.icon ?? ""
+                    backgroundColor: modelData.background ? Qt.color(modelData.background) : Appearance.colors.colSurfaceContainerHighest
+                    textColor: modelData.color ? Qt.color(modelData.color) : Appearance.m3colors.m3onSurface
                 }
             }
             

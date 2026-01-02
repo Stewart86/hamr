@@ -305,16 +305,27 @@ Singleton {
                  name: item.name,
                  comment: item.description ?? "",
                  verb: item.verb ?? "Select",
-                 type: pluginName,
+                 type: item.type === "slider" ? "slider" : pluginName,
+                 resultType: item.type === "slider" ? "slider" : LauncherSearchResult.ResultType.PluginResult,
                  iconName: iconName,
                  iconType: isSystemIcon ? LauncherSearchResult.IconType.System : LauncherSearchResult.IconType.Material,
-                 resultType: LauncherSearchResult.ResultType.PluginResult,
                  pluginId: pluginId,
                  pluginItemId: itemId,
                  pluginActions: item.actions ?? [],
                  thumbnail: item.thumbnail ?? "",
                  preview: item.preview ?? undefined,
                  actions: itemActions,
+                 // Slider properties
+                 value: item.value ?? 0,
+                 min: item.min ?? 0,
+                 max: item.max ?? 100,
+                 step: item.step ?? 1,
+                 displayValue: item.displayValue ?? "",
+                 // Visual enhancements
+                 badges: item.badges ?? [],
+                 graph: item.graph ?? null,
+                 gauge: item.gauge ?? null,
+                 progress: item.progress ?? null,
                  execute: ((capturedItemId, capturedExecuteCommand, capturedExecuteNotify, capturedExecuteName, capturedPluginId, capturedPluginName, capturedIconName) => () => {
                      if (capturedExecuteCommand) {
                          Quickshell.execDetached(capturedExecuteCommand);

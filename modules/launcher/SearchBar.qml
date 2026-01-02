@@ -234,6 +234,8 @@ RowLayout {
     signal selectCurrent()
     signal navigateBack()
     signal exitPluginImmediate()
+    signal sliderDecrease()
+    signal sliderIncrease()
 
     ToolbarTextField {
         id: searchInput
@@ -302,6 +304,18 @@ RowLayout {
             }
             
              if (event.modifiers & Qt.ControlModifier) {
+                 // Ctrl+Shift+H/L: slider control
+                 if ((event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_H) {
+                     root.sliderDecrease();
+                     event.accepted = true;
+                     return;
+                 }
+                 if ((event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_L) {
+                     root.sliderIncrease();
+                     event.accepted = true;
+                     return;
+                 }
+                 
                  // Ctrl+H: in grid/image browser move left, otherwise navigate back
                  if (event.key === Qt.Key_H) {
                      if (GlobalStates.imageBrowserOpen || GlobalStates.gridBrowserOpen) {

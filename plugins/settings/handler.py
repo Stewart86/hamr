@@ -19,7 +19,7 @@ from pathlib import Path
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 CONFIG_PATH = Path.home() / ".config/hamr/config.json"
 
-SETTINGS_SCHEMA: dict[str, dict[str, dict]] = {
+SETTINGS_SCHEMA: dict = {
     "apps": {
         "terminal": {
             "default": "ghostty",
@@ -154,23 +154,35 @@ SETTINGS_SCHEMA: dict[str, dict[str, dict]] = {
     "appearance": {
         "backgroundTransparency": {
             "default": 0.2,
-            "type": "number",
+            "type": "slider",
+            "min": 0,
+            "max": 1,
+            "step": 0.05,
             "description": "Background transparency (0=opaque, 1=transparent)",
         },
         "contentTransparency": {
             "default": 0.2,
-            "type": "number",
+            "type": "slider",
+            "min": 0,
+            "max": 1,
+            "step": 0.05,
             "description": "Content transparency (0=opaque, 1=transparent)",
         },
         "launcherXRatio": {
             "default": 0.5,
-            "type": "number",
-            "description": "Launcher X position (0.0-1.0, 0.5=center)",
+            "type": "slider",
+            "min": 0,
+            "max": 1,
+            "step": 0.05,
+            "description": "Launcher X position (0=left, 0.5=center, 1=right)",
         },
         "launcherYRatio": {
             "default": 0.1,
-            "type": "number",
-            "description": "Launcher Y position (0.0-1.0, 0.1=10% from top)",
+            "type": "slider",
+            "min": 0,
+            "max": 1,
+            "step": 0.05,
+            "description": "Launcher Y position (0=top, 0.5=center, 1=bottom)",
         },
     },
     "sizes": {
@@ -613,6 +625,7 @@ def get_type_icon(setting_type: str) -> str:
     icons = {
         "string": "text_fields",
         "number": "123",
+        "slider": "tune",
         "boolean": "toggle_on",
         "list": "list",
         "readonly": "info",
@@ -638,13 +651,9 @@ def show_edit_form(category: str, key: str, info: dict, current_value):
         fields = [
             {
                 "id": "value",
-                "type": "select",
+                "type": "switch",
                 "label": key,
-                "options": [
-                    {"value": "true", "label": "Yes"},
-                    {"value": "false", "label": "No"},
-                ],
-                "default": "true" if current_value else "false",
+                "default": current_value if current_value is not None else default,
                 "hint": f"{description}\nDefault: {'Yes' if default else 'No'}",
             }
         ]
@@ -657,6 +666,22 @@ def show_edit_form(category: str, key: str, info: dict, current_value):
                 "label": key,
                 "options": [{"value": opt, "label": opt} for opt in options],
                 "default": str(current_value) if current_value else str(default),
+                "hint": f"{description}\nDefault: {default}",
+            }
+        ]
+    elif setting_type == "slider":
+        min_val = info.get("min", 0)
+        max_val = info.get("max", 100)
+        step_val = info.get("step", 1)
+        fields = [
+            {
+                "id": "value",
+                "type": "slider",
+                "label": key,
+                "min": min_val,
+                "max": max_val,
+                "step": step_val,
+                "default": current_value if current_value is not None else default,
                 "hint": f"{description}\nDefault: {default}",
             }
         ]
@@ -700,19 +725,67 @@ def show_edit_form(category: str, key: str, info: dict, current_value):
     )
 
 
-def parse_value(value_str: str, setting_type: str, default):
+def show_appearance_form(config: dict):
+    """Show a live form with all appearance sliders."""
+    appearance = SETTINGS_SCHEMA.get("appearance", {})
+    fields = []
+
+    for key, info in appearance.items():
+        current = get_current_value(config, "appearance", key)
+        fields.append(
+            {
+                "id": f"appearance.{key}",
+                "type": "slider",
+                "label": key,
+                "min": info.get("min", 0),
+                "max": info.get("max", 1),
+                "step": info.get("step", 0.05),
+                "default": current if current is not None else info.get("default"),
+                "hint": info.get("description", ""),
+            }
+        )
+
+    print(
+        json.dumps(
+            {
+                "type": "form",
+                "form": {
+                    "title": "Appearance",
+                    "liveUpdate": True,
+                    "fields": fields,
+                },
+                "context": "liveform:appearance",
+                "navigateForward": True,
+            }
+        )
+    )
+
+
+def parse_value(value_str, setting_type: str, default):
     """Parse string value to correct type."""
     if setting_type == "boolean":
-        return value_str.lower() in ("true", "yes", "1")
+        if isinstance(value_str, bool):
+            return value_str
+        return str(value_str).lower() in ("true", "yes", "1")
+    if setting_type == "slider":
+        # Slider values come as floats directly from form
+        if isinstance(value_str, (int, float)):
+            return float(value_str)
+        try:
+            return float(value_str)
+        except (ValueError, TypeError):
+            return default
     if setting_type == "number":
         try:
-            if "." in value_str:
+            if isinstance(value_str, (int, float)):
+                return value_str
+            if "." in str(value_str):
                 return float(value_str)
             return int(value_str)
-        except ValueError:
+        except (ValueError, TypeError):
             return default
     if setting_type == "list":
-        if not value_str.strip():
+        if not str(value_str).strip():
             return []
         return [v.strip() for v in value_str.split(",")]
     return value_str
@@ -761,6 +834,53 @@ def main():
                 }
             )
         )
+        return
+
+    # Handle live form slider changes
+    if step == "formSlider":
+        field_id = input_data.get("fieldId", "")
+        value = input_data.get("value", 0)
+
+        # field_id is like "appearance.backgroundTransparency"
+        if "." in field_id:
+            category, key = field_id.rsplit(".", 1)
+            schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
+            if schema:
+                config = set_nested_value(config, field_id, float(value))
+                save_config(config)
+
+        # Return noop - UI already shows the new value
+        print(json.dumps({"type": "noop"}))
+        return
+
+    # Handle live form switch changes
+    if step == "formSwitch":
+        field_id = input_data.get("fieldId", "")
+        value = input_data.get("value", False)
+
+        # For edit forms, field_id is "value" and context is "edit:category.key"
+        # For live forms, field_id is the full path like "search.shellHistory.enable"
+        if field_id == "value" and context.startswith("edit:"):
+            path = context.split(":", 1)[1]
+            parts = path.rsplit(".", 1)
+            if len(parts) == 2:
+                category, key = parts
+                schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
+                if schema:
+                    config = set_nested_value(config, path, bool(value))
+                    save_config(config)
+        elif "." in field_id:
+            # Live form with full path field id
+            parts = field_id.rsplit(".", 1)
+            if len(parts) == 2:
+                category, key = parts
+                schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
+                if schema:
+                    config = set_nested_value(config, field_id, bool(value))
+                    save_config(config)
+
+        # Return noop - UI already shows the new value
+        print(json.dumps({"type": "noop"}))
         return
 
     if step == "search":
@@ -934,7 +1054,22 @@ def main():
             return
 
         if selected_id == "__form_cancel__":
-            if context.startswith("editActionField:"):
+            if context.startswith("liveform:"):
+                # Live form cancel - go back to categories
+                print(
+                    json.dumps(
+                        {
+                            "type": "results",
+                            "results": get_categories(),
+                            "inputMode": "realtime",
+                            "clearInput": True,
+                            "context": "",
+                            "placeholder": "Search settings or select category...",
+                            "pluginActions": get_plugin_actions(),
+                        }
+                    )
+                )
+            elif context.startswith("editActionField:"):
                 # Format: editActionField:1.prefix - go back to action fields
                 parts = context.split(":", 1)[1]
                 action_num = int(parts.split(".")[0])
@@ -986,7 +1121,23 @@ def main():
             return
 
         if selected_id == "__back__":
-            if context.startswith("category:action:"):
+            if context.startswith("liveform:"):
+                # Going back from live form to categories
+                print(
+                    json.dumps(
+                        {
+                            "type": "results",
+                            "results": get_categories(),
+                            "inputMode": "realtime",
+                            "clearInput": True,
+                            "context": "",
+                            "placeholder": "Search settings or select category...",
+                            "pluginActions": get_plugin_actions(),
+                            "navigationDepth": 0,
+                        }
+                    )
+                )
+            elif context.startswith("category:action:"):
                 # Going back from action fields to action list
                 settings = get_settings_for_category(config, "search.actionBarHints")
                 print(
@@ -1035,6 +1186,12 @@ def main():
 
         if selected_id.startswith("category:"):
             category = selected_id.split(":", 1)[1]
+
+            # Appearance category shows a live form with all sliders
+            if category == "appearance":
+                show_appearance_form(config)
+                return
+
             settings = get_settings_for_category(config, category)
             print(
                 json.dumps(

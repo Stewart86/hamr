@@ -278,6 +278,22 @@ Item {
                             }
                         }
                     }
+                    onSliderDecrease: {
+                        if (appResults.count > 0 && appResults.currentIndex >= 0) {
+                            const currentItem = appResults.itemAtIndex(appResults.currentIndex);
+                            if (currentItem?.isSliderItem) {
+                                currentItem.adjustSlider(-1);
+                            }
+                        }
+                    }
+                    onSliderIncrease: {
+                        if (appResults.count > 0 && appResults.currentIndex >= 0) {
+                            const currentItem = appResults.itemAtIndex(appResults.currentIndex);
+                            if (currentItem?.isSliderItem) {
+                                currentItem.adjustSlider(1);
+                            }
+                        }
+                    }
                     onSelectCurrent: {
                         // If imageBrowser is open, activate current image
                         if (root.showImageBrowser) {
@@ -573,6 +589,14 @@ Item {
                     onCancelRequested: {
                         formCancelModal.show();
                     }
+                    
+                    onSliderValueChanged: (fieldId, value) => {
+                        PluginRunner.formSliderValueChanged(fieldId, value);
+                    }
+                    
+                    onSwitchValueChanged: (fieldId, value) => {
+                        PluginRunner.formSwitchValueChanged(fieldId, value);
+                    }
                 }
             }
 
@@ -721,7 +745,7 @@ Item {
                     }
 
                     delegate: SearchItem {
-                         anchors.left: parent?.left
+                        anchors.left: parent?.left
                         anchors.right: parent?.right
                         entry: modelData
                         query: StringUtils.cleanOnePrefix(root.searchingText, [Config.options.search.prefix.action, Config.options.search.prefix.app, Config.options.search.prefix.clipboard, Config.options.search.prefix.emojis, Config.options.search.prefix.math, Config.options.search.prefix.shellCommand, Config.options.search.prefix.webSearch])
