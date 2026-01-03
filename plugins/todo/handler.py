@@ -53,6 +53,14 @@ def load_todos() -> list[dict]:
         return []
 
 
+def get_status(todos: list[dict]) -> dict:
+    """Get plugin status with pending count badge"""
+    pending = sum(1 for t in todos if not t.get("done", False))
+    if pending > 0:
+        return {"badges": [{"text": str(pending)}]}
+    return {"badges": []}
+
+
 def save_todos(todos: list[dict]) -> None:
     """Save todos to file (sorted by creation date, newest first)"""
     # Sort before saving to maintain consistent order
@@ -146,6 +154,7 @@ def refresh_sidebar():
 
 def respond(
     results: list[dict],
+    todos: list[dict],
     refresh_ui: bool = False,
     clear_input: bool = False,
     context: str = "",
@@ -160,6 +169,7 @@ def respond(
         "results": results,
         "inputMode": input_mode,
         "placeholder": placeholder,
+        "status": get_status(todos),
     }
     if plugin_actions is not None:
         response["pluginActions"] = plugin_actions
@@ -185,9 +195,14 @@ def main():
 
     todos = load_todos()
 
+    if step == "index":
+        print(json.dumps({"type": "index", "items": [], "status": get_status(todos)}))
+        return
+
     if step == "initial":
         respond(
             get_todo_results(todos),
+            todos,
             plugin_actions=get_plugin_actions(todos),
         )
         return
@@ -208,6 +223,7 @@ def main():
                 save_todos(todos)
                 respond(
                     get_todo_results(todos),
+                    todos,
                     refresh_ui=True,
                     clear_input=True,
                     plugin_actions=get_plugin_actions(todos),
@@ -216,6 +232,7 @@ def main():
             # Empty query - stay in add mode
             respond(
                 [],
+                todos,
                 placeholder="Type new task... (Enter to add)",
                 context="__add_mode__",
                 input_mode="submit",
@@ -233,6 +250,7 @@ def main():
                     save_todos(todos)
                     respond(
                         get_todo_results(todos),
+                        todos,
                         refresh_ui=True,
                         clear_input=True,
                         plugin_actions=get_plugin_actions(todos),
@@ -242,6 +260,7 @@ def main():
                     # Show current value in placeholder
                     respond(
                         [],
+                        todos,
                         placeholder=f"Edit: {old_content[:50]}{'...' if len(old_content) > 50 else ''} (Enter to save)",
                         context=context,
                         input_mode="submit",
@@ -284,10 +303,11 @@ def main():
                             ],
                         }
                     )
-            respond(filtered, plugin_actions=get_plugin_actions(todos))
+            respond(filtered, todos, plugin_actions=get_plugin_actions(todos))
         else:
             respond(
                 get_todo_results(todos),
+                todos,
                 plugin_actions=get_plugin_actions(todos),
             )
         return
@@ -302,6 +322,7 @@ def main():
                 # Enter add mode (submit mode) - empty results, placeholder tells user what to do
                 respond(
                     [],
+                    todos,
                     placeholder="Type new task... (Enter to add)",
                     clear_input=True,
                     context="__add_mode__",
@@ -316,6 +337,7 @@ def main():
                 save_todos(todos)
                 respond(
                     get_todo_results(todos),
+                    todos,
                     refresh_ui=True,
                     clear_input=True,
                     plugin_actions=get_plugin_actions(todos),
@@ -327,6 +349,7 @@ def main():
         if item_id == "__back__":
             respond(
                 get_todo_results(todos),
+                todos,
                 clear_input=True,
                 plugin_actions=get_plugin_actions(todos),
             )
@@ -336,6 +359,7 @@ def main():
         if item_id == "__add__":
             respond(
                 [],
+                todos,
                 placeholder="Type new task... (Enter to add)",
                 clear_input=True,
                 context="__add_mode__",
@@ -360,6 +384,7 @@ def main():
                     save_todos(todos)
                     respond(
                         get_todo_results(todos),
+                        todos,
                         refresh_ui=True,
                         clear_input=True,
                         plugin_actions=get_plugin_actions(todos),
@@ -370,6 +395,7 @@ def main():
                     pass
             respond(
                 get_todo_results(todos),
+                todos,
                 plugin_actions=get_plugin_actions(todos),
                 navigate_forward=False,  # Override pendingNavigation
             )
@@ -388,6 +414,7 @@ def main():
                         save_todos(todos)
                         respond(
                             get_todo_results(todos),
+                            todos,
                             refresh_ui=True,
                             clear_input=True,
                             plugin_actions=get_plugin_actions(todos),
@@ -398,6 +425,7 @@ def main():
                         pass
             respond(
                 get_todo_results(todos),
+                todos,
                 clear_input=True,
                 plugin_actions=get_plugin_actions(todos),
             )
@@ -406,6 +434,7 @@ def main():
         if item_id == "__empty__":
             respond(
                 get_todo_results(todos),
+                todos,
                 plugin_actions=get_plugin_actions(todos),
             )
             return
@@ -422,6 +451,7 @@ def main():
                     save_todos(todos)
                     respond(
                         get_todo_results(todos),
+                        todos,
                         refresh_ui=True,
                         plugin_actions=get_plugin_actions(todos),
                         navigate_forward=False,  # Override pendingNavigation
@@ -434,6 +464,7 @@ def main():
                     # Show current value in placeholder - empty results for clean UI
                     respond(
                         [],
+                        todos,
                         placeholder=f"Edit: {content[:50]}{'...' if len(content) > 50 else ''} (Enter to save)",
                         clear_input=True,
                         context=f"__edit__:{todo_idx}",
@@ -447,6 +478,7 @@ def main():
                     save_todos(todos)
                     respond(
                         get_todo_results(todos),
+                        todos,
                         refresh_ui=True,
                         plugin_actions=get_plugin_actions(todos),
                     )
