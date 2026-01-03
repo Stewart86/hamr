@@ -148,13 +148,19 @@ def get_results(
     ]
 
 
-def get_plugin_actions(vol_info: dict) -> list[dict]:
+def get_plugin_actions(vol_info: dict, mic_info: dict) -> list[dict]:
     return [
         {
             "id": "mute-toggle",
             "name": "Mute" if not vol_info["muted"] else "Unmute",
             "icon": "volume_off" if not vol_info["muted"] else "volume_up",
             "active": vol_info["muted"],
+        },
+        {
+            "id": "mic-mute-toggle",
+            "name": "Mute Mic" if not mic_info["muted"] else "Unmute Mic",
+            "icon": "mic_off" if not mic_info["muted"] else "mic",
+            "active": mic_info["muted"],
         },
     ]
 
@@ -196,6 +202,7 @@ def main():
         return
 
     vol_info = get_volume_info()
+    mic_info = get_mic_info()
 
     if step in ("initial", "search"):
         print(
@@ -203,7 +210,7 @@ def main():
                 {
                     "type": "results",
                     "results": get_results(),
-                    "pluginActions": get_plugin_actions(vol_info),
+                    "pluginActions": get_plugin_actions(vol_info, mic_info),
                 }
             )
         )
@@ -234,6 +241,7 @@ def main():
             run_cmd(["wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"])
 
         vol_info = get_volume_info()
+        mic_info = get_mic_info()
         vol_pct = int(vol_info["volume"] * 100)
         mute_status = " [MUTED]" if vol_info["muted"] else ""
         print(
@@ -242,7 +250,7 @@ def main():
                     "type": "results",
                     "results": get_results(),
                     "placeholder": f"Volume: {vol_pct}%{mute_status}",
-                    "pluginActions": get_plugin_actions(vol_info),
+                    "pluginActions": get_plugin_actions(vol_info, mic_info),
                     "navigateForward": False,
                 }
             )
