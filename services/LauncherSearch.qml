@@ -424,6 +424,10 @@ Singleton {
         function onPluginIndexChanged(pluginId) {
             root.rebuildStaticSearchables();
         }
+        function onPluginStatusChanged(pluginId) {
+            // Re-trigger search to update plugin entry badges
+            root.queryChanged();
+        }
     }
 
     onAllActionsChanged: {
@@ -807,15 +811,17 @@ Singleton {
                 : Fuzzy.go(searchString, root.preppedPlugins, { key: "name", limit: 20 }).map(r => r.obj.plugin);
 
             const pluginItems = pluginMatches.map(plugin => {
+                const status = PluginRunner.pluginStatuses[plugin.id];
                 return resultComp.createObject(null, {
                     name: plugin.manifest?.name || plugin.id,
-                    comment: plugin.manifest?.description || "",
+                    comment: status?.description ?? plugin.manifest?.description ?? "",
                     verb: "Open",
                     type: "Plugin",
                     iconName: plugin.manifest?.icon || 'extension',
                     iconType: LauncherSearchResult.IconType.Material,
                     resultType: LauncherSearchResult.ResultType.PluginEntry,
                     pluginId: plugin.id,
+                    badges: status?.badges ?? [],
                     execute: () => {
                         root.recordSearch("workflow", plugin.id, root.query);
                         root.startPlugin(plugin.id);
@@ -936,6 +942,7 @@ Singleton {
                     } else if (item.type === "workflow") {
                         const plugin = pluginMap.get(item.name);
                         if (!plugin) return null;
+                        const status = PluginRunner.pluginStatuses[item.name];
                         return resultComp.createObject(null, {
                             type: "Recent",
                             name: plugin.manifest?.name || item.name,
@@ -943,6 +950,7 @@ Singleton {
                             iconType: LauncherSearchResult.IconType.Material,
                             resultType: LauncherSearchResult.ResultType.PluginEntry,
                             verb: "Open",
+                            badges: status?.badges ?? [],
                             actions: [makeRemoveAction("workflow", item.name)],
                             execute: () => {
                                 root.recordSearch("workflow", item.name, "");

@@ -1172,6 +1172,88 @@ print(json.dumps({
 
 ---
 
+## Plugin Status (Dynamic Badges)
+
+Plugins can display dynamic status information (badges, description override) on their entry in the main launcher list. This is useful for showing counts, alerts, or quick summaries without opening the plugin.
+
+### Setting Status via Response
+
+Include a `status` field in your `results` or `index` response:
+
+```python
+# In any results response
+print(json.dumps({
+    "type": "results",
+    "results": [...],
+    "status": {
+        "badges": [
+            {"text": "5", "background": "#f44336", "color": "#ffffff"}
+        ],
+        "description": "5 pending tasks"  # Optional: overrides manifest description
+    }
+}))
+
+# In index response
+print(json.dumps({
+    "type": "index",
+    "items": [...],
+    "status": {
+        "badges": [{"text": str(len(items))}]
+    }
+}))
+```
+
+### Setting Status via CLI (External Updates)
+
+For updates from external processes or daemons:
+
+```bash
+# Update status from any script
+hamr status todo '{"badges": [{"text": "5"}]}'
+
+# With description override
+hamr status todo '{"badges": [{"text": "!"}], "description": "Action required"}'
+```
+
+### Status Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `badges` | array | Array of badge objects (same format as result badges) |
+| `description` | string | Override the manifest description temporarily |
+
+### Badge Format
+
+Badges use the same format as result item badges:
+
+```python
+{
+    "text": "5",                    # 1-3 characters
+    "background": "#f44336",        # Optional: background color
+    "color": "#ffffff",             # Optional: text color
+    "icon": "star"                  # Optional: material icon instead of text
+}
+```
+
+### Use Cases
+
+| Use Case | Example |
+|----------|---------|
+| Unread count | `{"badges": [{"text": "12"}]}` |
+| Alert/warning | `{"badges": [{"text": "!", "background": "#f44336"}]}` |
+| Status indicator | `{"badges": [{"icon": "sync"}]}` |
+| Multiple badges | `{"badges": [{"text": "3"}, {"icon": "star"}]}` |
+
+### When Status Updates
+
+- **On handler response**: Status updates when plugin returns results/index with `status` field
+- **On reindex**: Plugins with file/event watchers update on data changes
+- **Via IPC**: External scripts can push updates anytime via `hamr status`
+
+**Example plugins:** [`todo/`](todo/handler.py) - Shows pending task count
+
+---
+
 ## Plugin Indexing
 
 Plugins can provide searchable items that appear in the main launcher search without needing to open the plugin first.

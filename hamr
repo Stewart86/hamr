@@ -11,6 +11,7 @@ Commands:
   (none)              Start hamr daemon (use in autostart)
   toggle              Toggle hamr open/close
   plugin <name>       Open a specific plugin directly
+  status <id> <json>  Update plugin status (badges, description)
 
 Options:
   -h, --help          Show this help message
@@ -20,6 +21,7 @@ Examples:
   hamr toggle         Toggle launcher visibility
   hamr plugin clipboard   Open clipboard plugin
   hamr plugin emoji       Open emoji picker
+  hamr status todo '{"badges": [{"text": "5"}]}'
 
 Keybinding examples (Hyprland):
   bind = SUPER, Space, exec, hamr toggle
@@ -46,6 +48,15 @@ case "${1:-}" in
             exit 1
         fi
         exec qs ipc -c hamr call hamr plugin "$2"
+        ;;
+    status)
+        if [[ -z "${2:-}" ]] || [[ -z "${3:-}" ]]; then
+            echo "Error: plugin ID and JSON required" >&2
+            echo "Usage: hamr status <plugin-id> '<json>'" >&2
+            echo "Example: hamr status todo '{\"badges\": [{\"text\": \"5\"}]}'" >&2
+            exit 1
+        fi
+        exec qs ipc -c hamr call pluginRunner updateStatus "$2" "$3"
         ;;
     "")
         exec qs -c hamr

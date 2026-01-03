@@ -92,6 +92,30 @@ Singleton {
      // Signal when plugin index is updated (for LauncherSearch to rebuild searchables)
      signal pluginIndexChanged(string pluginId)
 
+    // ==================== PLUGIN STATUS ====================
+    // Plugins can provide dynamic status (badges, description override) that
+    // appears on their entry in the main launcher list.
+    // Updated via: response.status field, or IPC call "hamr status <plugin> <json>"
+    
+    // Status per plugin: { pluginId: { badges: [...], description: "..." } }
+    property var pluginStatuses: ({})
+    
+    // Signal when plugin status changes (for LauncherSearch to update entries)
+    signal pluginStatusChanged(string pluginId)
+    
+    // Update status for a plugin (called from response handling or IPC)
+    function updatePluginStatus(pluginId, status) {
+        if (!status || typeof status !== "object") return;
+        
+        const newStatuses = Object.assign({}, root.pluginStatuses);
+        newStatuses[pluginId] = {
+            badges: status.badges ?? [],
+            description: status.description ?? null
+        };
+        root.pluginStatuses = newStatuses;
+        root.pluginStatusChanged(pluginId);
+    }
+
     // ==================== PLUGIN INDEXING ====================
     // Plugins can provide searchable items via step: "index"
     // These items appear in main search without entering the plugin
@@ -253,6 +277,11 @@ Singleton {
                 lastIndexed: now
             };
             console.log(`[PluginRunner] Indexed ${pluginId}: ${itemCount} items (full)`);
+        }
+        
+        // Update plugin status if provided in index response
+        if (response.status) {
+            root.updatePluginStatus(pluginId, response.status);
         }
         
         // Notify listeners (LauncherSearch) that index changed
@@ -1115,31 +1144,31 @@ Singleton {
          
          switch (response.type) {
               case "results":
-                  root.pluginResults = response.results ?? [];
-                  root.pluginCard = null;
-                  root.pluginForm = null;
-                  if (response.placeholder !== undefined) {
-                      root.pluginPlaceholder = response.placeholder ?? "";
-                  }
-                  // Allow handler to set the context for subsequent search calls
-                  if (response.context !== undefined) {
-                      root.pluginContext = response.context ?? "";
-                  }
-                  // Set input mode from response (defaults to realtime)
-                  root.inputMode = response.inputMode ?? "realtime";
-                  // Allow handler to override poll interval dynamically
-                  if (response.pollInterval !== undefined) {
-                      root.pollInterval = response.pollInterval ?? 0;
-                  }
-                  // Plugin-level actions (toolbar buttons)
-                  if (response.pluginActions !== undefined) {
-                      root.pluginActions = response.pluginActions ?? [];
-                  }
-                  if (response.clearInput) {
-                      root.clearInputRequested();
-                  }
-                  root.resultsReady(root.pluginResults);
-                  break;
+                   root.pluginResults = response.results ?? [];
+                   root.pluginCard = null;
+                   root.pluginForm = null;
+                   if (response.placeholder !== undefined) {
+                       root.pluginPlaceholder = response.placeholder ?? "";
+                   }
+                   if (response.context !== undefined) {
+                       root.pluginContext = response.context ?? "";
+                   }
+                   root.inputMode = response.inputMode ?? "realtime";
+                   if (response.pollInterval !== undefined) {
+                       root.pollInterval = response.pollInterval ?? 0;
+                   }
+                   if (response.pluginActions !== undefined) {
+                       root.pluginActions = response.pluginActions ?? [];
+                   }
+                   if (response.clearInput) {
+                       root.clearInputRequested();
+                   }
+                   // Update plugin status if provided
+                   if (response.status && root.activePlugin?.id) {
+                       root.updatePluginStatus(root.activePlugin.id, response.status);
+                   }
+                   root.resultsReady(root.pluginResults);
+                   break;
                  
              case "card":
                  root.pluginCard = response.card ?? null;
@@ -1496,6 +1525,18 @@ Singleton {
          // Usage: qs -c hamr ipc call pluginRunner reindexAll
          function reindexAll(): void {
              root.indexAllPlugins();
+         }
+         
+         // Update plugin status (badges, description)
+         // Usage: hamr status <pluginId> '<json>'
+         // Example: hamr status todo '{"badges": [{"text": "5"}]}'
+         function updateStatus(pluginId: string, statusJson: string): void {
+             try {
+                 const status = JSON.parse(statusJson);
+                 root.updatePluginStatus(pluginId, status);
+             } catch (e) {
+                 console.warn(`[PluginRunner] Failed to parse status JSON: ${e}`);
+             }
          }
      }
  }
