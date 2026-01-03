@@ -87,7 +87,6 @@ def get_results(
     vol_info = get_volume_info()
     mic_info = get_mic_info()
 
-    # Use override if provided (for slider updates), otherwise use system value
     vol_pct = (
         vol_override if vol_override is not None else int(vol_info["volume"] * 100)
     )
@@ -99,38 +98,52 @@ def get_results(
         {
             "id": "volume",
             "type": "slider",
-            "name": "Volume" + (" [MUTED]" if vol_info["muted"] else ""),
+            "name": "Volume",
             "icon": get_volume_icon(vol_pct / 100, vol_info["muted"]),
             "value": vol_pct,
             "min": 0,
             "max": 100,
             "step": 5,
             "unit": "%",
+            "badges": [
+                {
+                    "icon": "volume_off" if vol_info["muted"] else "volume_up",
+                    "background": "#f44336" if vol_info["muted"] else "#4caf50",
+                    "color": "#ffffff",
+                }
+            ],
+            "actions": [
+                {
+                    "id": "mute-toggle",
+                    "name": "Unmute" if vol_info["muted"] else "Mute",
+                    "icon": "volume_up" if vol_info["muted"] else "volume_off",
+                }
+            ],
         },
         {
             "id": "mic",
             "type": "slider",
-            "name": "Microphone" + (" [MUTED]" if mic_info["muted"] else ""),
+            "name": "Microphone",
             "icon": "mic_off" if mic_info["muted"] else "mic",
             "value": mic_pct,
             "min": 0,
             "max": 100,
             "step": 5,
             "unit": "%",
-        },
-        {
-            "id": "mute-toggle",
-            "name": "Toggle Mute",
-            "description": "Mute/unmute audio",
-            "icon": "volume_off",
-            "verb": "Toggle",
-        },
-        {
-            "id": "mic-mute-toggle",
-            "name": "Toggle Mic Mute",
-            "description": "Mute/unmute microphone",
-            "icon": "mic_off",
-            "verb": "Toggle",
+            "badges": [
+                {
+                    "icon": "mic_off" if mic_info["muted"] else "mic",
+                    "background": "#f44336" if mic_info["muted"] else "#4caf50",
+                    "color": "#ffffff",
+                }
+            ],
+            "actions": [
+                {
+                    "id": "mic-mute-toggle",
+                    "name": "Unmute" if mic_info["muted"] else "Mute",
+                    "icon": "mic" if mic_info["muted"] else "mic_off",
+                }
+            ],
         },
     ]
 
@@ -211,17 +224,15 @@ def main():
             elif selected_id == "mic":
                 set_mic_volume(new_value)
 
-            # No refresh needed - slider already shows correct position
             print(json.dumps({"type": "noop"}))
             return
 
-        # Handle mute toggles
-        if selected_id == "mute-toggle":
+        # Handle mute toggles (from action buttons on slider items or plugin actions)
+        if action == "mute-toggle" or selected_id == "mute-toggle":
             run_cmd(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])
-        elif selected_id == "mic-mute-toggle":
+        elif action == "mic-mute-toggle" or selected_id == "mic-mute-toggle":
             run_cmd(["wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"])
 
-        # Return updated results
         vol_info = get_volume_info()
         vol_pct = int(vol_info["volume"] * 100)
         mute_status = " [MUTED]" if vol_info["muted"] else ""
