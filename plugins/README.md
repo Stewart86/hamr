@@ -189,11 +189,64 @@ Display a list of selectable items.
 | `verb` | Primary action text shown on hover. Triggered by Enter or click. Use contextual verbs like "Done" / "Undone" for todos, "Open" for files, "Copy" for clipboard items. |
 | `actions` | Up to 4 secondary action buttons. Each needs `id`, `name`, and `icon`. Shown as icon buttons on hover. |
 | `badges` | Up to 5 compact badges shown beside item name. See Visual Enhancements below. |
+| `chips` | Pill-shaped tags for longer text shown beside item name. See Visual Enhancements below. |
 | `graph` | Line graph data shown in place of icon. See Visual Enhancements below. |
 | `gauge` | Circular progress indicator shown in place of icon. See Visual Enhancements below. |
 | `progress` | Horizontal progress bar shown below name (replaces description). See Visual Enhancements below. |
 
 **Example plugins:** [`quicklinks/`](quicklinks/handler.py), [`todo/`](todo/handler.py), [`bitwarden/`](bitwarden/handler.py)
+
+---
+
+### 1b. `update` - Patch Individual Items
+
+Update individual result items without replacing the entire results array. Useful for incremental updates (e.g., slider adjustments, status changes) that should preserve selection and focus.
+
+```python
+{
+    "type": "update",
+    "items": [
+        {
+            "id": "volume",           # Required: item to update (matched by id)
+            "gauge": {                # Optional: update gauge
+                "value": 75,
+                "max": 100,
+                "label": "75%"
+            },
+            "icon": "volume_up",      # Optional: update icon
+            "badges": [               # Optional: update badges
+                {"text": "M", "background": "#f44336"}
+            ],
+            "progress": {             # Optional: update progress bar
+                "value": 50,
+                "max": 100,
+                "label": "50%"
+            }
+        },
+        {
+            "id": "mic",              # Update another item
+            "gauge": {"value": 60, "max": 100, "label": "60%"}
+        }
+    ]
+}
+```
+
+**Key differences from `results`:**
+
+| Aspect | `results` | `update` |
+|--------|-----------|----------|
+| **Array replacement** | Replaces entire `pluginResults` array | Patches individual items in place |
+| **Selection** | Resets to first item | Preserves current selection |
+| **Focus** | Loses focus state | Maintains focus |
+| **Use case** | New view, full refresh | Incremental updates, slider changes |
+
+**When to use `update`:**
+
+- Slider value changes (volume, brightness, progress)
+- Reactive updates to existing items (badges, gauges, progress bars)
+- Live data that doesn't need full list refresh (e.g., status changes)
+
+**Example plugin:** [`sound/`](sound/handler.py) - Uses `update` for volume/microphone slider adjustments
 
 ---
 
@@ -271,7 +324,7 @@ Result items can display additional visual elements for quick data overview.
 
 #### Badges
 
-Small circular indicators shown beside the item name (like avatar initials or status dots). Max 5 badges per item.
+Small circular indicators shown beside the item name (like avatar initials or status dots). Max 5 badges per item. Background is always the theme default; use `color` to tint text/icons.
 
 ```python
 {
@@ -279,9 +332,10 @@ Small circular indicators shown beside the item name (like avatar initials or st
     "name": "Review PR",
     "icon": "task",
     "badges": [
-        {"text": "JD"},                                    # Initials
-        {"text": "!", "background": "#f44336", "color": "#ffffff"},  # Alert
-        {"image": "/path/to/avatar.png"},                  # Avatar image
+        {"text": "JD"},                        # Initials
+        {"text": "!", "color": "#f44336"},     # Alert (red text)
+        {"icon": "verified", "color": "#4caf50"},  # Icon badge (green)
+        {"image": "/path/to/avatar.png"},      # Avatar image
     ]
 }
 ```
@@ -290,8 +344,31 @@ Small circular indicators shown beside the item name (like avatar initials or st
 |-------------|------|-------------|
 | `text` | string | 1-3 characters (displayed as initials) |
 | `image` | string | Image path for avatar (overrides text) |
-| `background` | string | Background color (hex, e.g., "#e53935") |
-| `color` | string | Text color (hex, e.g., "#ffffff") |
+| `icon` | string | Material icon name (overrides text) |
+| `color` | string | Text/icon color (hex, e.g., "#f44336") |
+
+#### Chips
+
+Compact pill-shaped tags for longer text shown beside the item name. Use for labels, categories, or status text that needs more than 1-3 characters.
+
+```python
+{
+    "id": "task-1",
+    "name": "Review PR",
+    "icon": "task",
+    "chips": [
+        {"text": "In Progress"},                  # Simple label
+        {"text": "Frontend", "icon": "code"},     # Chip with icon
+        {"text": "Urgent", "color": "#f44336"},   # Colored text
+    ]
+}
+```
+
+| Chip Field | Type | Description |
+|------------|------|-------------|
+| `text` | string | Label text (longer than badges) |
+| `icon` | string | Optional material icon before text |
+| `color` | string | Text/icon color (hex, e.g., "#f44336") |
 
 #### Graph
 
@@ -1111,6 +1188,8 @@ def handle_slider(item_id: str, value: int) -> None:
 
 ## Polling (Auto-Refresh)
 
+**⚠️ Deprecated:** Polling is legacy for existing plugins. For new plugins that need live updates, use [Daemon Mode](#daemon-mode-persistent-processes) instead. Daemons are more efficient and support bidirectional communication with hamr.
+
 For plugins that need periodic updates (e.g., process monitors, system stats), use the polling API.
 
 ### Enable Polling in manifest.json
@@ -1169,6 +1248,334 @@ print(json.dumps({
 ```
 
 **Example plugins:** [`topcpu/`](topcpu/handler.py), [`topmem/`](topmem/handler.py)
+
+---
+
+## Daemon Mode (Persistent Processes)
+
+For plugins that need live updates, file watching, or persistent state, use daemon mode instead of polling. Daemons are more efficient as they maintain a single long-running process instead of spawning a new process for each request.
+
+### Enable Daemon in manifest.json
+
+```json
+{
+  "name": "My Plugin",
+  "daemon": {
+    "enabled": true,
+    "background": false
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | false | Enable daemon mode |
+| `background` | bool | false | Run always (true) or only when plugin is open (false) |
+
+**Daemon lifecycle:**
+
+- **`background: false`** - Daemon starts when plugin opens, stops when it closes. Use for live data displays (process monitors, media players).
+- **`background: true`** - Daemon starts when hamr launches, runs always. Use for status updates, file watching (todo counts, clipboard).
+
+### Daemon Handler Pattern
+
+Daemon handlers use a persistent event loop instead of single request-response:
+
+```python
+#!/usr/bin/env python3
+import json
+import os
+import signal
+import select
+import sys
+import time
+
+def emit(data):
+    """Emit JSON response to stdout (line-buffered)."""
+    print(json.dumps(data), flush=True)
+
+def main():
+    # Graceful shutdown
+    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
+    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
+    
+    current_query = ""
+    last_refresh = 0
+    refresh_interval = 2.0  # seconds
+    
+    while True:
+        # Non-blocking stdin read with timeout
+        readable, _, _ = select.select([sys.stdin], [], [], 0.5)
+        
+        if readable:
+            line = sys.stdin.readline()
+            if not line:
+                break  # EOF - hamr closed connection
+            
+            try:
+                request = json.loads(line.strip())
+            except json.JSONDecodeError:
+                continue
+            
+            step = request.get("step", "")
+            
+            if step == "initial":
+                current_query = ""
+                emit({
+                    "type": "results",
+                    "results": get_results(),
+                    "placeholder": "Search...",
+                })
+                last_refresh = time.time()
+                continue
+            
+            if step == "search":
+                current_query = request.get("query", "")
+                emit({
+                    "type": "results",
+                    "results": get_results(current_query),
+                })
+                last_refresh = time.time()
+                continue
+            
+            if step == "action":
+                # Handle actions...
+                emit({"type": "results", "results": get_results(current_query)})
+                continue
+        
+        # Periodic refresh (daemon-driven updates)
+        now = time.time()
+        if now - last_refresh >= refresh_interval:
+            emit({
+                "type": "results",
+                "results": get_results(current_query),
+            })
+            last_refresh = now
+
+if __name__ == "__main__":
+    main()
+```
+
+### Key Differences from Request-Response
+
+| Aspect | Request-Response | Daemon |
+|--------|-----------------|--------|
+| Process lifecycle | New process per request | Single persistent process |
+| stdin | `json.load(sys.stdin)` | `readline()` in loop |
+| stdout | Single `print(json.dumps(...))` | Multiple `emit()` calls |
+| State | Stateless | Persistent (`current_query`, etc.) |
+| Updates | On user action only | Can push updates anytime |
+
+### Daemon Response Types
+
+Daemons can emit any standard response type, plus special daemon-only types:
+
+```python
+# Push status update (updates plugin badge in main list)
+emit({"type": "status", "status": {"badges": [{"text": "5"}], "chips": [{"text": "5 tasks"}]}})
+
+# Push incremental index update (updates searchable items in main search)
+emit({
+    "type": "index",
+    "mode": "incremental",
+    "items": [new_item],      # New items to add
+    "remove": ["old_id"],     # Item IDs to remove
+})
+```
+
+### Background Daemon Responsibilities
+
+Background daemons (`background: true`) should emit updates when their data changes:
+
+| Update Type | When to Emit | Purpose |
+|-------------|--------------|---------|
+| `index` (full) | On daemon startup | Makes items searchable from main launcher immediately |
+| `status` | On data change | Updates badge/chip on plugin entry in main list |
+| `index` (incremental) | On data change | Makes new items searchable from main launcher |
+| `results` | When plugin is open and data changes | Live updates to the visible list |
+
+**Note:** Background daemons that emit their own index don't need `"index": {"enabled": true}` in the manifest. The daemon handles indexing directly.
+
+**Example: Daemon startup**
+
+```python
+def main():
+    # ... signal handlers ...
+    
+    # Emit initial status and full index on startup
+    emit_status()
+    entries = get_all_entries()[:100]
+    indexed_ids = {f"item:{get_id(e)}" for e in entries}
+    emit({
+        "type": "index",
+        "mode": "full",
+        "items": [entry_to_index_item(e) for e in entries],
+    })
+    
+    # ... main loop ...
+```
+
+**Example: On data change**
+
+```python
+# When data changes:
+if current_mtime != last_db_mtime:
+    last_db_mtime = current_mtime
+    
+    # 1. Update status badge (item count)
+    emit_status()
+    
+    # 2. Update index (new items become searchable)
+    indexed_ids = emit_incremental_index(indexed_ids)
+    
+    # 3. If plugin is open, refresh results list
+    if plugin_active:
+        respond(get_results(current_query, current_context))
+```
+
+### Background Daemon Use Cases
+
+| Use Case | background | Example |
+|----------|------------|---------|
+| Process monitor | false | topcpu, topmem |
+| Media player | false | player |
+| Task count badge | true | todo |
+| Clipboard watcher | true | clipboard |
+| File sync status | true | bitwarden |
+
+### Migration from Polling
+
+To convert a polling plugin to daemon:
+
+1. Remove `"poll": N` from manifest.json
+2. Add `"daemon": {"enabled": true, "background": false}`
+3. Wrap handler in event loop with `select.select()`
+4. Use `emit()` helper with `flush=True`
+5. Add signal handlers for graceful shutdown
+6. Move periodic refresh logic inside the loop
+
+**Example plugins:** [`topcpu/`](topcpu/handler.py), [`topmem/`](topmem/handler.py), [`todo/`](todo/handler.py)
+
+### File Watching with inotify
+
+For plugins that need to watch files for changes (e.g., config files, data files), use native inotify via ctypes. This is more efficient than polling and provides instant updates.
+
+**Required imports and constants:**
+
+```python
+import ctypes
+import ctypes.util
+import struct
+
+# inotify constants
+IN_CLOSE_WRITE = 0x00000008
+IN_MOVED_TO = 0x00000080
+IN_CREATE = 0x00000100
+```
+
+**Create inotify watcher:**
+
+```python
+def create_inotify_fd(watch_path: Path) -> int | None:
+    """Create inotify fd watching a directory. Returns fd or None."""
+    try:
+        libc_name = ctypes.util.find_library("c")
+        if not libc_name:
+            return None
+        libc = ctypes.CDLL(libc_name, use_errno=True)
+
+        inotify_init = libc.inotify_init
+        inotify_init.argtypes = []
+        inotify_init.restype = ctypes.c_int
+
+        inotify_add_watch = libc.inotify_add_watch
+        inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+        inotify_add_watch.restype = ctypes.c_int
+
+        fd = inotify_init()
+        if fd < 0:
+            return None
+
+        watch_path.mkdir(parents=True, exist_ok=True)
+        watch_dir = str(watch_path).encode()
+        mask = IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE
+        wd = inotify_add_watch(fd, watch_dir, mask)
+        if wd < 0:
+            os.close(fd)
+            return None
+
+        return fd
+    except Exception:
+        return None
+```
+
+**Read inotify events:**
+
+```python
+def read_inotify_events(fd: int) -> list[str]:
+    """Read inotify events and return list of filenames that changed."""
+    filenames = []
+    try:
+        buf = os.read(fd, 4096)
+        offset = 0
+        while offset < len(buf):
+            wd, mask, cookie, length = struct.unpack_from("iIII", buf, offset)
+            offset += 16
+            if length > 0:
+                name = buf[offset : offset + length].rstrip(b"\x00").decode()
+                filenames.append(name)
+                offset += length
+    except (OSError, struct.error):
+        pass
+    return filenames
+```
+
+**Use in main loop:**
+
+```python
+def main():
+    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
+    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
+
+    data = load_data()
+    inotify_fd = create_inotify_fd(DATA_FILE.parent)
+
+    if inotify_fd is not None:
+        target_filename = DATA_FILE.name
+
+        while True:
+            readable, _, _ = select.select([sys.stdin, inotify_fd], [], [], 1.0)
+
+            # Handle stdin
+            stdin_ready = any(
+                (f if isinstance(f, int) else f.fileno()) == sys.stdin.fileno()
+                for f in readable
+            )
+            if stdin_ready:
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                # ... handle request ...
+
+            # Handle file changes
+            if inotify_fd in readable:
+                changed_files = read_inotify_events(inotify_fd)
+                if target_filename in changed_files:
+                    data = load_data()
+                    emit({"type": "results", "results": get_results(data)})
+    else:
+        # Fallback to mtime polling if inotify unavailable
+        # ... polling loop ...
+```
+
+**Key points:**
+
+- Watch the **parent directory**, not the file itself (files get replaced on write)
+- Use `IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE` mask to catch all write patterns
+- Always include a **fallback to mtime polling** for systems without inotify
+- Emit full `results` response on file change, not just `status`
+
+**Example plugin:** [`todo/`](todo/handler.py) - File watching with inotify + mtime fallback
 
 ---
 
@@ -1275,7 +1682,81 @@ Chips are pill-shaped tags for longer text (a few words):
 
 Plugins can provide searchable items that appear in the main launcher search without needing to open the plugin first.
 
+### Index-Only Plugins
+
+Some plugins exist solely to provide indexed items - they have no interactive mode and shouldn't appear in the `/` plugin list. There are two ways to create index-only plugins:
+
+#### 1. Static Index (No Handler)
+
+For simple, static items defined directly in the manifest. No `handler.py` needed.
+
+```json
+{
+  "name": "Theme",
+  "description": "Switch between light and dark mode",
+  "icon": "contrast",
+  "staticIndex": [
+    {
+      "id": "dark",
+      "name": "Dark Mode",
+      "description": "Switch to dark color scheme",
+      "icon": "dark_mode",
+      "verb": "Switch",
+      "keywords": ["dark", "theme", "night"],
+      "execute": {
+        "command": ["gsettings", "set", "org.gnome.desktop.interface", "color-scheme", "prefer-dark"],
+        "name": "Dark Mode",
+        "notify": "Dark mode activated",
+        "close": true
+      }
+    }
+  ]
+}
+```
+
+**Use cases:** Theme switching, quick actions, launcher shortcuts
+
+**Example plugins:** [`theme/`](theme/), [`accentcolor/`](accentcolor/), [`colorpick/`](colorpick/), [`snip/`](snip/)
+
+#### 2. Index-Only Daemon
+
+For dynamic items that need a handler (e.g., watching files, querying databases), but no interactive mode.
+
+```json
+{
+  "name": "Zoxide",
+  "description": "Jump to frequently used directories",
+  "icon": "folder_special",
+  "indexOnly": true,
+  "daemon": {
+    "enabled": true,
+    "background": true
+  }
+}
+```
+
+The handler emits `index` responses but returns an error for other steps:
+
+```python
+def handle_request(input_data: dict) -> None:
+    step = input_data.get("step", "initial")
+    
+    if step == "index":
+        items = get_indexed_items()
+        print(json.dumps({"type": "index", "items": items}))
+        return
+    
+    # No interactive mode
+    print(json.dumps({"type": "error", "message": "This plugin is index-only"}))
+```
+
+**Use cases:** Directory jumpers (zoxide), file indexers, database queries
+
+**Example plugins:** [`zoxide/`](zoxide/)
+
 ### Enable Indexing in manifest.json
+
+For plugins that have both interactive mode AND provide indexed items:
 
 ```json
 {
@@ -1328,6 +1809,8 @@ if step == "index":
 | `verb` | string | Action text (e.g., "Open", "Focus") |
 | `execute.command` | string[] | Command to run when selected |
 | `execute.name` | string | Display name for history tracking |
+| `execute.notify` | string | Notification message after execution |
+| `execute.close` | bool | Close launcher after execution (default: false) |
 | `keepOpen` | bool | Keep launcher open after execution (default: false) |
 | `actions` | array | Secondary action buttons |
 | `entryPoint` | object | Entry point for plugin drill-down (see below) |
@@ -1452,63 +1935,11 @@ if step == "index":
 
 ### Automatic Reindexing
 
-Plugins can configure automatic reindexing when data changes:
-
-#### File Watching
-
-Reindex when specific files change:
-
-```json
-{
-  "index": {
-    "enabled": true,
-    "watchFiles": ["~/.config/hamr/quicklinks.json"]
-  }
-}
-```
-
-#### Directory Watching
-
-Reindex when directory contents change:
-
-```json
-{
-  "index": {
-    "enabled": true,
-    "watchDirs": [
-      "~/.local/share/applications",
-      "/usr/share/applications"
-    ]
-  }
-}
-```
-
-#### Hyprland Event Watching
-
-Reindex on Hyprland IPC events (e.g., window open/close):
-
-```json
-{
-  "index": {
-    "enabled": true,
-    "watchHyprlandEvents": ["openwindow", "closewindow"],
-    "debounce": 200
-  }
-}
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `watchHyprlandEvents` | string[] | Hyprland event names to listen for |
-| `debounce` | number | Milliseconds to wait after last event (default: 200) |
-
-Common Hyprland events: `openwindow`, `closewindow`, `windowtitle`, `activewindow`, `workspace`
-
-See [Hyprland Wiki: IPC](https://wiki.hyprland.org/IPC/) for all events.
+**⚠️ Deprecated:** The `watchFiles`, `watchDirs`, and `watchHyprlandEvents` manifest options are deprecated. Plugins should instead use [Daemon Mode](#daemon-mode-persistent-processes) with native inotify file watching. This gives plugins full control over caching and more efficient event handling.
 
 #### Periodic Reindexing
 
-Reindex on a schedule (fallback when watchers aren't applicable):
+Reindex on a schedule (for plugins that don't need instant updates):
 
 ```json
 {
@@ -1947,14 +2378,14 @@ For desktop application icons from `.desktop` files, set `"iconType": "system"`:
 | [`screenshot/`](screenshot/)       | `/screenshot`    | Screenshot browser                  | imageBrowser, enableOcr                        |
 | [`screenrecord/`](screenrecord/)   | `/screenrecord`  | Screen recorder                     | Launch timestamp API, ffmpeg trim              |
 | [`snippet/`](snippet/)             | `/snippet`       | Text snippets                       | Submit mode, pluginActions                     |
-| [`todo/`](todo/)                   | `/todo`          | Todo list                           | Submit mode, IPC refresh, CRUD, pluginActions  |
+| [`todo/`](todo/)                   | `/todo`          | Todo list                           | Daemon mode, status chips, CRUD, pluginActions |
 | [`wallpaper/`](wallpaper/)         | `/wallpaper`     | Wallpaper selector                  | imageBrowser, history tracking                 |
 | [`create-plugin/`](create-plugin/) | `/create-plugin` | AI plugin creator                   | OpenCode integration                           |
 | [`notes/`](notes/)                 | `/notes`         | Quick notes manager                 | Form API, pluginActions                        |
 | [`player/`](player/)               | `/player`        | Media player controls               | playerctl, indexed actions                     |
 | [`sound/`](sound/)                 | `/sound`         | System volume controls              | wpctl, keepOpen, indexed actions               |
-| [`topcpu/`](topcpu/)               | `/topcpu`        | Process monitor (CPU)               | Polling API, process management                |
-| [`topmem/`](topmem/)               | `/topmem`        | Process monitor (memory)            | Polling API, process management                |
+| [`topcpu/`](topcpu/)               | `/topcpu`        | Process monitor (CPU)               | Daemon mode, process management                |
+| [`topmem/`](topmem/)               | `/topmem`        | Process monitor (memory)            | Daemon mode, process management                |
 
 ---
 

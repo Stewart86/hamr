@@ -31,11 +31,12 @@ test_search_launcher_finds_appearance() {
 }
 
 test_category_navigation() {
+    # Appearance category shows a live form with all sliders
     local result=$(hamr_test action --id "category:appearance")
-    assert_type "$result" "results"
-    assert_has_result "$result" "setting:appearance.backgroundTransparency"
-    assert_has_result "$result" "setting:appearance.launcherXRatio"
-    assert_json "$result" '.context' "category:appearance"
+    assert_type "$result" "form"
+    assert_contains "$result" "backgroundTransparency"
+    assert_contains "$result" "launcherXRatio"
+    assert_json "$result" '.context' "liveform:appearance"
 }
 
 test_search_within_category() {
