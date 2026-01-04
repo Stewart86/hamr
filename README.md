@@ -540,9 +540,11 @@ Hamr loads plugins from two locations:
 
 User plugins with the same name as built-in plugins will override them.
 
-Each plugin is either:
-- A **folder** with `manifest.json` + handler executable (multi-step plugins)
-- An **executable script** (simple one-shot actions)
+Each plugin is a **folder** containing:
+- `manifest.json` - Plugin metadata and configuration
+- `handler.py` (optional) - Handler script for dynamic plugins
+
+For simple actions, use `staticIndex` in the manifest - no handler needed.
 
 **Language agnostic:** Plugins communicate via JSON over stdin/stdout. Use Python, Bash, Go, Rust, Node.js - any language that can read/write JSON.
 
@@ -821,18 +823,35 @@ emit({"type": "index", "mode": "incremental", "items": [{"id": "new-item", "name
 </details>
 
 <details>
-<summary><strong>Simple Actions (Scripts)</strong></summary>
+<summary><strong>Static Index (No Handler)</strong></summary>
 
-For one-shot actions, create executable scripts directly:
+For simple actions that don't need dynamic logic, use `staticIndex` in the manifest:
 
-```bash
-#!/bin/bash
-# ~/.config/hamr/plugins/screenshot
-grim -g "$(slurp)" - | wl-copy
-notify-send "Screenshot copied"
+```json
+{
+  "name": "Screenshot",
+  "description": "Capture screen region",
+  "icon": "screenshot",
+  "staticIndex": [
+    {
+      "id": "snip",
+      "name": "Screenshot Snip",
+      "description": "Capture and copy screen region",
+      "icon": "screenshot",
+      "keywords": ["screenshot", "capture", "snip"],
+      "execute": {
+        "command": ["bash", "-c", "grim -g \"$(slurp)\" - | wl-copy"],
+        "notify": "Screenshot copied",
+        "close": true
+      }
+    }
+  ]
+}
 ```
 
-Appears in search as `/screenshot`.
+Items appear directly in main search - no handler script needed.
+
+**Example plugins:** [`accentcolor/`](plugins/accentcolor/), [`theme/`](plugins/theme/), [`snip/`](plugins/snip/)
 
 </details>
 

@@ -19,14 +19,14 @@ The handler just needs to be executable and read JSON from stdin, write JSON to 
 
 ```
 ~/.config/hamr/plugins/
-├── AGENTS.md           # This file
-├── simple-script       # Simple action (executable script)
-├── workflow-name/      # Multi-step workflow (folder)
-│   ├── manifest.json   # Workflow metadata
-│   └── handler.py      # Workflow handler (executable, any language)
+├── static-plugin/      # Static plugin (no handler)
+│   └── manifest.json   # Plugin metadata with staticIndex
+├── dynamic-plugin/     # Dynamic plugin (with handler)
+│   ├── manifest.json   # Plugin metadata
+│   └── handler.py      # Plugin handler (executable, any language)
 ```
 
-**Handler requirements:**
+**Handler requirements (for dynamic plugins):**
 - Must be executable (`chmod +x handler.py`)
 - Must have a shebang (e.g., `#!/usr/bin/env python3`, `#!/bin/bash`, `#!/usr/bin/env node`)
 - Default name is `handler.py`, but you can specify any name via `"handler"` in manifest.json
@@ -61,22 +61,40 @@ Plugins using compositor-specific APIs should specify their requirements:
 
 ## Quick Start
 
-### Simple Action (Script)
+### Static Plugin (No Handler)
+
+For simple actions, use `staticIndex` in the manifest - no handler script needed:
 
 ```bash
-# 1. Create executable script
-cat > ~/.config/hamr/plugins/my-action << 'EOF'
-#!/bin/bash
-notify-send "Hello from my action!"
+# 1. Create folder with manifest
+mkdir ~/.config/hamr/plugins/my-action
+cat > ~/.config/hamr/plugins/my-action/manifest.json << 'EOF'
+{
+  "name": "My Action",
+  "description": "A simple action",
+  "icon": "star",
+  "staticIndex": [
+    {
+      "id": "greet",
+      "name": "Say Hello",
+      "description": "Show a greeting notification",
+      "icon": "waving_hand",
+      "keywords": ["hello", "greet"],
+      "execute": {
+        "command": ["notify-send", "Hello from my action!"],
+        "close": true
+      }
+    }
+  ]
+}
 EOF
-chmod +x ~/.config/hamr/plugins/my-action
 
-# 2. Appears as `/my-action` in launcher
+# 2. "Say Hello" appears in main search
 ```
 
-**Examples:** [`screenshot-snip`](screenshot-snip), [`dark`](dark), [`light`](light), [`accentcolor`](accentcolor)
+**Examples:** [`accentcolor/`](accentcolor/), [`theme/`](theme/), [`snip/`](snip/), [`colorpick/`](colorpick/)
 
-### Multi-Step Workflow (Folder)
+### Dynamic Plugin (With Handler)
 
 ```bash
 # 1. Create folder with manifest and handler
