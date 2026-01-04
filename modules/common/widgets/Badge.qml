@@ -58,6 +58,7 @@ Rectangle {
     MaterialSymbol {
         visible: root.hasIcon
         anchors.centerIn: parent
+        anchors.verticalCenterOffset: 0.5
         text: root.icon
         iconSize: 12
         color: root.textColor
