@@ -405,8 +405,6 @@ Item {
                 Layout.bottomMargin: 8
                 Layout.preferredHeight: 34
                 
-                showSeparator: root.showResults || root.showCard || root.showForm || PluginRunner.pluginBusy || root.showImageBrowser || root.showGridBrowser
-                
                 readonly property bool inSearchMode: {
                     const q = root.searchingText;
                     const prefixes = LauncherSearch.getConfiguredPrefixes();
