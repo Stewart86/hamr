@@ -963,6 +963,7 @@ You can reorder, remove, or add hints. For example, to replace emoji with notes:
 | **Appearance** | `backgroundTransparency` | `0.2` | Background transparency (0-1) |
 | | `launcherXRatio` | `0.5` | Horizontal position (0=left, 1=right) |
 | | `launcherYRatio` | `0.1` | Vertical position (0=top, 1=bottom) |
+| | `fontScale` | `1` | Font scaling factor  (0.75=min, 1.5=max) |
 | **Sizes** | `searchWidth` | `580` | Search bar width (px) |
 | | `maxResultsHeight` | `600` | Max results container height (px) |
 | **Paths** | `wallpaperDir` | `""` | Custom wallpaper directory (empty = ~/Pictures/Wallpapers) |
