@@ -1,8 +1,0 @@
-#!/bin/bash
-# Pick a color from screen and copy to clipboard
-
-color=$(hyprpicker)
-if [[ -n "$color" ]]; then
-    echo -n "$color" | wl-copy
-    notify-send "Color Picker" "Copied: $color"
-fi
