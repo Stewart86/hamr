@@ -1,6 +1,20 @@
 #!/bin/bash
 set -euo pipefail
 
+# Detect if dev instance is running (started with -p flag)
+# If so, use path-based IPC; otherwise use config-based IPC
+get_ipc_args() {
+    # Check if a qs process is running with -p pointing to a hamr repo
+    local dev_path
+    dev_path=$(pgrep -af "qs.*-p.*/hamr" 2>/dev/null | grep -v "ipc" | head -1 | sed -n 's/.*-p[[:space:]]*\([^[:space:]]*\).*/\1/p')
+    
+    if [[ -n "$dev_path" ]]; then
+        echo "-p $dev_path"
+    else
+        echo "-c hamr"
+    fi
+}
+
 show_help() {
     cat <<HELP
 Usage: hamr [OPTIONS] [COMMAND]
@@ -39,7 +53,8 @@ case "${1:-}" in
         exit 0
         ;;
     toggle)
-        exec qs ipc -c hamr call hamr toggle
+        # shellcheck disable=SC2046
+        exec qs ipc $(get_ipc_args) call hamr toggle
         ;;
     plugin)
         if [[ -z "${2:-}" ]]; then
@@ -47,7 +62,8 @@ case "${1:-}" in
             echo "Usage: hamr plugin <name>" >&2
             exit 1
         fi
-        exec qs ipc -c hamr call hamr plugin "$2"
+        # shellcheck disable=SC2046
+        exec qs ipc $(get_ipc_args) call hamr plugin "$2"
         ;;
     status)
         if [[ -z "${2:-}" ]] || [[ -z "${3:-}" ]]; then
@@ -56,7 +72,8 @@ case "${1:-}" in
             echo "Example: hamr status todo '{\"badges\": [{\"text\": \"5\"}]}'" >&2
             exit 1
         fi
-        exec qs ipc -c hamr call pluginRunner updateStatus "$2" "$3"
+        # shellcheck disable=SC2046
+        exec qs ipc $(get_ipc_args) call pluginRunner updateStatus "$2" "$3"
         ;;
     "")
         exec qs -c hamr
