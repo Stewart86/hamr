@@ -67,30 +67,37 @@ Singleton {
     // This is set before sending poll request and cleared after results are processed
     property bool isPollUpdate: false
     
+    // Version counter - increments on any result item update to trigger UI re-evaluation
+    // SearchItem depends on this to re-evaluate visual properties (gauge, progress, badges, etc.)
+    property int resultsVersion: 0
     
      // Replay mode: when true, plugin is running a replay action (no UI needed)
      // Process should complete even if launcher closes
      property bool replayMode: false
      
-     // Store plugin info for replay mode (activePlugin may be cleared before response)
-     property var replayPluginInfo: null
+    // Store plugin info for replay mode (activePlugin may be cleared before response)
+    property var replayPluginInfo: null
 
-     // Signal when plugin produces results
-     signal resultsReady(var results)
-     signal cardReady(var card)
-     signal formReady(var form)
-     signal executeCommand(var command)
-     signal pluginClosed()
-     signal clearInputRequested()  // Signal to clear the search input
-     
-     // Signal when a trackable action is executed (has name field)
-     // Payload: { name, command, entryPoint, icon, thumbnail, workflowId, workflowName }
-     // - command: Direct shell command for simple replay (optional)
-     // - entryPoint: Plugin step to replay for complex actions (optional)
-     signal actionExecuted(var actionInfo)
-     
-     // Signal when plugin index is updated (for LauncherSearch to rebuild searchables)
-     signal pluginIndexChanged(string pluginId)
+    // ==================== DAEMON SUPPORT ====================
+    // Track running daemon processes: { pluginId: { process, restartCount, isBackground, inputWriter } }
+    property var runningDaemons: ({})
+    
+    // Signal when plugin produces results
+    signal resultsReady(var results)
+    signal cardReady(var card)
+    signal formReady(var form)
+    signal executeCommand(var command)
+    signal pluginClosed()
+    signal clearInputRequested()  // Signal to clear the search input
+    
+    // Signal when a trackable action is executed (has name field)
+    // Payload: { name, command, entryPoint, icon, thumbnail, workflowId, workflowName }
+    // - command: Direct shell command for simple replay (optional)
+    // - entryPoint: Plugin step to replay for complex actions (optional)
+    signal actionExecuted(var actionInfo)
+    
+    // Signal when plugin index is updated (for LauncherSearch to rebuild searchables)
+    signal pluginIndexChanged(string pluginId)
 
     // ==================== PLUGIN STATUS ====================
     // Plugins can provide dynamic status (badges, description override) that
@@ -121,124 +128,15 @@ Singleton {
     }
 
     // ==================== PLUGIN INDEXING ====================
-    // Plugins can provide searchable items via step: "index"
-    // These items appear in main search without entering the plugin
+    // Plugins provide searchable items in two ways:
+    // 1. staticIndex in manifest.json - items loaded directly, no handler needed
+    // 2. Daemon plugins emit {"type": "index"} messages autonomously
     
     // Indexed items per plugin: { pluginId: { items: [...], lastIndexed: timestamp } }
     property var pluginIndexes: ({})
     
-    // Track which plugins are currently being indexed (to avoid concurrent requests)
-    property var indexingPlugins: ({})
-    
-    // Queue of plugins pending indexing (since we can only run one at a time)
-    property var indexQueue: []
-    
-    // Request index from a plugin
-    // mode: "full" (replace all items) or "incremental" (merge/remove)
-    function indexPlugin(pluginId, mode = "full") {
-        const plugin = root.plugins.find(p => p.id === pluginId);
-        if (!plugin || !plugin.manifest) {
-            console.warn(`[PluginRunner] indexPlugin: Plugin not found: ${pluginId}`);
-            return false;
-        }
-        
-        // Check if plugin supports indexing
-        const indexConfig = plugin.manifest.index;
-        if (!indexConfig || !indexConfig.enabled) {
-            return false;
-        }
-        
-        // Don't queue if already queued or indexing
-        if (root.indexingPlugins[pluginId]) {
-            return false;
-        }
-        if (root.indexQueue.some(item => item.pluginId === pluginId)) {
-            return false;
-        }
-        
-        // Add to queue
-        root.indexQueue = [...root.indexQueue, { pluginId, mode }];
-        
-        // Start processing queue if not already running
-        processIndexQueue();
-        
-        return true;
-    }
-    
-    // Process the next item in the index queue
-    function processIndexQueue() {
-        // Don't start if already indexing or queue is empty
-        if (indexProcess.running || root.indexQueue.length === 0) {
-            return;
-        }
-        
-        // Get next item from queue
-        const next = root.indexQueue[0];
-        root.indexQueue = root.indexQueue.slice(1);
-        
-        const plugin = root.plugins.find(p => p.id === next.pluginId);
-        if (!plugin || !plugin.manifest) {
-            // Skip invalid, process next
-            processIndexQueue();
-            return;
-        }
-        
-        root.indexingPlugins[next.pluginId] = true;
-        
-        const handlerPath = plugin.manifest._handlerPath ?? (plugin.path + "/handler.py");
-        const input = {
-            step: "index",
-            mode: next.mode
-        };
-        
-        // For incremental, include timestamp and current indexed IDs
-        if (next.mode === "incremental" && root.pluginIndexes[next.pluginId]) {
-            input.since = root.pluginIndexes[next.pluginId].lastIndexed;
-            input.indexedIds = (root.pluginIndexes[next.pluginId].items ?? []).map(item => item.id);
-        }
-        
-        const inputJson = JSON.stringify(input);
-        const escapedInput = inputJson.replace(/'/g, "'\\''");
-        
-        // Start indexing process
-        // Execute handler directly (language-agnostic) - relies on shebang or executable
-        indexProcess.pluginId = next.pluginId;
-        indexProcess.workingDirectory = plugin.path;
-        indexProcess.command = ["bash", "-c", `echo '${escapedInput}' | "${handlerPath}"`];
-        indexProcess.running = true;
-    }
-    
-    // Index all plugins that support indexing (called on startup)
-    // Skip indexing for plugins with cached data AND (watchers OR reindex: "never")
-    function indexAllPlugins() {
-        const indexablePlugins = root.plugins.filter(p => p.manifest?.index?.enabled);
-        console.log(`[PluginRunner] Starting indexing for ${indexablePlugins.length} plugins`);
-        
-        for (const plugin of indexablePlugins) {
-            const hasCachedData = root.pluginIndexes[plugin.id]?.items?.length > 0;
-            const hasWatchers = plugin.manifest.index.watchFiles?.length > 0 || 
-                               plugin.manifest.index.watchDirs?.length > 0;
-            const neverReindex = plugin.manifest.index.reindex === "never";
-            
-            // Skip indexing if we have cache AND (watchers OR never reindex)
-            if (hasCachedData && (hasWatchers || neverReindex)) {
-                const reason = hasWatchers ? "has watchers" : "reindex: never";
-                console.log(`[PluginRunner] Skipping ${plugin.id}: using cached ${root.pluginIndexes[plugin.id].items.length} items (${reason})`);
-                // Still setup watchers for this plugin
-                PluginWatcher.setupWatchers(plugin.id, plugin.manifest);
-                continue;
-            }
-            
-            const mode = hasCachedData ? "incremental" : "full";
-            console.log(`[PluginRunner] Queueing ${plugin.id} for ${mode} index (cached: ${hasCachedData ? root.pluginIndexes[plugin.id].items.length + " items" : "none"})`);
-            root.indexPlugin(plugin.id, mode);
-        }
-    }
-    
-    // Handle index response from plugin
+    // Handle index response from daemon plugin
     function handleIndexResponse(pluginId, response) {
-        root.indexingPlugins[pluginId] = false;
-        
         if (!response || response.type !== "index") {
             console.warn(`[PluginRunner] Invalid index response from ${pluginId}`);
             return;
@@ -293,19 +191,29 @@ Singleton {
         
         // Save cache to disk (debounced)
         root.saveIndexCache();
-        
-        // Setup watchers (file, dir, Hyprland events, periodic reindex)
-        const plugin = root.plugins.find(p => p.id === pluginId);
-        if (plugin?.manifest) {
-            PluginWatcher.setupWatchers(pluginId, plugin.manifest);
-        }
     }
     
-    // Connect to PluginWatcher reindex requests
-    Connections {
-        target: PluginWatcher
-        function onReindexRequested(pluginId, mode) {
-            root.indexPlugin(pluginId, mode);
+    // Load static index items from plugin manifests (no handler needed)
+    function loadStaticIndexes() {
+        for (const plugin of root.plugins) {
+            const staticIndex = plugin.manifest?.staticIndex;
+            if (!staticIndex || !Array.isArray(staticIndex) || staticIndex.length === 0) {
+                continue;
+            }
+            
+            // Enrich items with plugin metadata
+            const items = staticIndex.map(item => Object.assign({}, item, {
+                _pluginId: plugin.id,
+                _pluginName: plugin.manifest?.name ?? plugin.id
+            }));
+            
+            root.pluginIndexes[plugin.id] = {
+                items: items,
+                lastIndexed: Date.now()
+            };
+            
+            console.log(`[PluginRunner] Loaded ${items.length} static index items from ${plugin.id}`);
+            root.pluginIndexChanged(plugin.id);
         }
     }
     
@@ -349,47 +257,6 @@ Singleton {
         );
     }
     
-    // Process for indexing plugins (separate from main plugin process)
-    Process {
-        id: indexProcess
-        property string pluginId: ""
-        
-        stdout: StdioCollector {
-            id: indexStdout
-            onStreamFinished: {
-                const output = indexStdout.text.trim();
-                if (!output) {
-                    root.indexingPlugins[indexProcess.pluginId] = false;
-                    // Process next in queue
-                    root.processIndexQueue();
-                    return;
-                }
-                
-                try {
-                    const response = JSON.parse(output);
-                    root.handleIndexResponse(indexProcess.pluginId, response);
-                } catch (e) {
-                    console.warn(`[PluginRunner] Failed to parse index response from ${indexProcess.pluginId}: ${e}`);
-                    root.indexingPlugins[indexProcess.pluginId] = false;
-                }
-                // Process next in queue
-                root.processIndexQueue();
-            }
-        }
-        
-        stderr: SplitParser {
-            onRead: data => console.warn(`[PluginRunner] index stderr (${indexProcess.pluginId}): ${data}`)
-        }
-        
-        onExited: (exitCode, exitStatus) => {
-            if (exitCode !== 0) {
-                console.warn(`[PluginRunner] Index process for ${indexProcess.pluginId} exited with code ${exitCode}`);
-                root.indexingPlugins[indexProcess.pluginId] = false;
-                // Process next in queue even on failure
-                root.processIndexQueue();
-            }
-        }
-    }
     
     // ==================== INDEX PERSISTENCE ====================
     // Cache indexes to disk for faster startup.
@@ -462,6 +329,211 @@ Singleton {
         indexCacheFile.setText(json);
     }
 
+     // ==================== DAEMON LIFECYCLE ====================
+     
+     // Start a daemon for a plugin (spawn once, keep running)
+     function startDaemon(pluginId) {
+         const plugin = root.plugins.find(p => p.id === pluginId);
+         if (!plugin || !plugin.manifest || !plugin.manifest.daemon?.enabled) {
+             return false;
+         }
+         
+         // Already running
+         if (root.runningDaemons[pluginId]) {
+             return true;
+         }
+         
+         const daemonConfig = plugin.manifest.daemon;
+         const handlerPath = plugin.manifest._handlerPath ?? (plugin.path + "/handler.py");
+         
+         // Create persistent daemon process
+         const process = Qt.createQmlObject(`
+             import Quickshell.Io
+             Process {
+                 running: true
+                 stdinEnabled: true
+                 command: ["${handlerPath}"]
+                 workingDirectory: "${plugin.path}"
+                 
+                 stdout: SplitParser {
+                     splitMarker: "\\n"
+                     onRead: data => root.handleDaemonStdout("${pluginId}", data)
+                 }
+                 
+                 stderr: SplitParser {
+                     onRead: data => console.warn("[Daemon ${pluginId}] stderr:", data)
+                 }
+                 
+                 onExited: (code, status) => root.onDaemonExit("${pluginId}", code, status)
+             }
+         `, root, "daemon_" + pluginId);
+         
+         root.runningDaemons[pluginId] = {
+             process: process,
+             restartCount: 0,
+             isBackground: daemonConfig.background ?? false,
+             config: daemonConfig,
+             plugin: plugin,
+             handlerPath: handlerPath,
+             session: generateSessionId()
+         };
+         
+         console.log(`[PluginRunner] Started persistent daemon for ${pluginId} (mode: ${daemonConfig.background ? "background" : "foreground"})`);
+         return true;
+     }
+    
+     // Stop a daemon process
+     function stopDaemon(pluginId) {
+         const daemon = root.runningDaemons[pluginId];
+         if (!daemon) return false;
+         
+         if (daemon.process) {
+             daemon.process.running = false;
+             daemon.process.destroy();
+         }
+         
+         delete root.runningDaemons[pluginId];
+         console.log(`[PluginRunner] Stopped daemon for ${pluginId}`);
+         return true;
+     }
+    
+    // Start all background daemons (call on hamr startup)
+    function startBackgroundDaemons() {
+        if (!root.pluginsLoaded) return;
+        
+        for (const plugin of root.plugins) {
+            const daemonConfig = plugin.manifest?.daemon;
+            if (daemonConfig?.enabled && daemonConfig?.background) {
+                root.startDaemon(plugin.id);
+            }
+        }
+    }
+    
+    // Stop all running daemons (call on hamr shutdown)
+    function stopAllDaemons() {
+        const pluginIds = Object.keys(root.runningDaemons);
+        for (const pluginId of pluginIds) {
+            root.stopDaemon(pluginId);
+        }
+    }
+    
+     // Write command to daemon stdin
+     function writeToDaemonStdin(pluginId, command) {
+         const daemon = root.runningDaemons[pluginId];
+         if (!daemon || !daemon.process) {
+             console.warn(`[PluginRunner] Cannot write to daemon ${pluginId}: not registered or process missing`);
+             return false;
+         }
+         
+         // Preserve session from daemon
+         if (daemon.session) {
+             command.session = daemon.session;
+         }
+         
+         const json = JSON.stringify(command) + "\n";
+         daemon.process.write(json);
+         console.log(`[PluginRunner] Sent to daemon ${pluginId}: ${command.step}`);
+         return true;
+     }
+    
+     // Parse daemon stdout line and emit response
+     function handleDaemonStdout(pluginId, data) {
+         if (!data || data.trim() === "") return;
+         
+         try {
+             const response = JSON.parse(data.trim());
+             root.handleDaemonOutput(pluginId, response);
+         } catch (e) {
+             console.warn(`[PluginRunner] Failed to parse daemon output from ${pluginId}: ${e}`);
+         }
+     }
+     
+     // Handle daemon output/response
+      function handleDaemonOutput(pluginId, response) {
+         // Only process if this plugin is currently active
+         const isActive = root.activePlugin?.id === pluginId;
+         
+         if (!response || !response.type) {
+             console.warn(`[PluginRunner] Invalid daemon output from ${pluginId}`);
+             return;
+         }
+         
+         console.log(`[PluginRunner] Daemon output from ${pluginId}: ${response.type}`);
+         
+           switch (response.type) {
+               case "results":
+               case "card":
+               case "form":
+               case "prompt":
+               case "error":
+               case "imageBrowser":
+               case "gridBrowser":
+               case "update":
+                   // Only process UI responses if plugin is active
+                   if (isActive) {
+                       // Update status if provided (before handlePluginResponse)
+                       if (response.status) {
+                           root.updatePluginStatus(pluginId, response.status);
+                       }
+                       // Preserve selection for daemon responses (same as poll updates)
+                       root.isPollUpdate = true;
+                       root.handlePluginResponse(response);
+                   }
+                   break;
+              
+              case "status":
+                  // Status updates always processed
+                  root.updatePluginStatus(pluginId, response.status);
+                  break;
+              
+              case "index":
+                  // Index updates always processed
+                  root.handleIndexResponse(pluginId, response);
+                  break;
+              
+              case "execute":
+                  // Execute responses always processed
+                  if (isActive) {
+                      root.handlePluginResponse(response);
+                  }
+                  break;
+              
+              default:
+                  console.warn(`[PluginRunner] Unknown daemon response type: ${response.type}`);
+          }
+     }
+    
+    // Handle daemon crash/exit (for future use when full daemon communication is implemented)
+    function onDaemonExit(pluginId, exitCode, exitStatus) {
+        const daemon = root.runningDaemons[pluginId];
+        if (!daemon) return;
+        
+        const config = daemon.config;
+        const shouldRestart = config.restartOnCrash && 
+                            daemon.restartCount < (config.maxRestarts ?? 3);
+        
+        if (shouldRestart) {
+            daemon.restartCount++;
+            console.log(`[PluginRunner] Restarting daemon for ${pluginId} (attempt ${daemon.restartCount}/${config.maxRestarts})`);
+            
+            // Reset restart count after successful run (when daemon runs for a while)
+            daemon.process = null;
+            
+            // Restart after a short delay
+            Qt.callLater(() => {
+                root.startDaemon(pluginId);
+            }, 1000);
+        } else {
+            console.log(`[PluginRunner] Daemon for ${pluginId} won't restart (maxRestarts reached or disabled)`);
+            delete root.runningDaemons[pluginId];
+            
+            // Notify user if plugin was active
+            if (root.activePlugin?.id === pluginId) {
+                root.pluginError = "Plugin daemon crashed and won't restart";
+            }
+        }
+    }
+    
     // ==================== PLUGIN DISCOVERY ====================
     
     // Loaded plugins from both built-in and user plugins directories
@@ -539,14 +611,18 @@ Singleton {
     function loadNextManifest() {
         if (root.pendingManifestLoads.length === 0) {
             root.pluginsLoaded = true;
+            
+            // Start background daemons after plugins are loaded
+            root.startBackgroundDaemons();
+            
             // Start pending plugin if one was requested before loading finished
             if (root.pendingPluginStart !== "") {
                 const pluginId = root.pendingPluginStart;
                 root.pendingPluginStart = "";
                 root.startPlugin(pluginId);
             }
-            // Index all plugins that support indexing
-            root.indexAllPlugins();
+            // Load static index items from manifests (no handler needed)
+            root.loadStaticIndexes();
             return;
         }
         
@@ -665,261 +741,430 @@ Singleton {
 
      // ==================== PLUGIN EXECUTION ====================
      
-     // Start a plugin
-     function startPlugin(pluginId) {
-         // Queue if plugins not loaded yet (or still loading)
-         if (!root.pluginsLoaded || !root.builtinFolderReady || !root.userFolderReady) {
-             root.pendingPluginStart = pluginId;
-             return true;  // Return true to indicate it will start
-         }
-         
-         const plugin = root.plugins.find(w => w.id === pluginId);
-         if (!plugin || !plugin.manifest) {
-             return false;
-         }
-         
-         const session = generateSessionId();
-         
-         root.activePlugin = {
-             id: plugin.id,
-             path: plugin.path,
-             manifest: plugin.manifest,
-             session: session
-         };
-         root.pluginResults = [];
-         root.pluginCard = null;
-         root.pluginForm = null;
-         root.pluginPrompt = plugin.manifest.steps?.initial?.prompt ?? "";
-         root.pluginPlaceholder = "";  // Reset placeholder on plugin start
-         root.pluginError = "";
-         root.inputMode = "realtime";  // Default to realtime, handler can change
-         root.pollInterval = plugin.manifest.poll ?? 0;  // Poll interval from manifest
-         root.lastPollQuery = "";
-         
-         sendToPlugin({ step: "initial", session: session });
-         return true;
-     }
-    
-     // Send search query to active plugin
-     function search(query) {
-         if (!root.activePlugin) {
-             console.log("[PluginRunner] sendToPlugin: No active plugin");
-             return;
-         }
-         
-         // Track last query for poll context
-         root.lastPollQuery = query;
-         
-         // Don't clear card here - it should persist until new response arrives
-         
-         const input = {
-             step: "search",
-             query: query,
-             session: root.activePlugin.session
-         };
-         
-         // Include last selected item for context (useful for multi-step plugins)
-         if (root.lastSelectedItem) {
-             input.selected = { id: root.lastSelectedItem };
-         }
-         
-         // Include plugin context if set (for multi-step flows like search mode, edit mode)
-         if (root.pluginContext) {
-             input.context = root.pluginContext;
-         }
-         
-         sendToPlugin(input);
-     }
-    
-      // Select an item and optionally execute an action
-      function selectItem(itemId, actionId) {
-          if (!root.activePlugin) return;
-          
-          // Store selection for context in subsequent search calls
-          root.lastSelectedItem = itemId;
-          
-          // Track the step type for depth management
-          // Navigation depth increases when:
-          // - Default item click (no actionId) that returns a view - user is drilling down
-          // - NOT for action button clicks (actionId set) - these modify current view
-          // - NOT for special IDs that are known to not navigate
-          const nonNavigatingIds = ["__back__", "__empty__", "__form_cancel__"];
-          const isDefaultClick = !actionId;  // No action button clicked, just the item itself
-          if (isDefaultClick && !nonNavigatingIds.includes(itemId)) {
-              root.pendingNavigation = true;
+      // Start a plugin
+      function startPlugin(pluginId) {
+          // Queue if plugins not loaded yet (or still loading)
+          if (!root.pluginsLoaded || !root.builtinFolderReady || !root.userFolderReady) {
+              root.pendingPluginStart = pluginId;
+              return true;  // Return true to indicate it will start
           }
           
+          const plugin = root.plugins.find(w => w.id === pluginId);
+          if (!plugin || !plugin.manifest) {
+              return false;
+          }
+          
+          const session = generateSessionId();
+          
+          root.activePlugin = {
+              id: plugin.id,
+              path: plugin.path,
+              manifest: plugin.manifest,
+              session: session
+          };
+          root.pluginResults = [];
+          root.pluginCard = null;
+          root.pluginForm = null;
+          root.pluginPrompt = plugin.manifest.steps?.initial?.prompt ?? "";
+          root.pluginPlaceholder = "";  // Reset placeholder on plugin start
+          root.pluginError = "";
+          root.inputMode = "realtime";  // Default to realtime, handler can change
+          root.pollInterval = plugin.manifest.poll ?? 0;  // Poll interval from manifest
+          root.lastPollQuery = "";
+          
+          // For daemon plugins, start daemon if not already running
+          const daemonConfig = plugin.manifest.daemon;
+          if (daemonConfig?.enabled) {
+              root.startDaemon(pluginId);
+              // Send initial step through daemon
+              root.writeToDaemonStdin(pluginId, { step: "initial", session: session });
+          } else {
+              // Use request-response model for non-daemon plugins
+              sendToPlugin({ step: "initial", session: session });
+          }
+          
+          return true;
+      }
+    
+      // Send search query to active plugin
+      function search(query) {
+          if (!root.activePlugin) {
+              console.log("[PluginRunner] sendToPlugin: No active plugin");
+              return;
+          }
+          
+          // Track last query for poll context
+          root.lastPollQuery = query;
+          
+          // Don't clear card here - it should persist until new response arrives
+          
+          const input = {
+              step: "search",
+              query: query,
+              session: root.activePlugin.session
+          };
+          
+          // Include last selected item for context (useful for multi-step plugins)
+          if (root.lastSelectedItem) {
+              input.selected = { id: root.lastSelectedItem };
+          }
+          
+          // Include plugin context if set (for multi-step flows like search mode, edit mode)
+          if (root.pluginContext) {
+              input.context = root.pluginContext;
+          }
+          
+          // Use daemon if running, otherwise spawn new process
+          const isDaemonPlugin = root.activePlugin.manifest?.daemon?.enabled;
+          if (isDaemonPlugin && root.runningDaemons[root.activePlugin.id]) {
+              root.pluginBusy = true;
+              root.writeToDaemonStdin(root.activePlugin.id, input);
+          } else {
+              sendToPlugin(input);
+          }
+      }
+    
+       // Select an item and optionally execute an action
+       function selectItem(itemId, actionId) {
+           if (!root.activePlugin) return;
+           
+           // Store selection for context in subsequent search calls
+           root.lastSelectedItem = itemId;
+           
+           // Track the step type for depth management
+           // Navigation depth increases when:
+           // - Default item click (no actionId) that returns a view - user is drilling down
+           // - NOT for action button clicks (actionId set) - these modify current view
+           // - NOT for special IDs that are known to not navigate
+           const nonNavigatingIds = ["__back__", "__empty__", "__form_cancel__"];
+           const isDefaultClick = !actionId;  // No action button clicked, just the item itself
+           if (isDefaultClick && !nonNavigatingIds.includes(itemId)) {
+               root.pendingNavigation = true;
+           }
+           
+           const input = {
+               step: "action",
+               selected: { id: itemId },
+               session: root.activePlugin.session
+           };
+           
+           if (actionId) {
+               input.action = actionId;
+           }
+           
+           // Include context if set (handler needs it for navigation state)
+           if (root.pluginContext) {
+               input.context = root.pluginContext;
+           }
+           
+           // Use daemon if running, otherwise spawn new process
+           const isDaemonPlugin = root.activePlugin.manifest?.daemon?.enabled;
+           if (isDaemonPlugin && root.runningDaemons[root.activePlugin.id]) {
+               root.pluginBusy = true;
+               root.writeToDaemonStdin(root.activePlugin.id, input);
+           } else {
+               sendToPlugin(input);
+           }
+       }
+      
+       // Send slider value change to active plugin (for result item sliders)
+       function sliderValueChanged(itemId, value) {
+           if (!root.activePlugin) return;
+           
+           const input = {
+               step: "action",
+               selected: { id: itemId },
+               action: "slider",
+               value: value,
+               session: root.activePlugin.session
+           };
+           
+           // Include context if set
+           if (root.pluginContext) {
+               input.context = root.pluginContext;
+           }
+           
+           const isDaemonPlugin = root.activePlugin.manifest?.daemon?.enabled;
+           if (isDaemonPlugin && root.runningDaemons[root.activePlugin.id]) {
+               root.writeToDaemonStdin(root.activePlugin.id, input);
+           } else {
+               sendToPlugin(input);
+           }
+       }
+       
+       // Send form slider value change to active plugin (for live form updates)
+       function formSliderValueChanged(fieldId, value) {
+           if (!root.activePlugin) return;
+           
+           const input = {
+               step: "formSlider",
+               fieldId: fieldId,
+               value: value,
+               session: root.activePlugin.session
+           };
+           
+           // Include context if set
+           if (root.pluginContext) {
+               input.context = root.pluginContext;
+           }
+           
+           const isDaemonPlugin = root.activePlugin.manifest?.daemon?.enabled;
+           if (isDaemonPlugin && root.runningDaemons[root.activePlugin.id]) {
+               root.writeToDaemonStdin(root.activePlugin.id, input);
+           } else {
+               sendToPlugin(input);
+           }
+       }
+       
+       // Send form switch value change to active plugin (for live form updates)
+       function formSwitchValueChanged(fieldId, value) {
+           if (!root.activePlugin) return;
+           
+           const input = {
+               step: "formSwitch",
+               fieldId: fieldId,
+               value: value,
+               session: root.activePlugin.session
+           };
+           
+           // Include context if set
+           if (root.pluginContext) {
+               input.context = root.pluginContext;
+           }
+           
+           const isDaemonPlugin = root.activePlugin.manifest?.daemon?.enabled;
+           if (isDaemonPlugin && root.runningDaemons[root.activePlugin.id]) {
+               root.writeToDaemonStdin(root.activePlugin.id, input);
+           } else {
+               sendToPlugin(input);
+           }
+       }
+    
+      // Submit form data to active plugin
+      function submitForm(formData) {
+          if (!root.activePlugin) return;
+          
+          const input = {
+              step: "form",
+              formId: root.pluginForm?.id ?? "",
+              formData: formData,
+              session: root.activePlugin.session
+          };
+          
+          // Include context if set (handler may use it to identify form purpose)
+          if (root.pluginContext) {
+              input.context = root.pluginContext;
+          }
+          
+          const isDaemonPlugin = root.activePlugin.manifest?.daemon?.enabled;
+          if (isDaemonPlugin && root.runningDaemons[root.activePlugin.id]) {
+              root.pluginBusy = true;
+              root.writeToDaemonStdin(root.activePlugin.id, input);
+          } else {
+              sendToPlugin(input);
+          }
+      }
+      
+      // Cancel form and return to previous state
+      function cancelForm() {
+          if (!root.activePlugin) return;
+          
+          // Cancelling form is going back one level
+          root.pendingBack = true;
+          
+          // Send cancel action to handler - it decides what to do
           const input = {
               step: "action",
-              selected: { id: itemId },
+              selected: { id: "__form_cancel__" },
               session: root.activePlugin.session
           };
           
-          if (actionId) {
-              input.action = actionId;
-          }
-          
-          // Include context if set (handler needs it for navigation state)
           if (root.pluginContext) {
               input.context = root.pluginContext;
           }
           
-          sendToPlugin(input);
+          const isDaemonPlugin = root.activePlugin.manifest?.daemon?.enabled;
+          if (isDaemonPlugin && root.runningDaemons[root.activePlugin.id]) {
+              root.pluginBusy = true;
+              root.writeToDaemonStdin(root.activePlugin.id, input);
+          } else {
+              sendToPlugin(input);
+          }
       }
-      
-      // Send slider value change to active plugin (for result item sliders)
-      function sliderValueChanged(itemId, value) {
+    
+       // Close active plugin
+       // If in replay mode, let the process finish (notification needs to be sent)
+       // For non-background daemons, stop the daemon
+       function closePlugin() {
+           const pluginId = root.activePlugin?.id;
+           
+           // In replay mode, don't kill the process - let it complete for notification
+           if (!root.replayMode) {
+               pluginProcess.running = false;
+           }
+           
+           // Stop daemon if it's not a background daemon
+           if (pluginId) {
+               const daemon = root.runningDaemons[pluginId];
+               const isDaemonPlugin = root.activePlugin?.manifest?.daemon?.enabled;
+               const isBackground = daemon?.isBackground ?? false;
+               
+               if (isDaemonPlugin && !isBackground) {
+                   root.stopDaemon(pluginId);
+               }
+           }
+           
+           root.activePlugin = null;
+           root.pluginResults = [];
+           root.pluginCard = null;
+           root.pluginForm = null;
+           root.pluginPrompt = "";
+           root.pluginPlaceholder = "";
+           root.lastSelectedItem = null;
+           root.pluginContext = "";
+           root.pluginError = "";
+           root.pluginBusy = false;
+           root.inputMode = "realtime";
+           root.pollInterval = 0;
+           root.lastPollQuery = "";
+           root.pluginActions = [];
+           root.navigationDepth = 0;
+           root.pendingNavigation = false;
+           root.pendingBack = false;
+           root.pluginClosed();
+       }
+       
+        // Patch individual items in pluginResults without replacing the array
+        // This is used for incremental updates (e.g., slider adjustments)
+        function patchPluginResults(patches) {
+            if (!patches || !Array.isArray(patches)) return;
+            
+            // Create a map of patches by id for efficient lookup
+            const patchMap = new Map();
+            for (const patch of patches) {
+                if (patch.id) {
+                    patchMap.set(patch.id, patch);
+                }
+            }
+            
+            // Create a new array with patched items
+            const updated = root.pluginResults.map(item => {
+                const patch = patchMap.get(item.id);
+                if (patch) {
+                    // Return a new object with merged properties
+                    return Object.assign({}, item, patch);
+                }
+                return item;
+            });
+            
+            // Replace the array to trigger update
+            root.pluginResults = updated;
+            
+            // Increment version counter for additional reactivity
+            root.resultsVersion++;
+        }
+        
+        // Smart update plugin results - patches in place when structure matches
+        // Returns true if a partial update was performed, false if full replacement needed
+        function smartUpdatePluginResults(newResults) {
+            if (!newResults || !Array.isArray(newResults)) {
+                root.pluginResults = [];
+                return false;
+            }
+            
+            const oldResults = root.pluginResults;
+            
+            // Fast path: if lengths differ, structure changed - full replace
+            if (oldResults.length !== newResults.length) {
+                root.pluginResults = newResults;
+                root.resultsVersion++;
+                return false;
+            }
+            
+            // Check if all IDs match in same order (structure unchanged)
+            let structureMatches = true;
+            for (let i = 0; i < newResults.length; i++) {
+                if (oldResults[i]?.id !== newResults[i]?.id) {
+                    structureMatches = false;
+                    break;
+                }
+            }
+            
+            if (!structureMatches) {
+                // Structure changed - need full replacement
+                root.pluginResults = newResults;
+                root.resultsVersion++;
+                return false;
+            }
+            
+            // Structure matches - patch items in place
+            // Merge new properties into existing items to preserve object identity
+            let hasChanges = false;
+            const updated = oldResults.map((oldItem, i) => {
+                const newItem = newResults[i];
+                
+                // Check if item actually changed (compare relevant properties)
+                const propsToCheck = ['name', 'description', 'icon', 'iconType', 'thumbnail',
+                    'value', 'gauge', 'graph', 'progress', 'badges', 'chips', 'actions',
+                    'displayValue', 'min', 'max', 'step', 'verb', 'type', 'keepOpen', 'preview'];
+                
+                let itemChanged = false;
+                for (const prop of propsToCheck) {
+                    if (JSON.stringify(oldItem[prop]) !== JSON.stringify(newItem[prop])) {
+                        itemChanged = true;
+                        break;
+                    }
+                }
+                
+                if (itemChanged) {
+                    hasChanges = true;
+                    return Object.assign({}, oldItem, newItem);
+                }
+                return oldItem;
+            });
+            
+            if (hasChanges) {
+                root.pluginResults = updated;
+                root.resultsVersion++;
+            }
+            
+            return true;
+        }
+     
+      // Go back one step in plugin navigation
+      // If we're at the initial view (depth 0), close the plugin entirely
+      // Go back one level within the plugin (does nothing at depth 0)
+      function goBack() {
           if (!root.activePlugin) return;
           
+          // At initial view, do nothing - use closePlugin() to exit
+          if (root.navigationDepth <= 0) {
+              return;
+          }
+          
+          // Mark this as a back navigation (will decrement depth if results returned)
+          root.pendingBack = true;
+          
+          // Send __back__ action to handler - let it decide how to handle navigation
           const input = {
               step: "action",
-              selected: { id: itemId },
-              action: "slider",
-              value: value,
+              selected: { id: "__back__" },
               session: root.activePlugin.session
           };
           
-          // Include context if set
+          // Include context if set (handler may need it to know where to go back to)
           if (root.pluginContext) {
               input.context = root.pluginContext;
           }
           
-          sendToPlugin(input);
-      }
-      
-      // Send form slider value change to active plugin (for live form updates)
-      function formSliderValueChanged(fieldId, value) {
-          if (!root.activePlugin) return;
-          
-          const input = {
-              step: "formSlider",
-              fieldId: fieldId,
-              value: value,
-              session: root.activePlugin.session
-          };
-          
-          // Include context if set
-          if (root.pluginContext) {
-              input.context = root.pluginContext;
+          const isDaemonPlugin = root.activePlugin.manifest?.daemon?.enabled;
+          if (isDaemonPlugin && root.runningDaemons[root.activePlugin.id]) {
+              root.pluginBusy = true;
+              root.writeToDaemonStdin(root.activePlugin.id, input);
+          } else {
+              sendToPlugin(input);
           }
-          
-          sendToPlugin(input);
       }
-      
-      // Send form switch value change to active plugin (for live form updates)
-      function formSwitchValueChanged(fieldId, value) {
-          if (!root.activePlugin) return;
-          
-          const input = {
-              step: "formSwitch",
-              fieldId: fieldId,
-              value: value,
-              session: root.activePlugin.session
-          };
-          
-          // Include context if set
-          if (root.pluginContext) {
-              input.context = root.pluginContext;
-          }
-          
-          sendToPlugin(input);
-      }
-    
-     // Submit form data to active plugin
-     function submitForm(formData) {
-         if (!root.activePlugin) return;
-         
-         const input = {
-             step: "form",
-             formId: root.pluginForm?.id ?? "",
-             formData: formData,
-             session: root.activePlugin.session
-         };
-         
-         // Include context if set (handler may use it to identify form purpose)
-         if (root.pluginContext) {
-             input.context = root.pluginContext;
-         }
-         
-         sendToPlugin(input);
-     }
-     
-     // Cancel form and return to previous state
-     function cancelForm() {
-         if (!root.activePlugin) return;
-         
-         // Cancelling form is going back one level
-         root.pendingBack = true;
-         
-         // Send cancel action to handler - it decides what to do
-         const input = {
-             step: "action",
-             selected: { id: "__form_cancel__" },
-             session: root.activePlugin.session
-         };
-         
-         if (root.pluginContext) {
-             input.context = root.pluginContext;
-         }
-         
-         sendToPlugin(input);
-     }
-    
-     // Close active plugin
-     // If in replay mode, let the process finish (notification needs to be sent)
-     function closePlugin() {
-         // In replay mode, don't kill the process - let it complete for notification
-         if (!root.replayMode) {
-             pluginProcess.running = false;
-         }
-         root.activePlugin = null;
-         root.pluginResults = [];
-         root.pluginCard = null;
-         root.pluginForm = null;
-         root.pluginPrompt = "";
-         root.pluginPlaceholder = "";
-         root.lastSelectedItem = null;
-         root.pluginContext = "";
-         root.pluginError = "";
-         root.pluginBusy = false;
-         root.inputMode = "realtime";
-         root.pollInterval = 0;
-         root.lastPollQuery = "";
-         root.pluginActions = [];
-         root.navigationDepth = 0;
-         root.pendingNavigation = false;
-         root.pendingBack = false;
-         root.pluginClosed();
-     }
-     
-     // Go back one step in plugin navigation
-     // If we're at the initial view (depth 0), close the plugin entirely
-     // Go back one level within the plugin (does nothing at depth 0)
-     function goBack() {
-         if (!root.activePlugin) return;
-         
-         // At initial view, do nothing - use closePlugin() to exit
-         if (root.navigationDepth <= 0) {
-             return;
-         }
-         
-         // Mark this as a back navigation (will decrement depth if results returned)
-         root.pendingBack = true;
-         
-         // Send __back__ action to handler - let it decide how to handle navigation
-         const input = {
-             step: "action",
-             selected: { id: "__back__" },
-             session: root.activePlugin.session
-         };
-         
-         // Include context if set (handler may need it to know where to go back to)
-         if (root.pluginContext) {
-             input.context = root.pluginContext;
-         }
-         
-         sendToPlugin(input);
-     }
      
      // Check if a plugin is active
      function isActive() {
@@ -931,135 +1176,151 @@ Singleton {
          return root.plugins.find(w => w.id === id) ?? null;
      }
      
-     // Execute a plugin-level action (from toolbar button)
-     // These actions (filter, add mode, etc.) increase depth so user can "go back"
-     // Set skipNavigation=true for confirmed actions (destructive actions that don't navigate)
-     function executePluginAction(actionId, skipNavigation) {
-         if (!root.activePlugin) return;
-         
-         // Plugin actions increase depth (user can press Escape to go back)
-         // Unless skipNavigation is true (for confirmed destructive actions)
-         if (!skipNavigation) {
-             root.pendingNavigation = true;
-         }
-         
-         const input = {
-             step: "action",
-             selected: { id: "__plugin__" },  // Special marker for plugin-level actions
-             action: actionId,
-             session: root.activePlugin.session
-         };
-         
-         // Include context if set
-         if (root.pluginContext) {
-             input.context = root.pluginContext;
-         }
-         
-         sendToPlugin(input);
-     }
+      // Execute a plugin-level action (from toolbar button)
+      // These actions (filter, add mode, etc.) increase depth so user can "go back"
+      // Set skipNavigation=true for confirmed actions (destructive actions that don't navigate)
+      function executePluginAction(actionId, skipNavigation) {
+          if (!root.activePlugin) return;
+          
+          // Plugin actions increase depth (user can press Escape to go back)
+          // Unless skipNavigation is true (for confirmed destructive actions)
+          if (!skipNavigation) {
+              root.pendingNavigation = true;
+          }
+          
+          const input = {
+              step: "action",
+              selected: { id: "__plugin__" },  // Special marker for plugin-level actions
+              action: actionId,
+              session: root.activePlugin.session
+          };
+          
+          // Include context if set
+          if (root.pluginContext) {
+              input.context = root.pluginContext;
+          }
+          
+          const isDaemonPlugin = root.activePlugin.manifest?.daemon?.enabled;
+          if (isDaemonPlugin && root.runningDaemons[root.activePlugin.id]) {
+              root.pluginBusy = true;
+              root.writeToDaemonStdin(root.activePlugin.id, input);
+          } else {
+              sendToPlugin(input);
+          }
+      }
     
-     // Replay a saved action using entryPoint
-     // Used for history items that need plugin logic instead of direct command
-     // Returns true if replay was initiated, false if plugin not found
-     function replayAction(pluginId, entryPoint) {
-         const plugin = root.plugins.find(w => w.id === pluginId);
-         if (!plugin || !plugin.manifest || !entryPoint) {
-             return false;
-         }
-         
-         const session = generateSessionId();
-         
-         root.activePlugin = {
-             id: plugin.id,
-             path: plugin.path,
-             manifest: plugin.manifest,
-             session: session
-         };
-         root.pluginResults = [];
-         root.pluginCard = null;
-         root.pluginForm = null;
-         root.pluginPrompt = "";
-         root.pluginPlaceholder = "";
-         root.pluginError = "";
-         root.inputMode = "realtime";
-         root.replayMode = true;  // Don't kill process when launcher closes
-         root.replayPluginInfo = {
-             id: plugin.id,
-             name: plugin.manifest.name,
-             icon: plugin.manifest.icon
-         };
-         
-         // Build replay input from entryPoint
-         const input = {
-             step: entryPoint.step ?? "action",
-             session: session,
-             replay: true  // Signal to handler this is a replay
-         };
-         
-         if (entryPoint.selected) {
-             input.selected = entryPoint.selected;
-             root.lastSelectedItem = entryPoint.selected.id ?? null;
-         }
-         if (entryPoint.action) {
-             input.action = entryPoint.action;
-         }
-         if (entryPoint.query) {
-             input.query = entryPoint.query;
-         }
-         
-         sendToPlugin(input);
-         return true;
-     }
+      // Replay a saved action using entryPoint
+      // Used for history items that need plugin logic instead of direct command
+      // Returns true if replay was initiated, false if plugin not found
+      function replayAction(pluginId, entryPoint) {
+          const plugin = root.plugins.find(w => w.id === pluginId);
+          if (!plugin || !plugin.manifest || !entryPoint) {
+              return false;
+          }
+          
+          const session = generateSessionId();
+          
+          root.activePlugin = {
+              id: plugin.id,
+              path: plugin.path,
+              manifest: plugin.manifest,
+              session: session
+          };
+          root.pluginResults = [];
+          root.pluginCard = null;
+          root.pluginForm = null;
+          root.pluginPrompt = "";
+          root.pluginPlaceholder = "";
+          root.pluginError = "";
+          root.inputMode = "realtime";
+          root.replayMode = true;  // Don't kill process when launcher closes
+          root.replayPluginInfo = {
+              id: plugin.id,
+              name: plugin.manifest.name,
+              icon: plugin.manifest.icon
+          };
+          
+          // Build replay input from entryPoint
+          const input = {
+              step: entryPoint.step ?? "action",
+              session: session,
+              replay: true  // Signal to handler this is a replay
+          };
+          
+          if (entryPoint.selected) {
+              input.selected = entryPoint.selected;
+              root.lastSelectedItem = entryPoint.selected.id ?? null;
+          }
+          if (entryPoint.action) {
+              input.action = entryPoint.action;
+          }
+          if (entryPoint.query) {
+              input.query = entryPoint.query;
+          }
+          
+          // For daemon plugins in replay mode, still use request-response
+          // (replay shouldn't leave daemon running)
+          sendToPlugin(input);
+          return true;
+      }
      
-     // Execute an entryPoint action with UI visible (not replay mode)
-     // Used for indexed items that open a view (e.g., viewing a note)
-     // Returns true if action was initiated, false if plugin not found
-     function executeEntryPoint(pluginId, entryPoint) {
-         console.log(`[PluginRunner] executeEntryPoint: ${pluginId}, ${JSON.stringify(entryPoint)}`);
-         const plugin = root.plugins.find(w => w.id === pluginId);
-         if (!plugin || !plugin.manifest || !entryPoint) {
-             console.log(`[PluginRunner] executeEntryPoint failed: plugin=${!!plugin}, manifest=${!!plugin?.manifest}, entryPoint=${!!entryPoint}`);
-             return false;
-         }
-         
-         const session = generateSessionId();
-         
-         root.activePlugin = {
-             id: plugin.id,
-             path: plugin.path,
-             manifest: plugin.manifest,
-             session: session
-         };
-         root.pluginResults = [];
-         root.pluginCard = null;
-         root.pluginForm = null;
-         root.pluginPrompt = "";
-         root.pluginPlaceholder = "";
-         root.pluginError = "";
-         root.inputMode = "realtime";
-         root.replayMode = false;  // Keep UI visible
-         root.navigationDepth = 1;  // We're entering at depth 1 (not initial view)
-         
-         // Build input from entryPoint
-         const input = {
-             step: entryPoint.step ?? "action",
-             session: session
-         };
-         
-         if (entryPoint.selected) {
-             input.selected = entryPoint.selected;
-             root.lastSelectedItem = entryPoint.selected.id ?? null;
-         }
-         if (entryPoint.action) {
-             input.action = entryPoint.action;
-         }
-         if (entryPoint.query) {
-             input.query = entryPoint.query;
-         }
-         
-         sendToPlugin(input);
-         return true;
-     }
+      // Execute an entryPoint action with UI visible (not replay mode)
+      // Used for indexed items that open a view (e.g., viewing a note)
+      // Returns true if action was initiated, false if plugin not found
+      function executeEntryPoint(pluginId, entryPoint) {
+          console.log(`[PluginRunner] executeEntryPoint: ${pluginId}, ${JSON.stringify(entryPoint)}`);
+          const plugin = root.plugins.find(w => w.id === pluginId);
+          if (!plugin || !plugin.manifest || !entryPoint) {
+              console.log(`[PluginRunner] executeEntryPoint failed: plugin=${!!plugin}, manifest=${!!plugin?.manifest}, entryPoint=${!!entryPoint}`);
+              return false;
+          }
+          
+          const session = generateSessionId();
+          
+          root.activePlugin = {
+              id: plugin.id,
+              path: plugin.path,
+              manifest: plugin.manifest,
+              session: session
+          };
+          root.pluginResults = [];
+          root.pluginCard = null;
+          root.pluginForm = null;
+          root.pluginPrompt = "";
+          root.pluginPlaceholder = "";
+          root.pluginError = "";
+          root.inputMode = "realtime";
+          root.replayMode = false;  // Keep UI visible
+          root.navigationDepth = 1;  // We're entering at depth 1 (not initial view)
+          
+          // Build input from entryPoint
+          const input = {
+              step: entryPoint.step ?? "action",
+              session: session
+          };
+          
+          if (entryPoint.selected) {
+              input.selected = entryPoint.selected;
+              root.lastSelectedItem = entryPoint.selected.id ?? null;
+          }
+          if (entryPoint.action) {
+              input.action = entryPoint.action;
+          }
+          if (entryPoint.query) {
+              input.query = entryPoint.query;
+          }
+          
+          // For daemon plugins, start daemon and use daemon
+          const isDaemonPlugin = plugin.manifest?.daemon?.enabled;
+          if (isDaemonPlugin) {
+              root.startDaemon(pluginId);
+              root.writeToDaemonStdin(pluginId, input);
+          } else {
+              sendToPlugin(input);
+          }
+          
+          return true;
+      }
     
     // Execute a detached preview action (has its own command)
     function executeDetachedPreviewAction(action) {
@@ -1146,33 +1407,47 @@ Singleton {
          root.pendingNavigation = false;
          root.pendingBack = false;
          
-         switch (response.type) {
-              case "results":
-                   root.pluginResults = response.results ?? [];
-                   root.pluginCard = null;
-                   root.pluginForm = null;
-                   if (response.placeholder !== undefined) {
-                       root.pluginPlaceholder = response.placeholder ?? "";
-                   }
-                   if (response.context !== undefined) {
-                       root.pluginContext = response.context ?? "";
-                   }
-                   root.inputMode = response.inputMode ?? "realtime";
-                   if (response.pollInterval !== undefined) {
-                       root.pollInterval = response.pollInterval ?? 0;
-                   }
-                   if (response.pluginActions !== undefined) {
-                       root.pluginActions = response.pluginActions ?? [];
-                   }
-                   if (response.clearInput) {
-                       root.clearInputRequested();
-                   }
-                   // Update plugin status if provided
-                   if (response.status && root.activePlugin?.id) {
-                       root.updatePluginStatus(root.activePlugin.id, response.status);
-                   }
-                   root.resultsReady(root.pluginResults);
-                   break;
+          switch (response.type) {
+               case "update":
+                    // Patch individual items in pluginResults without replacing the array
+                    if (response.items && Array.isArray(response.items)) {
+                        root.patchPluginResults(response.items);
+                    }
+                    break;
+                    
+               case "results":
+                    // Use smart update for daemon responses (preserves selection, reduces redraw)
+                    // isPollUpdate is set before daemon requests to indicate incremental update
+                    if (root.isPollUpdate) {
+                        root.smartUpdatePluginResults(response.results ?? []);
+                    } else {
+                        root.pluginResults = response.results ?? [];
+                        root.resultsVersion++;
+                    }
+                    root.pluginCard = null;
+                    root.pluginForm = null;
+                    if (response.placeholder !== undefined) {
+                        root.pluginPlaceholder = response.placeholder ?? "";
+                    }
+                    if (response.context !== undefined) {
+                        root.pluginContext = response.context ?? "";
+                    }
+                    root.inputMode = response.inputMode ?? "realtime";
+                    if (response.pollInterval !== undefined) {
+                        root.pollInterval = response.pollInterval ?? 0;
+                    }
+                    if (response.pluginActions !== undefined) {
+                        root.pluginActions = response.pluginActions ?? [];
+                    }
+                    if (response.clearInput) {
+                        root.clearInputRequested();
+                    }
+                    // Update plugin status if provided
+                    if (response.status && root.activePlugin?.id) {
+                        root.updatePluginStatus(root.activePlugin.id, response.status);
+                    }
+                    root.resultsReady(root.pluginResults);
+                    break;
                  
              case "card":
                  root.pluginCard = response.card ?? null;
@@ -1430,17 +1705,19 @@ Singleton {
      }
      
      // Prepared plugins for fuzzy search
+     // Exclude index-only plugins (staticIndex or indexOnly) - they provide indexed items but can't be opened
      property var preppedPlugins: plugins
-         .filter(w => w.manifest)
+         .filter(w => w.manifest && !w.manifest.staticIndex && !w.manifest.indexOnly)
          .map(w => ({
              name: Fuzzy.prepare(w.id),
              plugin: w
          }))
      
      // Fuzzy search plugins by name
+     // Excludes index-only plugins (staticIndex or indexOnly) - they can't be opened
      function fuzzyQueryPlugins(query) {
          if (!query || query.trim() === "") {
-             return root.plugins.filter(w => w.manifest);
+             return root.plugins.filter(w => w.manifest && !w.manifest.staticIndex && !w.manifest.indexOnly);
          }
          return Fuzzy.go(query, root.preppedPlugins, { key: "name", limit: 10 })
              .map(r => r.obj.plugin);
@@ -1518,18 +1795,6 @@ Singleton {
      
      IpcHandler {
          target: "pluginRunner"
-         
-         // Reindex a specific plugin
-         // Usage: qs -c hamr ipc call pluginRunner reindex <pluginId>
-         function reindex(pluginId: string): void {
-             root.indexPlugin(pluginId, "full");
-         }
-         
-         // Reindex all plugins
-         // Usage: qs -c hamr ipc call pluginRunner reindexAll
-         function reindexAll(): void {
-             root.indexAllPlugins();
-         }
          
          // Update plugin status (badges, description)
          // Usage: hamr status <pluginId> '<json>'

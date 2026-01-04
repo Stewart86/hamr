@@ -263,11 +263,118 @@ Singleton {
             root.query = "";
             root.pluginClearing = false;
         }
+        function onPluginClosed() {
+            root.clearPluginResultCache();
+        }
+    }
+    
+    property var _pluginResultCache: ({})
+    
+    function clearPluginResultCache() {
+        for (const id of Object.keys(root._pluginResultCache)) {
+            const cached = root._pluginResultCache[id];
+            if (cached?.result) {
+                cached.result.destroy();
+            }
+            if (cached?.actions) {
+                for (const action of cached.actions) {
+                    action.destroy();
+                }
+            }
+        }
+        root._pluginResultCache = ({});
     }
 
     function pluginResultsToSearchResults(pluginResults: var): var {
-         return pluginResults.map(item => {
+        const newCache = {};
+        const pluginId = PluginRunner.activePlugin?.id ?? "";
+        const pluginName = PluginRunner.activePlugin?.manifest?.name ?? "Plugin";
+        const pluginIcon = PluginRunner.activePlugin?.manifest?.icon ?? "extension";
+        
+        if (!pluginResults || pluginResults.length === 0) {
+            if (!PluginRunner.pluginBusy) {
+                return [resultComp.createObject(null, {
+                    id: "__empty__",
+                    name: "No items",
+                    comment: root.query ? `No results for "${root.query}"` : "Start typing to search",
+                    type: pluginName,
+                    iconName: pluginIcon,
+                    iconType: LauncherSearchResult.IconType.Material,
+                    verb: "",
+                    execute: () => {}
+                })];
+            }
+            return [];
+        }
+        
+        const results = pluginResults.map(item => {
              const itemId = item.id;
+             const cached = root._pluginResultCache[itemId];
+             
+             const iconName = item.icon ?? PluginRunner.activePlugin?.manifest?.icon ?? 'extension';
+             let isSystemIcon;
+             if (item.iconType === "system") {
+                 isSystemIcon = true;
+             } else if (item.iconType === "material") {
+                 isSystemIcon = false;
+             } else {
+                 isSystemIcon = iconName.includes('.') || iconName.includes('-');
+             }
+             
+             const executeCommand = item.execute?.command ?? null;
+             const executeNotify = item.execute?.notify ?? null;
+             const executeName = item.execute?.name ?? null;
+             
+             if (cached?.result) {
+                 const result = cached.result;
+                 result.name = item.name;
+                 result.comment = item.description ?? "";
+                 result.verb = item.verb ?? "Select";
+                 result.iconName = iconName;
+                 result.iconType = isSystemIcon ? LauncherSearchResult.IconType.System : LauncherSearchResult.IconType.Material;
+                 result.thumbnail = item.thumbnail ?? "";
+                 result.preview = item.preview ?? undefined;
+                 result.value = item.value ?? 0;
+                 result.min = item.min ?? 0;
+                 result.max = item.max ?? 100;
+                 result.step = item.step ?? 1;
+                 result.displayValue = item.displayValue ?? "";
+                 result.badges = item.badges ?? [];
+                 result.chips = item.chips ?? [];
+                 result.graph = item.graph ?? null;
+                 result.gauge = item.gauge ?? null;
+                 result.progress = item.progress ?? null;
+                 
+                 const newActions = item.actions ?? [];
+                 const cachedActionIds = (cached.actions ?? []).map(a => a.name).join(',');
+                 const newActionIds = newActions.map(a => a.name).join(',');
+                 
+                 if (cachedActionIds !== newActionIds) {
+                     for (const action of (cached.actions ?? [])) {
+                         action.destroy();
+                     }
+                     const itemActions = newActions.map(action => {
+                         const actionId = action.id;
+                         const actionIconType = action.iconType === "system"
+                             ? LauncherSearchResult.IconType.System
+                             : LauncherSearchResult.IconType.Material;
+                         return resultComp.createObject(null, {
+                             name: action.name,
+                             iconName: action.icon ?? 'play_arrow',
+                             iconType: actionIconType,
+                             execute: () => {
+                                 PluginRunner.selectItem(itemId, actionId);
+                             }
+                         });
+                     });
+                     result.actions = itemActions;
+                     cached.actions = itemActions;
+                 }
+                 result.pluginActions = newActions;
+                 
+                 newCache[itemId] = cached;
+                 return result;
+             }
 
              const itemActions = (item.actions ?? []).map(action => {
                  const actionId = action.id;
@@ -284,23 +391,7 @@ Singleton {
                  });
              });
 
-             const iconName = item.icon ?? PluginRunner.activePlugin?.manifest?.icon ?? 'extension';
-             let isSystemIcon;
-             if (item.iconType === "system") {
-                 isSystemIcon = true;
-             } else if (item.iconType === "material") {
-                 isSystemIcon = false;
-             } else {
-                 isSystemIcon = iconName.includes('.') || iconName.includes('-');
-             }
-
-             const executeCommand = item.execute?.command ?? null;
-             const executeNotify = item.execute?.notify ?? null;
-             const executeName = item.execute?.name ?? null;
-             const pluginId = PluginRunner.activePlugin?.id ?? "";
-             const pluginName = PluginRunner.activePlugin?.manifest?.name ?? "Plugin";
-
-             return resultComp.createObject(null, {
+             const result = resultComp.createObject(null, {
                  id: itemId,
                  name: item.name,
                  comment: item.description ?? "",
@@ -315,14 +406,13 @@ Singleton {
                  thumbnail: item.thumbnail ?? "",
                  preview: item.preview ?? undefined,
                  actions: itemActions,
-                 // Slider properties
                  value: item.value ?? 0,
                  min: item.min ?? 0,
                  max: item.max ?? 100,
                  step: item.step ?? 1,
                  displayValue: item.displayValue ?? "",
-                 // Visual enhancements
                  badges: item.badges ?? [],
+                 chips: item.chips ?? [],
                  graph: item.graph ?? null,
                  gauge: item.gauge ?? null,
                  progress: item.progress ?? null,
@@ -350,7 +440,27 @@ Singleton {
                      PluginRunner.selectItem(capturedItemId, "");
                  })(itemId, executeCommand, executeNotify, executeName, pluginId, pluginName, iconName)
              });
+             
+             newCache[itemId] = { result, actions: itemActions };
+             return result;
          });
+         
+         for (const id of Object.keys(root._pluginResultCache)) {
+             if (!newCache[id]) {
+                 const cached = root._pluginResultCache[id];
+                 if (cached?.result) {
+                     cached.result.destroy();
+                 }
+                 if (cached?.actions) {
+                     for (const action of cached.actions) {
+                         action.destroy();
+                     }
+                 }
+             }
+         }
+         root._pluginResultCache = newCache;
+         
+         return results;
      }
 
     property var preppedPlugins: PluginRunner.preppedPlugins
@@ -806,7 +916,7 @@ Singleton {
             });
 
             const pluginMatches = searchString === ""
-                ? PluginRunner.plugins
+                ? root.preppedPlugins.map(p => p.plugin)
                 : Fuzzy.go(searchString, root.preppedPlugins, { key: "name", limit: 50 }).map(r => r.obj.plugin);
 
             const pluginItems = pluginMatches.map(plugin => {

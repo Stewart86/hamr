@@ -417,6 +417,9 @@ Singleton {
                                 keepOpen: capturedItem.keepOpen === true
                             }, capturedQuery);
                         }
+                        if (capturedItem.execute?.close) {
+                            GlobalStates.launcherOpen = false;
+                        }
                     }
                 })(item, query, appId, isAppItem)
         });
