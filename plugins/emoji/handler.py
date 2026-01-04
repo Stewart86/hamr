@@ -296,6 +296,11 @@ def handle_request(request: dict, emojis: list[dict]) -> None:
             )
             return
 
+        # Look up emoji description for history tracking
+        emoji_data = next((e for e in emojis if e["emoji"] == emoji), None)
+        description = emoji_data["description"][:30] if emoji_data else ""
+        history_name = f"{emoji} {description}" if description else emoji
+
         if action_id == "type":
             type_text(emoji)
             save_recent_emoji(emoji)
@@ -303,7 +308,11 @@ def handle_request(request: dict, emojis: list[dict]) -> None:
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {"notify": f"Typed {emoji}", "close": True},
+                        "execute": {
+                            "notify": f"Typed {emoji}",
+                            "close": True,
+                            "name": history_name,
+                        },
                     }
                 ),
                 flush=True,
@@ -315,7 +324,11 @@ def handle_request(request: dict, emojis: list[dict]) -> None:
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {"notify": f"Copied {emoji}", "close": True},
+                        "execute": {
+                            "notify": f"Copied {emoji}",
+                            "close": True,
+                            "name": history_name,
+                        },
                     }
                 ),
                 flush=True,

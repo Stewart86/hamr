@@ -1591,8 +1591,7 @@ Singleton {
          function onImageBrowserSelected(filePath, actionId) {
              if (!root.activePlugin) return;
              
-             // Send selection back to plugin handler
-             sendToPlugin({
+             const input = {
                  step: "action",
                  selected: {
                      id: "imageBrowser",
@@ -1600,7 +1599,15 @@ Singleton {
                      action: actionId
                  },
                  session: root.activePlugin.session
-             });
+             };
+             
+             const isDaemonPlugin = root.activePlugin.manifest?.daemon?.enabled;
+             if (isDaemonPlugin && root.runningDaemons[root.activePlugin.id]) {
+                 root.pluginBusy = true;
+                 root.writeToDaemonStdin(root.activePlugin.id, input);
+             } else {
+                 sendToPlugin(input);
+             }
          }
          
          function onImageBrowserCancelled() {
@@ -1616,8 +1623,7 @@ Singleton {
          function onGridBrowserSelected(itemId, actionId) {
              if (!root.activePlugin) return;
              
-             // Send selection back to plugin handler
-             sendToPlugin({
+             const input = {
                  step: "action",
                  selected: {
                      id: "gridBrowser",
@@ -1625,7 +1631,15 @@ Singleton {
                      action: actionId
                  },
                  session: root.activePlugin.session
-             });
+             };
+             
+             const isDaemonPlugin = root.activePlugin.manifest?.daemon?.enabled;
+             if (isDaemonPlugin && root.runningDaemons[root.activePlugin.id]) {
+                 root.pluginBusy = true;
+                 root.writeToDaemonStdin(root.activePlugin.id, input);
+             } else {
+                 sendToPlugin(input);
+             }
          }
          
          function onGridBrowserCancelled() {

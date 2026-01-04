@@ -121,6 +121,15 @@ test_grid_browser_action_type() {
     assert_contains "$raw_result" "Typed"
 }
 
+test_grid_browser_action_has_history_name() {
+    local raw_result=$(hamr_test raw --input '{"step": "action", "selected": {"id": "gridBrowser", "itemId": "😀", "action": "copy"}}')
+    # Should have execute.name for history tracking
+    local name=$(json_get "$raw_result" '.execute.name')
+    [[ -n "$name" ]] || { echo "Expected execute.name for history tracking, got empty"; return 1; }
+    # Name should contain the emoji
+    assert_contains "$name" "😀"
+}
+
 test_index_returns_items() {
     local result=$(hamr_test index)
     assert_type "$result" "index"
@@ -190,6 +199,7 @@ run_tests \
     test_action_default_is_copy \
     test_grid_browser_action_copy \
     test_grid_browser_action_type \
+    test_grid_browser_action_has_history_name \
     test_index_returns_items \
     test_index_items_have_execute \
     test_index_items_have_execute_name \
