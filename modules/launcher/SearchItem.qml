@@ -253,10 +253,21 @@ RippleButton {
         opacity: 0.7
     }
 
+    onPressed: {
+        // Immediately update selection to clicked item to prevent scroll jump
+        const listView = root.ListView.view;
+        if (listView && entry?.key) {
+            const idx = LauncherSearch.results.findIndex(r => r.key === entry.key);
+            if (idx >= 0) {
+                listView.currentIndex = idx;
+            }
+        }
+    }
+
     onClicked: {
-         const isPlugin = entry?.resultType === LauncherSearchResult.ResultType.PluginEntry ||
-                           entry?.resultType === LauncherSearchResult.ResultType.PluginResult;
-         const shouldKeepOpen = entry?.keepOpen === true;
+        const isPlugin = entry?.resultType === LauncherSearchResult.ResultType.PluginEntry ||
+                          entry?.resultType === LauncherSearchResult.ResultType.PluginResult;
+        const shouldKeepOpen = entry?.keepOpen === true;
 
         if (isPlugin || shouldKeepOpen) {
             // Capture selection before action executes (for restoration after results update)
@@ -668,8 +679,15 @@ RippleButton {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: (event) => {
                             event.accepted = true
-                            // Capture selection before action executes (for restoration after results update)
                             const listView = root.ListView.view
+                            // Update currentIndex to clicked item so restoration uses this position
+                            if (listView && root.entry?.key) {
+                                const idx = LauncherSearch.results.findIndex(r => r.key === root.entry.key)
+                                if (idx >= 0) {
+                                    listView.currentIndex = idx
+                                }
+                            }
+                            // Capture selection before action executes (for restoration after results update)
                             if (listView && typeof listView.captureSelection === "function") {
                                 listView.captureSelection()
                             }
