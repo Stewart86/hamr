@@ -35,7 +35,7 @@ This repo lives at:
 ~/Projects/Personal/Qml/hamr/
 ```
 
-Symlinked to `~/.config/quickshell/` for testing.
+Use `./dev` to run hamr from this directory during development.
 
 ## Releasing
 
@@ -76,8 +76,25 @@ When user says "push and bump version" or "release":
 ./aur-publish.sh
 ```
 
+## Development
+
+Run the dev script from the repo root:
+
+```bash
+./dev
+```
+
+This script:
+- Stops any running production hamr (systemd service or manual)
+- Runs hamr from the current directory
+- Restores production hamr on exit (Ctrl+C)
+
+Use `./dev --no-restore` to not restart production after exiting.
+
+Quickshell auto-reloads on file change. View logs directly in the terminal.
+
 ## Testing
 
 - Quickshell auto-reloads on file change when running in debug mode
 - No manual reload needed during development
-- View logs `journalctl --user -u quickshell -f`
+- View logs in terminal (when using `./dev`) or `journalctl --user -u hamr -f`

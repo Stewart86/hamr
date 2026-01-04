@@ -53,19 +53,24 @@ Plugins without tests will not be accepted.
 ## Development Setup
 
 ```bash
-# Clone and install
+# Clone the repository
 git clone https://github.com/stewart86/hamr.git
 cd hamr
-./install.sh
 
-# Kill any running hamr instance
-pkill -f "qs -c hamr" || true
-
-# Run hamr in terminal (shows logs directly)
-qs -c hamr
+# Run in development mode
+./dev
 ```
 
+The `./dev` script:
+- Stops any running production hamr (systemd service or manual)
+- Runs hamr from the current directory with live reload
+- Restores production hamr on exit (Ctrl+C)
+
+Use `./dev --no-restore` to not restart production after exiting.
+
 Hamr auto-reloads on file changes. Logs appear directly in your terminal.
+
+**Note:** You can have the AUR version installed alongside development. The dev script temporarily takes over, then restores production on exit.
 
 ## Testing Plugins
 

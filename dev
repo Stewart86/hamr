@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# dev - Development runner for hamr
+#
+# Stops production hamr, runs dev version from this repo, and restores
+# production on exit. Safe to Ctrl+C - cleanup always runs.
+#
+# Usage:
+#   ./dev              Run hamr from this directory
+#   ./dev --no-restore Don't restart production hamr on exit
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVICE_WAS_RUNNING=false
+RESTORE_ON_EXIT=true
+LOCKFILE="/tmp/hamr-dev.lock"
+
+# Parse arguments
+for arg in "$@"; do
+    case "$arg" in
+        --no-restore)
+            RESTORE_ON_EXIT=false
+            ;;
+        -h|--help)
+            echo "Usage: ./dev [OPTIONS]"
+            echo ""
+            echo "Run hamr in development mode from the current repository."
+            echo "Stops production hamr and restores it on exit."
+            echo ""
+            echo "Options:"
+            echo "  --no-restore  Don't restart production hamr on exit"
+            echo "  -h, --help    Show this help"
+            exit 0
+            ;;
+    esac
+done
+
+cleanup() {
+    echo ""
+    echo "Stopping dev instance..."
+    
+    # Remove lockfile
+    rm -f "$LOCKFILE"
+    
+    # Restart production if it was running and restore is enabled
+    if [[ "$SERVICE_WAS_RUNNING" == "true" && "$RESTORE_ON_EXIT" == "true" ]]; then
+        echo "Restarting hamr.service..."
+        systemctl --user start hamr.service
+    fi
+    
+    exit 0
+}
+
+# Check for existing dev instance
+if [[ -f "$LOCKFILE" ]]; then
+    existing_pid=$(cat "$LOCKFILE" 2>/dev/null || echo "")
+    if [[ -n "$existing_pid" ]] && kill -0 "$existing_pid" 2>/dev/null; then
+        echo "Error: Another dev instance is already running (PID: $existing_pid)"
+        echo "Kill it first: kill $existing_pid"
+        exit 1
+    else
+        # Stale lockfile
+        rm -f "$LOCKFILE"
+    fi
+fi
+
+# Verify we're in a hamr repo
+if [[ ! -f "$SCRIPT_DIR/shell.qml" ]]; then
+    echo "Error: shell.qml not found in $SCRIPT_DIR"
+    echo "Run this script from the hamr repository root."
+    exit 1
+fi
+
+trap cleanup EXIT INT TERM
+
+# Check if systemd service is running
+if systemctl --user is-active --quiet hamr.service 2>/dev/null; then
+    SERVICE_WAS_RUNNING=true
+    echo "Stopping hamr.service..."
+    systemctl --user stop hamr.service
+fi
+
+# Kill any other hamr/quickshell instances running hamr config
+pkill -f "qs.*-c hamr" 2>/dev/null || true
+pkill -f "qs.*hamr/shell.qml" 2>/dev/null || true
+
+# Brief pause to ensure processes are fully stopped
+sleep 0.2
+
+# Create lockfile with our PID
+echo $$ > "$LOCKFILE"
+
+echo "Starting hamr from: $SCRIPT_DIR"
+echo "Press Ctrl+C to stop and restore production hamr"
+echo ""
+
+# Run dev instance (blocks until killed)
+exec qs -p "$SCRIPT_DIR"
