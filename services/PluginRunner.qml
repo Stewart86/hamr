@@ -1383,25 +1383,28 @@ Singleton {
                 
              case "execute":
                  if (response.execute) {
-                     const exec = response.execute;
-                     
-                     // In replay mode, activePlugin may be cleared - use replayPluginInfo
-                     const pluginName = root.activePlugin?.manifest?.name 
-                         ?? root.replayPluginInfo?.name 
-                         ?? "Plugin";
-                     const pluginIcon = root.activePlugin?.manifest?.icon 
-                         ?? root.replayPluginInfo?.icon 
-                         ?? "play_arrow";
-                     const pluginId = root.activePlugin?.id 
-                         ?? root.replayPluginInfo?.id 
-                         ?? "";
-                     
-                     if (exec.command) {
-                         Quickshell.execDetached(exec.command);
-                     }
-                     if (exec.notify) {
-                         Quickshell.execDetached(["notify-send", pluginName, exec.notify, "-a", "Shell"]);
-                     }
+                      const exec = response.execute;
+                      
+                      // In replay mode, activePlugin may be cleared - use replayPluginInfo
+                      const pluginName = root.activePlugin?.manifest?.name 
+                          ?? root.replayPluginInfo?.name 
+                          ?? "Plugin";
+                      const pluginIcon = root.activePlugin?.manifest?.icon 
+                          ?? root.replayPluginInfo?.icon 
+                          ?? "play_arrow";
+                      const pluginId = root.activePlugin?.id 
+                          ?? root.replayPluginInfo?.id 
+                          ?? "";
+                      
+                      if (exec.command) {
+                          Quickshell.execDetached(exec.command);
+                      }
+                      if (exec.notify) {
+                          Quickshell.execDetached(["notify-send", pluginName, exec.notify, "-a", "Shell"]);
+                      }
+                      if (exec.sound) {
+                          AudioService.playSound(exec.sound);
+                      }
                      // If handler provides name, emit for history tracking
                      // Include entryPoint for complex actions that need plugin replay
                      if (exec.name) {

@@ -161,6 +161,11 @@ Singleton {
                 property string clickOutsideAction: "intuitive"
             }
 
+            // ==================== AUDIO ====================
+            property JsonObject audio: JsonObject {
+                property bool enabled: true // Enable/disable all sound effects
+            }
+
             // ==================== APPEARANCE ====================
             property JsonObject appearance: JsonObject {
                 // Transparency (0.0 = opaque, 1.0 = fully transparent)

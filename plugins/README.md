@@ -605,7 +605,7 @@ Display markdown-formatted content with optional action buttons.
 
 ### 3. `execute` - Run Command
 
-Execute a shell command, optionally save to history.
+Execute a shell command, optionally save to history, play sounds.
 
 ```python
 # Simple execution (no history)
@@ -614,6 +614,7 @@ Execute a shell command, optionally save to history.
     "execute": {
         "command": ["xdg-open", "/path/to/file"],  # Shell command
         "notify": "File opened",                    # Optional: notification
+        "sound": "complete",                        # Optional: play sound effect
         "close": true                               # Close launcher (true) or stay open (false)
     }
 }
@@ -631,6 +632,20 @@ Execute a shell command, optionally save to history.
     }
 }
 ```
+
+#### Execute Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `command` | string[] | Shell command to execute |
+| `notify` | string | Notification message (via notify-send) |
+| `sound` | string | Sound effect to play (see Sound Effects below) |
+| `close` | bool | Close launcher after execution |
+| `name` | string | Display name for history tracking |
+| `icon` | string | Icon for history entry |
+| `iconType` | string | `"material"` (default) or `"system"` |
+| `thumbnail` | string | Image path for history preview |
+| `entryPoint` | object | Entry point for complex replay (see below) |
 
 **Example plugins:** [`files/`](files/handler.py), [`wallpaper/`](wallpaper/handler.py)
 
@@ -1693,6 +1708,117 @@ Chips are pill-shaped tags for longer text (a few words):
 **Live updates**: Status badges update in real-time without flickering or resetting selection. External processes can push frequent updates (e.g., progress indicators) and the UI will smoothly reflect changes.
 
 **Example plugins:** [`todo/`](todo/handler.py) - Shows pending task count as chip
+
+---
+
+## Sound Effects
+
+Hamr provides an audio service for playing sound effects. Sounds are useful for timer completions, notifications, errors, and other feedback.
+
+### Playing Sounds from Plugins
+
+Include the `sound` field in an `execute` response:
+
+```python
+{
+    "type": "execute",
+    "execute": {
+        "sound": "alarm",              # Predefined sound name
+        "notify": "Timer finished!",
+        "close": true
+    }
+}
+
+# Or with a custom sound file
+{
+    "type": "execute",
+    "execute": {
+        "sound": "/path/to/custom.wav",  # Absolute path
+        "close": true
+    }
+}
+```
+
+### Predefined Sounds
+
+| Sound | Description | Use Case |
+|-------|-------------|----------|
+| `alarm` | Alarm clock sound | Timer/alarm completion |
+| `timer` | Timer completion | Pomodoro, countdown |
+| `complete` | Success/completion | Task done, download finished |
+| `notification` | Notification chime | Alerts, messages |
+| `error` | Error sound | Failed operations |
+| `warning` | Warning sound | Caution alerts |
+
+### Sound Discovery Priority
+
+Hamr searches for sounds in this order:
+
+1. **User sounds**: `~/.config/hamr/sounds/` (custom sounds)
+2. **Ocean theme**: `/usr/share/sounds/ocean/stereo/` (modern KDE sounds)
+3. **Freedesktop**: `/usr/share/sounds/freedesktop/stereo/` (classic fallback)
+
+### Custom Sounds
+
+Place custom sound files in `~/.config/hamr/sounds/`:
+
+```bash
+~/.config/hamr/sounds/
+├── alarm.wav       # Overrides predefined "alarm"
+├── timer.ogg       # Overrides predefined "timer"
+└── my-sound.mp3    # Custom sound, use path or name
+```
+
+Supported formats: `.oga`, `.ogg`, `.wav`, `.mp3`, `.flac`
+
+### CLI Commands
+
+```bash
+# Play sounds
+hamr audio play alarm              # Play predefined sound
+hamr audio play /path/to/file.wav  # Play custom file
+
+# Control
+hamr audio status                  # Show available sounds
+hamr audio enable                  # Enable sound effects
+hamr audio disable                 # Disable sound effects
+hamr audio reload                  # Re-discover sound files
+```
+
+### IPC Commands
+
+```bash
+# Direct IPC calls
+qs ipc -c hamr call audio play alarm
+qs ipc -c hamr call audio status
+qs ipc -c hamr call audio enable
+qs ipc -c hamr call audio disable
+qs ipc -c hamr call audio reload
+```
+
+### Configuration
+
+In `~/.config/hamr/config.json`:
+
+```json
+{
+  "audio": {
+    "enabled": true
+  }
+}
+```
+
+### Sound Theme Packages
+
+For best experience, install a sound theme:
+
+```bash
+# Recommended (modern KDE Plasma sounds)
+sudo pacman -S ocean-sound-theme
+
+# Fallback (classic sounds)
+sudo pacman -S sound-theme-freedesktop
+```
 
 ---
 

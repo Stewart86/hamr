@@ -22,6 +22,8 @@ ShellRoot {
         MaterialThemeLoader.reapplyTheme()
         ShellHistory.refresh()
         PluginRunner.loadPlugins()
+        // Initialize AudioService (triggers sound discovery)
+        console.info("AudioService available:", AudioService.available)
     }
 
     Launcher {}

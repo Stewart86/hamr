@@ -55,6 +55,8 @@ optdepends=(
     'python-keyring: Secure session storage for Bitwarden plugin'
     'slurp: Screen region selection for screenshots'
     'wf-recorder: Screen recording'
+    'ocean-sound-theme: Modern sound effects for timer/alarm (recommended)'
+    'sound-theme-freedesktop: Fallback sound effects'
 )
 source=("$pkgname-$pkgver::git+${url}.git#tag=v${pkgver}")
 sha256sums=('SKIP')
