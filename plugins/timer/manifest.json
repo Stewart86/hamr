@@ -1,0 +1,10 @@
+{
+    "name": "Timer",
+    "description": "Countdown timers and stopwatch",
+    "icon": "timer",
+    "supportedCompositors": ["*"],
+    "daemon": {
+        "enabled": true,
+        "background": true
+    }
+}

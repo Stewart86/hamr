@@ -20,7 +20,7 @@ Item {
     property bool showForm: PluginRunner.pluginForm !== null
     readonly property bool showImageBrowser: GlobalStates.imageBrowserOpen
     readonly property bool showGridBrowser: GlobalStates.gridBrowserOpen
-    
+
     implicitWidth: searchWidgetContent.implicitWidth + Appearance.sizes.elevationMargin * 2
     implicitHeight: searchWidgetContent.implicitHeight + searchWidgetContent.anchors.topMargin + Appearance.sizes.elevationMargin * 2
 
@@ -37,7 +37,7 @@ Item {
     function getGridBrowserGrid() {
         return gridBrowserLoader.item?.gridComponent ?? null;
     }
-    
+
     function getImageBrowserGrid() {
         return imageBrowserLoader.item?.gridComponent ?? null;
     }
@@ -107,10 +107,10 @@ Item {
     }
 
     Keys.onPressed: event => {
-         if (event.key === Qt.Key_Escape)
-             return;
+        if (event.key === Qt.Key_Escape)
+            return;
 
-         if (event.text && event.text.length === 1 && event.key !== Qt.Key_Enter && event.key !== Qt.Key_Return && event.key !== Qt.Key_Delete && event.text.charCodeAt(0) >= 0x20) {
+        if (event.text && event.text.length === 1 && event.key !== Qt.Key_Enter && event.key !== Qt.Key_Return && event.key !== Qt.Key_Delete && event.text.charCodeAt(0) >= 0x20) {
             if (!searchBar.searchInput.activeFocus) {
                 root.focusSearchInput();
                 // Insert the character at the cursor position
@@ -123,19 +123,18 @@ Item {
     }
 
     StyledRectangularShadow {
-         target: searchWidgetContent
-     }
-     Rectangle {
-         id: searchWidgetContent
+        target: searchWidgetContent
+    }
+    Rectangle {
+        id: searchWidgetContent
         anchors {
             top: parent.top
             horizontalCenter: parent.horizontalCenter
             topMargin: Appearance.sizes.elevationMargin * 20
         }
-         clip: true
-        implicitWidth: (root.showImageBrowser || root.showGridBrowser)
-            ? Appearance.sizes.imageBrowserGridWidth + 12  // grid width + margins
-            : columnLayout.implicitWidth
+        clip: true
+        implicitWidth: (root.showImageBrowser || root.showGridBrowser) ? Appearance.sizes.imageBrowserGridWidth + 12  // grid width + margins
+        : columnLayout.implicitWidth
         implicitHeight: columnLayout.implicitHeight
         radius: Appearance.rounding.normal
         color: Appearance.colors.colBackgroundSurfaceContainer
@@ -150,7 +149,7 @@ Item {
             enabled: GlobalStates.launcherOpen
             animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
         }
-        
+
         // Invisible overlay to detect clicks and re-grab focus if lost
         MouseArea {
             anchors.fill: parent
@@ -171,13 +170,13 @@ Item {
             }
             spacing: 0
 
-             clip: true
+            clip: true
 
-             Rectangle {
+            Rectangle {
                 id: searchBarContainer
                 implicitWidth: searchBar.fixedWidth + 12
                 implicitHeight: searchBar.implicitHeight + 12
-                Layout.topMargin: 6
+                Layout.topMargin: actionBar.mode === "hints" && !actionBar.hasAmbientItems ? 0 : 6
                 Layout.leftMargin: 6
                 Layout.rightMargin: 6
                 Layout.bottomMargin: actionBar.mode === "hints" && !actionBar.hasAmbientItems ? 0 : 6
@@ -195,14 +194,14 @@ Item {
                     anchors.rightMargin: 6
                     anchors.verticalCenter: parent.verticalCenter
                     expandSearchInput: root.showImageBrowser || root.showGridBrowser
-                     Synchronizer on searchingText {
-                         property alias source: root.searchingText
-                     }
+                    Synchronizer on searchingText {
+                        property alias source: root.searchingText
+                    }
 
-                     onDragStarted: (mouseX, mouseY) => root.dragStarted(mouseX, mouseY)
+                    onDragStarted: (mouseX, mouseY) => root.dragStarted(mouseX, mouseY)
                     onDragMoved: (mouseX, mouseY) => root.dragMoved(mouseX, mouseY)
                     onDragEnded: root.dragEnded()
-                    
+
                     onNavigateBack: root.navigateBack()
                     onExitPluginImmediate: {
                         if (GlobalStates.gridBrowserOpen) {
@@ -221,15 +220,18 @@ Item {
                     onNavigateDown: {
                         if (root.showImageBrowser) {
                             const grid = root.getImageBrowserGrid();
-                            if (grid) grid.moveSelection(grid.columns);
+                            if (grid)
+                                grid.moveSelection(grid.columns);
                             return;
                         }
                         if (root.showGridBrowser) {
                             const grid = root.getGridBrowserGrid();
-                            if (grid) grid.moveSelection(grid.columns);
+                            if (grid)
+                                grid.moveSelection(grid.columns);
                             return;
                         }
-                        if (appResults.count === 0) return;
+                        if (appResults.count === 0)
+                            return;
                         if (appResults.currentIndex < appResults.count - 1) {
                             appResults.currentIndex++;
                         } else {
@@ -239,15 +241,18 @@ Item {
                     onNavigateUp: {
                         if (root.showImageBrowser) {
                             const grid = root.getImageBrowserGrid();
-                            if (grid) grid.moveSelection(-grid.columns);
+                            if (grid)
+                                grid.moveSelection(-grid.columns);
                             return;
                         }
                         if (root.showGridBrowser) {
                             const grid = root.getGridBrowserGrid();
-                            if (grid) grid.moveSelection(-grid.columns);
+                            if (grid)
+                                grid.moveSelection(-grid.columns);
                             return;
                         }
-                        if (appResults.count === 0) return;
+                        if (appResults.count === 0)
+                            return;
                         if (appResults.currentIndex > 0) {
                             appResults.currentIndex--;
                         } else {
@@ -257,20 +262,24 @@ Item {
                     onNavigateLeft: {
                         if (root.showImageBrowser) {
                             const grid = root.getImageBrowserGrid();
-                            if (grid) grid.moveSelection(-1);
+                            if (grid)
+                                grid.moveSelection(-1);
                         }
                         if (root.showGridBrowser) {
                             const grid = root.getGridBrowserGrid();
-                            if (grid) grid.moveSelection(-1);
+                            if (grid)
+                                grid.moveSelection(-1);
                         }
                     }
                     onNavigateRight: {
                         if (root.showImageBrowser) {
                             const grid = root.getImageBrowserGrid();
-                            if (grid) grid.moveSelection(1);
+                            if (grid)
+                                grid.moveSelection(1);
                         } else if (root.showGridBrowser) {
                             const grid = root.getGridBrowserGrid();
-                            if (grid) grid.moveSelection(1);
+                            if (grid)
+                                grid.moveSelection(1);
                         } else {
                             // Original Ctrl+L behavior: select current item
                             if (appResults.count > 0 && appResults.currentIndex >= 0) {
@@ -301,13 +310,15 @@ Item {
                         // If imageBrowser is open, activate current image
                         if (root.showImageBrowser) {
                             const grid = root.getImageBrowserGrid();
-                            if (grid) grid.activateCurrent();
+                            if (grid)
+                                grid.activateCurrent();
                             return;
                         }
                         // If gridBrowser is open, activate current item
                         if (root.showGridBrowser) {
                             const grid = root.getGridBrowserGrid();
-                            if (grid) grid.activateCurrent();
+                            if (grid)
+                                grid.activateCurrent();
                             return;
                         }
 
@@ -322,7 +333,7 @@ Item {
                             }
                             return;
                         }
-                        
+
                         // If plugin is active in submit mode with user input:
                         // - Default: Enter submits the query
                         // - Exception: if user navigated to a non-first result, Enter selects it
@@ -383,7 +394,8 @@ Item {
                         }
                         function onExecutePluginAction(index) {
                             // Execute plugin action by index (Ctrl+1 through Ctrl+6)
-                            if (!PluginRunner.isActive()) return;
+                            if (!PluginRunner.isActive())
+                                return;
                             const actions = PluginRunner.pluginActions;
                             if (index >= 0 && index < actions.length) {
                                 const action = actions[index];
@@ -407,42 +419,48 @@ Item {
                 Layout.rightMargin: hasAmbientItems ? 6 : 12
                 Layout.bottomMargin: mode === "hints" && !hasAmbientItems ? 0 : 4
                 Layout.preferredHeight: mode === "hints" ? (hasAmbientItems ? 26 : 8) : 34
-                
+
                 Behavior on Layout.preferredHeight {
-                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                    NumberAnimation {
+                        duration: 150
+                        easing.type: Easing.OutCubic
+                    }
                 }
-                
+
                 Behavior on Layout.bottomMargin {
-                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                    NumberAnimation {
+                        duration: 150
+                        easing.type: Easing.OutCubic
+                    }
                 }
-                
+
                 readonly property bool inSearchMode: {
                     const q = root.searchingText;
                     const prefixes = LauncherSearch.getConfiguredPrefixes();
                     return prefixes.some(p => q.startsWith(p)) || LauncherSearch.isInExclusiveMode();
                 }
-                
+
                 mode: (root.showImageBrowser || root.showGridBrowser) ? "plugin" : (PluginRunner.isActive() ? "plugin" : (inSearchMode ? "search" : "hints"))
-                
+
                 actions: {
                     if (root.showImageBrowser) {
                         const config = GlobalStates.imageBrowserConfig;
                         const customActions = config?.actions ?? [];
                         return customActions.map((action, idx) => ({
-                            id: action.id,
-                            icon: action.icon ?? "play_arrow",
-                            name: action.name ?? action.id,
-                            shortcut: `Ctrl+${idx + 1}`
-                        }));
+                                    id: action.id,
+                                    icon: action.icon ?? "play_arrow",
+                                    name: action.name ?? action.id,
+                                    shortcut: `Ctrl+${idx + 1}`
+                                }));
                     } else if (root.showGridBrowser) {
                         const config = GlobalStates.gridBrowserConfig;
                         const customActions = config?.actions ?? [];
                         return customActions.map((action, idx) => ({
-                            id: action.id,
-                            icon: action.icon ?? "play_arrow",
-                            name: action.name ?? action.id,
-                            shortcut: `Ctrl+${idx + 1}`
-                        }));
+                                    id: action.id,
+                                    icon: action.icon ?? "play_arrow",
+                                    name: action.name ?? action.id,
+                                    shortcut: `Ctrl+${idx + 1}`
+                                }));
                     } else if (PluginRunner.isActive()) {
                         return PluginRunner.pluginActions;
                     } else if (inSearchMode) {
@@ -450,17 +468,17 @@ Item {
                     } else {
                         const hints = Config.actionBarHints ?? [];
                         return hints.map(hint => ({
-                            key: hint.prefix,
-                            icon: hint.icon,
-                            label: hint.label
-                        }));
+                                    key: hint.prefix,
+                                    icon: hint.icon,
+                                    label: hint.label
+                                }));
                     }
                 }
-                
+
                 navigationDepth: PluginRunner.navigationDepth
-                
+
                 showBrowserKeys: root.showImageBrowser || root.showGridBrowser
-                
+
                 onActionClicked: (actionId, wasConfirmed) => {
                     if (root.showImageBrowser) {
                         imageBrowserLoader.executeActionOnCurrent(actionId);
@@ -474,7 +492,7 @@ Item {
                         root.focusSearchInput();
                     }
                 }
-                
+
                 onBackClicked: {
                     if (root.showImageBrowser) {
                         if (GlobalStates.imageBrowserConfig?.workflowId) {
@@ -503,7 +521,7 @@ Item {
                         root.cancelSearch();
                     }
                 }
-                
+
                 onHomeClicked: {
                     if (root.showImageBrowser) {
                         GlobalStates.closeImageBrowser();
@@ -513,13 +531,13 @@ Item {
                     }
                     LauncherSearch.exitPlugin();
                 }
-                
+
                 onKeybindingHelpRequested: {
                     keybindingMapPopup.visible = !keybindingMapPopup.visible;
                 }
             }
 
-             RowLayout {
+            RowLayout {
                 visible: PluginRunner.pluginBusy && !root.showCard && PluginRunner.inputMode === "submit"
                 Layout.fillWidth: true
                 Layout.margins: 20
@@ -536,7 +554,7 @@ Item {
                 }
             }
 
-             Loader {
+            Loader {
                 id: pluginCardLoader
                 visible: root.showCard
                 Layout.fillWidth: true
@@ -581,7 +599,7 @@ Item {
                 Layout.leftMargin: 6
                 Layout.rightMargin: 6
                 Layout.bottomMargin: 6
-                
+
                 sourceComponent: PluginForm {
                     form: PluginRunner.pluginForm
 
@@ -594,22 +612,22 @@ Item {
                         PluginRunner.cancelForm();
                         root.focusSearchInput();
                     }
-                    
+
                     onCancelRequested: {
                         formCancelModal.show();
                     }
-                    
+
                     onSliderValueChanged: (fieldId, value) => {
                         PluginRunner.formSliderValueChanged(fieldId, value);
                     }
-                    
+
                     onSwitchValueChanged: (fieldId, value) => {
                         PluginRunner.formSwitchValueChanged(fieldId, value);
                     }
                 }
             }
 
-             Rectangle {
+            Rectangle {
                 id: resultsContainer
                 readonly property bool minimalModeHidesResults: Persistent.states.launcher.viewMode === 2 && root.searchingText === ""
                 visible: root.showResults && !root.showCard && !root.showForm && !(PluginRunner.pluginBusy && PluginRunner.inputMode === "submit") && !root.showImageBrowser && !root.showGridBrowser && !minimalModeHidesResults
@@ -624,8 +642,8 @@ Item {
                 border.width: 1
                 border.color: Appearance.colors.colOutlineVariant
 
-                 ListView {
-                     id: appResults
+                ListView {
+                    id: appResults
                     anchors.fill: parent
                     implicitHeight: Math.min(Appearance.sizes.maxResultsHeight, appResults.contentHeight + topMargin + bottomMargin)
                     clip: true
@@ -652,13 +670,13 @@ Item {
                     }
 
                     property string selectedItemKey: ""
-                     property int selectedActionIndex: -1
-                     
-                     property string pendingItemKey: ""
-                     property int pendingActionIndex: -1
-                     property int pendingCurrentIndex: -1
+                    property int selectedActionIndex: -1
 
-                     onCurrentIndexChanged: {
+                    property string pendingItemKey: ""
+                    property int pendingActionIndex: -1
+                    property int pendingCurrentIndex: -1
+
+                    onCurrentIndexChanged: {
                         if (currentIndex >= 0 && currentIndex < LauncherSearch.results.length) {
                             selectedItemKey = LauncherSearch.results[currentIndex]?.key ?? "";
                             // Update preview panel with selected item
@@ -669,17 +687,17 @@ Item {
                         }
                     }
 
-                     function updateActionIndex(index) {
+                    function updateActionIndex(index) {
                         selectedActionIndex = index;
                     }
-                    
-                     function captureSelection() {
+
+                    function captureSelection() {
                         pendingItemKey = selectedItemKey;
                         pendingActionIndex = selectedActionIndex;
                         pendingCurrentIndex = currentIndex;
                     }
-                    
-                     function clearPendingSelection() {
+
+                    function clearPendingSelection() {
                         pendingItemKey = "";
                         pendingActionIndex = -1;
                         pendingCurrentIndex = -1;
@@ -691,27 +709,29 @@ Item {
                         values: LauncherSearch.results
                         onValuesChanged: {
                             const hasPendingRestore = appResults.pendingItemKey !== "" || appResults.pendingCurrentIndex >= 0;
-                             
-                            const shouldTryRestore = LauncherSearch.skipNextAutoFocus || hasPendingRestore;
-                            
+
+                            // Always try to restore selection when plugin is active (for live updates like timer ticks)
+                            const isPluginActive = PluginRunner.isActive();
+                            const shouldTryRestore = LauncherSearch.skipNextAutoFocus || hasPendingRestore || isPluginActive;
+
                             if (shouldTryRestore && appResults.count > 0) {
                                 // Clear the one-shot flag if it was set
                                 if (LauncherSearch.skipNextAutoFocus) {
                                     LauncherSearch.skipNextAutoFocus = false;
                                 }
-                                
-                                 const savedKey = hasPendingRestore ? appResults.pendingItemKey : appResults.selectedItemKey;
-                                 const savedActionIndex = hasPendingRestore ? appResults.pendingActionIndex : appResults.selectedActionIndex;
-                                 const savedIndex = appResults.pendingCurrentIndex;
-                                 
-                                 if (savedKey) {
-                                     const newIndex = LauncherSearch.results.findIndex(r => r.key === savedKey);
-                                     if (newIndex >= 0) {
-                                         appResults.currentIndex = newIndex;
-                                         if (hasPendingRestore) {
-                                             appResults.clearPendingSelection();
-                                         }
-                                         if (savedActionIndex >= 0) {
+
+                                const savedKey = hasPendingRestore ? appResults.pendingItemKey : appResults.selectedItemKey;
+                                const savedActionIndex = hasPendingRestore ? appResults.pendingActionIndex : appResults.selectedActionIndex;
+                                const savedIndex = appResults.pendingCurrentIndex;
+
+                                if (savedKey) {
+                                    const newIndex = LauncherSearch.results.findIndex(r => r.key === savedKey);
+                                    if (newIndex >= 0) {
+                                        appResults.currentIndex = newIndex;
+                                        if (hasPendingRestore) {
+                                            appResults.clearPendingSelection();
+                                        }
+                                        if (savedActionIndex >= 0) {
                                             Qt.callLater(() => {
                                                 const currentItem = appResults.itemAtIndex(appResults.currentIndex);
                                                 if (currentItem) {
@@ -722,8 +742,8 @@ Item {
                                         return;
                                     }
                                 }
-                                
-                                 if (savedIndex >= 0) {
+
+                                if (savedIndex >= 0) {
                                     const clampedIndex = Math.min(savedIndex, appResults.count - 1);
                                     appResults.currentIndex = Math.max(0, clampedIndex);
                                     if (hasPendingRestore) {
@@ -731,12 +751,12 @@ Item {
                                     }
                                     return;
                                 }
-                                
-                                 if (appResults.currentIndex >= 0 && appResults.currentIndex < appResults.count) {
+
+                                if (appResults.currentIndex >= 0 && appResults.currentIndex < appResults.count) {
                                     return;
                                 }
                             }
-                            
+
                             if (appResults.count === 0 && hasPendingRestore) {
                                 return;
                             }
@@ -765,11 +785,26 @@ Item {
                     anchors.fill: parent
                     radius: resultsContainer.radius
                     gradient: Gradient {
-                        GradientStop { position: 0.0; color: "transparent" }
-                        GradientStop { position: 0.60; color: Qt.rgba(0, 0, 0, 0.03) }
-                        GradientStop { position: 0.80; color: Qt.rgba(0, 0, 0, 0.08) }
-                        GradientStop { position: 0.95; color: Qt.rgba(0, 0, 0, 0.15) }
-                        GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.20) }
+                        GradientStop {
+                            position: 0.0
+                            color: "transparent"
+                        }
+                        GradientStop {
+                            position: 0.60
+                            color: Qt.rgba(0, 0, 0, 0.03)
+                        }
+                        GradientStop {
+                            position: 0.80
+                            color: Qt.rgba(0, 0, 0, 0.08)
+                        }
+                        GradientStop {
+                            position: 0.95
+                            color: Qt.rgba(0, 0, 0, 0.15)
+                        }
+                        GradientStop {
+                            position: 1.0
+                            color: Qt.rgba(0, 0, 0, 0.20)
+                        }
                     }
                 }
             }
@@ -793,7 +828,7 @@ Item {
                 sourceComponent: Rectangle {
                     id: imageBrowserContainer
                     property alias gridComponent: imageBrowserGrid
-                    
+
                     radius: Appearance.rounding.small
                     color: Appearance.colors.colSurfaceContainerLow
                     border.width: 1
@@ -841,7 +876,7 @@ Item {
                 sourceComponent: Rectangle {
                     id: gridBrowserContainer
                     property alias gridComponent: genericGrid
-                    
+
                     radius: Appearance.rounding.small
                     color: Appearance.colors.colSurfaceContainerLow
                     border.width: 1
@@ -871,16 +906,16 @@ Item {
             }
         }
     }
-    
+
     // Keybinding map popup - centered on the widget
     KeybindingMap {
         id: keybindingMapPopup
         visible: false
         showBrowserKeys: root.showImageBrowser || root.showGridBrowser
-        
+
         anchors.centerIn: parent
         z: 100
-        
+
         // Close on any key press or mouse click outside
         Connections {
             target: GlobalStates
@@ -891,7 +926,7 @@ Item {
             }
         }
     }
-    
+
     // Click outside to close keybinding map
     MouseArea {
         anchors.fill: parent
@@ -899,7 +934,7 @@ Item {
         z: 99
         onClicked: keybindingMapPopup.visible = false
     }
-    
+
     // Form cancel confirmation modal
     ConfirmModal {
         id: formCancelModal
@@ -907,21 +942,21 @@ Item {
         confirmText: "Discard"
         cancelText: "Keep editing"
         destructive: true
-        
+
         anchors.centerIn: parent
         z: 100
-        
+
         onConfirmed: {
             formCancelModal.hide();
             PluginRunner.cancelForm();
             root.focusSearchInput();
         }
-        
+
         onCancelled: {
             formCancelModal.hide();
             root.focusSearchInput();
         }
-        
+
         Connections {
             target: GlobalStates
             function onLauncherOpenChanged() {
@@ -931,7 +966,7 @@ Item {
             }
         }
     }
-    
+
     // Click outside to close form cancel modal
     MouseArea {
         anchors.fill: parent

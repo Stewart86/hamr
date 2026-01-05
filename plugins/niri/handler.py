@@ -12,8 +12,10 @@ import select
 import signal
 import subprocess
 import sys
+import time
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
+INDEX_DEBOUNCE_INTERVAL = 2.0
 
 NIRI_ACTIONS = [
     # Window State
@@ -798,32 +800,32 @@ def start_niri_event_stream() -> subprocess.Popen | None:
         return None
 
 
-def read_niri_events(proc: subprocess.Popen) -> list[str]:
-    """Read pending events from niri event stream. Returns list of event types."""
+def read_niri_event(proc: subprocess.Popen) -> str | None:
+    """Read a single event from niri event stream. Returns event type or None."""
     import fcntl
 
-    events = []
     try:
-        if proc.stdout is not None:
-            fd = proc.stdout.fileno()
-            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+        if proc.stdout is None:
+            return None
 
-            while True:
-                try:
-                    line = proc.stdout.readline()
-                    if not line:
-                        break
-                    data = json.loads(line)
-                    events.extend(data.keys())
-                except (json.JSONDecodeError, BlockingIOError):
-                    break
-    except (OSError, IOError):
-        pass
-    return events
+        fd = proc.stdout.fileno()
+        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+
+        try:
+            line = proc.stdout.readline()
+            if not line:
+                return None
+            data = json.loads(line)
+            keys = list(data.keys())
+            return keys[0] if keys else None
+        finally:
+            fcntl.fcntl(fd, fcntl.F_SETFL, fl)
+    except (json.JSONDecodeError, OSError, IOError, BlockingIOError):
+        return None
 
 
-WATCH_EVENTS = {"WindowsChanged", "WindowOpenedOrChanged", "WindowClosed"}
+WATCH_EVENTS = {"WindowOpenedOrChanged", "WindowClosed"}
 
 
 def handle_request(input_data: dict):
@@ -1079,8 +1081,18 @@ def handle_request(input_data: dict):
 
 
 def main():
-    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
-    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
+    event_proc = None
+    running = True
+
+    def shutdown(signum, frame):
+        nonlocal running, event_proc
+        running = False
+        if event_proc is not None:
+            event_proc.terminate()
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, shutdown)
 
     if TEST_MODE:
         input_data = json.load(sys.stdin)
@@ -1091,12 +1103,24 @@ def main():
     print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
 
     event_proc = start_niri_event_stream()
+    last_index_time = 0.0
+    pending_index = False
 
     if event_proc is not None:
-        while True:
+        while running:
+            now = time.time()
+            if pending_index and now - last_index_time >= INDEX_DEBOUNCE_INTERVAL:
+                items = get_index_items()
+                print(
+                    json.dumps({"type": "index", "mode": "full", "items": items}),
+                    flush=True,
+                )
+                last_index_time = now
+                pending_index = False
+
             try:
                 readable, _, _ = select.select(
-                    [sys.stdin, event_proc.stdout], [], [], 1.0
+                    [sys.stdin, event_proc.stdout], [], [], 0.2
                 )
             except (ValueError, OSError):
                 break
@@ -1114,15 +1138,9 @@ def main():
                         continue
 
                 elif r == event_proc.stdout:
-                    events = read_niri_events(event_proc)
-                    if any(ev in WATCH_EVENTS for ev in events):
-                        items = get_index_items()
-                        print(
-                            json.dumps(
-                                {"type": "index", "mode": "full", "items": items}
-                            ),
-                            flush=True,
-                        )
+                    event = read_niri_event(event_proc)
+                    if event in WATCH_EVENTS:
+                        pending_index = True
 
             if event_proc.poll() is not None:
                 event_proc = start_niri_event_stream()

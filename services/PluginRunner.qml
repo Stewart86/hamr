@@ -561,14 +561,14 @@ Singleton {
                case "imageBrowser":
                case "gridBrowser":
                case "update":
+                   // Always update status if provided (for FAB/ambient updates)
+                   if (response.status) {
+                       root.updatePluginStatus(pluginId, response.status);
+                   }
                    // Only process UI responses if plugin is active
-                       if (isActive) {
-                           // Update status if provided (before handlePluginResponse)
-                           if (response.status) {
-                               root.updatePluginStatus(pluginId, response.status);
-                           }
-                           root.handlePluginResponse(response);
-                       }
+                   if (isActive) {
+                       root.handlePluginResponse(response);
+                   }
                    break;
               
               case "status":
@@ -582,16 +582,39 @@ Singleton {
                   break;
               
               case "execute":
-                  // Execute responses always processed
-                  if (isActive) {
-                      root.handlePluginResponse(response);
-                  }
+                  // Execute responses always processed (for sounds, notifications)
+                  root.handleExecuteResponse(response, pluginId);
                   break;
               
               default:
                   console.warn(`[PluginRunner] Unknown daemon response type: ${response.type}`);
           }
      }
+    
+    // Handle execute response from daemon (sound, notification, command) - works even when plugin is not active
+    function handleExecuteResponse(response, pluginId) {
+        const exec = response.execute ?? {};
+        
+        // Play sound if specified
+        if (exec.sound) {
+            AudioService.playSound(exec.sound);
+        }
+        
+        // Show notification if specified
+        if (exec.notify) {
+            Quickshell.execDetached(["notify-send", "-a", "hamr", exec.notify]);
+        }
+        
+        // Run command if specified
+        if (exec.command) {
+            Quickshell.execDetached(exec.command);
+        }
+        
+        // Close launcher if requested
+        if (exec.close && root.activePlugin?.id === pluginId) {
+            root.executeCommand(exec);
+        }
+    }
     
     // Handle daemon crash/exit (for future use when full daemon communication is implemented)
     function onDaemonExit(pluginId, exitCode, exitStatus) {
@@ -740,6 +763,9 @@ Singleton {
         property bool isBuiltin: false
         
         onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0) {
+                console.warn(`[PluginRunner] Failed to load manifest for ${manifestLoader.pluginId}: exit code ${exitCode}`);
+            }
             if (exitCode === 0 && manifestLoader.outputBuffer.trim()) {
                 try {
                     const manifest = JSON.parse(manifestLoader.outputBuffer.trim());

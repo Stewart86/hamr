@@ -1838,6 +1838,8 @@ emit({
 - Keep content concise (FAB has limited space)
 - Use chips for text, badges for counts/icons
 
+**Example plugin:** [`timer/`](timer/handler.py) - Countdown timer with FAB display
+
 ---
 
 ## Ambient Items (Persistent Status Bar)
@@ -1955,6 +1957,8 @@ emit({
 - Provide relevant actions (pause, stop, cancel)
 - Handle `__dismiss__` to clean up resources (stop timers, cancel tasks)
 - Clear ambient items when activity completes
+
+**Example plugin:** [`timer/`](timer/handler.py) - Active timers in ambient bar with pause/stop actions
 
 ---
 
@@ -2775,6 +2779,7 @@ For desktop application icons from `.desktop` files, set `"iconType": "system"`:
 | [`notes/`](notes/)                 | `/notes`         | Quick notes manager                 | Form API, pluginActions                        |
 | [`player/`](player/)               | `/player`        | Media player controls               | playerctl, indexed actions                     |
 | [`sound/`](sound/)                 | `/sound`         | System volume controls              | wpctl, keepOpen, indexed actions               |
+| [`timer/`](timer/)                 | `/timer`         | Countdown timers with presets       | Daemon, FAB override, ambient items, sounds    |
 | [`topcpu/`](topcpu/)               | `/topcpu`        | Process monitor (CPU)               | Daemon mode, process management                |
 | [`topmem/`](topmem/)               | `/topmem`        | Process monitor (memory)            | Daemon mode, process management                |
 

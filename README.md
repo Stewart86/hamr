@@ -91,6 +91,7 @@ All plugins are indexed and searchable directly from the main bar - no prefix re
 | `shell` | Shell command history (zsh/bash/fish) |
 | `snippet` | Text snippets for quick insertion |
 | `theme` | Dark/light mode and accent color switching |
+| `timer` | Countdown timers with presets, FAB display, and notifications |
 | `todo` | Simple todo list manager (live updates via daemon) |
 | `topcpu` | Process monitor sorted by CPU usage (live daemon refresh) |
 | `topmem` | Process monitor sorted by memory usage (live daemon refresh) |

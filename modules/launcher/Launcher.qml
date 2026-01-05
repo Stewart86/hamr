@@ -590,7 +590,6 @@ Scope {
             
             Connections {
                 target: GlobalStates
-                enabled: !CompositorService.isHyprland
                 function onLauncherMinimizedChanged() {
                     if (GlobalStates.launcherMinimized) {
                         fabWindow.updateMonitorFocus();
