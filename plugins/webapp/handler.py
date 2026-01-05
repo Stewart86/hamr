@@ -297,7 +297,7 @@ def webapp_to_index_item(app: dict) -> dict:
     has_icon = icon_path and Path(icon_path).exists()
 
     return {
-        "id": f"webapp:{app['id']}",
+        "id": app["id"],  # Use simple id (matches result IDs for frecency)
         "name": app["name"],
         "description": app["url"],
         "keywords": app["name"].lower().split(),

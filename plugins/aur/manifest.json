@@ -2,5 +2,6 @@
   "name": "AUR",
   "description": "Search and install packages from AUR",
   "icon": "inventory_2",
-  "supportedCompositors": ["*"]
+  "supportedCompositors": ["*"],
+  "frecency": "plugin"
 }

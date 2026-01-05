@@ -228,6 +228,20 @@ Singleton {
     property var pluginIndexes: ({})
     
     // Handle index response from daemon plugin
+    // Preserve frecency fields when merging index items
+    function mergeItemPreservingFrecency(existingItem, newItem) {
+        const merged = Object.assign({}, newItem);
+        // Preserve all frecency fields (prefixed with _)
+        if (existingItem) {
+            for (const key of Object.keys(existingItem)) {
+                if (key.startsWith('_') && merged[key] === undefined) {
+                    merged[key] = existingItem[key];
+                }
+            }
+        }
+        return merged;
+    }
+    
     function handleIndexResponse(pluginId, response) {
         if (!response || response.type !== "index") {
             console.warn(`[PluginRunner] Invalid index response from ${pluginId}`);
@@ -238,21 +252,34 @@ Singleton {
         const itemCount = response.items?.length ?? 0;
         const now = Date.now();
         
+        // Build map of existing items for frecency preservation
+        const existingItems = root.pluginIndexes[pluginId]?.items ?? [];
+        const existingMap = new Map(existingItems.map(item => [item.id, item]));
+        
         if (isIncremental && root.pluginIndexes[pluginId]) {
             // Incremental: merge new items, remove deleted
-            const existing = root.pluginIndexes[pluginId].items ?? [];
             const newItems = response.items ?? [];
             const removeIds = new Set(response.remove ?? []);
             
-            // Remove deleted items
-            let merged = existing.filter(item => !removeIds.has(item.id));
+            // Debug: check if we're removing items with frecency
+            for (const removeId of removeIds) {
+                const existingItem = existingMap.get(removeId);
+                if (existingItem?._count > 0) {
+                    console.log(`[PluginRunner] WARNING: removing item with frecency: ${pluginId}/${removeId} count=${existingItem._count}`);
+                }
+            }
             
-            // Update or add new items
-            const existingIds = new Set(merged.map(item => item.id));
+            // Remove deleted items
+            let merged = existingItems.filter(item => !removeIds.has(item.id));
+            
+            // Update or add new items, preserving frecency
+            const mergedIds = new Set(merged.map(item => item.id));
             for (const item of newItems) {
-                if (existingIds.has(item.id)) {
-                    // Update existing
-                    merged = merged.map(i => i.id === item.id ? item : i);
+                if (mergedIds.has(item.id)) {
+                    // Update existing - preserve frecency
+                    merged = merged.map(i => i.id === item.id 
+                        ? root.mergeItemPreservingFrecency(i, item) 
+                        : i);
                 } else {
                     // Add new
                     merged.push(item);
@@ -263,14 +290,16 @@ Singleton {
                 items: merged,
                 lastIndexed: now
             };
-            console.log(`[PluginRunner] Indexed ${pluginId}: ${itemCount} items (incremental, merged to ${merged.length})`);
         } else {
-            // Full: replace all items
+            // Full: replace items but preserve frecency from existing
+            const newItems = (response.items ?? []).map(item => 
+                root.mergeItemPreservingFrecency(existingMap.get(item.id), item)
+            );
+            
             root.pluginIndexes[pluginId] = {
-                items: response.items ?? [],
+                items: newItems,
                 lastIndexed: now
             };
-            console.log(`[PluginRunner] Indexed ${pluginId}: ${itemCount} items (full)`);
         }
         
         // Update plugin status if provided in index response
@@ -304,7 +333,6 @@ Singleton {
                 lastIndexed: Date.now()
             };
             
-            console.log(`[PluginRunner] Loaded ${items.length} static index items from ${plugin.id}`);
             root.pluginIndexChanged(plugin.id);
         }
     }
@@ -318,6 +346,9 @@ Singleton {
             const pluginName = plugin?.manifest?.name ?? pluginId;
             
             for (const item of (indexData.items ?? [])) {
+                // Skip __plugin__ entries (used for plugin-level frecency, not search)
+                if (item.id === "__plugin__" || item._isPluginEntry) continue;
+                
                 const enrichedItem = Object.assign({}, item, {
                     _pluginId: pluginId,
                     _pluginName: pluginName
@@ -349,6 +380,217 @@ Singleton {
         );
     }
     
+    // Get a single indexed item by plugin ID and item ID
+    function getIndexedItem(pluginId, itemId) {
+        const indexData = root.pluginIndexes[pluginId];
+        if (!indexData?.items) return null;
+        return indexData.items.find(item => item.id === itemId) ?? null;
+    }
+    
+    // ==================== FRECENCY & LIVE UPDATES ====================
+    // Index items store frecency data directly (prefixed with _):
+    //   _count, _lastUsed, _recentSearchTerms, _hourSlotCounts, etc.
+    // This makes index the single source of truth for both display data and frecency.
+    
+    // Version counter for UI reactivity - increments on any index item update
+    // SearchItem depends on this to re-evaluate live values (gauge, slider, etc.)
+    property int indexVersion: 0
+    
+    // Record execution - updates frecency based on plugin's frecency mode
+    // Manifest frecency modes:
+    //   "item" (default) - Track individual item usage (apps, sound sliders)
+    //   "plugin" - Track plugin usage only, not individual items (todo, notes)
+    //   "none" - Don't track frecency at all
+    function recordExecution(pluginId, itemId, searchTerm, context) {
+        const plugin = root.plugins.find(p => p.id === pluginId);
+        const frecencyMode = plugin?.manifest?.frecency ?? "item";
+        
+        if (frecencyMode === "none") {
+            return;
+        }
+        
+        const now = Date.now();
+        
+        if (frecencyMode === "plugin") {
+            // Plugin-level frecency: record on the plugin's metadata, not items
+            if (!root.pluginIndexes[pluginId]) {
+                root.pluginIndexes[pluginId] = { items: [] };
+            }
+            const indexData = root.pluginIndexes[pluginId];
+            
+            // Store on a special __plugin__ entry in the index
+            let pluginEntry = indexData.items.find(item => item.id === "__plugin__");
+            if (!pluginEntry) {
+                // Create a virtual plugin entry for frecency tracking
+                pluginEntry = {
+                    id: "__plugin__",
+                    name: plugin?.manifest?.name ?? pluginId,
+                    icon: plugin?.manifest?.icon ?? "extension",
+                    verb: "Open",
+                    _isPluginEntry: true
+                };
+                indexData.items.push(pluginEntry);
+            }
+            pluginEntry._count = (pluginEntry._count ?? 0) + 1;
+            pluginEntry._lastUsed = now;
+        } else {
+            // Item-level frecency (default)
+            // Skip __plugin__ calls for item-level plugins (they only track specific items)
+            if (itemId === "__plugin__") {
+                return;
+            }
+            
+            const indexData = root.pluginIndexes[pluginId];
+            if (!indexData?.items) {
+                return;
+            }
+            
+            const item = indexData.items.find(item => item.id === itemId);
+            if (!item) {
+                return;
+            }
+            
+            item._count = (item._count ?? 0) + 1;
+            item._lastUsed = now;
+            
+            // Update recent search terms
+            if (searchTerm) {
+                let terms = item._recentSearchTerms ?? [];
+                terms = terms.filter(t => t !== searchTerm);
+                terms.unshift(searchTerm);
+                item._recentSearchTerms = terms.slice(0, 10);
+            }
+            
+            // Update smart fields if context provided
+            if (context) {
+                root.updateItemSmartFields(item, context);
+            }
+        }
+        
+        // Save to disk (debounced)
+        root.saveIndexCache();
+    }
+    
+    // Update smart/contextual fields on an item
+    function updateItemSmartFields(item, context) {
+        const now = Date.now();
+        const hour = Math.floor(new Date(now).getHours());
+        const day = new Date(now).getDay();
+        
+        // Hour slot counts
+        if (!item._hourSlotCounts) item._hourSlotCounts = new Array(24).fill(0);
+        item._hourSlotCounts[hour] = (item._hourSlotCounts[hour] ?? 0) + 1;
+        
+        // Day of week counts
+        if (!item._dayOfWeekCounts) item._dayOfWeekCounts = new Array(7).fill(0);
+        item._dayOfWeekCounts[day] = (item._dayOfWeekCounts[day] ?? 0) + 1;
+        
+        // Workspace counts
+        if (context.workspace) {
+            if (!item._workspaceCounts) item._workspaceCounts = {};
+            item._workspaceCounts[context.workspace] = (item._workspaceCounts[context.workspace] ?? 0) + 1;
+        }
+        
+        // Monitor counts
+        if (context.monitor) {
+            if (!item._monitorCounts) item._monitorCounts = {};
+            item._monitorCounts[context.monitor] = (item._monitorCounts[context.monitor] ?? 0) + 1;
+        }
+        
+        // Launched after (sequence tracking)
+        if (context.lastApp) {
+            if (!item._launchedAfter) item._launchedAfter = {};
+            item._launchedAfter[context.lastApp] = (item._launchedAfter[context.lastApp] ?? 0) + 1;
+            // Prune to top 5
+            const entries = Object.entries(item._launchedAfter);
+            if (entries.length > 5) {
+                entries.sort((a, b) => b[1] - a[1]);
+                item._launchedAfter = Object.fromEntries(entries.slice(0, 5));
+            }
+        }
+        
+        // Consecutive days tracking
+        const today = new Date().toISOString().split('T')[0];
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        if (item._lastConsecutiveDate === today) {
+            // Already used today
+        } else if (item._lastConsecutiveDate === yesterday) {
+            item._consecutiveDays = (item._consecutiveDays ?? 0) + 1;
+            item._lastConsecutiveDate = today;
+        } else {
+            item._consecutiveDays = 1;
+            item._lastConsecutiveDate = today;
+        }
+    }
+    
+    // Patch indexed items (for live updates like slider changes from daemon)
+    function patchIndexItems(pluginId, patches) {
+        if (!patches || !Array.isArray(patches)) return;
+        
+        const indexData = root.pluginIndexes[pluginId];
+        if (!indexData?.items) return;
+        
+        let patchedCount = 0;
+        for (const patch of patches) {
+            if (!patch.id) continue;
+            const item = indexData.items.find(i => i.id === patch.id);
+            if (item) {
+                // Merge patch into item (preserves frecency fields)
+                Object.assign(item, patch);
+                patchedCount++;
+            }
+        }
+        
+        // Trigger UI update
+        root.indexVersion++;
+        
+        // Save to disk (debounced)
+        root.saveIndexCache();
+    }
+    
+    // Get frecency score for an indexed item (used by FrecencyScorer)
+    function getItemFrecency(pluginId, itemId) {
+        const item = root.getIndexedItem(pluginId, itemId);
+        if (!item) return 0;
+        
+        const count = item._count ?? 0;
+        const lastUsed = item._lastUsed ?? 0;
+        if (count === 0) return 0;
+        
+        const now = Date.now();
+        const hoursSinceUse = (now - lastUsed) / (1000 * 60 * 60);
+        
+        let recencyMultiplier;
+        if (hoursSinceUse < 1) recencyMultiplier = 4;
+        else if (hoursSinceUse < 24) recencyMultiplier = 2;
+        else if (hoursSinceUse < 168) recencyMultiplier = 1;
+        else recencyMultiplier = 0.5;
+        
+        return count * recencyMultiplier;
+    }
+    
+    // Get all items with frecency data (for building history searchables)
+    function getItemsWithFrecency() {
+        const items = [];
+        for (const [pluginId, indexData] of Object.entries(root.pluginIndexes)) {
+            for (const item of (indexData.items ?? [])) {
+                if (item._count > 0) {
+                    items.push({
+                        pluginId,
+                        item
+                    });
+                }
+            }
+        }
+        // Sort by frecency (most recent/frequent first)
+        items.sort((a, b) => {
+            const freqA = root.getItemFrecency(a.pluginId, a.item.id);
+            const freqB = root.getItemFrecency(b.pluginId, b.item.id);
+            return freqB - freqA;
+        });
+        return items;
+    }
+    
     
     // ==================== INDEX PERSISTENCE ====================
     // Cache indexes to disk for faster startup.
@@ -369,27 +611,19 @@ Singleton {
                 if (data.indexes && typeof data.indexes === "object") {
                     root.pluginIndexes = data.indexes;
                     
-                    // Log cache loading stats
-                    const pluginIds = Object.keys(data.indexes);
-                    const totalItems = pluginIds.reduce((sum, id) => sum + (data.indexes[id]?.items?.length ?? 0), 0);
-                    console.log(`[PluginRunner] Loaded index cache: ${pluginIds.length} plugins, ${totalItems} total items`);
-                    for (const pluginId of pluginIds) {
-                        const itemCount = data.indexes[pluginId]?.items?.length ?? 0;
-                        console.log(`[PluginRunner]   - ${pluginId}: ${itemCount} items`);
+                    for (const pluginId of Object.keys(data.indexes)) {
                         root.pluginIndexChanged(pluginId);
                     }
                 }
             } catch (e) {
-                console.log("[PluginRunner] Failed to parse index cache:", e);
+                console.warn("[PluginRunner] Failed to parse index cache:", e);
             }
             root.indexCacheLoaded = true;
         }
         
         onLoadFailed: error => {
             if (error !== FileViewError.FileNotFound) {
-                console.log("[PluginRunner] Failed to load index cache:", error);
-            } else {
-                console.log("[PluginRunner] No index cache found, will perform full index");
+                console.warn("[PluginRunner] Failed to load index cache:", error);
             }
             root.indexCacheLoaded = true;
         }
@@ -407,10 +641,6 @@ Singleton {
     }
     
     function doSaveIndexCache() {
-        const pluginIds = Object.keys(root.pluginIndexes);
-        const totalItems = pluginIds.reduce((sum, id) => sum + (root.pluginIndexes[id]?.items?.length ?? 0), 0);
-        console.log(`[PluginRunner] Saving index cache: ${pluginIds.length} plugins, ${totalItems} total items`);
-        
         const data = {
             version: 1,
             savedAt: Date.now(),
@@ -470,7 +700,6 @@ Singleton {
              session: generateSessionId()
          };
          
-         console.log(`[PluginRunner] Started persistent daemon for ${pluginId} (mode: ${daemonConfig.background ? "background" : "foreground"})`);
          return true;
      }
     
@@ -485,7 +714,6 @@ Singleton {
          }
          
          delete root.runningDaemons[pluginId];
-         console.log(`[PluginRunner] Stopped daemon for ${pluginId}`);
          return true;
      }
     
@@ -524,7 +752,6 @@ Singleton {
          
          const json = JSON.stringify(command) + "\n";
          daemon.process.write(json);
-         console.log(`[PluginRunner] Sent to daemon ${pluginId}: ${command.step}`);
          return true;
      }
     
@@ -550,8 +777,6 @@ Singleton {
              return;
          }
          
-         console.log(`[PluginRunner] Daemon output from ${pluginId}: ${response.type}`);
-         
            switch (response.type) {
                case "results":
                case "card":
@@ -560,12 +785,26 @@ Singleton {
                case "error":
                case "imageBrowser":
                case "gridBrowser":
-               case "update":
                    // Always update status if provided (for FAB/ambient updates)
                    if (response.status) {
                        root.updatePluginStatus(pluginId, response.status);
                    }
                    // Only process UI responses if plugin is active
+                   if (isActive) {
+                       root.handlePluginResponse(response);
+                   }
+                   break;
+               
+               case "update":
+                   // Always update status if provided
+                   if (response.status) {
+                       root.updatePluginStatus(pluginId, response.status);
+                   }
+                   // Patch the index with updated item data (for live updates)
+                   if (response.items && Array.isArray(response.items)) {
+                       root.patchIndexItems(pluginId, response.items);
+                   }
+                   // Also process UI update if plugin is active
                    if (isActive) {
                        root.handlePluginResponse(response);
                    }
@@ -903,7 +1142,6 @@ Singleton {
       // Send search query to active plugin
       function search(query) {
           if (!root.activePlugin) {
-              console.log("[PluginRunner] sendToPlugin: No active plugin");
               return;
           }
           
@@ -935,25 +1173,33 @@ Singleton {
           }
       }
     
-       // Select an item and optionally execute an action
-       function selectItem(itemId, actionId) {
-           if (!root.activePlugin) return;
-           
-           // Store selection for context in subsequent search calls
-           root.lastSelectedItem = itemId;
-           
-           // Track the step type for depth management
-           // Navigation depth increases when:
-           // - Default item click (no actionId) that returns a view - user is drilling down
-           // - NOT for action button clicks (actionId set) - these modify current view
-           // - NOT for special IDs that are known to not navigate
-           const nonNavigatingIds = ["__back__", "__empty__", "__form_cancel__"];
-           const isDefaultClick = !actionId;  // No action button clicked, just the item itself
-           if (isDefaultClick && !nonNavigatingIds.includes(itemId)) {
-               root.pendingNavigation = true;
-           }
-           
-           const input = {
+        // Select an item and optionally execute an action
+         function selectItem(itemId, actionId) {
+             if (!root.activePlugin) return;
+             
+             // Store selection for context in subsequent search calls
+             root.lastSelectedItem = itemId;
+             
+             // Record execution for frecency tracking
+             // Skip special IDs and items in plugins with "plugin" frecency mode
+             const skipRecordIds = ["__back__", "__empty__", "__form_cancel__", "__add__", "__plugin__"];
+             const frecencyMode = root.activePlugin.manifest?.frecency ?? "item";
+             if (frecencyMode === "item" && !skipRecordIds.includes(itemId) && !itemId.startsWith("__")) {
+                 root.recordExecution(root.activePlugin.id, itemId);
+             }
+            
+            // Track the step type for depth management
+            // Navigation depth increases when:
+            // - Default item click (no actionId) that returns a view - user is drilling down
+            // - NOT for action button clicks (actionId set) - these modify current view
+            // - NOT for special IDs that are known to not navigate
+            const nonNavigatingIds = ["__back__", "__empty__", "__form_cancel__"];
+            const isDefaultClick = !actionId;  // No action button clicked, just the item itself
+            if (isDefaultClick && !nonNavigatingIds.includes(itemId)) {
+                root.pendingNavigation = true;
+            }
+            
+            const input = {
                step: "action",
                selected: { id: itemId },
                session: root.activePlugin.session
@@ -978,16 +1224,37 @@ Singleton {
            }
        }
       
-       // Send slider value change to active plugin (for result item sliders)
-       function sliderValueChanged(itemId, value) {
-           if (!root.activePlugin) return;
+       // Track last recorded slider to avoid spam from rapid slider moves
+        property string _lastRecordedSliderId: ""
+        property var _sliderRecordResetTimer: Timer {
+            interval: 2000
+            onTriggered: root._lastRecordedSliderId = ""
+        }
+        
+        // Send slider value change to plugin (for result item sliders)
+        // pluginId is optional - if not provided, uses activePlugin
+        function sliderValueChanged(itemId, value, pluginId) {
+            // Determine target plugin
+            let targetPluginId = pluginId ?? root.activePlugin?.id;
+            if (!targetPluginId) return;
+            
+            const plugin = root.plugins.find(p => p.id === targetPluginId);
+            if (!plugin) return;
+            
+            // Record execution for frecency (once per slider, reset after 2s idle)
+            const sliderKey = `${targetPluginId}/${itemId}`;
+            if (root._lastRecordedSliderId !== sliderKey) {
+                root._lastRecordedSliderId = sliderKey;
+                root.recordExecution(targetPluginId, itemId);
+            }
+            root._sliderRecordResetTimer.restart();
            
            const input = {
                step: "action",
                selected: { id: itemId },
                action: "slider",
                value: value,
-               session: root.activePlugin.session
+               session: root.activePlugin?.session ?? "slider-update"
            };
            
            // Include context if set
@@ -995,9 +1262,14 @@ Singleton {
                input.context = root.pluginContext;
            }
            
-           const isDaemonPlugin = root.activePlugin.manifest?.daemon?.enabled;
-           if (isDaemonPlugin && root.runningDaemons[root.activePlugin.id]) {
-               root.writeToDaemonStdin(root.activePlugin.id, input);
+           const isDaemonPlugin = plugin.manifest?.daemon?.enabled;
+           if (isDaemonPlugin && root.runningDaemons[targetPluginId]) {
+               root.writeToDaemonStdin(targetPluginId, input);
+           } else if (isDaemonPlugin) {
+               // Daemon not running, start it and send
+               root.startDaemon(targetPluginId);
+               // Small delay to let daemon initialize
+               Qt.callLater(() => root.writeToDaemonStdin(targetPluginId, input));
            } else {
                sendToPlugin(input);
            }
@@ -1255,12 +1527,12 @@ Singleton {
       // Used for history items that need plugin logic instead of direct command
       // Returns true if replay was initiated, false if plugin not found
       function replayAction(pluginId, entryPoint) {
-          const plugin = root.plugins.find(w => w.id === pluginId);
-          if (!plugin || !plugin.manifest || !entryPoint) {
-              return false;
-          }
-          
-          const session = generateSessionId();
+           const plugin = root.plugins.find(w => w.id === pluginId);
+           if (!plugin || !plugin.manifest || !entryPoint) {
+               return false;
+           }
+           
+           const session = generateSessionId();
           
           root.activePlugin = {
               id: plugin.id,
@@ -1307,17 +1579,15 @@ Singleton {
       }
      
       // Execute an entryPoint action with UI visible (not replay mode)
-      // Used for indexed items that open a view (e.g., viewing a note)
-      // Returns true if action was initiated, false if plugin not found
-      function executeEntryPoint(pluginId, entryPoint) {
-          console.log(`[PluginRunner] executeEntryPoint: ${pluginId}, ${JSON.stringify(entryPoint)}`);
-          const plugin = root.plugins.find(w => w.id === pluginId);
-          if (!plugin || !plugin.manifest || !entryPoint) {
-              console.log(`[PluginRunner] executeEntryPoint failed: plugin=${!!plugin}, manifest=${!!plugin?.manifest}, entryPoint=${!!entryPoint}`);
-              return false;
-          }
-          
-          const session = generateSessionId();
+       // Used for indexed items that open a view (e.g., viewing a note)
+       // Returns true if action was initiated, false if plugin not found
+       function executeEntryPoint(pluginId, entryPoint) {
+           const plugin = root.plugins.find(w => w.id === pluginId);
+           if (!plugin || !plugin.manifest || !entryPoint) {
+               return false;
+           }
+           
+           const session = generateSessionId();
           
           root.activePlugin = {
               id: plugin.id,
@@ -1403,8 +1673,6 @@ Singleton {
     
      function handlePluginResponse(response, wasReplayMode = false) {
          root.pluginBusy = false;
-         
-         console.log("[PluginRunner] handlePluginResponse type:", response?.type);
          
          if (!response || !response.type) {
              root.pluginError = "Invalid response from plugin";
@@ -1658,6 +1926,12 @@ Singleton {
          
          function onGridBrowserSelected(itemId, actionId) {
              if (!root.activePlugin) return;
+             
+             // Record execution for frecency tracking
+             const frecencyMode = root.activePlugin.manifest?.frecency ?? "item";
+             if (frecencyMode === "item" && itemId && !itemId.startsWith("__")) {
+                 root.recordExecution(root.activePlugin.id, itemId);
+             }
              
              const input = {
                  step: "action",

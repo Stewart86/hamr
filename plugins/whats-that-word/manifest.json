@@ -2,5 +2,6 @@
   "name": "What's That Word?",
   "description": "Find words from descriptions or fix misspellings",
   "icon": "lightbulb",
-  "supportedCompositors": ["*"]
+  "supportedCompositors": ["*"],
+  "frecency": "plugin"
 }

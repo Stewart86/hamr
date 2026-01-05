@@ -4,6 +4,7 @@
   "icon": "menu_book",
   "version": "1.0",
   "supportedCompositors": ["*"],
+  "frecency": "plugin",
   
   "steps": {
     "initial": {

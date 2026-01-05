@@ -64,11 +64,9 @@ Scope {
                 focus: true
 
                 onWindowSelected: toplevel => {
-                    // Record window focus in history (with search term for frecency)
-                    const entry = DesktopEntries.byId(root.appId) ?? DesktopEntries.heuristicLookup(root.appId);
-                    const appName = entry?.name ?? root.appId;
-                    const iconName = entry?.icon ?? IconResolver.guessIcon(root.appId);
-                    LauncherSearch.recordWindowFocus(root.appId, appName, toplevel.title, iconName, LauncherSearch.query);
+                    // Record execution for frecency
+                    PluginRunner.recordExecution("apps", root.appId);
+                    ContextTracker.recordLaunch(root.appId);
                     
                     WindowManager.focusWindow(toplevel);
                     GlobalStates.closeWindowPicker();

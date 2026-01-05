@@ -59,6 +59,53 @@ Plugins using compositor-specific APIs should specify their requirements:
 
 ---
 
+## Frecency (Search History)
+
+Hamr tracks plugin and item usage to show recently used items in the main search. The `frecency` manifest field controls how your plugin's usage is recorded:
+
+```json
+{
+  "name": "My Plugin",
+  "frecency": "item"
+}
+```
+
+| Value | Behavior | Use Case |
+|-------|----------|----------|
+| `"item"` | Track individual item usage (default) | Apps, sound sliders, clipboard items, emojis |
+| `"plugin"` | Track plugin usage only | Todo, notes, bitwarden - shows plugin in Recent, not individual items |
+| `"none"` | Don't track usage | Monitoring plugins (topcpu, topmem), ephemeral actions (power) |
+
+### How Frecency Works
+
+- **`"item"` mode (default)**: When user executes an item, that specific item appears in the "Recent" section of main search. Good for plugins where users repeatedly access the same items (specific apps, specific clipboard entries).
+
+- **`"plugin"` mode**: When user interacts with the plugin, the plugin itself appears in "Recent" (not individual items). Good for plugins where items are ephemeral or sensitive (todos change frequently, passwords shouldn't be in history).
+
+- **`"none"` mode**: Plugin usage is not recorded at all. Good for monitoring/status plugins where frecency doesn't make sense.
+
+### Examples
+
+```json
+// Apps plugin - track which apps are launched
+{"name": "Apps", "frecency": "item"}
+
+// Todo plugin - just track that user opened todos
+{"name": "Todo", "frecency": "plugin"}
+
+// CPU monitor - don't track, just monitoring
+{"name": "Top CPU", "frecency": "none"}
+```
+
+### Default Behavior
+
+If `frecency` is not specified, it defaults to `"item"`. Most plugins should use the default unless:
+- Items are sensitive (passwords, tokens) → use `"plugin"`
+- Items are ephemeral (calculations, definitions) → use `"plugin"` or `"none"`
+- Plugin is for monitoring/status → use `"none"`
+
+---
+
 ## Quick Start
 
 ### Static Plugin (No Handler)

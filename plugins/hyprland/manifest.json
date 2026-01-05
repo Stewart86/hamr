@@ -3,6 +3,7 @@
   "description": "Window management and Hyprland dispatchers",
   "icon": "desktop_windows",
   "supportedCompositors": ["hyprland"],
+  "frecency": "none",
   "daemon": {
     "enabled": true,
     "background": true

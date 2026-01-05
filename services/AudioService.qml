@@ -144,7 +144,6 @@ Singleton {
         onExited: (code, status) => {
             if (code === 0) {
                 root.soundFilePaths = discoverProcess.discoveredPaths;
-                console.info("AudioService: Discovered sounds:", JSON.stringify(root.soundFilePaths));
                 root.createSoundPlayers();
             }
             discoverProcess.discoveredPaths = {};
@@ -177,8 +176,6 @@ Singleton {
                 console.warn(`AudioService: Failed to create player for ${event}:`, e);
             }
         }
-
-        console.info("AudioService: Created", Object.keys(soundPlayers).length, "sound players");
     }
 
     function destroySoundPlayers() {

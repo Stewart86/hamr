@@ -3,6 +3,7 @@
   "description": "Take screenshot with region selection and annotation",
   "icon": "screenshot",
   "supportedCompositors": ["*"],
+  "frecency": "none",
   "staticIndex": [
     {
       "id": "snip",

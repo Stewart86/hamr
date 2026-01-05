@@ -278,7 +278,7 @@ def app_to_index_item(app: dict) -> dict:
     actions.insert(0, new_window_action)
 
     item = {
-        "id": f"app:{desktop_name}",
+        "id": app["id"],  # Use full path as ID (matches result IDs for frecency)
         "name": app["name"],
         "description": app.get("generic_name") or app.get("display_category") or "",
         "keywords": keywords,

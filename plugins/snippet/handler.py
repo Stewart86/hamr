@@ -307,13 +307,23 @@ def snippet_to_index_item(snippet: dict) -> dict:
         description = "(has variables) " + description
 
     return {
-        "id": f"snippet:{key}",
+        "id": key,  # Use simple key (matches result IDs for frecency)
         "name": key,
         "description": description,
         "keywords": [truncate_value(value, 30)],
         "icon": "content_paste",
-        "verb": "Copy",
+        "verb": "Insert",
         "actions": [
+            {
+                "id": "copy",
+                "name": "Copy",
+                "icon": "content_copy",
+                "entryPoint": {
+                    "step": "action",
+                    "selected": {"id": key},
+                    "action": "copy",
+                },
+            },
             {
                 "id": "edit",
                 "name": "Edit",
@@ -336,11 +346,10 @@ def snippet_to_index_item(snippet: dict) -> dict:
                 },
             },
         ],
-        # Default action: copy to clipboard (use entryPoint for variable expansion)
+        # Default action: type with ydotool (goes through daemon for variable expansion)
         "entryPoint": {
             "step": "action",
             "selected": {"id": key},
-            "action": "copy",
         },
     }
 
@@ -424,16 +433,14 @@ def handle_request(request: dict, snippets: list[dict]) -> list[dict]:
         mode = request.get("mode", "full")
         indexed_ids = set(request.get("indexedIds", []))
 
-        # Build current ID set
-        current_ids = {f"snippet:{s['key']}" for s in snippets}
+        # Build current ID set (use simple key, matches index item IDs)
+        current_ids = {s["key"] for s in snippets}
 
         if mode == "incremental" and indexed_ids:
             # Find new items
             new_ids = current_ids - indexed_ids
             new_items = [
-                snippet_to_index_item(s)
-                for s in snippets
-                if f"snippet:{s['key']}" in new_ids
+                snippet_to_index_item(s) for s in snippets if s["key"] in new_ids
             ]
 
             # Find removed items
@@ -704,10 +711,14 @@ def main():
     # Disable inotify in test mode to avoid race conditions
     inotify_fd = None if TEST_MODE else create_inotify_fd()
 
-    # Emit full index on startup
+    # Emit full index on startup, but only if no input is waiting
+    # (if input is waiting, we're likely being started for an entryPoint execution)
     if not TEST_MODE:
-        items = [snippet_to_index_item(s) for s in snippets]
-        emit({"type": "index", "mode": "full", "items": items})
+        # Check if stdin has data waiting (non-blocking)
+        ready, _, _ = select.select([sys.stdin], [], [], 0)
+        if not ready:
+            items = [snippet_to_index_item(s) for s in snippets]
+            emit({"type": "index", "mode": "full", "items": items})
 
     if inotify_fd is not None:
         snippets_filename = SNIPPETS_PATH.name

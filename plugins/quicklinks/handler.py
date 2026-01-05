@@ -302,7 +302,7 @@ def quicklink_to_index_item(link: dict) -> dict:
         keywords.extend(alias.lower().split())
 
     item = {
-        "id": f"quicklink:{name}",
+        "id": name,  # Use simple name (matches result IDs for frecency)
         "name": name,
         "description": ", ".join(link.get("aliases", []))
         if link.get("aliases")

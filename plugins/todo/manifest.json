@@ -3,6 +3,7 @@
     "description": "Manage your todo list",
     "icon": "checklist",
     "supportedCompositors": ["*"],
+    "frecency": "plugin",
     "daemon": {
         "enabled": true,
         "background": true

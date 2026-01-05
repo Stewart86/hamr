@@ -172,6 +172,11 @@ def emit(data: dict) -> None:
     print(json.dumps(data), flush=True)
 
 
+def emit_index() -> None:
+    """Emit index with current volume state for search/history."""
+    emit({"type": "index", "mode": "full", "items": get_results()})
+
+
 def handle_request(request: dict) -> None:
     step = request.get("step", "initial")
     selected = request.get("selected", {})
@@ -209,16 +214,18 @@ def handle_request(request: dict) -> None:
 
             # Get updated values for the changed slider
             if selected_id == "volume":
+                vol_pct = int(vol_info["volume"] * 100)
                 emit(
                     {
                         "type": "update",
                         "items": [
                             {
                                 "id": "volume",
+                                "value": vol_pct,
                                 "gauge": {
-                                    "value": int(vol_info["volume"] * 100),
+                                    "value": vol_pct,
                                     "max": 100,
-                                    "label": f"{int(vol_info['volume'] * 100)}%",
+                                    "label": f"{vol_pct}%",
                                 },
                                 "icon": get_volume_icon(
                                     vol_info["volume"], vol_info["muted"]
@@ -228,16 +235,18 @@ def handle_request(request: dict) -> None:
                     }
                 )
             elif selected_id == "mic":
+                mic_pct = int(mic_info["volume"] * 100)
                 emit(
                     {
                         "type": "update",
                         "items": [
                             {
                                 "id": "mic",
+                                "value": mic_pct,
                                 "gauge": {
-                                    "value": int(mic_info["volume"] * 100),
+                                    "value": mic_pct,
                                     "max": 100,
-                                    "label": f"{int(mic_info['volume'] * 100)}%",
+                                    "label": f"{mic_pct}%",
                                 },
                             }
                         ],
@@ -275,8 +284,15 @@ def main():
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
 
+    # Emit initial index on startup
+    emit_index()
+
+    # Track last known values to detect external changes
+    last_vol = get_volume_info()
+    last_mic = get_mic_info()
+
     while True:
-        readable, _, _ = select.select([sys.stdin], [], [], 0.5)
+        readable, _, _ = select.select([sys.stdin], [], [], 1.0)
 
         if readable:
             try:
@@ -285,8 +301,58 @@ def main():
                     break
                 request = json.loads(line.strip())
                 handle_request(request)
+                # Update tracked values after handling request
+                last_vol = get_volume_info()
+                last_mic = get_mic_info()
             except (json.JSONDecodeError, ValueError):
                 continue
+        else:
+            # Timeout - check for external volume changes
+            current_vol = get_volume_info()
+            current_mic = get_mic_info()
+
+            updates = []
+
+            if (
+                current_vol["volume"] != last_vol["volume"]
+                or current_vol["muted"] != last_vol["muted"]
+            ):
+                vol_pct = int(current_vol["volume"] * 100)
+                updates.append(
+                    {
+                        "id": "volume",
+                        "value": vol_pct,
+                        "gauge": {"value": vol_pct, "max": 100, "label": f"{vol_pct}%"},
+                        "icon": get_volume_icon(
+                            current_vol["volume"], current_vol["muted"]
+                        ),
+                        "badges": [{"icon": "volume_off", "color": "#f44336"}]
+                        if current_vol["muted"]
+                        else [],
+                    }
+                )
+                last_vol = current_vol
+
+            if (
+                current_mic["volume"] != last_mic["volume"]
+                or current_mic["muted"] != last_mic["muted"]
+            ):
+                mic_pct = int(current_mic["volume"] * 100)
+                updates.append(
+                    {
+                        "id": "mic",
+                        "value": mic_pct,
+                        "gauge": {"value": mic_pct, "max": 100, "label": f"{mic_pct}%"},
+                        "icon": "mic_off" if current_mic["muted"] else "mic",
+                        "badges": [{"icon": "mic_off", "color": "#f44336"}]
+                        if current_mic["muted"]
+                        else [],
+                    }
+                )
+                last_mic = current_mic
+
+            if updates:
+                emit({"type": "update", "items": updates})
 
 
 if __name__ == "__main__":

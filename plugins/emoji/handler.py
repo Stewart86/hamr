@@ -102,7 +102,7 @@ def format_results(emojis: list[dict]) -> list[dict]:
     """Format emojis as hamr results (list view)."""
     return [
         {
-            "id": e["emoji"],
+            "id": f"emoji:{e['emoji']}",  # Match index ID format for frecency
             "name": e["description"][:50] if e["description"] else e["emoji"],
             "icon": e["emoji"],
             "iconType": "text",
@@ -133,7 +133,7 @@ def format_grid_items(
                 e = emoji_lookup[emoji_char]
                 items.append(
                     {
-                        "id": e["emoji"],
+                        "id": f"emoji:{e['emoji']}",  # Match index ID format
                         "name": e["description"][:20] if e["description"] else "",
                         "keywords": e["description"].split()
                         if e["description"]
@@ -147,7 +147,7 @@ def format_grid_items(
     for e in emojis:
         items.append(
             {
-                "id": e["emoji"],
+                "id": f"emoji:{e['emoji']}",  # Match index ID format
                 "name": e["description"][:20] if e["description"] else "",
                 "keywords": e["description"].split() if e["description"] else [],
                 "icon": e["emoji"],
@@ -283,10 +283,13 @@ def handle_request(request: dict, emojis: list[dict]) -> None:
 
         # Handle gridBrowser selection
         if selected_id == "gridBrowser":
-            emoji = selected.get("itemId", "")
+            item_id = selected.get("itemId", "")
+            # Extract emoji from prefixed ID (emoji:X -> X)
+            emoji = item_id[6:] if item_id.startswith("emoji:") else item_id
             action_id = selected.get("action", "") or action or "copy"
         else:
-            emoji = selected_id
+            # Extract emoji from prefixed ID (emoji:X -> X)
+            emoji = selected_id[6:] if selected_id.startswith("emoji:") else selected_id
             action_id = action if action else "copy"
 
         if not emoji:

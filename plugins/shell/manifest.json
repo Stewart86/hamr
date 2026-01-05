@@ -3,8 +3,12 @@
   "description": "Run commands and search shell history",
   "icon": "terminal",
   "supportedCompositors": ["*"],
+  "frecency": "plugin",
   "daemon": {
     "enabled": true,
     "background": true
+  },
+  "index": {
+    "enabled": true
   }
 }

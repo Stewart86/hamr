@@ -216,7 +216,7 @@ ydotool type --key-delay=0 -- {cmd_repr} {enter_key}
 def binary_to_index_item(binary: str) -> dict:
     """Convert a binary name to indexable item format for main search."""
     return {
-        "id": f"bin:{binary}",
+        "id": binary,  # Use raw binary name (matches result IDs for frecency)
         "name": binary,
         "description": "Command",
         "icon": "terminal",
@@ -281,7 +281,7 @@ def history_to_index_item(cmd: str) -> dict:
     display_cmd = cmd if len(cmd) <= 60 else cmd[:60] + "..."
 
     return {
-        "id": f"history:{get_cmd_hash(cmd)}",
+        "id": cmd,  # Use raw command (matches result IDs for frecency)
         "name": display_cmd,
         "description": "History",
         "keywords": cmd.lower().split()[:10],

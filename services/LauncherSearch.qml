@@ -90,7 +90,8 @@ Singleton {
     function launchNewInstance(appId) {
         const entry = DesktopEntries.byId(appId);
         if (entry) {
-            root.recordSearch("app", appId, root.query);
+            PluginRunner.recordExecution("apps", appId);
+            ContextTracker.recordLaunch(appId);
             entry.execute();
         }
     }
@@ -101,35 +102,6 @@ Singleton {
         } else {
             root.query = prefix + root.query;
         }
-    }
-
-    // Delegate history functions to HistoryManager service (with context for smart suggestions)
-    function recordSearch(searchType, searchName, searchTerm) {
-        const context = ContextTracker.getContext();
-        context.launchFromEmpty = root.query === "";
-        HistoryManager.recordSearch(searchType, searchName, searchTerm, context);
-
-        // Record app launch for sequence tracking
-        if (searchType === "app") {
-            ContextTracker.recordLaunch(searchName);
-        }
-    }
-
-    function recordWorkflowExecution(actionInfo, searchTerm) {
-        const context = ContextTracker.getContext();
-        context.launchFromEmpty = root.query === "";
-        HistoryManager.recordWorkflowExecution(actionInfo, searchTerm, context);
-    }
-
-    function recordWindowFocus(appId, appName, windowTitle, iconName, searchTerm) {
-        const context = ContextTracker.getContext();
-        context.launchFromEmpty = root.query === "";
-        const term = searchTerm ?? root.query;
-        
-        Qt.callLater(() => {
-            HistoryManager.recordWindowFocus(appId, appName, windowTitle, iconName, term, context);
-            ContextTracker.recordLaunch(appId);
-        });
     }
 
     function removeHistoryItem(historyType, identifier) {
@@ -256,7 +228,9 @@ Singleton {
     Connections {
         target: PluginRunner
         function onActionExecuted(actionInfo) {
-            root.recordWorkflowExecution(actionInfo);
+            if (actionInfo.workflowId && actionInfo.itemId) {
+                PluginRunner.recordExecution(actionInfo.workflowId, actionInfo.itemId);
+            }
         }
         function onClearInputRequested() {
             root.pluginClearing = true;
@@ -352,6 +326,8 @@ Singleton {
                  result.graph = item.graph ?? null;
                  result.gauge = item.gauge ?? null;
                  result.progress = item.progress ?? null;
+                 result._pluginId = pluginId;
+                 result._pluginName = pluginName;
                  
                  if (idChanged) {
                      result.execute = ((capturedItemId, capturedExecuteCommand, capturedExecuteNotify, capturedExecuteName, capturedPluginId, capturedPluginName, capturedIconName) => () => {
@@ -360,18 +336,9 @@ Singleton {
                              if (capturedExecuteNotify) {
                                  Quickshell.execDetached(["notify-send", capturedPluginName, capturedExecuteNotify, "-a", "Shell"]);
                              }
-                             if (capturedExecuteName) {
-                                 root.recordWorkflowExecution({
-                                     name: capturedExecuteName,
-                                     command: capturedExecuteCommand,
-                                     entryPoint: null,
-                                     icon: capturedIconName,
-                                     iconType: "material",
-                                     thumbnail: "",
-                                     workflowId: capturedPluginId,
-                                     workflowName: capturedPluginName
-                                 }, root.query);
-                             }
+                     if (capturedItemId) {
+                                  PluginRunner.recordExecution(capturedPluginId, capturedItemId);
+                              }
                              GlobalStates.launcherOpen = false;
                              return;
                          }
@@ -451,24 +418,17 @@ Singleton {
                  graph: item.graph ?? null,
                  gauge: item.gauge ?? null,
                  progress: item.progress ?? null,
+                 _pluginId: pluginId,
+                 _pluginName: pluginName,
                  execute: ((capturedItemId, capturedExecuteCommand, capturedExecuteNotify, capturedExecuteName, capturedPluginId, capturedPluginName, capturedIconName) => () => {
                      if (capturedExecuteCommand) {
                          Quickshell.execDetached(capturedExecuteCommand);
                          if (capturedExecuteNotify) {
                              Quickshell.execDetached(["notify-send", capturedPluginName, capturedExecuteNotify, "-a", "Shell"]);
                          }
-                         if (capturedExecuteName) {
-                             root.recordWorkflowExecution({
-                                 name: capturedExecuteName,
-                                 command: capturedExecuteCommand,
-                                 entryPoint: null,
-                                 icon: capturedIconName,
-                                 iconType: "material",
-                                 thumbnail: "",
-                                 workflowId: capturedPluginId,
-                                 workflowName: capturedPluginName
-                             }, root.query);
-                         }
+                         if (capturedItemId) {
+                              PluginRunner.recordExecution(capturedPluginId, capturedItemId);
+                          }
                          GlobalStates.launcherOpen = false;
                          return;
                      }
@@ -515,26 +475,15 @@ Singleton {
      function doRebuildStaticSearchables() {
          const items = [];
 
-         const actions = root.preppedActions ?? [];
-         for (const preppedAction of actions) {
-             const action = preppedAction.action;
-             items.push({
-                 name: preppedAction.name,
-                 sourceType: ResultFactory.sourceType.PLUGIN,
-                 id: `action:${action.action}`,
-                 data: { action, isAction: true },
-                 isHistoryTerm: false
-             });
-         }
-
+         // Add plugins as searchables (frecency via __plugin__ entries)
          const plugins = root.preppedPlugins ?? [];
          for (const preppedPlugin of plugins) {
              const plugin = preppedPlugin.plugin;
              items.push({
                  name: preppedPlugin.name,
-                 sourceType: ResultFactory.sourceType.PLUGIN,
-                 id: `workflow:${plugin.id}`,
-                 data: { plugin, isAction: false },
+                 sourceType: "plugin",
+                 id: plugin.id,
+                 data: { plugin },
                  isHistoryTerm: false
              });
          }
@@ -580,98 +529,54 @@ Singleton {
 
     property var preppedHistorySearchables: []
 
-     function rebuildHistorySearchables() {
-         const items = [];
+    // Build history searchables from index items that have frecency data
+    // This replaces the old HistoryManager-based approach
+    function rebuildHistorySearchables() {
+        const items = [];
+        const pluginMap = new Map(PluginRunner.plugins.map(p => [p.id, p]));
 
-         // Build lookup maps once - O(n) instead of O(n²) with repeated .find()
-         const indexedItems = PluginRunner.getAllIndexedItems();
-         const appIdMap = new Map(indexedItems.filter(i => i.appId).map(i => [i.appId, i]));
-         const actionMap = new Map(root.allActions.map(a => [a.action, a]));
-         const pluginMap = new Map(PluginRunner.plugins.map(p => [p.id, p]));
+        // Get all items with frecency from index
+        const itemsWithFrecency = PluginRunner.getItemsWithFrecency();
+        
+        for (const { pluginId, item } of itemsWithFrecency) {
+            const plugin = pluginMap.get(pluginId);
+            const pluginName = plugin?.manifest?.name ?? pluginId;
+            
+            // Enrich item with plugin metadata
+            const enrichedItem = Object.assign({}, item, {
+                _pluginId: pluginId,
+                _pluginName: pluginName
+            });
+            
+            // Add searchable for recent search terms (history terms)
+            const recentTerms = item._recentSearchTerms ?? [];
+            for (const term of recentTerms) {
+                items.push({
+                    name: Fuzzy.prepare(term),
+                    sourceType: ResultFactory.sourceType.INDEXED_ITEM,
+                    id: item.id,
+                    data: { item: enrichedItem },
+                    isHistoryTerm: true,
+                    matchedTerm: term
+                });
+            }
+        }
 
-         // Single pass through history data
-         for (const historyItem of searchHistoryData) {
-             if (historyItem.type === "app" && historyItem.recentSearchTerms?.length > 0) {
-                 const appItem = appIdMap.get(historyItem.name);
-                 if (!appItem) continue;
-                 for (const term of historyItem.recentSearchTerms) {
-                     items.push({
-                         name: Fuzzy.prepare(term),
-                         sourceType: ResultFactory.sourceType.INDEXED_ITEM,
-                         id: appItem.id,
-                         data: { item: appItem, historyItem },
-                         isHistoryTerm: true,
-                         matchedTerm: term
-                     });
-                 }
-             } else if (historyItem.type === "action" && historyItem.recentSearchTerms?.length > 0) {
-                 const action = actionMap.get(historyItem.name);
-                 if (!action) continue;
-                 for (const term of historyItem.recentSearchTerms) {
-                     items.push({
-                         name: Fuzzy.prepare(term),
-                         sourceType: ResultFactory.sourceType.PLUGIN,
-                         id: `action:${action.action}`,
-                         data: { action, historyItem, isAction: true },
-                         isHistoryTerm: true,
-                         matchedTerm: term
-                     });
-                 }
-             } else if (historyItem.type === "workflow" && historyItem.recentSearchTerms?.length > 0) {
-                 const plugin = pluginMap.get(historyItem.name);
-                 if (!plugin) continue;
-                 for (const term of historyItem.recentSearchTerms) {
-                     items.push({
-                         name: Fuzzy.prepare(term),
-                         sourceType: ResultFactory.sourceType.PLUGIN,
-                         id: `workflow:${plugin.id}`,
-                         data: { plugin, historyItem, isAction: false },
-                         isHistoryTerm: true,
-                         matchedTerm: term
-                     });
-                 }
-             } else if (historyItem.type === "workflowExecution") {
-                 items.push({
-                     name: Fuzzy.prepare(`${historyItem.workflowName} ${historyItem.name}`),
-                     sourceType: ResultFactory.sourceType.PLUGIN_EXECUTION,
-                     id: historyItem.key,
-                     data: { historyItem },
-                     isHistoryTerm: false
-                 });
-                 if (historyItem.recentSearchTerms) {
-                     for (const term of historyItem.recentSearchTerms) {
-                         items.push({
-                             name: Fuzzy.prepare(term),
-                             sourceType: ResultFactory.sourceType.PLUGIN_EXECUTION,
-                             id: historyItem.key,
-                             data: { historyItem },
-                             isHistoryTerm: true,
-                             matchedTerm: term
-                         });
-                     }
-                 }
-             } else if (historyItem.type === "webSearch") {
-                 items.push({
-                     name: Fuzzy.prepare(historyItem.name),
-                     sourceType: ResultFactory.sourceType.WEB_SEARCH,
-                     id: `webSearch:${historyItem.name}`,
-                     data: { query: historyItem.name, historyItem },
-                     isHistoryTerm: false
-                 });
-             }
-         }
-
-         root.preppedHistorySearchables = items;
-     }
+        root.preppedHistorySearchables = items;
+    }
 
     Timer {
         id: historyRebuildTimer
-        interval: 250  // Debounce history rebuilds (avoids redundant work on rapid changes)
+        interval: 250
         onTriggered: root.rebuildHistorySearchables()
     }
 
-    onSearchHistoryDataChanged: {
-        historyRebuildTimer.restart();
+    // Rebuild when index changes (frecency updates, new items, etc.)
+    Connections {
+        target: PluginRunner
+        function onPluginIndexChanged(pluginId) {
+            historyRebuildTimer.restart();
+        }
     }
 
     property var preppedSearchables: [...preppedStaticSearchables, ...preppedHistorySearchables]
@@ -777,9 +682,6 @@ Singleton {
 
     // Dependencies object for ResultFactory
     readonly property var resultFactoryDependencies: ({
-        recordSearch: root.recordSearch,
-        recordWorkflowExecution: root.recordWorkflowExecution,
-        recordWindowFocus: root.recordWindowFocus,
         startPlugin: root.startPlugin,
         resultComponent: resultComp,
         launcherSearchResult: LauncherSearchResult,
@@ -787,26 +689,21 @@ Singleton {
         stringUtils: StringUtils
     })
 
-    // Helper to get frecency for a searchable item (used by scoreFn)
+    // Helper to get frecency for a searchable item (uses index-based frecency)
     function getFrecencyForSearchable(item) {
         const data = item.data;
-        if (data.historyItem) {
-            return FrecencyScorer.getFrecencyScore(data.historyItem);
+        
+        // Indexed items have frecency data via PluginRunner
+        if (data.item?._pluginId && data.item?.id) {
+            return PluginRunner.getItemFrecency(data.item._pluginId, data.item.id);
         }
-        switch (item.sourceType) {
-            case ResultFactory.sourceType.PLUGIN:
-                if (data.isAction) {
-                    return root.getHistoryBoost("action", data.action.action);
-                }
-                return root.getHistoryBoost("workflow", data.plugin.id);
-            case ResultFactory.sourceType.INDEXED_ITEM:
-                if (data.item?.appId) {
-                    return root.getHistoryBoost("app", data.item.appId);
-                }
-                return 0;
-            default:
-                return 0;
+        
+        // Plugins use __plugin__ frecency entry
+        if (data.plugin?.id) {
+            return PluginRunner.getItemFrecency(data.plugin.id, "__plugin__");
         }
+        
+        return 0;
     }
 
     function unifiedFuzzySearch(query, limit) {
@@ -904,12 +801,14 @@ Singleton {
                 execute: ((capturedAppItem, capturedAppId) => () => {
                     const currentWindows = WindowManager.getWindowsForApp(capturedAppId);
                     if (currentWindows.length === 0) {
-                        root.recordSearch("app", capturedAppId, "");
+                        PluginRunner.recordExecution("apps", capturedAppId);
+                        ContextTracker.recordLaunch(capturedAppId);
                         if (capturedAppItem.execute?.command) {
                             Quickshell.execDetached(capturedAppItem.execute.command);
                         }
                     } else if (currentWindows.length === 1) {
-                        root.recordWindowFocus(capturedAppId, capturedAppItem.name, currentWindows[0].title, capturedAppItem.icon);
+                        PluginRunner.recordExecution("apps", capturedAppId);
+                        ContextTracker.recordLaunch(capturedAppId);
                         WindowManager.focusWindow(currentWindows[0]);
                         GlobalStates.launcherOpen = false;
                     } else {
@@ -944,7 +843,6 @@ Singleton {
                     iconName: 'settings_suggest',
                     iconType: LauncherSearchResult.IconType.Material,
                     execute: () => {
-                        root.recordSearch("action", action.action, root.query);
                         action.execute(actionArgs);
                     }
                 });
@@ -964,10 +862,10 @@ Singleton {
                     iconType: LauncherSearchResult.IconType.Material,
                     resultType: LauncherSearchResult.ResultType.PluginEntry,
                     pluginId: plugin.id,
-                    execute: () => {
-                        root.recordSearch("workflow", plugin.id, root.query);
-                        root.startPlugin(plugin.id);
-                    }
+                    execute: ((capturedPluginId) => () => {
+                        PluginRunner.recordExecution(capturedPluginId, "__plugin__");
+                        root.startPlugin(capturedPluginId);
+                    })(plugin.id)
                 });
             });
 
@@ -1011,162 +909,152 @@ Singleton {
          }
 
          if (root.query == "") {
-             if (!root.historyLoaded || !PluginRunner.pluginsLoaded || !PluginRunner.indexCacheLoaded) return [];
+             if (!PluginRunner.pluginsLoaded || !PluginRunner.indexCacheLoaded) return [];
 
-             const _actionsLoaded = root.allActions.length;
-             const _historyLoaded = searchHistoryData.length;
-
+             // Note: Don't depend on indexVersion here - it causes full list rebuild
+             // Live updates happen via SearchItem's liveData property
              const allIndexed = PluginRunner.getAllIndexedItems();
-             // Build lookup maps for O(1) access instead of O(n) .find() calls
-             const appIdMap = new Map(allIndexed.filter(i => i.appId).map(i => [i.appId, i]));
-             const actionMap = new Map(root.allActions.map(a => [a.action, a]));
              const pluginMap = new Map(PluginRunner.plugins.map(p => [p.id, p]));
+             const appIdMap = new Map(allIndexed.filter(i => i.appId).map(i => [i.appId, i]));
 
              // Get smart suggestions first
              const suggestions = root.createSuggestionResults(allIndexed, appIdMap);
-             const suggestionAppIds = new Set(suggestions.map(s => s.id));
+             const suggestionIds = new Set(suggestions.map(s => s.id || s.name));
 
-             if (_historyLoaded === 0) return suggestions;
-             const recentItems = searchHistoryData
-                 .slice()
-                 .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))
-                 .map(item => {
-                     const makeRemoveAction = (historyType, identifier) => ({
-                         name: "Remove",
-                         iconName: "delete",
-                         iconType: LauncherSearchResult.IconType.Material,
-                         execute: () => root.removeHistoryItem(historyType, identifier)
-                     });
+             // Get recent items from index (frecency-based)
+             const recentItems = PluginRunner.getItemsWithFrecency()
+                  .filter(({ item }) => !suggestionIds.has(item.id) && !suggestionIds.has(item.appId))
+                  .slice(0, Config.options.search?.maxRecentItems ?? 20)
+                  .map(({ pluginId, item }) => {
+                      const plugin = pluginMap.get(pluginId);
+                      const pluginName = plugin?.manifest?.name ?? pluginId;
+                      
+                      // Handle plugin-level frecency entries
+                      const isPluginEntry = item._isPluginEntry === true;
+                      if (isPluginEntry) {
+                          return resultComp.createObject(null, {
+                              type: "Recent",
+                              id: pluginId,
+                              name: pluginName,
+                              iconName: plugin?.manifest?.icon ?? 'extension',
+                              iconType: LauncherSearchResult.IconType.Material,
+                              verb: "Open",
+                              comment: plugin?.manifest?.description ?? "",
+                              resultType: LauncherSearchResult.ResultType.PluginEntry,
+                              pluginId: pluginId,
+                              execute: ((capturedPluginId) => () => {
+                                  PluginRunner.recordExecution(capturedPluginId, "__plugin__");
+                                  root.startPlugin(capturedPluginId);
+                              })(pluginId)
+                          });
+                      }
+                      
+                      let iconType = LauncherSearchResult.IconType.Material;
+                      if (item.iconType === "system") {
+                          iconType = LauncherSearchResult.IconType.System;
+                      } else if (item.iconType === "text") {
+                          iconType = LauncherSearchResult.IconType.Text;
+                      }
+                      
+                      const isAppItem = item.appId !== undefined;
+                      const windows = isAppItem ? WindowManager.getWindowsForApp(item.appId) : [];
+                     
+                     const props = {
+                          type: "Recent",
+                          id: item.appId ?? item.id,
+                          name: item.name,
+                          iconName: item.icon ?? 'extension',
+                          iconType: iconType,
+                          verb: isAppItem ? (windows.length > 0 ? "Focus" : "Open") : (item.verb ?? "Run"),
+                          _pluginId: pluginId,
+                          _pluginName: pluginName,
+                          comment: isAppItem ? "" : pluginName,
+                          windowCount: windows.length,
+                          windows: windows
+                      };
+                      
+                      // Add slider properties if it's a slider
+                      if (item.type === "slider") {
+                          props.resultType = "slider";
+                          props.value = item.value;
+                          props.min = item.min;
+                          props.max = item.max;
+                          props.step = item.step;
+                          props.gauge = item.gauge;
+                      }
+                      
+                      // Add graph/gauge/progress properties
+                      if (item.graph) props.graph = item.graph;
+                      if (item.gauge) props.gauge = item.gauge;
+                      if (item.progress) props.progress = item.progress;
+                      
+                      if (item.badges?.length > 0) props.badges = item.badges;
+                      if (item.thumbnail) props.thumbnail = item.thumbnail;
+                      if (item.description) props.comment = item.description;
+                      
+                      // Build actions from indexed item
+                      const itemActions = (item.actions ?? []).map(action => {
+                          const actionIconType = action.iconType === "system"
+                              ? LauncherSearchResult.IconType.System
+                              : LauncherSearchResult.IconType.Material;
+                          return resultComp.createObject(null, {
+                              name: action.name,
+                              iconName: action.icon ?? 'play_arrow',
+                              iconType: actionIconType,
+                              execute: ((capturedAction, capturedItem, capturedPluginId) => () => {
+                                  if (capturedAction.entryPoint) {
+                                      if (capturedAction.keepOpen) {
+                                          PluginRunner.executeEntryPoint(capturedPluginId, capturedAction.entryPoint);
+                                      } else {
+                                          PluginRunner.replayAction(capturedPluginId, capturedAction.entryPoint);
+                                          GlobalStates.launcherOpen = false;
+                                      }
+                                      return;
+                                  }
+                                  if (capturedAction.command) {
+                                      Quickshell.execDetached(capturedAction.command);
+                                      GlobalStates.launcherOpen = false;
+                                  }
+                              })(action, item, pluginId)
+                          });
+                      });
+                      if (itemActions.length > 0) {
+                          props.actions = itemActions;
+                      }
+                      
+                      props.execute = ((capturedItem, capturedPluginId, capturedIsApp) => () => {
+                          // Record execution
+                          PluginRunner.recordExecution(capturedPluginId, capturedItem.id);
+                          if (capturedIsApp) {
+                              ContextTracker.recordLaunch(capturedItem.appId);
+                          }
+                          
+                          if (capturedIsApp) {
+                              const currentWindows = WindowManager.getWindowsForApp(capturedItem.appId);
+                              if (currentWindows.length === 0) {
+                                  if (capturedItem.execute?.command) {
+                                      Quickshell.execDetached(capturedItem.execute.command);
+                                  }
+                                  GlobalStates.launcherOpen = false;
+                              } else if (currentWindows.length === 1) {
+                                  WindowManager.focusWindow(currentWindows[0]);
+                                  GlobalStates.launcherOpen = false;
+                              } else {
+                                  GlobalStates.openWindowPicker(capturedItem.appId, currentWindows);
+                              }
+                          } else if (capturedItem.entryPoint) {
+                              PluginRunner.replayAction(capturedPluginId, capturedItem.entryPoint);
+                              GlobalStates.launcherOpen = false;
+                          } else if (capturedItem.execute?.command) {
+                              Quickshell.execDetached(capturedItem.execute.command);
+                              GlobalStates.launcherOpen = false;
+                          }
+                      })(item, pluginId, isAppItem);
+                      
+                      return resultComp.createObject(null, props);
+                 })
+                 .filter(Boolean);
 
-                    if (item.type === "app") {
-                        const appItem = appIdMap.get(item.name);
-                        if (!appItem) return null;
-                        const appId = appItem.appId;
-                        return resultComp.createObject(null, {
-                            type: "Recent",
-                            id: appId,
-                            name: appItem.name,
-                            iconName: appItem.icon,
-                            iconType: LauncherSearchResult.IconType.System,
-                            verb: "Open",
-                            actions: [makeRemoveAction("app", item.name)],
-                            execute: ((capturedAppItem, capturedAppId) => () => {
-                                const currentWindows = WindowManager.getWindowsForApp(capturedAppId);
-                                if (currentWindows.length === 0) {
-                                    root.recordSearch("app", capturedAppId, "");
-                                    if (capturedAppItem.execute?.command) {
-                                        Quickshell.execDetached(capturedAppItem.execute.command);
-                                    }
-                                } else if (currentWindows.length === 1) {
-                                    root.recordWindowFocus(capturedAppId, capturedAppItem.name, currentWindows[0].title, capturedAppItem.icon);
-                                    WindowManager.focusWindow(currentWindows[0]);
-                                    GlobalStates.launcherOpen = false;
-                                } else {
-                                     GlobalStates.openWindowPicker(capturedAppId, currentWindows);
-                                 }
-                             })(appItem, appId)
-                         });
-                     } else if (item.type === "action") {
-                         const action = actionMap.get(item.name);
-                         if (!action) return null;
-                        return resultComp.createObject(null, {
-                            type: "Recent",
-                            name: action.action,
-                            iconName: 'settings_suggest',
-                            iconType: LauncherSearchResult.IconType.Material,
-                            verb: "Run",
-                            actions: [makeRemoveAction("action", item.name)],
-                            execute: () => {
-                                root.recordSearch("action", action.action, "");
-                                action.execute("");
-                            }
-                        });
-                    } else if (item.type === "workflow") {
-                        const plugin = pluginMap.get(item.name);
-                        if (!plugin) return null;
-                        return resultComp.createObject(null, {
-                            type: "Recent",
-                            name: plugin.manifest?.name || item.name,
-                            iconName: plugin.manifest?.icon || 'extension',
-                            iconType: LauncherSearchResult.IconType.Material,
-                            resultType: LauncherSearchResult.ResultType.PluginEntry,
-                            pluginId: item.name,
-                            verb: "Open",
-                            actions: [makeRemoveAction("workflow", item.name)],
-                            execute: () => {
-                                root.recordSearch("workflow", item.name, "");
-                                root.startPlugin(item.name);
-                            }
-                        });
-                    } else if (item.type === "workflowExecution") {
-                        const iconType = item.iconType === "system"
-                            ? LauncherSearchResult.IconType.System
-                            : LauncherSearchResult.IconType.Material;
-                         return resultComp.createObject(null, {
-                             type: item.workflowName || "Recent",
-                             name: item.name,
-                             iconName: item.icon || 'play_arrow',
-                             iconType: iconType,
-                             thumbnail: item.thumbnail || "",
-                             verb: "Run",
-                             actions: [makeRemoveAction("workflowExecution", item.key)],
-                             execute: () => {
-                                 root.recordWorkflowExecution({
-                                     name: item.name,
-                                     command: item.command,
-                                     entryPoint: item.entryPoint,
-                                     icon: item.icon,
-                                     iconType: item.iconType,
-                                     thumbnail: item.thumbnail,
-                                     workflowId: item.workflowId,
-                                     workflowName: item.workflowName
-                                 }, "");
-                                 if (item.command && item.command.length > 0) {
-                                     Quickshell.execDetached(item.command);
-                                 } else if (item.entryPoint && item.workflowId) {
-                                     PluginRunner.replayAction(item.workflowId, item.entryPoint);
-                                 }
-                             }
-                         });
-                    } else if (item.type === "windowFocus") {
-                        return resultComp.createObject(null, {
-                            type: "Recent",
-                            id: item.appId,
-                            name: item.appName,
-                            comment: item.windowTitle,
-                            iconName: item.iconName,
-                            iconType: LauncherSearchResult.IconType.System,
-                            verb: "Focus",
-                            actions: [makeRemoveAction("windowFocus", item.key)],
-                            execute: () => {
-                                const windows = WindowManager.getWindowsForApp(item.appId);
-                                const targetWindow = windows.find(w => w.title === item.windowTitle);
-
-                                if (targetWindow) {
-                                    root.recordWindowFocus(item.appId, item.appName, item.windowTitle, item.iconName);
-                                    WindowManager.focusWindow(targetWindow);
-                                    GlobalStates.launcherOpen = false;
-                                } else if (windows.length === 1) {
-                                    root.recordWindowFocus(item.appId, item.appName, windows[0].title, item.iconName);
-                                    WindowManager.focusWindow(windows[0]);
-                                    GlobalStates.launcherOpen = false;
-                                } else if (windows.length > 1) {
-                                    GlobalStates.openWindowPicker(item.appId, windows);
-                                } else {
-                                    const entry = DesktopEntries.byId(item.appId);
-                                    if (entry) entry.execute();
-                                }
-                            }
-                        });
-                    }
-                    return null;
-                })
-                .filter(Boolean)
-                // Filter out items that are already in suggestions to avoid duplicates
-                .filter(item => !suggestionAppIds.has(item.id))
-                .slice(0, Config.options.search?.maxRecentItems ?? 100);
-
-             // Prepend suggestions to recent items
              return [...suggestions, ...recentItems];
          }
 
@@ -1195,13 +1083,12 @@ Singleton {
                  iconName: 'travel_explore',
                  iconType: LauncherSearchResult.IconType.Material,
                  execute: ((capturedQuery) => () => {
-                     root.recordSearch("webSearch", capturedQuery, capturedQuery);
-                     let url = Config.options.search.engineBaseUrl + capturedQuery;
-                     for (let site of Config.options.search.excludedSites) {
-                         url += ` -site:${site}`;
-                     }
-                     Qt.openUrlExternally(url);
-                 })(webSearchQuery)
+                      let url = Config.options.search.engineBaseUrl + capturedQuery;
+                      for (let site of Config.options.search.excludedSites) {
+                          url += ` -site:${site}`;
+                      }
+                      Qt.openUrlExternally(url);
+                  })(webSearchQuery)
              })
          });
 

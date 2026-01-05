@@ -100,7 +100,7 @@ POWER_ACTIONS = [
 
 def action_to_index_item(action: dict) -> dict:
     return {
-        "id": f"power:{action['id']}",
+        "id": action["id"],  # Use simple id (matches result IDs for frecency)
         "name": action["name"],
         "description": action["description"],
         "icon": action["icon"],

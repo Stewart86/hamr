@@ -3,6 +3,7 @@ pragma Singleton
 import qs
 import qs.modules.common
 import qs.modules.common.models
+import qs.services
 import QtQuick
 import Quickshell
 
@@ -31,9 +32,6 @@ Singleton {
      * @param {string} query - The search query string
      * @param {number} fuzzyScore - The fuzzy match score
      * @param {Object} dependencies - Callback functions and services:
-     *   - recordSearch(type, name, query)
-     *   - recordWorkflowExecution(actionInfo, searchTerm)
-     *   - recordWindowFocus(appId, appName, windowTitle, iconName, searchTerm)
      *   - startPlugin(pluginId)
      *   - resultComponent - The LauncherSearchResult component to instantiate
      *   - matchTypeEnum - The match type enum (EXACT, PREFIX, FUZZY, NONE)
@@ -128,10 +126,9 @@ Singleton {
                     iconType: dependencies.launcherSearchResult.IconType.Material,
                     acceptsArguments: !hasArgs,
                     completionText: !hasArgs ? action.action + " " : "",
-                    execute: ((capturedAction, capturedArgs, capturedQuery) => () => {
-                        dependencies.recordSearch("action", capturedAction.action, capturedQuery);
+                    execute: ((capturedAction, capturedArgs) => () => {
                         capturedAction.execute(capturedArgs);
-                    })(action, actionArgs, query)
+                    })(action, actionArgs)
                 })
             };
         } else {
@@ -153,10 +150,10 @@ Singleton {
                     pluginId: plugin.id,
                     acceptsArguments: true,
                     completionText: plugin.id + " ",
-                    execute: ((capturedPlugin, capturedQuery) => () => {
-                        dependencies.recordSearch("workflow", capturedPlugin.id, capturedQuery);
-                        dependencies.startPlugin(capturedPlugin.id);
-                    })(plugin, query)
+                    execute: ((capturedPluginId) => () => {
+                        PluginRunner.recordExecution(capturedPluginId, "__plugin__");
+                        dependencies.startPlugin(capturedPluginId);
+                    })(plugin.id)
                 })
             };
         }
@@ -200,18 +197,7 @@ Singleton {
                 thumbnail: item.thumbnail || "",
                 verb: "Run",
                 keepOpen: itemKeepOpen,
-                execute: ((capturedItem, capturedQuery, capturedKeepOpen) => () => {
-                    dependencies.recordWorkflowExecution({
-                        name: capturedItem.name,
-                        command: capturedItem.command,
-                        entryPoint: capturedItem.entryPoint,
-                        icon: capturedItem.icon,
-                        iconType: capturedItem.iconType,
-                        thumbnail: capturedItem.thumbnail,
-                        workflowId: capturedItem.workflowId,
-                        workflowName: capturedItem.workflowName,
-                        keepOpen: capturedKeepOpen
-                    }, capturedQuery);
+                execute: ((capturedItem, capturedKeepOpen) => () => {
                     if (capturedItem.command && capturedItem.command.length > 0) {
                         Quickshell.execDetached(capturedItem.command);
                     } else if (capturedItem.entryPoint && capturedItem.workflowId) {
@@ -221,7 +207,7 @@ Singleton {
                             PluginRunner.replayAction(capturedItem.workflowId, capturedItem.entryPoint);
                         }
                     }
-                })(item, query, itemKeepOpen)
+                })(item, itemKeepOpen)
             })
         };
     }
@@ -258,7 +244,6 @@ Singleton {
                 iconName: 'travel_explore',
                 iconType: dependencies.launcherSearchResult.IconType.Material,
                 execute: ((capturedQuery) => () => {
-                    dependencies.recordSearch("webSearch", capturedQuery, capturedQuery);
                     let url = dependencies.config.options.search.engineBaseUrl + capturedQuery;
                     for (let site of dependencies.config.options.search.excludedSites) {
                         url += ` -site:${site}`;
@@ -327,9 +312,6 @@ Singleton {
                         Quickshell.execDetached(capturedAction.command);
                         GlobalStates.launcherOpen = false;
                     }
-                    if (capturedItem.appId) {
-                        dependencies.recordSearch("app", capturedItem.appId, query);
-                    }
                 })(action, item)
             });
         });
@@ -344,38 +326,60 @@ Singleton {
 
         const itemKeepOpen = item.keepOpen === true;
 
-        const resultObj = dependencies.resultComponent.createObject(null, {
-            type: isAppItem ? "App" : (item._pluginName ?? "Plugin"),
-            id: appId,  // For window tracking
+        // Determine display type - use item's type for special types like "slider"
+        const displayType = item.type === "slider" 
+            ? (item._pluginName ?? "Plugin")
+            : (isAppItem ? "App" : (item._pluginName ?? "Plugin"));
+        
+        // Build base properties
+        const props = {
+            type: displayType,
+            id: appId,
             name: item.name,
             comment: item.description ?? "",
             iconName: item.icon ?? 'extension',
             iconType: iconType,
             thumbnail: item.thumbnail ?? "",
-            preview: item.preview ?? undefined,
             verb: verb,
             keepOpen: itemKeepOpen,
             windowCount: windowCount,
             windows: windows,
             actions: itemActions,
-            execute: ((capturedItem, capturedQuery, capturedAppId, capturedIsApp) => () => {
+            _pluginId: item._pluginId ?? "",
+            _pluginName: item._pluginName ?? ""
+        };
+        
+        // Only add preview if defined
+        if (item.preview !== undefined) props.preview = item.preview;
+        
+        // Add slider properties only for slider items
+        if (item.type === "slider") {
+            props.resultType = "slider";
+            if (item.value !== undefined) props.value = item.value;
+            if (item.min !== undefined) props.min = item.min;
+            if (item.max !== undefined) props.max = item.max;
+            if (item.step !== undefined) props.step = item.step;
+        }
+        
+        // Add visual properties only if defined
+        if (item.gauge) props.gauge = item.gauge;
+        if (item.badges?.length > 0) props.badges = item.badges;
+        if (item.chips?.length > 0) props.chips = item.chips;
+        
+        props.execute = ((capturedItem, capturedAppId, capturedIsApp, capturedPluginId) => () => {
                     if (capturedIsApp) {
                         const currentWindows = WindowManager.getWindowsForApp(capturedAppId);
                         const currentWindowCount = currentWindows.length;
 
                         if (currentWindowCount === 0) {
-                            dependencies.recordSearch("app", capturedAppId, capturedQuery);
+                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id);
+                            ContextTracker.recordLaunch(capturedAppId);
                             if (capturedItem.execute?.command) {
                                 Quickshell.execDetached(capturedItem.execute.command);
                             }
                         } else if (currentWindowCount === 1) {
-                            dependencies.recordWindowFocus(
-                                capturedAppId,
-                                capturedItem.name,
-                                currentWindows[0].title,
-                                capturedItem.icon,
-                                capturedQuery
-                            );
+                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id);
+                            ContextTracker.recordLaunch(capturedAppId);
                             WindowManager.focusWindow(currentWindows[0]);
                             GlobalStates.launcherOpen = false;
                         } else {
@@ -384,15 +388,16 @@ Singleton {
                     } else {
                         if (capturedItem.entryPoint) {
                             if (capturedItem.keepOpen) {
-                                PluginRunner.executeEntryPoint(capturedItem._pluginId, capturedItem.entryPoint);
+                                PluginRunner.executeEntryPoint(capturedPluginId, capturedItem.entryPoint);
                             } else {
-                                PluginRunner.replayAction(capturedItem._pluginId, capturedItem.entryPoint);
+                                PluginRunner.replayAction(capturedPluginId, capturedItem.entryPoint);
                                 GlobalStates.launcherOpen = false;
                             }
                             return;
                         }
 
                         if (capturedItem.execute?.command) {
+                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id);
                             Quickshell.execDetached(capturedItem.execute.command);
                         }
                         if (capturedItem.execute?.notify) {
@@ -404,25 +409,13 @@ Singleton {
                                 "Shell"
                             ]);
                         }
-                        if (capturedItem.execute?.name) {
-                            dependencies.recordWorkflowExecution({
-                                name: capturedItem.execute.name,
-                                command: capturedItem.execute?.command ?? [],
-                                entryPoint: capturedItem.entryPoint ?? null,
-                                icon: capturedItem.icon ?? 'play_arrow',
-                                iconType: capturedItem.iconType ?? "material",
-                                thumbnail: capturedItem.thumbnail ?? "",
-                                workflowId: capturedItem._pluginId,
-                                workflowName: capturedItem._pluginName,
-                                keepOpen: capturedItem.keepOpen === true
-                            }, capturedQuery);
-                        }
                         if (capturedItem.execute?.close) {
                             GlobalStates.launcherOpen = false;
                         }
                     }
-                })(item, query, appId, isAppItem)
-        });
+                })(item, appId, isAppItem, item._pluginId);
+        
+        const resultObj = dependencies.resultComponent.createObject(null, props);
         
         return {
             matchType: resultMatchType,

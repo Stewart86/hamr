@@ -59,38 +59,56 @@ RippleButton {
          }
          return entry?.chips ?? [];
      }
+     // Live data lookup for indexed items - allows real-time updates from daemon
+     property var liveData: {
+         const _indexVersion = PluginRunner.indexVersion;
+         const pluginId = entry?._pluginId;
+         const itemId = entry?.id;
+         if (pluginId && itemId) {
+             return PluginRunner.getIndexedItem(pluginId, itemId);
+         }
+         return null;
+     }
+     // Helper to get value with live fallback
+     function getLiveValue(key, fallback) {
+         return liveData?.[key] ?? entry?.[key] ?? fallback;
+     }
+     
      property var graphData: {
-         const _version = PluginRunner.resultsVersion; // Reactive dependency
-         return entry?.graph ?? null;
+         const _version = PluginRunner.resultsVersion;
+         const _indexVersion = PluginRunner.indexVersion;
+         return getLiveValue("graph", null);
      }
      property var gaugeData: {
-         const _version = PluginRunner.resultsVersion; // Reactive dependency
-         return entry?.gauge ?? null;
+         const _version = PluginRunner.resultsVersion;
+         const _indexVersion = PluginRunner.indexVersion;
+         return getLiveValue("gauge", null);
      }
      // Progress bar properties
      property var progressData: {
-         const _version = PluginRunner.resultsVersion; // Reactive dependency
-         return entry?.progress ?? null;
+         const _version = PluginRunner.resultsVersion;
+         const _indexVersion = PluginRunner.indexVersion;
+         return getLiveValue("progress", null);
      }
      property bool hasProgress: progressData !== null
      // Slider item properties
      property bool isSliderItem: entry?.resultType === "slider" || entry?.type === "slider"
      property real sliderValue: {
-         const _version = PluginRunner.resultsVersion; // Reactive dependency
-         return entry?.value ?? 0;
+         const _version = PluginRunner.resultsVersion;
+         return getLiveValue("value", 0);
      }
-     property real sliderMin: entry?.min ?? 0
-     property real sliderMax: entry?.max ?? 100
-     property real sliderStep: entry?.step ?? 1
-     property string sliderDisplayValue: entry?.displayValue ?? ""
-     property string sliderUnit: entry?.unit ?? ""
+     property real sliderMin: getLiveValue("min", 0)
+     property real sliderMax: getLiveValue("max", 100)
+     property real sliderStep: getLiveValue("step", 1)
+     property string sliderDisplayValue: getLiveValue("displayValue", "")
+     property string sliderUnit: getLiveValue("unit", "")
     
     function adjustSlider(direction) {
         if (!isSliderItem) return
         const delta = direction * sliderStep
         const newValue = Math.max(sliderMin, Math.min(sliderMax, itemSlider.value + delta))
         itemSlider.value = newValue
-        PluginRunner.sliderValueChanged(entry?.id ?? "", newValue)
+        PluginRunner.sliderValueChanged(entry?.id ?? "", newValue, entry?._pluginId)
     }
     // Check running state dynamically from WindowManager for apps
     // This ensures correct state even for history items (type "Recent")
@@ -559,8 +577,18 @@ RippleButton {
                 }
             }
             
+            // Update when live data changes from daemon (indexVersion increments)
+            Connections {
+                target: PluginRunner
+                function onIndexVersionChanged() {
+                    if (root.isSliderItem && root.liveData) {
+                        itemSlider.value = root.liveData.value ?? itemSlider.value
+                    }
+                }
+            }
+            
             onValueCommitted: (newValue) => {
-                PluginRunner.sliderValueChanged(root.entry?.id ?? "", newValue)
+                PluginRunner.sliderValueChanged(root.entry?.id ?? "", newValue, root.entry?._pluginId)
             }
         }
         

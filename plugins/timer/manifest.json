@@ -3,6 +3,7 @@
     "description": "Countdown timers and stopwatch",
     "icon": "timer",
     "supportedCompositors": ["*"],
+    "frecency": "plugin",
     "daemon": {
         "enabled": true,
         "background": true

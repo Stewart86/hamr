@@ -106,4 +106,9 @@ QtObject {
      property var gauge: null
      // Progress: { value, max, label?, color? }
      property var progress: null
+     
+     // ==================== INDEX REFERENCE ====================
+     // For items from plugin index - enables live data lookup
+     property string _pluginId: ""
+     property string _pluginName: ""
 }

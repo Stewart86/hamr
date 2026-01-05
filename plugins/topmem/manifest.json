@@ -3,6 +3,7 @@
   "description": "Processes sorted by memory usage",
   "icon": "memory",
   "supportedCompositors": ["*"],
+  "frecency": "plugin",
   "daemon": {
     "enabled": true,
     "background": false

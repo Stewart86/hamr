@@ -5,6 +5,6 @@
   "supportedCompositors": ["*"],
   "daemon": {
     "enabled": true,
-    "background": false
+    "background": true
   }
 }

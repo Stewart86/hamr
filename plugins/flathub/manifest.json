@@ -2,5 +2,6 @@
   "name": "Flathub",
   "description": "Search and install apps from Flathub",
   "icon": "deployed_code",
-  "supportedCompositors": ["*"]
+  "supportedCompositors": ["*"],
+  "frecency": "plugin"
 }

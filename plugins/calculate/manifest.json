@@ -3,6 +3,7 @@
   "description": "Calculator with currency, units, and temperature conversion",
   "icon": "calculate",
   "supportedCompositors": ["*"],
+  "frecency": "plugin",
   "match": {
     "patterns": [
       "^=",

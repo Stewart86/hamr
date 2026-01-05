@@ -3,6 +3,7 @@
   "description": "Search and copy credentials from Bitwarden vault",
   "icon": "key",
   "supportedCompositors": ["*"],
+  "frecency": "plugin",
   "daemon": {
     "enabled": true,
     "background": true

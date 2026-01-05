@@ -3,6 +3,7 @@
   "description": "Quick notes - create, read, edit, delete",
   "icon": "sticky_note_2",
   "supportedCompositors": ["*"],
+  "frecency": "plugin",
   "daemon": {
     "enabled": true,
     "background": true

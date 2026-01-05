@@ -3,6 +3,7 @@
   "description": "Pick a color from screen and copy to clipboard",
   "icon": "colorize",
   "supportedCompositors": ["*"],
+  "frecency": "none",
   "staticIndex": [
     {
       "id": "pick",

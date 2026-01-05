@@ -137,8 +137,13 @@ def get_image_dimensions(entry: str) -> tuple[int, int] | None:
 
 
 def get_entry_hash(entry: str) -> str:
-    """Get a stable hash for a clipboard entry"""
-    return hashlib.md5(entry.encode()).hexdigest()[:16]
+    """Get a stable hash for a clipboard entry based on content only.
+
+    The entry format is "ID\\tCONTENT" - we hash only the content part
+    so the hash stays stable when the same content moves positions in cliphist.
+    """
+    content = clean_entry(entry)
+    return hashlib.md5(content.encode()).hexdigest()[:16]
 
 
 def load_ocr_cache() -> dict[str, str]:
@@ -465,14 +470,16 @@ def get_entry_results(
         img_dims = get_image_dimensions(entry) if is_img else None
         chips = get_content_chips(display, is_img, ocr_texts.get(entry, ""), img_dims)
 
+        # Use clip:{hash} format to match index IDs for frecency tracking
+        item_id = f"clip:{get_entry_hash(entry)}"
         result = {
-            "id": entry,
+            "id": item_id,
+            "_entry": entry,  # Keep raw entry for action handling
             "name": display,
             "icon": icon,
             "description": ("Pinned · " if entry_is_pinned else "") + entry_type,
-            "verb": "Paste",
+            "verb": "Copy",
             "actions": [
-                {"id": "copy", "name": "Copy", "icon": "content_copy"},
                 pin_action,
                 {"id": "delete", "name": "Delete", "icon": "delete"},
             ],
@@ -960,7 +967,16 @@ def handle_request(input_data: dict) -> None:
             entry = selected.get("itemId", "")
             action_id = selected.get("action", "") or action or "copy"
         else:
-            entry = item_id
+            # Get raw entry from _entry field, or look up by hash if clip: prefixed ID
+            entry = selected.get("_entry", "")
+            if not entry and item_id.startswith("clip:"):
+                # Look up entry by hash from current entries
+                target_hash = item_id[5:]  # Remove "clip:" prefix
+                entry = next(
+                    (e for e in entries if get_entry_hash(e) == target_hash), ""
+                )
+            elif not entry:
+                entry = item_id  # Fallback for legacy IDs
             action_id = action
 
         # Clipboard entry actions

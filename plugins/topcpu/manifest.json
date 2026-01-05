@@ -3,6 +3,7 @@
   "description": "Processes sorted by CPU usage",
   "icon": "speed",
   "supportedCompositors": ["*"],
+  "frecency": "plugin",
   "daemon": {
     "enabled": true,
     "background": false
