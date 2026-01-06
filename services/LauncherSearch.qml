@@ -228,6 +228,25 @@ Singleton {
     // This is a plain JS object, not a QML property
     readonly property var _pluginResultCacheHolder: ({ cache: {} })
     
+    // Converted plugin results - updated imperatively to avoid binding loops
+    property list<var> _convertedPluginResults: []
+    
+    // Update converted results when plugin results change
+    Connections {
+        target: PluginRunner
+        function onPluginResultsChanged() {
+            if (PluginRunner.activePlugin !== null) {
+                root._convertedPluginResults = root.pluginResultsToSearchResults(PluginRunner.pluginResults);
+            }
+        }
+        function onActivePluginChanged() {
+            if (PluginRunner.activePlugin === null) {
+                root._convertedPluginResults = [];
+                root.clearPluginResultCache();
+            }
+        }
+    }
+    
     function clearPluginResultCache() {
         const cache = root._pluginResultCacheHolder.cache;
         for (const id of Object.keys(cache)) {
@@ -256,7 +275,7 @@ Singleton {
                 return [resultComp.createObject(null, {
                     id: "__empty__",
                     name: "No items",
-                    comment: root.query ? `No results for "${root.query}"` : "Start typing to search",
+                    comment: "No results found",
                     type: pluginName,
                     iconName: pluginIcon,
                     iconType: LauncherSearchResult.IconType.Material,
@@ -806,9 +825,9 @@ Singleton {
 
     property list<var> results: {
          const _pluginActive = PluginRunner.activePlugin !== null;
-         const _pluginResults = PluginRunner.pluginResults;
          if (_pluginActive) {
-             return root.pluginResultsToSearchResults(_pluginResults);
+             // Use pre-converted results (updated via Connections to avoid binding loop)
+             return root._convertedPluginResults;
          }
 
          if (root.exclusiveMode === "action") {
