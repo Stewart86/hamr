@@ -112,16 +112,16 @@ def get_results(
             "min": 0,
             "max": 100,
             "step": 5,
-            "badges": [{"icon": "volume_off", "color": "#f44336"}]
+        },
+        {
+            "id": "volume-mute",
+            "type": "switch",
+            "name": "Unmute Volume" if vol_info["muted"] else "Mute Volume",
+            "description": "Volume is muted"
             if vol_info["muted"]
-            else [],
-            "actions": [
-                {
-                    "id": "mute-toggle",
-                    "name": "Unmute" if vol_info["muted"] else "Mute",
-                    "icon": "volume_up" if vol_info["muted"] else "volume_off",
-                }
-            ],
+            else "Mute system audio output",
+            "icon": "volume_off" if vol_info["muted"] else "volume_up",
+            "value": vol_info["muted"],
         },
         {
             "id": "mic",
@@ -137,35 +137,22 @@ def get_results(
             "min": 0,
             "max": 100,
             "step": 5,
-            "badges": [{"icon": "mic_off", "color": "#f44336"}]
+        },
+        {
+            "id": "mic-mute",
+            "type": "switch",
+            "name": "Unmute Microphone" if mic_info["muted"] else "Mute Microphone",
+            "description": "Microphone is muted"
             if mic_info["muted"]
-            else [],
-            "actions": [
-                {
-                    "id": "mic-mute-toggle",
-                    "name": "Unmute" if mic_info["muted"] else "Mute",
-                    "icon": "mic" if mic_info["muted"] else "mic_off",
-                }
-            ],
+            else "Mute microphone input",
+            "icon": "mic_off" if mic_info["muted"] else "mic",
+            "value": mic_info["muted"],
         },
     ]
 
 
-def get_plugin_actions(vol_info: dict, mic_info: dict) -> list[dict]:
-    return [
-        {
-            "id": "mute-toggle",
-            "name": "Mute" if not vol_info["muted"] else "Unmute",
-            "icon": "volume_off" if not vol_info["muted"] else "volume_up",
-            "active": vol_info["muted"],
-        },
-        {
-            "id": "mic-mute-toggle",
-            "name": "Mute Mic" if not mic_info["muted"] else "Unmute Mic",
-            "icon": "mic_off" if not mic_info["muted"] else "mic",
-            "active": mic_info["muted"],
-        },
-    ]
+def get_plugin_actions() -> list[dict]:
+    return []
 
 
 def emit(data: dict) -> None:
@@ -188,9 +175,9 @@ def handle_request(request: dict) -> None:
     if step == "initial":
         emit(
             {
-                "type": "index",
-                "mode": "full",
-                "items": get_results(),
+                "type": "results",
+                "results": get_results(),
+                "pluginActions": get_plugin_actions(),
             }
         )
         return
@@ -200,16 +187,13 @@ def handle_request(request: dict) -> None:
             {
                 "type": "results",
                 "results": get_results(),
-                "pluginActions": get_plugin_actions(vol_info, mic_info),
+                "pluginActions": get_plugin_actions(),
             }
         )
         return
 
     if step == "action":
         selected_id = selected.get("id", "")
-
-        if selected_id == "__plugin__" and action:
-            selected_id = action
 
         if action == "slider":
             new_value = int(request.get("value", 0))
@@ -264,24 +248,64 @@ def handle_request(request: dict) -> None:
                 )
             return
 
-        if action == "mute-toggle" or selected_id == "mute-toggle":
-            run_cmd(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])
-        elif action == "mic-mute-toggle" or selected_id == "mic-mute-toggle":
-            run_cmd(["wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"])
+        if action == "switch":
+            new_value = request.get("value", False)
 
-        vol_info = get_volume_info()
-        mic_info = get_mic_info()
-        vol_pct = int(vol_info["volume"] * 100)
-        mute_status = " [MUTED]" if vol_info["muted"] else ""
-        emit(
-            {
-                "type": "results",
-                "results": get_results(),
-                "placeholder": f"Volume: {vol_pct}%{mute_status}",
-                "pluginActions": get_plugin_actions(vol_info, mic_info),
-                "navigateForward": False,
-            }
-        )
+            if selected_id == "volume-mute":
+                run_cmd(
+                    [
+                        "wpctl",
+                        "set-mute",
+                        "@DEFAULT_AUDIO_SINK@",
+                        "1" if new_value else "0",
+                    ]
+                )
+                emit(
+                    {
+                        "type": "update",
+                        "items": [
+                            {
+                                "id": "volume-mute",
+                                "value": new_value,
+                                "name": "Unmute Volume" if new_value else "Mute Volume",
+                                "description": "Volume is muted"
+                                if new_value
+                                else "Mute system audio output",
+                                "icon": "volume_off" if new_value else "volume_up",
+                            }
+                        ],
+                    }
+                )
+            elif selected_id == "mic-mute":
+                run_cmd(
+                    [
+                        "wpctl",
+                        "set-mute",
+                        "@DEFAULT_AUDIO_SOURCE@",
+                        "1" if new_value else "0",
+                    ]
+                )
+                emit(
+                    {
+                        "type": "update",
+                        "items": [
+                            {
+                                "id": "mic-mute",
+                                "value": new_value,
+                                "name": "Unmute Microphone"
+                                if new_value
+                                else "Mute Microphone",
+                                "description": "Microphone is muted"
+                                if new_value
+                                else "Mute microphone input",
+                                "icon": "mic_off" if new_value else "mic",
+                            }
+                        ],
+                    }
+                )
+            return
+
+        emit({"type": "noop"})
         return
 
     emit({"type": "error", "message": f"Unknown step: {step}"})
@@ -293,6 +317,9 @@ def main():
 
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
+
+    # Emit initial index on startup so items appear in main search
+    emit_index()
 
     # Track last known values to detect external changes
     last_vol = get_volume_info()
@@ -320,10 +347,7 @@ def main():
 
             updates = []
 
-            if (
-                current_vol["volume"] != last_vol["volume"]
-                or current_vol["muted"] != last_vol["muted"]
-            ):
+            if current_vol["volume"] != last_vol["volume"]:
                 vol_pct = int(current_vol["volume"] * 100)
                 updates.append(
                     {
@@ -333,17 +357,27 @@ def main():
                         "icon": get_volume_icon(
                             current_vol["volume"], current_vol["muted"]
                         ),
-                        "badges": [{"icon": "volume_off", "color": "#f44336"}]
-                        if current_vol["muted"]
-                        else [],
                     }
                 )
+
+            if current_vol["muted"] != last_vol["muted"]:
+                muted = current_vol["muted"]
+                updates.append(
+                    {
+                        "id": "volume-mute",
+                        "value": muted,
+                        "name": "Unmute Volume" if muted else "Mute Volume",
+                        "description": "Volume is muted"
+                        if muted
+                        else "Mute system audio output",
+                        "icon": "volume_off" if muted else "volume_up",
+                    }
+                )
+
+            if current_vol != last_vol:
                 last_vol = current_vol
 
-            if (
-                current_mic["volume"] != last_mic["volume"]
-                or current_mic["muted"] != last_mic["muted"]
-            ):
+            if current_mic["volume"] != last_mic["volume"]:
                 mic_pct = int(current_mic["volume"] * 100)
                 updates.append(
                     {
@@ -351,11 +385,24 @@ def main():
                         "value": mic_pct,
                         "gauge": {"value": mic_pct, "max": 100, "label": f"{mic_pct}%"},
                         "icon": "mic_off" if current_mic["muted"] else "mic",
-                        "badges": [{"icon": "mic_off", "color": "#f44336"}]
-                        if current_mic["muted"]
-                        else [],
                     }
                 )
+
+            if current_mic["muted"] != last_mic["muted"]:
+                muted = current_mic["muted"]
+                updates.append(
+                    {
+                        "id": "mic-mute",
+                        "value": muted,
+                        "name": "Unmute Microphone" if muted else "Mute Microphone",
+                        "description": "Microphone is muted"
+                        if muted
+                        else "Mute microphone input",
+                        "icon": "mic_off" if muted else "mic",
+                    }
+                )
+
+            if current_mic != last_mic:
                 last_mic = current_mic
 
             if updates:

@@ -8,9 +8,16 @@
  *   - text: Single-line text input
  *   - textarea: Multi-line text input
  *   - select: Dropdown selection
- *   - checkbox: Boolean toggle
- *   - switch: Toggle switch (horizontal)
+ *   - checkbox: Boolean toggle (checkbox style)
+ *   - switch: Boolean toggle (horizontal toggle switch)
+ *   - slider: Range slider with min/max/step
  *   - password: Hidden text input
+ *   - hidden: Hidden field (not displayed, for passing data)
+ * 
+ * Live update mode (liveUpdate: true):
+ *   - Hides submit/cancel buttons
+ *   - Emits sliderValueChanged/switchValueChanged immediately on change
+ *   - Used for settings forms where changes apply instantly
  */
 import qs
 import qs.services

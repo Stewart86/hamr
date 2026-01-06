@@ -6,6 +6,7 @@ import qs.modules.common.models
 import qs.modules.common.widgets
 import qs.modules.common.functions
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
 import Quickshell
@@ -17,6 +18,8 @@ RippleButton {
     property string query
     property bool entryShown: entry?.shown ?? true
     property string itemType: entry?.type ?? "App"
+    // Display properties - initialized from entry, updated imperatively by Connections
+    // for switch items (ScriptModel doesn't notify delegates when item properties change)
     property string itemName: entry?.name ?? ""
     property var iconType: entry?.iconType
     property string iconName: entry?.iconName ?? ""
@@ -33,8 +36,8 @@ RippleButton {
     property string itemComment: entry?.comment ?? ""
     property bool isSuggestion: entry?.isSuggestion ?? false
     property string suggestionReason: entry?.suggestionReason ?? ""
-    property string bigText: entry?.iconType === LauncherSearchResult.IconType.Text ? entry?.iconName ?? "" : ""
-    property string materialSymbol: entry?.iconType === LauncherSearchResult.IconType.Material ? entry?.iconName ?? "" : ""
+    property string bigText: entry?.iconType === LauncherSearchResult.IconType.Text ? iconName : ""
+    property string materialSymbol: entry?.iconType === LauncherSearchResult.IconType.Material ? iconName : ""
     property string thumbnail: entry?.thumbnail ?? ""
     property bool isPluginEntry: entry?.resultType === LauncherSearchResult.ResultType.PluginEntry
     property string entryPluginId: entry?.pluginId ?? ""
@@ -102,6 +105,33 @@ RippleButton {
      property real sliderStep: getLiveValue("step", 1)
      property string sliderDisplayValue: getLiveValue("displayValue", "")
      property string sliderUnit: getLiveValue("unit", "")
+     
+     // Switch item properties
+     property bool isSwitchItem: entry?.resultType === "switch" || entry?.type === "switch"
+     property bool switchValue: liveData?.value ?? entry?.value ?? false
+     
+     // Listen for version changes to update display properties
+     // This is needed because ScriptModel doesn't notify delegates when item properties change
+     // - resultsVersion: for plugin view items (inside a plugin)
+     // - indexVersion: for indexed items (main search view)
+     Connections {
+         target: PluginRunner
+         function onResultsVersionChanged() {
+             if (root.isSwitchItem && root.entry) {
+                 root.itemName = root.entry.name ?? ""
+                 root.iconName = root.entry.iconName ?? ""
+                 root.itemComment = root.entry.comment ?? ""
+             }
+         }
+         function onIndexVersionChanged() {
+             if (root.isSwitchItem && root.liveData) {
+                 // For indexed items, read from liveData (updated index)
+                 root.itemName = root.liveData.name ?? root.itemName
+                 root.iconName = root.liveData.icon ?? root.iconName
+                 root.itemComment = root.liveData.description ?? root.itemComment
+             }
+         }
+     }
     
     function adjustSlider(direction) {
         if (!isSliderItem) return
@@ -109,6 +139,13 @@ RippleButton {
         const newValue = Math.max(sliderMin, Math.min(sliderMax, itemSlider.value + delta))
         itemSlider.value = newValue
         PluginRunner.sliderValueChanged(entry?.id ?? "", newValue, entry?._pluginId)
+    }
+    
+    function toggleSwitch() {
+        if (!isSwitchItem) return
+        const newValue = !itemSwitch.checked
+        itemSwitch.checked = newValue
+        PluginRunner.switchValueChanged(entry?.id ?? "", newValue, entry?._pluginId)
     }
     // Check running state dynamically from WindowManager for apps
     // This ensures correct state even for history items (type "Recent")
@@ -323,6 +360,15 @@ RippleButton {
              }
              if (event.key === Qt.Key_Right) {
                  root.adjustSlider(1)
+                 event.accepted = true
+                 return
+             }
+         }
+         
+         // Switch keyboard controls (arrow keys or space to toggle)
+         if (root.isSwitchItem) {
+             if (event.key === Qt.Key_Left || event.key === Qt.Key_Right || event.key === Qt.Key_Space) {
+                 root.toggleSwitch()
                  event.accepted = true
                  return
              }
@@ -610,9 +656,104 @@ RippleButton {
                 }
             }
         }
+        
+        // Switch for switch items
+        Item {
+            visible: root.isSwitchItem
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth: 44
+            implicitHeight: 24
+            
+            Rectangle {
+                id: switchTrack
+                anchors.fill: parent
+                radius: 12
+                color: itemSwitch.checked ? Appearance.colors.colPrimary : Appearance.colors.colSurfaceContainerHigh
+                border.width: itemSwitch.checked ? 0 : 1
+                border.color: Appearance.colors.colOutlineVariant
+                
+                Behavior on color {
+                    ColorAnimation { duration: 200 }
+                }
+                
+                Rectangle {
+                    id: switchThumb
+                    width: 20
+                    height: 20
+                    radius: 10
+                    color: itemSwitch.checked ? Appearance.m3colors.m3onPrimary : Appearance.m3colors.m3outline
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: itemSwitch.checked ? parent.width - width - 2 : 2
+                    
+                    Behavior on x {
+                        NumberAnimation { duration: 200 }
+                    }
+                    
+                    Behavior on color {
+                        ColorAnimation { duration: 200 }
+                    }
+                }
+                
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.toggleSwitch()
+                }
+            }
+            
+            CheckBox {
+                id: itemSwitch
+                visible: false
+                
+                Component.onCompleted: checked = root.switchValue
+                
+                Connections {
+                    target: root
+                    function onEntryChanged() {
+                        if (root.isSwitchItem) {
+                            itemSwitch.checked = root.switchValue
+                        }
+                    }
+                }
+                
+                Connections {
+                    target: PluginRunner
+                    function onIndexVersionChanged() {
+                        if (root.isSwitchItem && root.liveData) {
+                            itemSwitch.checked = root.liveData.value ?? itemSwitch.checked
+                        }
+                    }
+                    function onResultsVersionChanged() {
+                        if (root.isSwitchItem && root.entry) {
+                            const newValue = root.liveData?.value ?? root.entry.value ?? false
+                            itemSwitch.checked = newValue
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Badges for switch items
+        RowLayout {
+            visible: root.isSwitchItem && root.badges.length > 0
+            Layout.alignment: Qt.AlignVCenter
+            spacing: 8
+            
+            Repeater {
+                model: root.badges.slice(0, 5)
+                
+                delegate: Badge {
+                    required property var modelData
+                    text: modelData.text ?? ""
+                    image: modelData.image ?? ""
+                    icon: modelData.icon ?? ""
+                    textColor: modelData.color ? Qt.color(modelData.color) : Appearance.m3colors.m3onSurface
+                }
+            }
+        }
 
         RowLayout {
-            visible: !root.isSliderItem
+            visible: !root.isSliderItem && !root.isSwitchItem
             Layout.alignment: Qt.AlignVCenter
             Layout.fillHeight: false
             spacing: 4

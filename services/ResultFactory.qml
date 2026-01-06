@@ -313,8 +313,8 @@ Singleton {
 
         const itemKeepOpen = item.keepOpen === true;
 
-        // Determine display type - use item's type for special types like "slider"
-        const displayType = item.type === "slider" 
+        // Determine display type - use item's type for special types like "slider" or "switch"
+        const displayType = (item.type === "slider" || item.type === "switch")
             ? (item._pluginName ?? "Plugin")
             : (isAppItem ? "App" : (item._pluginName ?? "Plugin"));
         
@@ -346,6 +346,12 @@ Singleton {
             if (item.min !== undefined) props.min = item.min;
             if (item.max !== undefined) props.max = item.max;
             if (item.step !== undefined) props.step = item.step;
+        }
+        
+        // Add switch properties only for switch items
+        if (item.type === "switch") {
+            props.resultType = "switch";
+            if (item.value !== undefined) props.value = item.value;
         }
         
         // Add visual properties only if defined

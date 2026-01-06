@@ -1631,6 +1631,40 @@ Singleton {
            }
        }
        
+       // Send switch value change to plugin (for result item switches)
+       // pluginId is optional - if not provided, uses activePlugin
+       function switchValueChanged(itemId, value, pluginId) {
+           let targetPluginId = pluginId ?? root.activePlugin?.id;
+           if (!targetPluginId) return;
+           
+           const plugin = root.plugins.find(p => p.id === targetPluginId);
+           if (!plugin) return;
+           
+           root.recordExecution(targetPluginId, itemId);
+           
+           const input = {
+               step: "action",
+               selected: { id: itemId },
+               action: "switch",
+               value: value,
+               session: root.activePlugin?.session ?? "switch-update"
+           };
+           
+           if (root.pluginContext) {
+               input.context = root.pluginContext;
+           }
+           
+           const isDaemonPlugin = plugin.manifest?.daemon?.enabled;
+           if (isDaemonPlugin && root.runningDaemons[targetPluginId]) {
+               root.writeToDaemonStdin(targetPluginId, input);
+           } else if (isDaemonPlugin) {
+               root.startDaemon(targetPluginId);
+               Qt.callLater(() => root.writeToDaemonStdin(targetPluginId, input));
+           } else {
+               sendToPlugin(input);
+           }
+       }
+       
        // Send form slider value change to active plugin (for live form updates)
        function formSliderValueChanged(fieldId, value) {
            if (!root.activePlugin) return;

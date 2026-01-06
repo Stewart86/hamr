@@ -335,8 +335,8 @@ Singleton {
                 name: item.name,
                 comment: item.description ?? "",
                 verb: item.verb ?? "Select",
-                type: item.type === "slider" ? "slider" : pluginName,
-                resultType: item.type === "slider" ? "slider" : LauncherSearchResult.ResultType.PluginResult,
+                type: (item.type === "slider" || item.type === "switch") ? item.type : pluginName,
+                resultType: (item.type === "slider" || item.type === "switch") ? item.type : LauncherSearchResult.ResultType.PluginResult,
                 iconName: iconName,
                 iconType: isSystemIcon ? LauncherSearchResult.IconType.System : LauncherSearchResult.IconType.Material,
                 pluginId: pluginId,
@@ -859,6 +859,12 @@ Singleton {
                     props.max = item.max;
                     props.step = item.step;
                     props.gauge = item.gauge;
+                }
+                
+                // Add switch properties if it's a switch
+                if (item.type === "switch") {
+                    props.resultType = "switch";
+                    props.value = item.value;
                 }
 
                 // Add graph/gauge/progress properties

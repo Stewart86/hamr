@@ -152,6 +152,11 @@ SETTINGS_SCHEMA: dict = {
         },
     },
     "appearance": {
+        "compactMode": {
+            "default": False,
+            "type": "boolean",
+            "description": "Use compact UI spacing",
+        },
         "backgroundTransparency": {
             "default": 0.2,
             "type": "slider",
@@ -539,6 +544,13 @@ def get_settings_for_category(config: dict, category: str) -> list[dict]:
 
         if setting_type == "readonly":
             result["description"] = info.get("description", "")
+        elif setting_type == "boolean":
+            result["type"] = "switch"
+            result["value"] = bool(current)
+            result["description"] = info.get("description", "")
+            result["actions"] = [
+                {"id": "reset", "name": "Reset to Default", "icon": "restart_alt"},
+            ]
         else:
             result["verb"] = "Edit"
             result["actions"] = [
@@ -573,6 +585,19 @@ def get_all_settings(config: dict) -> list[dict]:
                 result["description"] = (
                     f"{CATEGORY_NAMES.get(category, category)} | {info.get('description', '')}"
                 )
+            elif setting_type == "boolean":
+                result["type"] = "switch"
+                result["value"] = bool(current)
+                result["description"] = (
+                    f"{CATEGORY_NAMES.get(category, category)} | {info.get('description', '')}"
+                )
+                result["actions"] = [
+                    {
+                        "id": "reset",
+                        "name": "Reset to Default",
+                        "icon": "restart_alt",
+                    },
+                ]
             else:
                 result["description"] = (
                     f"{CATEGORY_NAMES.get(category, category)} | {format_value(current)}"
@@ -1016,6 +1041,20 @@ def main():
         return
 
     if step == "action":
+        # Handle switch toggle for boolean settings
+        if action == "switch" and selected_id.startswith("setting:"):
+            path = selected_id.split(":", 1)[1]
+            parts = path.rsplit(".", 1)
+            if len(parts) == 2:
+                category, key = parts
+                schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
+                if schema and schema.get("type") == "boolean":
+                    new_value = input_data.get("value", False)
+                    config = set_nested_value(config, path, bool(new_value))
+                    save_config(config)
+                    print(json.dumps({"type": "noop"}))
+                    return
+
         if selected_id == "__plugin__" and action == "clear_cache":
             cache_path = Path.home() / ".config/hamr/plugin-indexes.json"
             try:

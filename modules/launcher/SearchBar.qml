@@ -234,6 +234,7 @@ RowLayout {
     signal exitPluginImmediate()
     signal sliderDecrease()
     signal sliderIncrease()
+    signal switchToggle()
 
     ToolbarTextField {
         id: searchInput
@@ -310,6 +311,12 @@ RowLayout {
                  }
                  if ((event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_L) {
                      root.sliderIncrease();
+                     event.accepted = true;
+                     return;
+                 }
+                 // Ctrl+Shift+T: switch toggle
+                 if ((event.modifiers & Qt.ShiftModifier) && event.key === Qt.Key_T) {
+                     root.switchToggle();
                      event.accepted = true;
                      return;
                  }

@@ -385,6 +385,86 @@ if action == "slider":
 
 ---
 
+### Switch Items
+
+Switch items are a special result type for boolean toggles (mute, enable/disable, etc.).
+
+```python
+{
+    "type": "results",
+    "results": [
+        {
+            "id": "volume-mute",
+            "type": "switch",           # Makes this a switch item
+            "name": "Mute Volume",      # Action name (what toggling does)
+            "description": "Mute system audio output",
+            "icon": "volume_up",        # Icon showing current state
+            "value": False              # Current switch state (False = off, True = on)
+        }
+    ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `value` | bool | Current switch state (`true` = on, `false` = off) |
+
+**Naming convention:**
+
+The name should describe the **action** the user can take, while the icon shows the **current state**:
+
+| State | Name | Icon | Description |
+|-------|------|------|-------------|
+| Not muted (`value: false`) | "Mute Volume" | `volume_up` | User can mute |
+| Muted (`value: true`) | "Unmute Volume" | `volume_off` | User can unmute |
+
+**Receiving switch changes:**
+
+When user toggles the switch, handler receives:
+
+```python
+{
+    "step": "action",
+    "selected": {"id": "volume-mute"},
+    "action": "switch",
+    "value": True,                        # New value after toggle
+    "context": "...",
+    "session": "..."
+}
+```
+
+Handler should apply the change and return an `update` response with the new state:
+
+```python
+if action == "switch":
+    item_id = selected.get("id")
+    new_value = input_data.get("value", False)
+    
+    # Apply the change
+    if item_id == "volume-mute":
+        set_mute(new_value)
+    
+    # Return update with new name/icon/description
+    return {
+        "type": "update",
+        "items": [
+            {
+                "id": "volume-mute",
+                "value": new_value,
+                "name": "Unmute Volume" if new_value else "Mute Volume",
+                "description": "Volume is muted" if new_value else "Mute system audio output",
+                "icon": "volume_off" if new_value else "volume_up",
+            }
+        ]
+    }
+```
+
+**Live updates:** Switch items support real-time updates from daemon mode. When external changes occur (e.g., user mutes via hardware key), emit an `update` response to sync the UI.
+
+**Example plugin:** [`sound/`](sound/handler.py) - Volume and microphone mute toggles
+
+---
+
 ### Visual Enhancements
 
 Result items can display additional visual elements for quick data overview.
@@ -952,8 +1032,10 @@ Display a form dialog for collecting multiple inputs at once.
 | `email` | Email input with validation | `placeholder`, `required`, `default`, `hint` |
 | `password` | Masked password input | `placeholder`, `required`, `hint` |
 | `hidden` | Hidden field (not displayed) | `value` (required) |
+| `select` | Dropdown selection | `options` (required), `default`, `hint` |
+| `checkbox` | Checkbox toggle | `default` (bool), `hint` |
 | `switch` | Toggle switch (on/off) | `default` (bool), `hint` |
-| `slider` | Range slider | `min`, `max`, `step`, `default`, `hint` |
+| `slider` | Range slider | `min`, `max`, `step`, `unit`, `default`, `hint` |
 
 **Field properties:**
 
@@ -964,13 +1046,15 @@ Display a form dialog for collecting multiple inputs at once.
 | `label` | string | Display label |
 | `placeholder` | string | Placeholder text |
 | `required` | bool | Validation: field must have value |
-| `default` | string | Pre-filled value |
+| `default` | any | Pre-filled value (string for text, bool for switch/checkbox, number for slider) |
 | `hint` | string | Help text shown below field |
 | `rows` | int | Textarea height (default: 4) |
 | `value` | string | Value for hidden fields |
+| `options` | array | Options for select field: `[{id, name/label, value}]` |
 | `min` | number | Minimum value (slider) |
 | `max` | number | Maximum value (slider) |
 | `step` | number | Step increment (slider) |
+| `unit` | string | Unit suffix for slider (e.g., `"%"`, `"px"`) |
 
 **Switch and slider fields:**
 
@@ -1002,6 +1086,36 @@ Display a form dialog for collecting multiple inputs at once.
     }
 }
 ```
+
+**Select field (dropdown):**
+
+```python
+{
+    "type": "form",
+    "form": {
+        "title": "Preferences",
+        "fields": [
+            {
+                "id": "theme",
+                "type": "select",
+                "label": "Theme",
+                "options": [
+                    {"id": "light", "name": "Light"},
+                    {"id": "dark", "name": "Dark"},
+                    {"id": "system", "name": "System Default"}
+                ],
+                "default": "system",
+                "hint": "Choose color scheme"
+            }
+        ]
+    }
+}
+```
+
+Select options can use any of these formats:
+- `{"id": "value", "name": "Display Label"}` - id is the value, name is displayed
+- `{"value": "val", "label": "Display Label"}` - value is returned, label is displayed
+- `{"name": "Both"}` - name is used as both value and label
 
 **Live update forms:**
 

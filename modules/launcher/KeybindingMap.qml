@@ -145,6 +145,7 @@ Rectangle {
                 KeybindingRow { keys: "^UIOP"; label: "item actions 1-4" }
                 KeybindingRow { keys: "^1-6"; label: "plugin actions" }
                 KeybindingRow { keys: "^⇧HL"; label: "slider -/+" }
+                KeybindingRow { keys: "^⇧T"; label: "toggle switch" }
             }
         }
         

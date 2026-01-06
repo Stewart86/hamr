@@ -306,6 +306,14 @@ Item {
                             }
                         }
                     }
+                    onSwitchToggle: {
+                        if (appResults.count > 0 && appResults.currentIndex >= 0) {
+                            const currentItem = appResults.itemAtIndex(appResults.currentIndex);
+                            if (currentItem?.isSwitchItem) {
+                                currentItem.toggleSwitch();
+                            }
+                        }
+                    }
                     onSelectCurrent: {
                         // If imageBrowser is open, activate current image
                         if (root.showImageBrowser) {
