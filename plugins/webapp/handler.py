@@ -304,18 +304,19 @@ def webapp_to_index_item(app: dict) -> dict:
         "icon": None if has_icon else "web",
         "thumbnail": icon_path if has_icon else None,
         "verb": "Launch",
-        "execute": {
-            "command": [str(LAUNCHER_SCRIPT), app["url"]],
-            "name": f"Launch {app['name']}",
+        "entryPoint": {
+            "step": "action",
+            "selected": {"id": app["id"]},
         },
         "actions": [
             {
                 "id": "floating",
                 "name": "Open Floating",
                 "icon": "picture_in_picture",
-                "execute": {
-                    "command": [str(LAUNCHER_SCRIPT), "--floating", app["url"]],
-                    "name": f"Launch {app['name']} (floating)",
+                "entryPoint": {
+                    "step": "action",
+                    "selected": {"id": app["id"]},
+                    "action": "floating",
                 },
             },
             {
@@ -629,26 +630,17 @@ def handle_request(input_data: dict):
         if action == "floating":
             app = next((a for a in webapps if a["id"] == selected_id), None)
             if app:
-                icon_path = app.get("icon", "")
-                has_icon = icon_path and Path(icon_path).exists()
-                print(
-                    json.dumps(
-                        {
-                            "type": "execute",
-                            "execute": {
-                                "command": [
-                                    str(LAUNCHER_SCRIPT),
-                                    "--floating",
-                                    app["url"],
-                                ],
-                                "name": f"Launch {app['name']} (floating)",
-                                "icon": None if has_icon else "web",
-                                "thumbnail": icon_path if has_icon else None,
-                                "close": True,
-                            },
-                        }
+                try:
+                    subprocess.Popen(
+                        [str(LAUNCHER_SCRIPT), "--floating", app["url"]],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
                     )
-                )
+                    print(json.dumps({"type": "execute", "close": True}))
+                except Exception:
+                    print(
+                        json.dumps({"type": "error", "message": "Failed to launch app"})
+                    )
             return
 
         # Delete action
@@ -677,22 +669,15 @@ def handle_request(input_data: dict):
         # Launch web app (default action - click on item)
         app = next((a for a in webapps if a["id"] == selected_id), None)
         if app:
-            icon_path = app.get("icon", "")
-            has_icon = icon_path and Path(icon_path).exists()
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": [str(LAUNCHER_SCRIPT), app["url"]],
-                            "name": f"Launch {app['name']}",
-                            "icon": None if has_icon else "web",
-                            "thumbnail": icon_path if has_icon else None,
-                            "close": True,
-                        },
-                    }
+            try:
+                subprocess.Popen(
+                    [str(LAUNCHER_SCRIPT), app["url"]],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                 )
-            )
+                print(json.dumps({"type": "execute", "close": True}))
+            except Exception:
+                print(json.dumps({"type": "error", "message": "Failed to launch app"}))
         return
 
 

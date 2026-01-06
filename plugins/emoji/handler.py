@@ -191,9 +191,7 @@ def type_text(text: str) -> None:
 def format_index_items(emojis: list[dict]) -> list[dict]:
     """Format emojis as indexable items for main search.
 
-    Each item includes execute command so it can be run directly from main search
-    without entering the plugin. The execute.name field enables history tracking
-    so frequently used emojis rank higher.
+    Uses entryPoint for execution so handler can track recently used emojis.
     """
     return [
         {
@@ -203,19 +201,20 @@ def format_index_items(emojis: list[dict]) -> list[dict]:
             "icon": e["emoji"],
             "iconType": "text",
             "verb": "Copy",
-            "execute": {
-                "command": ["wl-copy", e["emoji"]],
-                "notify": f"Copied {e['emoji']}",
-                "name": f"{e['emoji']} {e['description'][:30]}"
-                if e["description"]
-                else e["emoji"],
+            "entryPoint": {
+                "step": "action",
+                "selected": {"id": f"emoji:{e['emoji']}"},
             },
             "actions": [
                 {
                     "id": "type",
                     "name": "Type",
                     "icon": "keyboard",
-                    "command": ["wtype", e["emoji"]],
+                    "entryPoint": {
+                        "step": "action",
+                        "selected": {"id": f"emoji:{e['emoji']}"},
+                        "action": "type",
+                    },
                 }
             ],
         }
@@ -311,11 +310,9 @@ def handle_request(request: dict, emojis: list[dict]) -> None:
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "notify": f"Typed {emoji}",
-                            "close": True,
-                            "name": history_name,
-                        },
+                        "notify": f"Typed {emoji}",
+                        "close": True,
+                        "name": history_name,
                     }
                 ),
                 flush=True,
@@ -327,11 +324,9 @@ def handle_request(request: dict, emojis: list[dict]) -> None:
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "notify": f"Copied {emoji}",
-                            "close": True,
-                            "name": history_name,
-                        },
+                        "notify": f"Copied {emoji}",
+                        "close": True,
+                        "name": history_name,
                     }
                 ),
                 flush=True,

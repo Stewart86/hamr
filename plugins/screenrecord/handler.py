@@ -349,32 +349,14 @@ notify-send "Recording Stopped" "Saved to Videos folder"
 """
 
             clear_recording_state()
+            subprocess.Popen(["bash", "-c", script])
 
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": ["bash", "-c", script],
-                            "close": True,
-                        },
-                    }
-                )
-            )
+            print(json.dumps({"type": "execute", "close": True}))
             return
 
         if item_id == "browse":
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": ["xdg-open", str(VIDEOS_DIR)],
-                            "close": True,
-                        },
-                    }
-                )
-            )
+            subprocess.Popen(["xdg-open", str(VIDEOS_DIR)])
+            print(json.dumps({"type": "execute", "close": True}))
             return
 
         # Recording actions
@@ -387,17 +369,8 @@ notify-send "Recording Stopped" "Saved to Videos folder"
             start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
             save_recording_state(output_path, start_time_ms)
 
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": ["bash", "-c", script],
-                            "close": True,
-                        },
-                    }
-                )
-            )
+            subprocess.Popen(["bash", "-c", script])
+            print(json.dumps({"type": "execute", "close": True}))
             return
 
         if item_id == "record_screen_audio":
@@ -405,17 +378,8 @@ notify-send "Recording Stopped" "Saved to Videos folder"
             start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
             save_recording_state(output_path, start_time_ms)
 
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": ["bash", "-c", script],
-                            "close": True,
-                        },
-                    }
-                )
-            )
+            subprocess.Popen(["bash", "-c", script])
+            print(json.dumps({"type": "execute", "close": True}))
             return
 
         if item_id == "record_region":
@@ -423,17 +387,8 @@ notify-send "Recording Stopped" "Saved to Videos folder"
             start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
             save_recording_state(output_path, start_time_ms)
 
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": ["bash", "-c", script],
-                            "close": True,
-                        },
-                    }
-                )
-            )
+            subprocess.Popen(["bash", "-c", script])
+            print(json.dumps({"type": "execute", "close": True}))
             return
 
         if item_id == "record_region_audio":
@@ -441,17 +396,8 @@ notify-send "Recording Stopped" "Saved to Videos folder"
             start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
             save_recording_state(output_path, start_time_ms)
 
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": ["bash", "-c", script],
-                            "close": True,
-                        },
-                    }
-                )
-            )
+            subprocess.Popen(["bash", "-c", script])
+            print(json.dumps({"type": "execute", "close": True}))
             return
 
     print(json.dumps({"type": "error", "message": f"Unknown action: {selected}"}))

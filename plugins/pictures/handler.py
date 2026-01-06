@@ -6,6 +6,7 @@ Demonstrates multi-turn workflow: browse -> select -> actions
 
 import json
 import os
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -196,36 +197,25 @@ def main():
 
         # Action button clicks (open, copy-path from list view)
         if action == "open":
-            filename = Path(item_id).name
             print(
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["xdg-open", item_id],
-                            "name": f"Open {filename}",
-                            "icon": "image",
-                            "thumbnail": item_id,
-                            "close": True,
-                        },
+                        "open": item_id,
+                        "close": True,
                     }
                 )
             )
             return
 
         if action == "copy-path":
-            filename = Path(item_id).name
             print(
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["wl-copy", item_id],
-                            "notify": f"Copied: {item_id}",
-                            "name": f"Copy path: {filename}",
-                            "icon": "content_copy",
-                            "close": True,
-                        },
+                        "copy": item_id,
+                        "notify": f"Copied: {item_id}",
+                        "close": True,
                     }
                 )
             )
@@ -234,18 +224,12 @@ def main():
         # Detail view actions (from clicking items in detail view)
         if item_id.startswith("open:"):
             path = item_id.split(":", 1)[1]
-            filename = Path(path).name
             print(
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["xdg-open", path],
-                            "name": f"Open {filename}",
-                            "icon": "image",
-                            "thumbnail": path,
-                            "close": True,
-                        },
+                        "open": path,
+                        "close": True,
                     }
                 )
             )
@@ -253,18 +237,13 @@ def main():
 
         if item_id.startswith("copy-path:"):
             path = item_id.split(":", 1)[1]
-            filename = Path(path).name
             print(
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["wl-copy", path],
-                            "notify": f"Copied: {path}",
-                            "name": f"Copy path: {filename}",
-                            "icon": "content_copy",
-                            "close": True,
-                        },
+                        "copy": path,
+                        "notify": f"Copied: {path}",
+                        "close": True,
                     }
                 )
             )
@@ -272,19 +251,13 @@ def main():
 
         if item_id.startswith("copy-image:"):
             path = item_id.split(":", 1)[1]
-            filename = Path(path).name
+            subprocess.Popen(["wl-copy", "-t", "image/png", path])
             print(
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["wl-copy", "-t", "image/png", path],
-                            "notify": "Image copied to clipboard",
-                            "name": f"Copy image: {filename}",
-                            "icon": "image",
-                            "thumbnail": path,
-                            "close": True,
-                        },
+                        "notify": "Image copied to clipboard",
+                        "close": True,
                     }
                 )
             )
@@ -292,15 +265,14 @@ def main():
 
         if item_id.startswith("delete:"):
             path = item_id.split(":", 1)[1]
+            filename = Path(path).name
+            subprocess.Popen(["gio", "trash", path])
             print(
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["gio", "trash", path],
-                            "notify": f"Moved to trash: {Path(path).name}",
-                            "close": True,
-                        },
+                        "notify": f"Moved to trash: {filename}",
+                        "close": True,
                     }
                 )
             )

@@ -70,7 +70,6 @@ Scope {
                     if (root.itemId) {
                         PluginRunner.recordExecution("apps", root.itemId, "", root.launchFromEmpty);
                     }
-                    ContextTracker.recordLaunch(root.appId);
                     
                     WindowManager.focusWindow(toplevel);
                     GlobalStates.closeWindowPicker();

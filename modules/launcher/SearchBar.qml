@@ -31,7 +31,6 @@ RowLayout {
         : ""
     readonly property string exclusiveModePlaceholder: {
         switch (LauncherSearch.exclusiveMode) {
-            case "action": return "Search actions...";
             case "emoji": return "Search emoji...";
             case "math": return "Calculate...";
             default: return "";
@@ -42,15 +41,14 @@ RowLayout {
         searchInput.forceActiveFocus();
     }
 
-    enum SearchPrefixType { Action, App, Clipboard, Emojis, Math, ShellCommand, WebSearch, DefaultSearch }
+    enum SearchPrefixType { Plugins, App, Clipboard, Emojis, Math, ShellCommand, WebSearch, DefaultSearch }
 
     property var searchPrefixType: {
         // Check exclusive mode first
-        if (LauncherSearch.exclusiveMode === "action") return SearchBar.SearchPrefixType.Action;
         if (LauncherSearch.exclusiveMode === "emoji") return SearchBar.SearchPrefixType.Emojis;
         if (LauncherSearch.exclusiveMode === "math") return SearchBar.SearchPrefixType.Math;
         // Fall back to prefix detection for non-exclusive modes
-        if (root.searchingText.startsWith(Config.options.search.prefix.action)) return SearchBar.SearchPrefixType.Action;
+        if (root.searchingText.startsWith(Config.options.search.prefix.plugins)) return SearchBar.SearchPrefixType.Plugins;
         if (root.searchingText.startsWith(Config.options.search.prefix.app)) return SearchBar.SearchPrefixType.App;
         if (root.searchingText.startsWith(Config.options.search.prefix.clipboard)) return SearchBar.SearchPrefixType.Clipboard;
         if (root.searchingText.startsWith(Config.options.search.prefix.emojis)) return SearchBar.SearchPrefixType.Emojis;
@@ -73,7 +71,7 @@ RowLayout {
             anchors.centerIn: parent
             iconSize: Math.round(Appearance.sizes.searchInputHeight * 0.5)
             shape: switch(root.searchPrefixType) {
-                case SearchBar.SearchPrefixType.Action: return MaterialShape.Shape.Pill;
+                case SearchBar.SearchPrefixType.Plugins: return MaterialShape.Shape.Pill;
                 case SearchBar.SearchPrefixType.App: return MaterialShape.Shape.Clover4Leaf;
                 case SearchBar.SearchPrefixType.Clipboard: return MaterialShape.Shape.Gem;
                 case SearchBar.SearchPrefixType.Emojis: return MaterialShape.Shape.Sunny;
@@ -83,7 +81,7 @@ RowLayout {
                 default: return MaterialShape.Shape.Circle;
             }
             text: switch (root.searchPrefixType) {
-                case SearchBar.SearchPrefixType.Action: return "settings_suggest";
+                case SearchBar.SearchPrefixType.Plugins: return "extension";
                 case SearchBar.SearchPrefixType.App: return "apps";
                 case SearchBar.SearchPrefixType.Clipboard: return "content_paste_search";
                 case SearchBar.SearchPrefixType.Emojis: return "add_reaction";

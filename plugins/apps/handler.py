@@ -230,7 +230,7 @@ def fuzzy_match(query: str, text: str) -> bool:
 def app_to_index_item(app: dict) -> dict:
     """Convert app info to indexable item format for main search.
 
-    Includes execute command so apps can be launched directly from main search.
+    Uses entryPoint for execution so handler controls the launch.
     """
     # Get desktop file name without .desktop extension
     filename = Path(app["id"]).name
@@ -264,16 +264,22 @@ def app_to_index_item(app: dict) -> dict:
                 "id": action["id"],
                 "name": action["name"],
                 "icon": icon,
-                "command": action["exec"].split() if action.get("exec") else [],
+                "entryPoint": {
+                    "step": "action",
+                    "selected": {"id": f"__action__:{app['id']}:{action['id']}"},
+                },
             }
         )
 
-    # Add "New Window" action to all apps
+    # Add "New Window" action to all apps (launches new instance)
     new_window_action = {
         "id": "new-window",
         "name": "New Window",
         "icon": "open_in_new",
-        "command": ["gio", "launch", app["id"]],
+        "entryPoint": {
+            "step": "action",
+            "selected": {"id": app["id"]},
+        },
     }
     actions.insert(0, new_window_action)
 
@@ -286,10 +292,9 @@ def app_to_index_item(app: dict) -> dict:
         "iconType": "system",
         "verb": "Open",
         "appId": desktop_name,  # For window integration in LauncherSearch
-        "execute": {
-            # Use gio launch with full path - more reliable than gtk-launch
-            # especially for Flatpak apps with .desktop.desktop naming
-            "command": ["gio", "launch", app["id"]],
+        "entryPoint": {
+            "step": "action",
+            "selected": {"id": app["id"]},
         },
     }
     if actions:
@@ -622,19 +627,23 @@ def handle_request(
                             action = act
                             break
 
-                    if action:
-                        # Execute the action's command
+                    if action and action.get("exec"):
+                        # Execute desktop action command in handler
                         exec_parts = action["exec"].split()
+                        if not TEST_MODE:
+                            subprocess.Popen(
+                                exec_parts,
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                                start_new_session=True,
+                            )
                         emit(
                             {
                                 "type": "execute",
-                                "execute": {
-                                    "command": exec_parts,
-                                    "name": f"{app['name']}: {action['name']}",
-                                    "icon": action.get("icon") or app["icon"],
-                                    "iconType": "system",
-                                    "close": True,
-                                },
+                                "name": f"{app['name']}: {action['name']}",
+                                "icon": action.get("icon") or app["icon"],
+                                "iconType": "system",
+                                "close": True,
                             }
                         )
                         return
@@ -675,18 +684,15 @@ def handle_request(
                 break
 
         if app:
-            # Use gio launch with full path - more reliable than gtk-launch
-            # especially for Flatpak apps with .desktop.desktop naming
+            # Use safe launch API - hamr will run gio launch
             emit(
                 {
                     "type": "execute",
-                    "execute": {
-                        "command": ["gio", "launch", selected_id],
-                        "name": f"Launch {app['name']}",
-                        "icon": app["icon"],
-                        "iconType": "system",
-                        "close": True,
-                    },
+                    "launch": selected_id,
+                    "name": f"Launch {app['name']}",
+                    "icon": app["icon"],
+                    "iconType": "system",
+                    "close": True,
                 }
             )
         else:

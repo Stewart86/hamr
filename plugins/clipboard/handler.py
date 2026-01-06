@@ -747,8 +747,9 @@ def entry_to_index_item(entry: str, ocr_texts: dict[str, str]) -> dict:
     img_dims = get_image_dimensions(entry) if is_img else None
     chips = get_content_chips(display, is_img, ocr_texts.get(entry, ""), img_dims)
 
+    entry_hash = get_entry_hash(entry)
     item = {
-        "id": f"clip:{get_entry_hash(entry)}",
+        "id": f"clip:{entry_hash}",
         "name": name,
         "description": description,
         "keywords": keywords,
@@ -759,20 +760,16 @@ def entry_to_index_item(entry: str, ocr_texts: dict[str, str]) -> dict:
                 "id": "delete",
                 "name": "Delete",
                 "icon": "delete",
-                "command": [
-                    "bash",
-                    "-c",
-                    f"printf '%s' '{shell_escape(entry)}' | cliphist delete",
-                ],
+                "entryPoint": {
+                    "step": "action",
+                    "selected": {"id": f"clip:{entry_hash}"},
+                    "action": "delete",
+                },
             },
         ],
-        "execute": {
-            "command": [
-                "bash",
-                "-c",
-                f"printf '%s' '{shell_escape(entry)}' | cliphist decode | wl-copy",
-            ],
-            "notify": "Copied to clipboard",
+        "entryPoint": {
+            "step": "action",
+            "selected": {"id": f"clip:{entry_hash}"},
         },
     }
 
@@ -931,16 +928,8 @@ def handle_request(input_data: dict) -> None:
                     json.dumps(
                         {
                             "type": "execute",
-                            "execute": {
-                                "command": [
-                                    "notify-send",
-                                    "Clipboard",
-                                    "History cleared",
-                                    "-a",
-                                    "Shell",
-                                ],
-                                "close": True,
-                            },
+                            "notify": "Clipboard history cleared",
+                            "close": True,
                         }
                     ),
                     flush=True,
@@ -1022,10 +1011,8 @@ def handle_request(input_data: dict) -> None:
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["true"],  # No-op, just close
-                            "close": True,
-                        },
+                        "notify": "Copied to clipboard",
+                        "close": True,
                     }
                 ),
                 flush=True,

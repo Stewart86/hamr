@@ -21,7 +21,7 @@ Singleton {
             return [
                 { "prefix": "~", "icon": "folder", "label": "Files", "plugin": "files" },
                 { "prefix": ";", "icon": "content_paste", "label": "Clipboard", "plugin": "clipboard" },
-                { "prefix": "/", "icon": "extension", "label": "Plugins", "plugin": "action" },
+                { "prefix": "/", "icon": "extension", "label": "Plugins", "plugin": "plugins" },
                 { "prefix": "!", "icon": "terminal", "label": "Shell", "plugin": "shell" },
                 { "prefix": "=", "icon": "calculate", "label": "Math", "plugin": "calculate" },
                 { "prefix": ":", "icon": "emoji_emotions", "label": "Emoji", "plugin": "emoji" }
@@ -113,12 +113,12 @@ Singleton {
                 property string engineBaseUrl: "https://www.google.com/search?q="
                 property list<string> excludedSites: ["quora.com", "facebook.com"]
                 property JsonObject prefix: JsonObject {
-                    property string action: "/"
                     property string app: ">"
                     property string clipboard: ";"
                     property string emojis: ":"
                     property string file: "~"
                     property string math: "="
+                    property string plugins: "/"
                     property string shellCommand: "$"
                     property string shellHistory: "!"
                     property string webSearch: "?"
@@ -137,7 +137,7 @@ Singleton {
                 // Stored as JSON string to work around Quickshell JsonAdapter limitation with arrays of objects
                 // Each hint has: prefix, icon, label, plugin
                 // Note: The old "prefix" object above is kept for backwards compatibility
-                property string actionBarHintsJson: '[{"prefix":"~","icon":"folder","label":"Files","plugin":"files"},{"prefix":";","icon":"content_paste","label":"Clipboard","plugin":"clipboard"},{"prefix":"/","icon":"extension","label":"Plugins","plugin":"action"},{"prefix":"!","icon":"terminal","label":"Shell","plugin":"shell"},{"prefix":"=","icon":"calculate","label":"Math","plugin":"calculate"},{"prefix":":","icon":"emoji_emotions","label":"Emoji","plugin":"emoji"}]'
+                property string actionBarHintsJson: '[{"prefix":"~","icon":"folder","label":"Files","plugin":"files"},{"prefix":";","icon":"content_paste","label":"Clipboard","plugin":"clipboard"},{"prefix":"/","icon":"extension","label":"Plugins","plugin":"plugins"},{"prefix":"!","icon":"terminal","label":"Shell","plugin":"shell"},{"prefix":"=","icon":"calculate","label":"Math","plugin":"calculate"},{"prefix":":","icon":"emoji_emotions","label":"Emoji","plugin":"emoji"}]'
             }
 
             // ==================== IMAGE BROWSER ====================

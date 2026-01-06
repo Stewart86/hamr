@@ -533,7 +533,7 @@ def window_to_index_item(window: dict) -> dict:
         "icon": app_id,
         "iconType": "system",
         "verb": "Focus",
-        "execute": {
+        "entryPoint": {
             "command": [
                 "niri",
                 "msg",
@@ -600,7 +600,7 @@ def action_to_index_item(action: dict) -> dict:
             action["action"],
             action["name"].lower(),
         ],
-        "execute": {
+        "entryPoint": {
             "command": ["niri", "msg", "action", action["action"]],
             "name": action["name"],
             "icon": action["icon"],
@@ -731,7 +731,7 @@ def generate_workspace_index_items() -> list[dict]:
                     f"go to {ws_idx}",
                     f"switch to {ws_idx}",
                 ],
-                "execute": {
+                "entryPoint": {
                     "command": [
                         "niri",
                         "msg",
@@ -756,7 +756,7 @@ def generate_workspace_index_items() -> list[dict]:
                     f"send to {ws_idx}",
                     f"move workspace {ws_idx}",
                 ],
-                "execute": {
+                "entryPoint": {
                     "command": [
                         "niri",
                         "msg",
@@ -906,7 +906,7 @@ def handle_request(input_data: dict):
 
         if item_id == "__empty__":
             print(
-                json.dumps({"type": "execute", "execute": {"close": True}}), flush=True
+                json.dumps({"type": "execute", "close": True}), flush=True
             )
             return
 
@@ -922,10 +922,8 @@ def handle_request(input_data: dict):
                         json.dumps(
                             {
                                 "type": "execute",
-                                "execute": {
-                                    "close": True,
-                                    "notify": f"Would run: {' '.join(cmd)}",
-                                },
+                                "close": True,
+                                "notify": f"Would run: {' '.join(cmd)}",
                             }
                         ),
                         flush=True,
@@ -937,10 +935,8 @@ def handle_request(input_data: dict):
                         json.dumps(
                             {
                                 "type": "execute",
-                                "execute": {
-                                    "close": True,
-                                    "notify": f"{name} executed",
-                                },
+                                "close": True,
+                                "notify": f"{name} executed",
                             }
                         ),
                         flush=True,
@@ -961,10 +957,8 @@ def handle_request(input_data: dict):
                         json.dumps(
                             {
                                 "type": "execute",
-                                "execute": {
-                                    "close": True,
-                                    "notify": f"Would run: {' '.join(cmd)}",
-                                },
+                                "close": True,
+                                "notify": f"Would run: {' '.join(cmd)}",
                             }
                         ),
                         flush=True,
@@ -976,10 +970,8 @@ def handle_request(input_data: dict):
                         json.dumps(
                             {
                                 "type": "execute",
-                                "execute": {
-                                    "close": True,
-                                    "notify": f"{name} executed",
-                                },
+                                "close": True,
+                                "notify": f"{name} executed",
                             }
                         ),
                         flush=True,
@@ -1012,7 +1004,8 @@ def handle_request(input_data: dict):
                     json.dumps(
                         {
                             "type": "execute",
-                            "execute": {"close": True, "notify": message},
+                            "close": True,
+                            "notify": message,
                         }
                     ),
                     flush=True,
@@ -1070,7 +1063,7 @@ def handle_request(input_data: dict):
             success, message = focus_window(window_id)
             if success:
                 print(
-                    json.dumps({"type": "execute", "execute": {"close": True}}),
+                    json.dumps({"type": "execute", "close": True}),
                     flush=True,
                 )
             else:

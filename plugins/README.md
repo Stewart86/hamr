@@ -110,7 +110,7 @@ If `frecency` is not specified, it defaults to `"item"`. Most plugins should use
 
 ### Static Plugin (No Handler)
 
-For simple actions, use `staticIndex` in the manifest - no handler script needed:
+For simple actions that only need notification/sound feedback, use `staticIndex` in the manifest - no handler script needed:
 
 ```bash
 # 1. Create folder with manifest
@@ -128,7 +128,7 @@ cat > ~/.config/hamr/plugins/my-action/manifest.json << 'EOF'
       "icon": "waving_hand",
       "keywords": ["hello", "greet"],
       "execute": {
-        "command": ["notify-send", "Hello from my action!"],
+        "notify": "Hello from my action!",
         "close": true
       }
     }
@@ -138,6 +138,8 @@ EOF
 
 # 2. "Say Hello" appears in main search
 ```
+
+**Note:** Static items can only use safe API fields (`notify`, `sound`, `close`). For commands, create a handler that executes them and returns the safe API response.
 
 **Examples:** [`accentcolor/`](accentcolor/), [`theme/`](theme/), [`snip/`](snip/), [`colorpick/`](colorpick/)
 
@@ -574,7 +576,8 @@ def main():
             wipe_clipboard()
             print(json.dumps({
                 "type": "execute",
-                "execute": {"notify": "Clipboard wiped", "close": True}
+                "notify": "Clipboard wiped",
+                "close": True
             }))
             return
         
@@ -650,42 +653,43 @@ Display markdown-formatted content with optional action buttons.
 
 ---
 
-### 3. `execute` - Run Command
+### 3. `execute` - Execute Actions
 
-Execute a shell command, optionally save to history, play sounds.
+Execute whitelisted actions via hamr's safe API. Handlers cannot run arbitrary shell commands directly - instead, they return action descriptors that hamr executes.
 
 ```python
-# Simple execution (no history)
-{
-    "type": "execute",
-    "execute": {
-        "command": ["xdg-open", "/path/to/file"],  # Shell command
-        "notify": "File opened",                    # Optional: notification
-        "sound": "complete",                        # Optional: play sound effect
-        "close": true                               # Close launcher (true) or stay open (false)
-    }
-}
+# Launch an app
+{"type": "execute", "launch": "/usr/share/applications/firefox.desktop", "close": True}
 
-# With history tracking (searchable later)
-{
-    "type": "execute",
-    "execute": {
-        "command": ["xdg-open", "/path/to/file"],
-        "name": "Open document.pdf",    # Required for history
-        "icon": "description",           # Optional: icon in history
-        "iconType": "material",          # Optional: "material" (default) or "system"
-        "thumbnail": "/path/to/thumb",   # Optional: image preview
-        "close": true
-    }
-}
+# Copy to clipboard
+{"type": "execute", "copy": "text to copy", "notify": "Copied!", "close": True}
+
+# Type text (snippet expansion)
+{"type": "execute", "typeText": "expanded text", "close": True}
+
+# Open URL
+{"type": "execute", "openUrl": "https://example.com", "close": True}
+
+# Open file/folder
+{"type": "execute", "open": "/path/to/file", "close": True}
+
+# Just close (handler already did the work)
+{"type": "execute", "close": True}
+
+# Show notification with sound (no close)
+{"type": "execute", "notify": "Task completed", "sound": "complete"}
 ```
 
-#### Execute Fields
+#### Execute Fields (Safe API)
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `command` | string[] | Shell command to execute |
-| `notify` | string | Notification message (via notify-send) |
+| `launch` | string | Desktop file path - hamr runs `gio launch` |
+| `copy` | string | Text to copy - hamr runs `wl-copy` |
+| `typeText` | string | Text to type - hamr uses `ydotool` (waits for launcher close) |
+| `openUrl` | string | URL to open - hamr uses `Qt.openUrlExternally` |
+| `open` | string | File/folder path - hamr runs `xdg-open` |
+| `notify` | string | Notification message - hamr runs `notify-send` |
 | `sound` | string | Sound effect to play (see Sound Effects below) |
 | `close` | bool | Close launcher after execution |
 | `name` | string | Display name for history tracking |
@@ -694,7 +698,21 @@ Execute a shell command, optionally save to history, play sounds.
 | `thumbnail` | string | Image path for history preview |
 | `entryPoint` | object | Entry point for complex replay (see below) |
 
-**Example plugins:** [`files/`](files/handler.py), [`wallpaper/`](wallpaper/handler.py)
+#### Running Custom Commands
+
+For commands not covered by the safe API, execute them in your handler and return just `close`:
+
+```python
+import subprocess
+
+# Execute in handler
+subprocess.Popen(["my-command", "arg1"], start_new_session=True)
+
+# Return close response
+emit({"type": "execute", "close": True})
+```
+
+**Example plugins:** [`files/`](files/handler.py), [`wallpaper/`](wallpaper/handler.py), [`power/`](power/handler.py)
 
 ---
 
@@ -705,18 +723,15 @@ For actions that need handler logic on replay (API calls, sensitive data).
 ```python
 {
     "type": "execute",
-    "execute": {
-        "name": "Copy password: GitHub",   # Required for history
-        "icon": "key",
-        "notify": "Password copied",
-        "entryPoint": {                    # Stored for workflow replay
-            "step": "action",
-            "selected": {"id": "item_123"},
-            "action": "copy_password"
-        },
-        "close": true
-        # No "command" - entryPoint is used on replay
-    }
+    "name": "Copy password: GitHub",   # Required for history
+    "icon": "key",
+    "notify": "Password copied",
+    "entryPoint": {                    # Stored for workflow replay
+        "step": "action",
+        "selected": {"id": "item_123"},
+        "action": "copy_password"
+    },
+    "close": True
 }
 ```
 
@@ -2020,20 +2035,16 @@ Include the `sound` field in an `execute` response:
 ```python
 {
     "type": "execute",
-    "execute": {
-        "sound": "alarm",              # Predefined sound name
-        "notify": "Timer finished!",
-        "close": true
-    }
+    "sound": "alarm",              # Predefined sound name
+    "notify": "Timer finished!",
+    "close": True
 }
 
 # Or with a custom sound file
 {
     "type": "execute",
-    "execute": {
-        "sound": "/path/to/custom.wav",  # Absolute path
-        "close": true
-    }
+    "sound": "/path/to/custom.wav",  # Absolute path
+    "close": True
 }
 ```
 
@@ -2145,9 +2156,24 @@ For simple, static items defined directly in the manifest. No `handler.py` neede
       "icon": "dark_mode",
       "verb": "Switch",
       "keywords": ["dark", "theme", "night"],
+      "entryPoint": {
+        "step": "action",
+        "selected": {"id": "dark"}
+      }
+    }
+  ]
+}
+```
+
+Static index items use `entryPoint` to route execution back to a handler. For truly static actions that don't need a handler, you can still use `execute` with safe API fields:
+
+```json
+{
+  "staticIndex": [
+    {
+      "id": "dark",
+      "name": "Dark Mode",
       "execute": {
-        "command": ["gsettings", "set", "org.gnome.desktop.interface", "color-scheme", "prefer-dark"],
-        "name": "Dark Mode",
         "notify": "Dark mode activated",
         "close": true
       }
@@ -2155,6 +2181,8 @@ For simple, static items defined directly in the manifest. No `handler.py` neede
   ]
 }
 ```
+
+**Note:** Static items can only use safe API fields (`notify`, `sound`, `close`). For commands, create a handler.
 
 **Use cases:** Theme switching, quick actions, launcher shortcuts
 

@@ -9,6 +9,7 @@ import json
 import os
 import select
 import signal
+import subprocess
 import sys
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
@@ -106,10 +107,9 @@ def action_to_index_item(action: dict) -> dict:
         "icon": action["icon"],
         "verb": "Run",
         "keywords": [action["id"], action["name"].lower()],
-        "execute": {
-            "command": action["command"],
-            "name": action["name"],
-            "icon": action["icon"],
+        "entryPoint": {
+            "step": "action",
+            "selected": {"id": action["id"]},
         },
     }
 
@@ -189,9 +189,7 @@ def handle_request(request: dict) -> None:
         selected_id = selected.get("id", "")
 
         if selected_id == "__empty__":
-            print(
-                json.dumps({"type": "execute", "execute": {"close": True}}), flush=True
-            )
+            print(json.dumps({"type": "execute", "close": True}), flush=True)
             return
 
         action = next((a for a in POWER_ACTIONS if a["id"] == selected_id), None)
@@ -204,36 +202,23 @@ def handle_request(request: dict) -> None:
             )
             return
 
-        if TEST_MODE:
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": [
-                                "echo",
-                                f"Would run: {' '.join(action['command'])}",
-                            ],
-                            "name": action["name"],
-                            "icon": action["icon"],
-                            "close": True,
-                        },
-                    }
-                ),
-                flush=True,
+        # Execute the command in the handler
+        if not TEST_MODE:
+            subprocess.Popen(
+                action["command"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
             )
-            return
 
+        # Return safe API response (just close, command already executed)
         print(
             json.dumps(
                 {
                     "type": "execute",
-                    "execute": {
-                        "command": action["command"],
-                        "name": action["name"],
-                        "icon": action["icon"],
-                        "close": True,
-                    },
+                    "name": action["name"],
+                    "icon": action["icon"],
+                    "close": True,
                 }
             ),
             flush=True,

@@ -45,6 +45,9 @@ Singleton {
     // When depth is 0, back/Escape closes the plugin entirely
     property int navigationDepth: 0
     
+    // Pending typeText - waits for launcher to close before typing
+    property string pendingTypeText: ""
+    
     // Flags to track pending navigation actions for depth management
     property bool pendingNavigation: false  // True when action may navigate forward
     property bool pendingBack: false        // True when goBack() called (back navigation)
@@ -484,6 +487,10 @@ Singleton {
             
             // Update smart fields for apps plugin (contextual tracking)
             if (pluginId === "apps") {
+                // Record app launch for sequence tracking (uses appId, not itemId)
+                if (item.appId) {
+                    ContextTracker.recordLaunch(item.appId);
+                }
                 const context = ContextTracker.getContext();
                 context.launchFromEmpty = launchFromEmpty ?? false;
                 root.updateItemSmartFields(item, context);
@@ -807,7 +814,7 @@ Singleton {
         if (prependResults && prependResults.length > 0) {
             const prependIds = new Set(prependResults.map(r => r.id));
             const dedupedBuiltin = builtinResults.filter(r => !prependIds.has(r.id));
-            root.pluginResults = [...prependResults, ...dedupedBuiltin];
+            root.pluginResults = prependResults.concat(dedupedBuiltin);
         } else {
             root.pluginResults = builtinResults;
         }
@@ -1084,23 +1091,68 @@ Singleton {
           }
      }
     
-    // Handle execute response from daemon (sound, notification, command) - works even when plugin is not active
+    // Handle execute response from daemon - safe API only, no arbitrary commands
     function handleExecuteResponse(response, pluginId) {
-        const exec = response.execute ?? {};
+        // Properties are directly on response (new format), not nested in execute
+        root.processExecuteAction(response, pluginId);
+    }
+    
+    // Process execute action using safe, whitelisted API
+    function processExecuteAction(exec, pluginId) {
+        // Launch .desktop file (detached)
+        if (exec.launch) {
+            Quickshell.execDetached(["gio", "launch", exec.launch]);
+        }
         
-        // Play sound if specified
+        // Focus app window (compositor-specific)
+        if (exec.focusApp) {
+            const windows = WindowManager.getWindowsForApp(exec.focusApp);
+            if (windows.length === 1) {
+                WindowManager.focusWindow(windows[0]);
+            } else if (windows.length > 1) {
+                // Multiple windows - focus first for now
+                // TODO: Could open picker here
+                WindowManager.focusWindow(windows[0]);
+            }
+        }
+        
+        // Copy to clipboard
+        if (exec.copy) {
+            Quickshell.execDetached(["wl-copy", exec.copy]);
+        }
+        
+        // Type text (input simulation via ydotool)
+        if (exec.typeText) {
+            if (exec.close) {
+                // Defer typing until launcher closes and focus returns to target window
+                root.pendingTypeText = exec.typeText;
+            } else {
+                // Type immediately
+                Quickshell.execDetached(["ydotool", "type", "--clearmodifiers", "--", exec.typeText]);
+            }
+        }
+        
+        // Open URL
+        if (exec.openUrl) {
+            Qt.openUrlExternally(exec.openUrl);
+        }
+        
+        // Open file/folder
+        if (exec.open) {
+            Quickshell.execDetached(["xdg-open", exec.open]);
+        }
+        
+        // Play sound
         if (exec.sound) {
             AudioService.playSound(exec.sound);
         }
         
-        // Show notification if specified
+        // Show notification
         if (exec.notify) {
-            Quickshell.execDetached(["notify-send", "-a", "hamr", exec.notify]);
-        }
-        
-        // Run command if specified
-        if (exec.command) {
-            Quickshell.execDetached(exec.command);
+            const pluginName = root.activePlugin?.manifest?.name 
+                ?? root.replayPluginInfo?.name 
+                ?? "hamr";
+            Quickshell.execDetached(["notify-send", "-a", pluginName, exec.notify]);
         }
         
         // Close launcher if requested
@@ -1379,15 +1431,33 @@ Singleton {
           root.pluginError = "";
           root.inputMode = "realtime";  // Default to realtime, handler can change
           
+          // Build initial input
+          const input = { step: "initial", session: session };
+          
+          // For plugins browser, include available plugins list
+          if (pluginId === "plugins") {
+              input.context = {
+                  plugins: root.plugins
+                      .filter(p => p.id !== "plugins")  // Exclude self
+                      .map(p => ({
+                          id: p.id,
+                          name: p.manifest?.name ?? p.id,
+                          description: p.manifest?.description ?? "",
+                          icon: p.manifest?.icon ?? "extension"
+                      }))
+                      .sort((a, b) => a.name.localeCompare(b.name))
+              };
+          }
+          
           // For daemon plugins, start daemon if not already running
           const daemonConfig = plugin.manifest.daemon;
           if (daemonConfig?.enabled) {
               root.startDaemon(pluginId);
               // Send initial step through daemon
-              root.writeToDaemonStdin(pluginId, { step: "initial", session: session });
+              root.writeToDaemonStdin(pluginId, input);
           } else {
               // Use request-response model for non-daemon plugins
-              sendToPlugin({ step: "initial", session: session });
+              sendToPlugin(input);
           }
           
           return true;
@@ -1426,6 +1496,21 @@ Singleton {
           // Include plugin context if set (for multi-step flows like search mode, edit mode)
           if (root.pluginContext) {
               input.context = root.pluginContext;
+          }
+          
+          // For plugins browser, include available plugins list
+          if (pluginId === "plugins") {
+              input.context = {
+                  plugins: root.plugins
+                      .filter(p => p.id !== "plugins")
+                      .map(p => ({
+                          id: p.id,
+                          name: p.manifest?.name ?? p.id,
+                          description: p.manifest?.description ?? "",
+                          icon: p.manifest?.icon ?? "extension"
+                      }))
+                      .sort((a, b) => a.name.localeCompare(b.name))
+              };
           }
           
           // Use daemon if running, otherwise spawn new process
@@ -1797,10 +1882,11 @@ Singleton {
           }
       }
     
-      // Replay a saved action using entryPoint
-      // Used for history items that need plugin logic instead of direct command
-      // Returns true if replay was initiated, false if plugin not found
-      function replayAction(pluginId, entryPoint) {
+      // Execute an action via plugin handler
+      // All item executions go through this - handler does the actual work
+      // keepOpen: true = launcher stays open (interactive), false = closes after execution
+      // Returns true if action was initiated, false if plugin not found
+      function executeAction(pluginId, entryPoint, keepOpen = false) {
            const plugin = root.plugins.find(w => w.id === pluginId);
            if (!plugin || !plugin.manifest || !entryPoint) {
                return false;
@@ -1821,63 +1907,16 @@ Singleton {
           root.pluginPlaceholder = "";
           root.pluginError = "";
           root.inputMode = "realtime";
-          root.replayMode = true;  // Don't kill process when launcher closes
+          root.replayMode = !keepOpen;
           root.replayPluginInfo = {
               id: plugin.id,
               name: plugin.manifest.name,
               icon: plugin.manifest.icon
           };
           
-          // Build replay input from entryPoint
-          const input = {
-              step: entryPoint.step ?? "action",
-              session: session,
-              replay: true  // Signal to handler this is a replay
-          };
-          
-          if (entryPoint.selected) {
-              input.selected = entryPoint.selected;
-              root.lastSelectedItem = entryPoint.selected.id ?? null;
+          if (keepOpen) {
+              root.navigationDepth = 1;  // Entering at depth 1 (not initial view)
           }
-          if (entryPoint.action) {
-              input.action = entryPoint.action;
-          }
-          if (entryPoint.query) {
-              input.query = entryPoint.query;
-          }
-          
-          // For daemon plugins in replay mode, still use request-response
-          // (replay shouldn't leave daemon running)
-          sendToPlugin(input);
-          return true;
-      }
-     
-      // Execute an entryPoint action with UI visible (not replay mode)
-       // Used for indexed items that open a view (e.g., viewing a note)
-       // Returns true if action was initiated, false if plugin not found
-       function executeEntryPoint(pluginId, entryPoint) {
-           const plugin = root.plugins.find(w => w.id === pluginId);
-           if (!plugin || !plugin.manifest || !entryPoint) {
-               return false;
-           }
-           
-           const session = generateSessionId();
-          
-          root.activePlugin = {
-              id: plugin.id,
-              path: plugin.path,
-              manifest: plugin.manifest,
-              session: session
-          };
-          root.pluginResults = [];
-          root.pluginCard = null;
-          root.pluginForm = null;
-          root.pluginPrompt = "";
-          root.pluginPlaceholder = "";
-          root.pluginError = "";
-          root.inputMode = "realtime";
-          root.replayMode = false;  // Keep UI visible
-          root.navigationDepth = 1;  // We're entering at depth 1 (not initial view)
           
           // Build input from entryPoint
           const input = {
@@ -1885,6 +1924,10 @@ Singleton {
               session: session
           };
           
+          if (!keepOpen) {
+              input.replay = true;  // Signal to handler this is a one-shot execution
+          }
+          
           if (entryPoint.selected) {
               input.selected = entryPoint.selected;
               root.lastSelectedItem = entryPoint.selected.id ?? null;
@@ -1896,9 +1939,9 @@ Singleton {
               input.query = entryPoint.query;
           }
           
-          // For daemon plugins, start daemon and use daemon
+          // For daemon plugins with keepOpen, use daemon; otherwise use request-response
           const isDaemonPlugin = plugin.manifest?.daemon?.enabled;
-          if (isDaemonPlugin) {
+          if (isDaemonPlugin && keepOpen) {
               root.startDaemon(pluginId);
               root.writeToDaemonStdin(pluginId, input);
           } else {
@@ -1907,18 +1950,9 @@ Singleton {
           
           return true;
       }
+      
+
     
-    // Execute a detached preview action (has its own command)
-    function executeDetachedPreviewAction(action) {
-        if (!action) return;
-        
-        if (action.command) {
-            Quickshell.execDetached(action.command);
-        }
-        if (action.notify) {
-            Quickshell.execDetached(["notify-send", "Preview", action.notify, "-a", "Shell"]);
-        }
-    }
     
     // ==================== INTERNAL ====================
     
@@ -2017,7 +2051,7 @@ Singleton {
                          const handlerIds = new Set(handlerResults.map(r => r.id));
                          const dedupedBuiltin = builtinResults.filter(r => !handlerIds.has(r.id));
                          
-                         finalResults = [...handlerResults, ...dedupedBuiltin];
+                         finalResults = handlerResults.concat(dedupedBuiltin);
                          root._pendingBuiltinResults = null;
                      } else if (root._lastSearchQuery && pluginId && root.hasIndexedItems(pluginId)) {
                          // Action step response with active query - filter with builtin search
@@ -2104,8 +2138,8 @@ Singleton {
                  break;
                 
              case "execute":
-                 if (response.execute) {
-                      const exec = response.execute;
+                 {
+                      // Properties are directly on response (new format)
                       
                       // In replay mode, activePlugin may be cleared - use replayPluginInfo
                       const pluginName = root.activePlugin?.manifest?.name 
@@ -2118,31 +2152,20 @@ Singleton {
                           ?? root.replayPluginInfo?.id 
                           ?? "";
                       
-                      if (exec.command) {
-                          Quickshell.execDetached(exec.command);
-                      }
-                      if (exec.notify) {
-                          Quickshell.execDetached(["notify-send", pluginName, exec.notify, "-a", "Shell"]);
-                      }
-                      if (exec.sound) {
-                          AudioService.playSound(exec.sound);
-                      }
+                      // Process safe API actions
+                      root.processExecuteAction(response, pluginId);
+                      
                      // If handler provides name, emit for history tracking
-                     // Include entryPoint for complex actions that need plugin replay
-                     if (exec.name) {
+                     if (response.name) {
                          root.actionExecuted({
-                             name: exec.name,
-                             command: exec.command ?? [],
-                             entryPoint: exec.entryPoint ?? null,  // For plugin replay
-                             icon: exec.icon ?? pluginIcon,
-                             iconType: exec.iconType ?? "material",  // "system" for app icons
-                             thumbnail: exec.thumbnail ?? "",
+                             name: response.name,
+                             entryPoint: response.entryPoint ?? null,
+                             icon: response.icon ?? pluginIcon,
+                             iconType: response.iconType ?? "material",
+                             thumbnail: response.thumbnail ?? "",
                              workflowId: pluginId,
                              workflowName: pluginName
                          });
-                     }
-                     if (exec.close) {
-                         root.executeCommand(exec);
                      }
                      
                      // Clear replay info after use
@@ -2210,6 +2233,14 @@ Singleton {
              
              case "noop":
                  // No operation - used for actions that don't need UI refresh (e.g., slider adjustments)
+                 break;
+                 
+             case "startPlugin":
+                 // Start another plugin (used by plugins browser)
+                 if (response.pluginId) {
+                     root.stop();  // Stop current plugin first
+                     root.startPlugin(response.pluginId);
+                 }
                  break;
                  
              default:
@@ -2307,12 +2338,29 @@ Singleton {
                      return;
                  }
                  
-                 try {
-                     const response = JSON.parse(output);
-                     root.handlePluginResponse(response, wasReplayMode);
-                 } catch (e) {
-                     root.pluginError = `Failed to parse plugin output: ${e}`;
-                     console.warn(`[PluginRunner] Parse error: ${e}, output: ${output}`);
+                 // Handler may emit multiple JSON lines (e.g., index + execute response)
+                 // Process each line, but only handle the last relevant response for one-shot
+                 const lines = output.split('\n').filter(l => l.trim());
+                 let lastResponse = null;
+                 
+                 for (const line of lines) {
+                     try {
+                         const response = JSON.parse(line);
+                         // For one-shot execution, skip index responses - we only care about execute/results/etc
+                         if (wasReplayMode && response.type === "index") {
+                             continue;
+                         }
+                         lastResponse = response;
+                     } catch (e) {
+                         console.warn(`[PluginRunner] Parse error for line: ${e}`);
+                     }
+                 }
+                 
+                 if (lastResponse) {
+                     root.handlePluginResponse(lastResponse, wasReplayMode);
+                 } else if (lines.length > 0) {
+                     // All lines were index responses (or parse errors)
+                     root.pluginError = "No actionable response from plugin";
                  }
              }
          }
@@ -2327,6 +2375,30 @@ Singleton {
              if (exitCode !== 0) {
                  root.pluginBusy = false;
                  root.pluginError = `Plugin exited with code ${exitCode}`;
+             }
+         }
+     }
+     
+     // Watch for launcher close to execute pending typeText
+     Connections {
+         target: GlobalStates
+         function onLauncherOpenChanged() {
+             if (!GlobalStates.launcherOpen && root.pendingTypeText) {
+                 // Small delay to ensure focus has transferred to target window
+                 typeTextTimer.start();
+             }
+         }
+     }
+     
+     Timer {
+         id: typeTextTimer
+         interval: 150
+         repeat: false
+         onTriggered: {
+             if (root.pendingTypeText) {
+                 console.log("[PluginRunner] Typing text via ydotool");
+                 Quickshell.execDetached(["ydotool", "type", "--clearmodifiers", "--", root.pendingTypeText]);
+                 root.pendingTypeText = "";
              }
          }
      }

@@ -198,14 +198,8 @@ Singleton {
                 verb: "Run",
                 keepOpen: itemKeepOpen,
                 execute: ((capturedItem, capturedKeepOpen) => () => {
-                    if (capturedItem.command && capturedItem.command.length > 0) {
-                        Quickshell.execDetached(capturedItem.command);
-                    } else if (capturedItem.entryPoint && capturedItem.workflowId) {
-                        if (capturedKeepOpen) {
-                            PluginRunner.executeEntryPoint(capturedItem.workflowId, capturedItem.entryPoint);
-                        } else {
-                            PluginRunner.replayAction(capturedItem.workflowId, capturedItem.entryPoint);
-                        }
+                    if (capturedItem.entryPoint && capturedItem.workflowId) {
+                        PluginRunner.executeAction(capturedItem.workflowId, capturedItem.entryPoint, capturedKeepOpen);
                     }
                 })(item, itemKeepOpen)
             })
@@ -299,19 +293,12 @@ Singleton {
                 iconName: action.icon ?? 'play_arrow',
                 iconType: actionIconType,
                 execute: ((capturedAction, capturedItem) => () => {
-                    if (capturedAction.entryPoint) {
-                        if (capturedAction.keepOpen) {
-                            PluginRunner.executeEntryPoint(capturedItem._pluginId, capturedAction.entryPoint);
-                        } else {
-                            PluginRunner.replayAction(capturedItem._pluginId, capturedAction.entryPoint);
-                            GlobalStates.launcherOpen = false;
-                        }
-                        return;
-                    }
-                    if (capturedAction.command) {
-                        Quickshell.execDetached(capturedAction.command);
-                        GlobalStates.launcherOpen = false;
-                    }
+                    const entryPoint = capturedAction.entryPoint ?? {
+                        step: "action",
+                        selected: { id: capturedItem.id },
+                        action: capturedAction.id
+                    };
+                    PluginRunner.executeAction(capturedItem._pluginId, entryPoint, capturedAction.keepOpen ?? false);
                 })(action, item)
             });
         });
@@ -367,54 +354,39 @@ Singleton {
         if (item.chips?.length > 0) props.chips = item.chips;
         
         const launchFromEmpty = !query || query === "";
-        props.execute = ((capturedItem, capturedAppId, capturedIsApp, capturedPluginId, capturedLaunchFromEmpty, capturedQuery) => () => {
+        props.execute = ((capturedItem, capturedAppId, capturedIsApp, capturedPluginId, capturedLaunchFromEmpty, capturedQuery, capturedKeepOpen) => () => {
+                    // Record execution for frecency (apps will also record context via recordExecution)
+                    PluginRunner.recordExecution(capturedPluginId, capturedItem.id, capturedQuery, capturedLaunchFromEmpty);
+                    
                     if (capturedIsApp) {
+                        // App items: check for existing windows before launching
                         const currentWindows = WindowManager.getWindowsForApp(capturedAppId);
                         const currentWindowCount = currentWindows.length;
 
                         if (currentWindowCount === 0) {
-                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id, capturedQuery, capturedLaunchFromEmpty);
-                            ContextTracker.recordLaunch(capturedAppId);
-                            if (capturedItem.execute?.command) {
-                                Quickshell.execDetached(capturedItem.execute.command);
-                            }
+                            // No windows - launch via handler
+                            const entryPoint = capturedItem.entryPoint ?? {
+                                step: "action",
+                                selected: { id: capturedItem.id }
+                            };
+                            PluginRunner.executeAction(capturedPluginId, entryPoint, false);
                         } else if (currentWindowCount === 1) {
-                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id, capturedQuery, capturedLaunchFromEmpty);
-                            ContextTracker.recordLaunch(capturedAppId);
+                            // Single window - focus it
                             WindowManager.focusWindow(currentWindows[0]);
                             GlobalStates.launcherOpen = false;
                         } else {
+                            // Multiple windows - open picker
                             GlobalStates.openWindowPicker(capturedAppId, currentWindows, capturedItem.id, capturedLaunchFromEmpty);
                         }
                     } else {
-                        if (capturedItem.entryPoint) {
-                            if (capturedItem.keepOpen) {
-                                PluginRunner.executeEntryPoint(capturedPluginId, capturedItem.entryPoint);
-                            } else {
-                                PluginRunner.replayAction(capturedPluginId, capturedItem.entryPoint);
-                                GlobalStates.launcherOpen = false;
-                            }
-                            return;
-                        }
-
-                        if (capturedItem.execute?.command) {
-                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id, capturedQuery, capturedLaunchFromEmpty);
-                            Quickshell.execDetached(capturedItem.execute.command);
-                        }
-                        if (capturedItem.execute?.notify) {
-                            Quickshell.execDetached([
-                                "notify-send",
-                                capturedItem._pluginName ?? "Plugin",
-                                capturedItem.execute.notify,
-                                "-a",
-                                "Shell"
-                            ]);
-                        }
-                        if (capturedItem.execute?.close) {
-                            GlobalStates.launcherOpen = false;
-                        }
+                        // Non-app items: execute via handler
+                        const entryPoint = capturedItem.entryPoint ?? {
+                            step: "action",
+                            selected: { id: capturedItem.id }
+                        };
+                        PluginRunner.executeAction(capturedPluginId, entryPoint, capturedKeepOpen);
                     }
-                })(item, appId, isAppItem, item._pluginId, launchFromEmpty, query);
+                })(item, appId, isAppItem, item._pluginId, launchFromEmpty, query, itemKeepOpen);
         
         const resultObj = dependencies.resultComponent.createObject(null, props);
         

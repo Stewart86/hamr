@@ -696,17 +696,17 @@ Type `/hello` to try it!
 }
 ```
 
-**Execute Command:**
+**Execute Action (Safe API):**
 ```json
 {
   "type": "execute",
-  "execute": {
-    "command": ["xdg-open", "/path/to/file"],
-    "name": "Open file.pdf",
-    "close": true
-  }
+  "open": "/path/to/file",
+  "name": "Open file.pdf",
+  "close": true
 }
 ```
+
+Available safe actions: `launch` (desktop file), `copy` (clipboard), `typeText` (type via ydotool), `openUrl`, `open` (xdg-open), `notify`, `sound`.
 
 **Open Image Browser:**
 ```json

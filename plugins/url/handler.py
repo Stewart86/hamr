@@ -42,9 +42,8 @@ def main():
                         "description": "Open in browser",
                         "icon": "open_in_browser",
                         "verb": "Open",
-                        "execute": {
-                            "command": ["xdg-open", url],
-                        },
+                        "openUrl": url,
+                        "close": True,
                         "actions": [
                             {
                                 "id": "copy",
@@ -107,11 +106,9 @@ def main():
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["wl-copy", url],
-                            "notify": f"Copied: {url}",
-                            "close": True,
-                        },
+                        "copy": url,
+                        "notify": f"Copied: {url}",
+                        "close": True,
                     }
                 )
             )
@@ -122,12 +119,8 @@ def main():
             json.dumps(
                 {
                     "type": "execute",
-                    "execute": {
-                        "command": ["xdg-open", url],
-                        "name": f"Open {url}",
-                        "icon": "open_in_browser",
-                        "close": True,
-                    },
+                    "openUrl": url,
+                    "close": True,
                 }
             )
         )

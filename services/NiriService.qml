@@ -188,11 +188,11 @@ Singleton {
         const existingIndex = windows.findIndex(w => w.id === window.id);
 
         if (existingIndex >= 0) {
-            const updatedWindows = [...windows];
+            const updatedWindows = windows.slice();
             updatedWindows[existingIndex] = window;
             windows = updatedWindows;
         } else {
-            windows = [...windows, window];
+            windows = windows.concat([window]);
         }
         windowListChanged();
     }

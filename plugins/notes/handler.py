@@ -251,7 +251,11 @@ def note_to_index_item(note: dict) -> dict:
                 "id": "copy",
                 "name": "Copy",
                 "icon": "content_copy",
-                "command": ["wl-copy", f"{title}\n\n{content}"],
+                "entryPoint": {
+                    "step": "action",
+                    "selected": {"id": note_id},
+                    "action": "copy",
+                },
             },
         ],
         "entryPoint": {
@@ -464,10 +468,8 @@ def handle_request(request: dict, notes: list[dict]) -> None:
             respond(
                 {
                     "type": "execute",
-                    "execute": {
-                        "notify": f"Note '{truncate(note.get('title', ''), 20)}' copied",
-                        "close": True,
-                    },
+                    "notify": f"Note '{truncate(note.get('title', ''), 20)}' copied",
+                    "close": True,
                 }
             )
             return

@@ -338,8 +338,7 @@ def quicklink_to_index_item(link: dict) -> dict:
     # If no query placeholder, can execute directly
     if not has_query:
         item["execute"] = {
-            "command": ["xdg-open", url],
-            "name": f"Open {name}",  # Enable history tracking
+            "openUrl": url,
         }
     # If has query, open the plugin for user to enter search term
     else:
@@ -509,12 +508,8 @@ def handle_request(request: dict, quicklinks: list[dict], current_query: str) ->
                 emit(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["xdg-open", url],
-                            "name": f"{link['name']}: {query}",
-                            "icon": link.get("icon", "search"),
-                            "close": True,
-                        },
+                        "openUrl": url,
+                        "close": True,
                     }
                 )
             else:
@@ -636,12 +631,8 @@ def handle_request(request: dict, quicklinks: list[dict], current_query: str) ->
                 emit(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["xdg-open", url],
-                            "name": f"Open {link_name}",
-                            "icon": link.get("icon", "link"),
-                            "close": True,
-                        },
+                        "openUrl": url,
+                        "close": True,
                     }
                 )
             return current_query
@@ -658,12 +649,8 @@ def handle_request(request: dict, quicklinks: list[dict], current_query: str) ->
                 emit(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["xdg-open", url],
-                            "name": f"{link_name}: {search_query}",
-                            "icon": link.get("icon", "search"),
-                            "close": True,
-                        },
+                        "openUrl": url,
+                        "close": True,
                     }
                 )
             return current_query
@@ -704,12 +691,8 @@ def handle_request(request: dict, quicklinks: list[dict], current_query: str) ->
         emit(
             {
                 "type": "execute",
-                "execute": {
-                    "command": ["xdg-open", url_template],
-                    "name": f"Open {link['name']}",
-                    "icon": link.get("icon", "link"),
-                    "close": True,
-                },
+                "openUrl": url_template,
+                "close": True,
             }
         )
         return current_query

@@ -559,101 +559,64 @@ def main():
 
         # Uninstall action
         if action == "uninstall":
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": [
-                                "bash",
-                                "-c",
-                                f'notify-send "Flathub" "Uninstalling {app_name}..." -a "Hamr" && '
-                                f"(flatpak uninstall --user -y {selected_id} 2>/dev/null || flatpak uninstall -y {selected_id}) && "
-                                f'notify-send "Flathub" "{app_name} uninstalled" -a "Hamr" && '
-                                f"qs -c hamr ipc call pluginRunner reindex apps || "
-                                f'notify-send "Flathub" "Failed to uninstall {app_name}" -a "Hamr"',
-                            ],
-                            "close": True,
-                        },
-                    }
+            try:
+                cmd = (
+                    f'notify-send "Flathub" "Uninstalling {app_name}..." -a "Hamr" && '
+                    f"(flatpak uninstall --user -y {selected_id} 2>/dev/null || flatpak uninstall -y {selected_id}) && "
+                    f'notify-send "Flathub" "{app_name} uninstalled" -a "Hamr" && '
+                    f"qs -c hamr ipc call pluginRunner reindex apps || "
+                    f'notify-send "Flathub" "Failed to uninstall {app_name}" -a "Hamr"'
                 )
-            )
+                subprocess.Popen(["bash", "-c", cmd])
+                print(json.dumps({"type": "close"}))
+            except Exception as e:
+                print(json.dumps({"type": "error", "message": f"Failed to uninstall: {str(e)}"}))
             return
 
         # Open on Flathub website
         if action == "open_web":
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": ["xdg-open", f"{FLATHUB_WEB}/{selected_id}"],
-                            "close": True,
-                        },
-                    }
-                )
-            )
+            print(json.dumps({"type": "execute", "openUrl": f"{FLATHUB_WEB}/{selected_id}", "close": True}))
             return
 
         # Install action
         if action == "install":
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": [
-                                "bash",
-                                "-c",
-                                f'notify-send "Flathub" "Installing {app_name}..." -a "Hamr" && '
-                                f"(flatpak install --user -y flathub {selected_id} 2>/dev/null || flatpak install -y flathub {selected_id}) && "
-                                f'notify-send "Flathub" "{app_name} installed" -a "Hamr" && '
-                                f"qs -c hamr ipc call pluginRunner reindex apps || "
-                                f'notify-send "Flathub" "Failed to install {app_name}" -a "Hamr"',
-                            ],
-                            "close": True,
-                        },
-                    }
+            try:
+                cmd = (
+                    f'notify-send "Flathub" "Installing {app_name}..." -a "Hamr" && '
+                    f"(flatpak install --user -y flathub {selected_id} 2>/dev/null || flatpak install -y flathub {selected_id}) && "
+                    f'notify-send "Flathub" "{app_name} installed" -a "Hamr" && '
+                    f"qs -c hamr ipc call pluginRunner reindex apps || "
+                    f'notify-send "Flathub" "Failed to install {app_name}" -a "Hamr"'
                 )
-            )
+                subprocess.Popen(["bash", "-c", cmd])
+                print(json.dumps({"type": "close"}))
+            except Exception as e:
+                print(json.dumps({"type": "error", "message": f"Failed to install: {str(e)}"}))
             return
 
         # Default action: Install or Open
         if is_installed:
             # Open the installed app
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": ["flatpak", "run", selected_id],
-                            "close": True,
-                        },
-                    }
-                )
-            )
+            try:
+                subprocess.Popen(["flatpak", "run", selected_id])
+                print(json.dumps({"type": "close"}))
+            except Exception as e:
+                print(json.dumps({"type": "error", "message": f"Failed to open app: {str(e)}"}))
         else:
             # Install the app (non-blocking with notifications)
             # Try user install first, fall back to system install
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": [
-                                "bash",
-                                "-c",
-                                f'notify-send "Flathub" "Installing {app_name}..." -a "Hamr" && '
-                                f"(flatpak install --user -y flathub {selected_id} 2>/dev/null || flatpak install -y flathub {selected_id}) && "
-                                f'notify-send "Flathub" "{app_name} installed" -a "Hamr" && '
-                                f"qs -c hamr ipc call pluginRunner reindex apps || "
-                                f'notify-send "Flathub" "Failed to install {app_name}" -a "Hamr"',
-                            ],
-                            "close": True,
-                        },
-                    }
+            try:
+                cmd = (
+                    f'notify-send "Flathub" "Installing {app_name}..." -a "Hamr" && '
+                    f"(flatpak install --user -y flathub {selected_id} 2>/dev/null || flatpak install -y flathub {selected_id}) && "
+                    f'notify-send "Flathub" "{app_name} installed" -a "Hamr" && '
+                    f"qs -c hamr ipc call pluginRunner reindex apps || "
+                    f'notify-send "Flathub" "Failed to install {app_name}" -a "Hamr"'
                 )
-            )
+                subprocess.Popen(["bash", "-c", cmd])
+                print(json.dumps({"type": "close"}))
+            except Exception as e:
+                print(json.dumps({"type": "error", "message": f"Failed to install: {str(e)}"}))
         return
 
 

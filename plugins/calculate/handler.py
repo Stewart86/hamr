@@ -388,10 +388,8 @@ def main():
                             "description": query,
                             "icon": "calculate",
                             "verb": "Copy",
-                            "execute": {
-                                "command": ["wl-copy", result],
-                                "notify": f"Copied: {result}",
-                            },
+                            "copy": result,
+                            "notify": f"Copied: {result}",
                             "priority": 100,
                         },
                     }
@@ -469,11 +467,8 @@ def main():
                                 "description": f"= {query}",
                                 "icon": "calculate",
                                 "verb": "Copy",
-                                "execute": {
-                                    "command": ["wl-copy", result],
-                                    "notify": f"Copied: {result}",
-                                    "name": f"Calculate: {query} = {result}",
-                                },
+                                "copy": result,
+                                "notify": f"Copied: {result}",
                             }
                         ],
                         "inputMode": "realtime",
@@ -525,13 +520,9 @@ def main():
                     json.dumps(
                         {
                             "type": "execute",
-                            "execute": {
-                                "command": ["wl-copy", result],
-                                "notify": f"Copied: {result}",
-                                "name": f"Calculate: {original_query} = {result}",
-                                "icon": "calculate",
-                                "close": True,
-                            },
+                            "copy": result,
+                            "notify": f"Copied: {result}",
+                            "close": True,
                         }
                     )
                 )
@@ -550,13 +541,9 @@ def main():
                     json.dumps(
                         {
                             "type": "execute",
-                            "execute": {
-                                "command": ["wl-copy", result],
-                                "notify": f"Copied: {result}",
-                                "name": f"Calculate: {query} = {result}",
-                                "icon": "calculate",
-                                "close": True,
-                            },
+                            "copy": result,
+                            "notify": f"Copied: {result}",
+                            "close": True,
                         }
                     )
                 )

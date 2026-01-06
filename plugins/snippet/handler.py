@@ -603,16 +603,20 @@ def handle_request(request: dict, snippets: list[dict]) -> list[dict]:
             snippet = next((s for s in snippets if s["key"] == selected_id), None)
             if snippet:
                 expanded_value = expand_variables(snippet["value"])
+                # Copy in handler
+                if not TEST_MODE:
+                    subprocess.run(
+                        ["wl-copy", expanded_value],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
                 emit(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["wl-copy", expanded_value],
-                            "name": f"Copy snippet: {selected_id}",
-                            "icon": "content_copy",
-                            "notify": f"Copied '{selected_id}' to clipboard",
-                            "close": True,
-                        },
+                        "name": f"Copy snippet: {selected_id}",
+                        "icon": "content_copy",
+                        "notify": f"Copied '{selected_id}' to clipboard",
+                        "close": True,
                     }
                 )
             return snippets
@@ -659,37 +663,35 @@ def handle_request(request: dict, snippets: list[dict]) -> list[dict]:
         if not check_ydotool():
             # Fallback to clipboard
             expanded_value = expand_variables(snippet["value"])
+            if not TEST_MODE:
+                subprocess.run(
+                    ["wl-copy", expanded_value],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
             emit(
                 {
                     "type": "execute",
-                    "execute": {
-                        "command": ["wl-copy", expanded_value],
-                        "name": f"Copy snippet: {selected_id}",
-                        "icon": "content_copy",
-                        "notify": f"ydotool not found. Copied '{selected_id}' to clipboard instead.",
-                        "close": True,
-                    },
+                    "name": f"Copy snippet: {selected_id}",
+                    "icon": "content_copy",
+                    "notify": f"ydotool not found. Copied '{selected_id}' to clipboard instead.",
+                    "close": True,
                 }
             )
             return snippets
 
         # Use ydotool to type the snippet value
-        # Add delay to allow launcher to close and focus to return
+        # Hamr will wait for launcher to close before typing
         raw_value = snippet["value"]
         expanded_value = expand_variables(raw_value)
+
         emit(
             {
                 "type": "execute",
-                "execute": {
-                    "command": [
-                        "bash",
-                        "-c",
-                        f"sleep 0.{TYPE_DELAY_MS} && ydotool type --key-delay 0 -- {repr(expanded_value)}",
-                    ],
-                    "name": f"Insert snippet: {selected_id}",
-                    "icon": "content_paste",
-                    "close": True,
-                },
+                "typeText": expanded_value,
+                "name": f"Insert snippet: {selected_id}",
+                "icon": "content_paste",
+                "close": True,
             }
         )
         return snippets

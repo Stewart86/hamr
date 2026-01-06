@@ -357,10 +357,8 @@ def main():
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["xdg-open", f"{AUR_WEB}/{pkg_name}"],
-                            "close": True,
-                        },
+                        "openUrl": f"{AUR_WEB}/{pkg_name}",
+                        "close": True,
                     }
                 )
             )
@@ -371,52 +369,44 @@ def main():
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["xdg-open", f"{AUR_WEB}/{pkg_name}"],
-                            "close": True,
-                        },
+                        "openUrl": f"{AUR_WEB}/{pkg_name}",
+                        "close": True,
                     }
                 )
             )
             return
 
         if action == "uninstall":
+            cmd = (
+                f'notify-send "AUR" "Uninstalling {pkg_name}..." -a "Hamr" && '
+                f"{aur_helper} -Rns --noconfirm {pkg_name} && "
+                f'notify-send "AUR" "{pkg_name} uninstalled" -a "Hamr" || '
+                f'notify-send "AUR" "Failed to uninstall {pkg_name}" -a "Hamr"'
+            )
+            subprocess.Popen(["bash", "-c", cmd])
             print(
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": [
-                                "bash",
-                                "-c",
-                                f'notify-send "AUR" "Uninstalling {pkg_name}..." -a "Hamr" && '
-                                f"{aur_helper} -Rns --noconfirm {pkg_name} && "
-                                f'notify-send "AUR" "{pkg_name} uninstalled" -a "Hamr" || '
-                                f'notify-send "AUR" "Failed to uninstall {pkg_name}" -a "Hamr"',
-                            ],
-                            "close": True,
-                        },
+                        "close": True,
                     }
                 )
             )
             return
 
         if action == "install":
+            cmd = (
+                f'notify-send "AUR" "Installing {pkg_name}..." -a "Hamr" && '
+                f"{aur_helper} -S --noconfirm {pkg_name} && "
+                f'notify-send "AUR" "{pkg_name} installed" -a "Hamr" || '
+                f'notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
+            )
+            subprocess.Popen(["bash", "-c", cmd])
             print(
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": [
-                                "bash",
-                                "-c",
-                                f'notify-send "AUR" "Installing {pkg_name}..." -a "Hamr" && '
-                                f"{aur_helper} -S --noconfirm {pkg_name} && "
-                                f'notify-send "AUR" "{pkg_name} installed" -a "Hamr" || '
-                                f'notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"',
-                            ],
-                            "close": True,
-                        },
+                        "close": True,
                     }
                 )
             )
@@ -430,29 +420,24 @@ def main():
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["xdg-open", f"{AUR_WEB}/{pkg_name}"],
-                            "close": True,
-                        },
+                        "openUrl": f"{AUR_WEB}/{pkg_name}",
+                        "close": True,
                     }
                 )
             )
         else:
+            cmd = (
+                f'notify-send "AUR" "Installing {pkg_name}..." -a "Hamr" && '
+                f"{aur_helper} -S --noconfirm {pkg_name} && "
+                f'notify-send "AUR" "{pkg_name} installed" -a "Hamr" || '
+                f'notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
+            )
+            subprocess.Popen(["bash", "-c", cmd])
             print(
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": [
-                                "bash",
-                                "-c",
-                                f'notify-send "AUR" "Installing {pkg_name}..." -a "Hamr" && '
-                                f"{aur_helper} -S --noconfirm {pkg_name} && "
-                                f'notify-send "AUR" "{pkg_name} installed" -a "Hamr" || '
-                                f'notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"',
-                            ],
-                            "close": True,
-                        },
+                        "close": True,
                     }
                 )
             )

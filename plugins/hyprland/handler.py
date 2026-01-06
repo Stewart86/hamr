@@ -579,10 +579,8 @@ def shortcut_to_index_item(shortcut: dict) -> dict:
             "shortcut",
             "global",
         ],
-        "execute": {
+        "entryPoint": {
             "command": ["hyprctl", "dispatch", "global", shortcut_id],
-            "name": description,
-            "icon": "keyboard",
         },
     }
 
@@ -680,7 +678,7 @@ def window_to_index_item(window: dict) -> dict:
         "icon": window_class,
         "iconType": "system",
         "verb": "Focus",
-        "execute": {
+        "entryPoint": {
             "command": ["hyprctl", "dispatch", "focuswindow", f"address:{address}"],
         },
     }
@@ -852,16 +850,14 @@ def dispatcher_to_index_item(dispatcher: dict) -> dict:
         ],
     }
 
-    # Add execute for dispatchers with static params (can be executed directly)
+    # Add entryPoint for dispatchers with static params (can be executed directly)
     if dispatcher.get("param_type") != "workspace":
         cmd = ["hyprctl", "dispatch", dispatcher.get("dispatcher", "")]
         param = dispatcher.get("param", "")
         if param:
             cmd.append(param)
-        item["execute"] = {
+        item["entryPoint"] = {
             "command": cmd,
-            "name": name,
-            "icon": icon,
         }
 
     return item
@@ -959,10 +955,8 @@ def generate_workspace_index_items() -> list[dict]:
                     f"go to {ws}",
                     f"switch to {ws}",
                 ],
-                "execute": {
+                "entryPoint": {
                     "command": ["hyprctl", "dispatch", "workspace", str(ws)],
-                    "name": goto_name,
-                    "icon": icon,
                 },
             }
         )
@@ -974,10 +968,8 @@ def generate_workspace_index_items() -> list[dict]:
                 "icon": icon,
                 "verb": "Run",
                 "keywords": [f"move to {ws}", f"send to {ws}", f"move workspace {ws}"],
-                "execute": {
+                "entryPoint": {
                     "command": ["hyprctl", "dispatch", "movetoworkspace", str(ws)],
-                    "name": move_name,
-                    "icon": icon,
                 },
             }
         )
@@ -991,10 +983,8 @@ def generate_workspace_index_items() -> list[dict]:
             "icon": "visibility",
             "verb": "Run",
             "keywords": ["scratchpad", "special", "toggle special", "scratch"],
-            "execute": {
+            "entryPoint": {
                 "command": ["hyprctl", "dispatch", "togglespecialworkspace"],
-                "name": "Toggle Scratchpad",
-                "icon": "visibility",
             },
         }
     )
@@ -1006,10 +996,8 @@ def generate_workspace_index_items() -> list[dict]:
             "icon": "visibility_off",
             "verb": "Run",
             "keywords": ["move to scratchpad", "send to special", "move special"],
-            "execute": {
+            "entryPoint": {
                 "command": ["hyprctl", "dispatch", "movetoworkspacesilent", "special"],
-                "name": "Move to Scratchpad",
-                "icon": "visibility_off",
             },
         }
     )
@@ -1023,10 +1011,8 @@ def generate_workspace_index_items() -> list[dict]:
             "icon": "arrow_forward",
             "verb": "Run",
             "keywords": ["next workspace", "workspace next", "ws next"],
-            "execute": {
+            "entryPoint": {
                 "command": ["hyprctl", "dispatch", "workspace", "+1"],
-                "name": "Next Workspace",
-                "icon": "arrow_forward",
             },
         }
     )
@@ -1044,10 +1030,8 @@ def generate_workspace_index_items() -> list[dict]:
                 "ws prev",
                 "back workspace",
             ],
-            "execute": {
+            "entryPoint": {
                 "command": ["hyprctl", "dispatch", "workspace", "-1"],
-                "name": "Previous Workspace",
-                "icon": "arrow_back",
             },
         }
     )
@@ -1059,10 +1043,8 @@ def generate_workspace_index_items() -> list[dict]:
             "icon": "add_box",
             "verb": "Run",
             "keywords": ["empty workspace", "new workspace", "blank workspace"],
-            "execute": {
+            "entryPoint": {
                 "command": ["hyprctl", "dispatch", "workspace", "empty"],
-                "name": "Go to Empty Workspace",
-                "icon": "add_box",
             },
         }
     )
@@ -1189,7 +1171,7 @@ def handle_request(input_data: dict):
         item_id = selected.get("id", "")
 
         if item_id == "__empty__":
-            print(json.dumps({"type": "execute", "execute": {"close": True}}))
+            print(json.dumps({"type": "execute", "close": True}))
             return
 
         if item_id.startswith("shortcut:"):
@@ -1206,10 +1188,8 @@ def handle_request(input_data: dict):
                     json.dumps(
                         {
                             "type": "execute",
-                            "execute": {
-                                "close": True,
-                                "notify": f"Would run: {' '.join(cmd)}",
-                            },
+                            "close": True,
+                            "notify": f"Would run: {' '.join(cmd)}",
                         }
                     )
                 )
@@ -1220,7 +1200,8 @@ def handle_request(input_data: dict):
                     json.dumps(
                         {
                             "type": "execute",
-                            "execute": {"close": True, "notify": f"{name} executed"},
+                            "close": True,
+                            "notify": f"{name} executed",
                         }
                     )
                 )
@@ -1262,10 +1243,8 @@ def handle_request(input_data: dict):
                         json.dumps(
                             {
                                 "type": "execute",
-                                "execute": {
-                                    "close": True,
-                                    "notify": f"Would run: {' '.join(cmd)}",
-                                },
+                                "close": True,
+                                "notify": f"Would run: {' '.join(cmd)}",
                             }
                         )
                     )
@@ -1276,10 +1255,8 @@ def handle_request(input_data: dict):
                         json.dumps(
                             {
                                 "type": "execute",
-                                "execute": {
-                                    "close": True,
-                                    "notify": f"{name} executed",
-                                },
+                                "close": True,
+                                "notify": f"{name} executed",
                             }
                         )
                     )
@@ -1297,10 +1274,8 @@ def handle_request(input_data: dict):
                         json.dumps(
                             {
                                 "type": "execute",
-                                "execute": {
-                                    "close": True,
-                                    "notify": f"Would run: {' '.join(cmd)}",
-                                },
+                                "close": True,
+                                "notify": f"Would run: {' '.join(cmd)}",
                             }
                         )
                     )
@@ -1311,10 +1286,8 @@ def handle_request(input_data: dict):
                         json.dumps(
                             {
                                 "type": "execute",
-                                "execute": {
-                                    "close": True,
-                                    "notify": f"{name} executed",
-                                },
+                                "close": True,
+                                "notify": f"{name} executed",
                             }
                         )
                     )
@@ -1331,10 +1304,8 @@ def handle_request(input_data: dict):
                         json.dumps(
                             {
                                 "type": "execute",
-                                "execute": {
-                                    "close": True,
-                                    "notify": f"Would run: {' '.join(cmd)}",
-                                },
+                                "close": True,
+                                "notify": f"Would run: {' '.join(cmd)}",
                             }
                         )
                     )
@@ -1345,10 +1316,8 @@ def handle_request(input_data: dict):
                         json.dumps(
                             {
                                 "type": "execute",
-                                "execute": {
-                                    "close": True,
-                                    "notify": f"{name} executed",
-                                },
+                                "close": True,
+                                "notify": f"{name} executed",
                             }
                         )
                     )
@@ -1385,7 +1354,8 @@ def handle_request(input_data: dict):
                     json.dumps(
                         {
                             "type": "execute",
-                            "execute": {"close": True, "notify": message},
+                            "close": True,
+                            "notify": message,
                         }
                     )
                 )
@@ -1447,7 +1417,7 @@ def handle_request(input_data: dict):
 
             success, message = focus_window(address)
             if success:
-                print(json.dumps({"type": "execute", "execute": {"close": True}}))
+                print(json.dumps({"type": "execute", "close": True}))
             else:
                 print(json.dumps({"type": "error", "message": message}))
             return

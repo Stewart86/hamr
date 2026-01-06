@@ -136,13 +136,8 @@ def main():
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["xdg-open", file_path],
-                            "name": f"Open {filename}",
-                            "icon": "screenshot_monitor",
-                            "thumbnail": file_path,
-                            "close": True,
-                        },
+                        "open": file_path,
+                        "close": True,
                     }
                 )
             )
@@ -150,21 +145,20 @@ def main():
 
         # Copy image to clipboard
         if action_id == "copy":
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": ["bash", "-c", f"wl-copy < '{file_path}'"],
+            try:
+                with open(file_path, "rb") as f:
+                    subprocess.Popen(["wl-copy"], stdin=f)
+                print(
+                    json.dumps(
+                        {
+                            "type": "execute",
                             "notify": f"Copied: {filename}",
-                            "name": f"Copy image: {filename}",
-                            "icon": "content_copy",
-                            "thumbnail": file_path,
                             "close": True,
-                        },
-                    }
+                        }
+                    )
                 )
-            )
+            except (FileNotFoundError, subprocess.SubprocessError, IOError):
+                print(json.dumps({"type": "error", "message": "Failed to copy image"}))
             return
 
         # OCR and copy text
@@ -178,46 +172,50 @@ def main():
                     json.dumps(
                         {
                             "type": "execute",
-                            "execute": {
-                                "notify": "No text found in image",
-                                "close": False,
-                            },
+                            "notify": "No text found in image",
+                            "close": False,
                         }
                     )
                 )
                 return
 
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": ["wl-copy", ocr_text],
-                            "notify": f"Copied text ({len(ocr_text)} chars)",
-                            "name": f"Copy OCR: {filename}",
-                            "icon": "text_fields",
-                            "thumbnail": file_path,
-                            "close": True,
-                        },
-                    }
+            try:
+                process = subprocess.Popen(
+                    ["wl-copy"], stdin=subprocess.PIPE, text=True
                 )
-            )
+                process.communicate(input=ocr_text)
+                print(
+                    json.dumps(
+                        {
+                            "type": "execute",
+                            "notify": f"Copied text ({len(ocr_text)} chars)",
+                            "close": True,
+                        }
+                    )
+                )
+            except (subprocess.SubprocessError, OSError):
+                print(json.dumps({"type": "error", "message": "Failed to copy text"}))
             return
 
         # Delete (move to trash)
         if action_id == "delete":
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": ["gio", "trash", file_path],
+            try:
+                subprocess.run(
+                    ["gio", "trash", file_path],
+                    check=True,
+                    capture_output=True,
+                )
+                print(
+                    json.dumps(
+                        {
+                            "type": "execute",
                             "notify": f"Deleted: {filename}",
                             "close": False,
-                        },
-                    }
+                        }
+                    )
                 )
-            )
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                print(json.dumps({"type": "error", "message": "Failed to delete file"}))
             return
 
         # Default: open
@@ -225,13 +223,8 @@ def main():
             json.dumps(
                 {
                     "type": "execute",
-                    "execute": {
-                        "command": ["xdg-open", file_path],
-                        "name": f"Open {filename}",
-                        "icon": "screenshot_monitor",
-                        "thumbnail": file_path,
-                        "close": True,
-                    },
+                    "open": file_path,
+                    "close": True,
                 }
             )
         )

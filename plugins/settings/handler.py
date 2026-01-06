@@ -1025,10 +1025,8 @@ def main():
                     json.dumps(
                         {
                             "type": "execute",
-                            "execute": {
-                                "notify": "Cache cleared. Restart Hamr to reindex plugins.",
-                                "close": True,
-                            },
+                            "notify": "Cache cleared. Restart Hamr to reindex plugins.",
+                            "close": True,
                         }
                     )
                 )

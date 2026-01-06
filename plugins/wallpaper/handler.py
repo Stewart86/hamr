@@ -249,19 +249,13 @@ def main():
             if random_path:
                 mode = "dark"
                 command = build_wallpaper_command(random_path, mode)
-                filename = Path(random_path).name
                 save_wallpaper_to_history(random_path)
+                subprocess.Popen(command)
                 print(
                     json.dumps(
                         {
                             "type": "execute",
-                            "execute": {
-                                "command": command,
-                                "name": f"Random wallpaper: {filename}",
-                                "icon": "shuffle",
-                                "thumbnail": random_path,
-                                "close": True,
-                            },
+                            "close": True,
                         }
                     )
                 )
@@ -337,20 +331,14 @@ def main():
 
         mode = "dark"
         command = build_wallpaper_command(file_path, mode)
-        filename = Path(file_path).name
         save_wallpaper_to_history(file_path)
+        subprocess.Popen(command)
 
         print(
             json.dumps(
                 {
                     "type": "execute",
-                    "execute": {
-                        "command": command,
-                        "name": f"Set wallpaper: {filename}",
-                        "icon": "wallpaper",
-                        "thumbnail": file_path,
-                        "close": True,
-                    },
+                    "close": True,
                 }
             )
         )
@@ -406,22 +394,16 @@ def main():
 
         # Build command to set wallpaper
         command = build_wallpaper_command(file_path, mode)
-        filename = Path(file_path).name
 
         # Save to history
         save_wallpaper_to_history(file_path)
+        subprocess.Popen(command)
 
         print(
             json.dumps(
                 {
                     "type": "execute",
-                    "execute": {
-                        "command": command,
-                        "name": f"Set wallpaper: {filename}",
-                        "icon": "wallpaper",
-                        "thumbnail": file_path,
-                        "close": True,
-                    },
+                    "close": True,
                 }
             )
         )

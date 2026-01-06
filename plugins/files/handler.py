@@ -532,16 +532,13 @@ def main():
 
         # Copy path action
         if action == "copy_path":
-            # Use wl-copy for Wayland
             print(
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["wl-copy", path],
-                            "notify": f"Copied: {format_path(path)}",
-                            "close": True,
-                        },
+                        "copy": path,
+                        "notify": f"Copied: {format_path(path)}",
+                        "close": True,
                     }
                 )
             )
@@ -554,12 +551,8 @@ def main():
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["xdg-open", folder_path],
-                            "name": f"Open {format_path(folder_path)}",
-                            "icon": "folder_open",
-                            "close": True,
-                        },
+                        "open": folder_path,
+                        "close": True,
                     }
                 )
             )
@@ -568,20 +561,16 @@ def main():
         # Delete action
         if action == "delete":
             if os.path.isfile(path):
-                # Move to trash using gio
+                subprocess.Popen(["gio", "trash", path])
                 print(
                     json.dumps(
                         {
                             "type": "execute",
-                            "execute": {
-                                "command": ["gio", "trash", path],
-                                "notify": f"Moved to trash: {os.path.basename(path)}",
-                                "close": False,
-                            },
+                            "notify": f"Moved to trash: {os.path.basename(path)}",
+                            "close": False,
                         }
                     )
                 )
-                # Refresh results
                 return
             return
 
@@ -591,16 +580,8 @@ def main():
                 json.dumps(
                     {
                         "type": "execute",
-                        "execute": {
-                            "command": ["xdg-open", path],
-                            "name": f"Open {os.path.basename(path)}",
-                            "icon": get_file_icon(path),
-                            "thumbnail": path
-                            if Path(path).suffix.lower()
-                            in [".png", ".jpg", ".jpeg", ".gif", ".webp"]
-                            else "",
-                            "close": True,
-                        },
+                        "open": path,
+                        "close": True,
                     }
                 )
             )

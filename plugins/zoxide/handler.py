@@ -192,7 +192,7 @@ def dir_to_index_item(dir_info: dict) -> dict:
         "icon": "folder_special",
         "keywords": path_parts,
         "verb": "Open",
-        "execute": {"command": make_terminal_cmd(path)},
+        "entryPoint": path,
         "preview": {
             "type": "text",
             "content": preview_content,
@@ -206,13 +206,11 @@ def dir_to_index_item(dir_info: dict) -> dict:
                 "id": "files",
                 "name": "Open in Files",
                 "icon": "folder_open",
-                "command": ["xdg-open", path],
             },
             {
                 "id": "copy",
                 "name": "Copy Path",
                 "icon": "content_copy",
-                "command": ["wl-copy", path],
             },
         ],
     }
@@ -255,7 +253,44 @@ def handle_request(input_data: dict) -> None:
             print(json.dumps({"type": "index", "items": items}))
         return
 
-    print(json.dumps({"type": "error", "message": "Zoxide is index-only"}))
+    if step == "action":
+        action_id = input_data.get("actionId")
+        path = input_data.get("entryPoint")
+
+        if not path:
+            print(json.dumps({"type": "error", "message": "Missing path"}))
+            return
+
+        if action_id == "files":
+            try:
+                subprocess.Popen(["xdg-open", path])
+                print(json.dumps({"type": "execute", "close": True}))
+            except Exception as e:
+                print(json.dumps({"type": "error", "message": str(e)}))
+            return
+
+        if action_id == "copy":
+            try:
+                subprocess.run(
+                    ["wl-copy"],
+                    input=path.encode(),
+                    timeout=5,
+                )
+                print(json.dumps({"type": "execute", "close": True}))
+            except Exception as e:
+                print(json.dumps({"type": "error", "message": str(e)}))
+            return
+
+        # Default action: open terminal
+        try:
+            cmd = make_terminal_cmd(path)
+            subprocess.Popen(cmd)
+            print(json.dumps({"type": "execute", "close": True}))
+        except Exception as e:
+            print(json.dumps({"type": "error", "message": str(e)}))
+        return
+
+    print(json.dumps({"type": "error", "message": "Invalid request"}))
 
 
 def emit_full_index() -> None:

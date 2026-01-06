@@ -216,24 +216,22 @@ ydotool type --key-delay=0 -- {cmd_repr} {enter_key}
 def binary_to_index_item(binary: str) -> dict:
     """Convert a binary name to indexable item format for main search."""
     return {
-        "id": binary,  # Use raw binary name (matches result IDs for frecency)
+        "id": binary,
         "name": binary,
         "description": "Command",
         "icon": "terminal",
         "verb": "Run",
-        "execute": {"command": make_terminal_cmd_for_index(binary, execute=False)},
+        "entryPoint": "run",
         "actions": [
             {
                 "id": "run",
                 "name": "Run Now",
                 "icon": "play_arrow",
-                "command": make_terminal_cmd_for_index(binary, execute=True),
             },
             {
                 "id": "copy",
                 "name": "Copy",
                 "icon": "content_copy",
-                "command": ["wl-copy", binary],
             },
         ],
     }
@@ -281,19 +279,18 @@ def history_to_index_item(cmd: str) -> dict:
     display_cmd = cmd if len(cmd) <= 60 else cmd[:60] + "..."
 
     return {
-        "id": cmd,  # Use raw command (matches result IDs for frecency)
+        "id": cmd,
         "name": display_cmd,
         "description": "History",
         "keywords": cmd.lower().split()[:10],
         "icon": "history",
         "verb": "Run",
-        "execute": {"command": make_terminal_cmd_for_index(cmd, execute=True)},
+        "entryPoint": "run",
         "actions": [
             {
                 "id": "copy",
                 "name": "Copy",
                 "icon": "content_copy",
-                "command": ["wl-copy", cmd],
             }
         ],
     }
@@ -324,20 +321,16 @@ def handle_request(input_data: dict):
         mode = input_data.get("mode", "full")
         indexed_ids = set(input_data.get("indexedIds", []))
 
-        # Get command names from history to filter binaries
         history_cmd_names = get_history_command_names()
 
-        # Only index binaries that appear in shell history (commands actually used)
         binaries = get_path_binaries(filter_set=history_cmd_names)
         commands = get_shell_history()[:50]
 
-        # Build current ID sets
         current_bin_ids = {f"bin:{b}" for b in binaries}
         current_hist_ids = {f"history:{get_cmd_hash(c)}" for c in commands}
         current_ids = current_bin_ids | current_hist_ids
 
         if mode == "incremental" and indexed_ids:
-            # Find new items
             new_ids = current_ids - indexed_ids
 
             items = []
@@ -348,7 +341,6 @@ def handle_request(input_data: dict):
                 if f"history:{get_cmd_hash(cmd)}" in new_ids:
                     items.append(history_to_index_item(cmd))
 
-            # Find removed items
             removed_ids = list(indexed_ids - current_ids)
 
             print(
@@ -362,13 +354,11 @@ def handle_request(input_data: dict):
                 )
             )
         else:
-            # Full reindex
             items = get_index_items()
             print(json.dumps({"type": "index", "items": items}))
         return
 
     if step == "initial":
-        # Load and show initial history
         commands = get_shell_history()[:50]
         results = [
             {
@@ -394,13 +384,11 @@ def handle_request(input_data: dict):
         return
 
     if step == "search":
-        # Filter history by query
         commands = get_shell_history()
         filtered = fuzzy_filter(query, commands)
 
         results = []
 
-        # Always offer to run the raw query as a command (first result)
         if query:
             results.append(
                 {
@@ -420,7 +408,6 @@ def handle_request(input_data: dict):
                 }
             )
 
-        # Add history matches (skip if exact match with query to avoid duplicate)
         for cmd in filtered:
             if cmd == query:
                 continue
@@ -453,66 +440,21 @@ def handle_request(input_data: dict):
             print(json.dumps({"type": "error", "message": "No command selected"}))
             return
 
-        display_cmd = cmd if len(cmd) <= 50 else cmd[:50] + "..."
-
         if action == "run-float":
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": make_terminal_cmd(cmd, floating=True),
-                            "name": f"Run: {display_cmd}",
-                            "icon": "terminal",
-                            "close": True,
-                        },
-                    }
-                )
-            )
+            subprocess.Popen(make_terminal_cmd(cmd, floating=True))
+            print(json.dumps({"type": "execute", "close": True}))
         elif action == "run-tiled":
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": make_terminal_cmd(cmd, floating=False),
-                            "name": f"Run: {display_cmd}",
-                            "icon": "terminal",
-                            "close": True,
-                        },
-                    }
-                )
-            )
+            subprocess.Popen(make_terminal_cmd(cmd, floating=False))
+            print(json.dumps({"type": "execute", "close": True}))
         elif action == "copy":
-            subprocess.run(["wl-copy", cmd], check=False)
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": ["true"],
-                            "name": f"Copy: {display_cmd}",
-                            "icon": "content_copy",
-                            "close": True,
-                        },
-                    }
-                )
-            )
+            subprocess.Popen(["wl-copy", cmd])
+            print(json.dumps({"type": "execute", "close": True}))
+        elif action == "run":
+            subprocess.Popen(make_terminal_cmd_for_index(cmd, execute=True))
+            print(json.dumps({"type": "execute", "close": True}))
         else:
-            # Default: run floating
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": make_terminal_cmd(cmd, floating=True),
-                            "name": f"Run: {display_cmd}",
-                            "icon": "terminal",
-                            "close": True,
-                        },
-                    }
-                )
-            )
+            subprocess.Popen(make_terminal_cmd(cmd, floating=True))
+            print(json.dumps({"type": "execute", "close": True}))
 
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"

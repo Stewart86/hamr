@@ -326,10 +326,8 @@ def main():
                         json.dumps(
                             {
                                 "type": "execute",
-                                "execute": {
-                                    "notify": f"Definition of '{word}' copied",
-                                    "close": True,
-                                },
+                                "notify": f"Definition of '{word}' copied",
+                                "close": True,
                             }
                         )
                     )

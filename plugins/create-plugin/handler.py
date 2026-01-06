@@ -90,7 +90,7 @@ Input JSON (stdin): {{"step": "initial|search|action", "query": "...", "selected
 Output JSON (stdout) - one of:
 - {{"type": "results", "results": [{{"id": "...", "name": "...", "description": "...", "icon": "..."}}]}}
 - {{"type": "card", "card": {{"title": "...", "content": "markdown content", "markdown": true}}}}
-- {{"type": "execute", "execute": {{"command": ["cmd", "args"], "close": true}}}}
+- {{"type": "execute", "close": true}} with optional: copy, openUrl, open, notify, sound, launch, typeText
 - {{"type": "imageBrowser", "imageBrowser": {{"directory": "~/Pictures", "title": "...", "actions": [...]}}}}
 - {{"type": "prompt", "prompt": {{"text": "Enter something..."}}}}
 
@@ -515,7 +515,7 @@ Communicates via JSON on stdin/stdout:
 **Output options:**
 - `{"type": "results", "results": [...]}`
 - `{"type": "card", "card": {"title": "...", "content": "...", "markdown": true}}`
-- `{"type": "execute", "execute": {"command": [...], "close": true}}`
+- `{"type": "execute", "close": true}` with optional: copy, openUrl, open, notify, sound, launch, typeText
 
 ## Using This Plugin
 

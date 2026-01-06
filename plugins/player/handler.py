@@ -402,13 +402,13 @@ def handle_step(input_data: dict):
                     emit(
                         {
                             "type": "execute",
-                            "execute": {"close": False},
+                            "close": False,
                         }
                     )
                     return
 
         if selected_id in ("__no_players__", "__no_match__"):
-            emit({"type": "execute", "execute": {"close": False}})
+            emit({"type": "execute", "close": False})
             return
 
         if selected_id == "__back__":
@@ -433,7 +433,7 @@ def handle_step(input_data: dict):
                 emit(
                     {
                         "type": "execute",
-                        "execute": {"close": False},
+                        "close": False,
                     }
                 )
                 return
@@ -448,7 +448,7 @@ def handle_step(input_data: dict):
                 emit(
                     {
                         "type": "execute",
-                        "execute": {"close": False},
+                        "close": False,
                     }
                 )
                 return
@@ -467,7 +467,7 @@ def handle_step(input_data: dict):
                     emit(
                         {
                             "type": "execute",
-                            "execute": {"close": False},
+                            "close": False,
                         }
                     )
                     return

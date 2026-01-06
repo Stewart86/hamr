@@ -435,10 +435,8 @@ def handle_timer_completion(timer: Timer) -> None:
     emit(
         {
             "type": "execute",
-            "execute": {
-                "sound": "alarm",
-                "notify": f"Timer completed: {timer.name}",
-            },
+            "sound": "alarm",
+            "notify": f"Timer completed: {timer.name}",
         }
     )
 
