@@ -53,11 +53,9 @@ detect_backend() {
             return
         fi
     fi
-    if command -v hyprctl &>/dev/null; then
-        if hyprctl hyprpaper listloaded &>/dev/null 2>&1; then
-            echo "hyprpaper"
-            return
-        fi
+    if command -v hyprctl &>/dev/null && pidof hyprpaper &>/dev/null; then
+        echo "hyprpaper"
+        return
     fi
     if command -v swaybg &>/dev/null; then
         echo "swaybg"
@@ -84,7 +82,6 @@ set_wallpaper() {
             swww img "$image" --transition-type fade --transition-duration 1
             ;;
         hyprpaper)
-            hyprctl hyprpaper preload "$image"
             hyprctl hyprpaper wallpaper ",$image"
             ;;
         swaybg)
