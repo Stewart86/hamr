@@ -82,7 +82,10 @@ set_wallpaper() {
             swww img "$image" --transition-type fade --transition-duration 1
             ;;
         hyprpaper)
-            hyprctl hyprpaper wallpaper ",$image"
+            # Set wallpaper on all monitors
+            hyprctl monitors -j | jq -r '.[].name' | while read -r monitor; do
+                hyprctl hyprpaper wallpaper "$monitor,$image"
+            done
             ;;
         swaybg)
             pkill swaybg || true
