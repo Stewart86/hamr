@@ -798,23 +798,23 @@ Singleton {
                 verb: "Open",
                 isSuggestion: true,
                 suggestionReason: reason,
-                execute: ((capturedAppItem, capturedAppId) => () => {
+                execute: ((capturedAppItem, capturedAppId, capturedItemId) => () => {
                     const currentWindows = WindowManager.getWindowsForApp(capturedAppId);
                     if (currentWindows.length === 0) {
-                        PluginRunner.recordExecution("apps", capturedAppId);
+                        PluginRunner.recordExecution("apps", capturedItemId);
                         ContextTracker.recordLaunch(capturedAppId);
                         if (capturedAppItem.execute?.command) {
                             Quickshell.execDetached(capturedAppItem.execute.command);
                         }
                     } else if (currentWindows.length === 1) {
-                        PluginRunner.recordExecution("apps", capturedAppId);
+                        PluginRunner.recordExecution("apps", capturedItemId);
                         ContextTracker.recordLaunch(capturedAppId);
                         WindowManager.focusWindow(currentWindows[0]);
                         GlobalStates.launcherOpen = false;
                     } else {
-                        GlobalStates.openWindowPicker(capturedAppId, currentWindows);
+                        GlobalStates.openWindowPicker(capturedAppId, currentWindows, capturedItemId);
                     }
-                })(appItem, appId)
+                })(appItem, appId, appItem.id)
             });
         }).filter(Boolean);
     }
@@ -1040,7 +1040,7 @@ Singleton {
                                   WindowManager.focusWindow(currentWindows[0]);
                                   GlobalStates.launcherOpen = false;
                               } else {
-                                  GlobalStates.openWindowPicker(capturedItem.appId, currentWindows);
+                                  GlobalStates.openWindowPicker(capturedItem.appId, currentWindows, capturedItem.id);
                               }
                           } else if (capturedItem.entryPoint) {
                               PluginRunner.replayAction(capturedPluginId, capturedItem.entryPoint);

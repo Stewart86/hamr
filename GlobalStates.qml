@@ -121,14 +121,16 @@ Singleton {
     // Window picker for switching between multiple windows of an app
     property bool windowPickerOpen: false
     property string windowPickerAppId: ""
+    property string windowPickerItemId: ""  // Full item ID for frecency recording
     property var windowPickerWindows: []
 
     // Signal emitted when user selects a window
     signal windowPickerSelected(var toplevel)
 
     // Open window picker for an app with multiple windows
-    function openWindowPicker(appId, windows) {
+    function openWindowPicker(appId, windows, itemId) {
         windowPickerAppId = appId;
+        windowPickerItemId = itemId ?? "";
         windowPickerWindows = windows;
         windowPickerOpen = true;
     }
@@ -137,6 +139,7 @@ Singleton {
     function closeWindowPicker() {
         windowPickerOpen = false;
         windowPickerAppId = "";
+        windowPickerItemId = "";
         windowPickerWindows = [];
     }
 

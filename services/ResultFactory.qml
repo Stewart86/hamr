@@ -383,7 +383,7 @@ Singleton {
                             WindowManager.focusWindow(currentWindows[0]);
                             GlobalStates.launcherOpen = false;
                         } else {
-                            GlobalStates.openWindowPicker(capturedAppId, currentWindows);
+                            GlobalStates.openWindowPicker(capturedAppId, currentWindows, capturedItem.id);
                         }
                     } else {
                         if (capturedItem.entryPoint) {
