@@ -367,19 +367,19 @@ Singleton {
         if (item.chips?.length > 0) props.chips = item.chips;
         
         const launchFromEmpty = !query || query === "";
-        props.execute = ((capturedItem, capturedAppId, capturedIsApp, capturedPluginId, capturedLaunchFromEmpty) => () => {
+        props.execute = ((capturedItem, capturedAppId, capturedIsApp, capturedPluginId, capturedLaunchFromEmpty, capturedQuery) => () => {
                     if (capturedIsApp) {
                         const currentWindows = WindowManager.getWindowsForApp(capturedAppId);
                         const currentWindowCount = currentWindows.length;
 
                         if (currentWindowCount === 0) {
-                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id, "", capturedLaunchFromEmpty);
+                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id, capturedQuery, capturedLaunchFromEmpty);
                             ContextTracker.recordLaunch(capturedAppId);
                             if (capturedItem.execute?.command) {
                                 Quickshell.execDetached(capturedItem.execute.command);
                             }
                         } else if (currentWindowCount === 1) {
-                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id, "", capturedLaunchFromEmpty);
+                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id, capturedQuery, capturedLaunchFromEmpty);
                             ContextTracker.recordLaunch(capturedAppId);
                             WindowManager.focusWindow(currentWindows[0]);
                             GlobalStates.launcherOpen = false;
@@ -398,7 +398,7 @@ Singleton {
                         }
 
                         if (capturedItem.execute?.command) {
-                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id);
+                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id, capturedQuery, capturedLaunchFromEmpty);
                             Quickshell.execDetached(capturedItem.execute.command);
                         }
                         if (capturedItem.execute?.notify) {
@@ -414,7 +414,7 @@ Singleton {
                             GlobalStates.launcherOpen = false;
                         }
                     }
-                })(item, appId, isAppItem, item._pluginId, launchFromEmpty);
+                })(item, appId, isAppItem, item._pluginId, launchFromEmpty, query);
         
         const resultObj = dependencies.resultComponent.createObject(null, props);
         
