@@ -63,6 +63,20 @@ Singleton {
     // SearchItem depends on this to re-evaluate visual properties (gauge, progress, badges, etc.)
     property int resultsVersion: 0
     
+    // Pending builtin search results - used for hybrid search (handler prepend + builtin)
+    // When a plugin has both indexed items and a search handler, we:
+    // 1. Do builtin search and store results here
+    // 2. Call handler's search step
+    // 3. Prepend handler results to these builtin results
+    property var _pendingBuiltinResults: null
+    
+    // Track last search query - sent with action step so handlers can filter results
+    property string _lastSearchQuery: ""
+    
+    // Track handler prepend results from last search (e.g., "Add" item for todo)
+    // Used to restore these when re-filtering after action
+    property var _lastHandlerPrependResults: []
+    
      // Replay mode: when true, plugin is running a replay action (no UI needed)
      // Process should complete even if launcher closes
      property bool replayMode: false
@@ -626,11 +640,17 @@ Singleton {
     // ==================== BUILTIN SEARCH ====================
     // Automatically use hamr's search algorithm for plugins with indexed items.
     // Provides fuzzy matching + frecency + learned shortcuts.
+    // 
+    // Hybrid mode: If plugin has both indexed items AND a search handler,
+    // handler results are prepended to builtin results. This allows plugins
+    // to inject custom results (like "Add: {query}" for todo) while still
+    // benefiting from builtin fuzzy+frecency search.
     
     function doBuiltinSearch(pluginId, query) {
         const indexData = root.pluginIndexes[pluginId];
         if (!indexData?.items) {
             root.pluginResults = [];
+            root._pendingBuiltinResults = null;
             return;
         }
         
@@ -662,6 +682,7 @@ Singleton {
         
         if (searchables.length === 0) {
             root.pluginResults = [];
+            root._pendingBuiltinResults = null;
             return;
         }
         
@@ -691,15 +712,124 @@ Singleton {
         
         // Deduplicate (same item may match via name and history term)
         const seen = new Set();
-        const results = [];
+        const builtinResults = [];
         for (const match of fuzzyResults) {
             const item = match.obj.item;
             if (seen.has(item.id)) continue;
             seen.add(item.id);
-            results.push(item);
+            builtinResults.push(item);
         }
         
-        root.pluginResults = results;
+        // Check if plugin has a handler (not staticIndex only)
+        // If so, also call handler and merge results (handler prepends)
+        const manifest = root.activePlugin?.manifest;
+        const hasHandler = manifest && !manifest.staticIndex;
+        
+        if (hasHandler) {
+            // Store builtin results, call handler, merge when response arrives
+            root._pendingBuiltinResults = builtinResults;
+            root.callHandlerSearch(pluginId, query);
+        } else {
+            // No handler - just use builtin results
+            root._pendingBuiltinResults = null;
+            root.pluginResults = builtinResults;
+        }
+    }
+    
+    // Builtin search without calling handler - used after action responses
+    // to filter results without re-calling handler (avoids flicker)
+    // prependResults: optional results to prepend (e.g., "Add" item from previous response)
+    function doBuiltinSearchOnly(pluginId, query, prependResults) {
+        const indexData = root.pluginIndexes[pluginId];
+        if (!indexData?.items) {
+            return;
+        }
+        
+        const searchables = [];
+        for (const item of indexData.items) {
+            if (item.id === "__plugin__" || item._isPluginEntry) continue;
+            
+            searchables.push({
+                name: Fuzzy.prepare(item.name),
+                keywords: item.keywords?.length > 0 ? Fuzzy.prepare(item.keywords.join(" ")) : null,
+                item: item,
+                isHistoryTerm: false
+            });
+            
+            const recentTerms = item._recentSearchTerms ?? [];
+            for (const term of recentTerms) {
+                searchables.push({
+                    name: Fuzzy.prepare(term),
+                    item: item,
+                    isHistoryTerm: true,
+                    matchedTerm: term
+                });
+            }
+        }
+        
+        if (searchables.length === 0) {
+            root.pluginResults = prependResults ?? [];
+            return;
+        }
+        
+        const fuzzyResults = Fuzzy.go(query, searchables, {
+            keys: ["name", "keywords"],
+            limit: 100,
+            threshold: 0.25,
+            scoreFn: (result) => {
+                const searchable = result.obj;
+                const nameScore = result[0]?.score ?? 0;
+                const keywordsScore = result[1]?.score ?? 0;
+                const baseScore = nameScore * 1.0 + keywordsScore * 0.3;
+                const frecency = root.getItemFrecency(pluginId, searchable.item.id);
+                const frecencyBoost = Math.min(frecency * 0.02, 0.3);
+                const historyBoost = searchable.isHistoryTerm ? 0.2 : 0;
+                return baseScore + frecencyBoost + historyBoost;
+            }
+        });
+        
+        const seen = new Set();
+        const builtinResults = [];
+        for (const match of fuzzyResults) {
+            const item = match.obj.item;
+            if (seen.has(item.id)) continue;
+            seen.add(item.id);
+            builtinResults.push(item);
+        }
+        
+        // Prepend any special results (like "Add" item)
+        if (prependResults && prependResults.length > 0) {
+            const prependIds = new Set(prependResults.map(r => r.id));
+            const dedupedBuiltin = builtinResults.filter(r => !prependIds.has(r.id));
+            root.pluginResults = [...prependResults, ...dedupedBuiltin];
+        } else {
+            root.pluginResults = builtinResults;
+        }
+        root.resultsVersion++;
+    }
+    
+    // Call handler's search step for hybrid mode
+    function callHandlerSearch(pluginId, query) {
+        const input = {
+            step: "search",
+            query: query,
+            session: root.activePlugin?.session ?? ""
+        };
+        
+        if (root.lastSelectedItem) {
+            input.selected = { id: root.lastSelectedItem };
+        }
+        if (root.pluginContext) {
+            input.context = root.pluginContext;
+        }
+        
+        const isDaemonPlugin = root.activePlugin?.manifest?.daemon?.enabled;
+        if (isDaemonPlugin && root.runningDaemons[pluginId]) {
+            root.pluginBusy = true;
+            root.writeToDaemonStdin(pluginId, input);
+        } else {
+            sendToPlugin(input);
+        }
     }
     
     // Check if plugin has indexed items (for builtin search decision)
@@ -1263,6 +1393,9 @@ Singleton {
               return;
           }
           
+          // Track query for action step (so handlers can filter results)
+          root._lastSearchQuery = query;
+          
           const pluginId = root.activePlugin.id;
           
           // Use builtin search if plugin has indexed items and query is not empty
@@ -1338,6 +1471,12 @@ Singleton {
            // Include context if set (handler needs it for navigation state)
            if (root.pluginContext) {
                input.context = root.pluginContext;
+           }
+           
+           // Include current query so handler can return filtered results
+           // (especially important for plugins using hybrid search)
+           if (root._lastSearchQuery) {
+               input.query = root._lastSearchQuery;
            }
            
            // Use daemon if running, otherwise spawn new process
@@ -1523,23 +1662,26 @@ Singleton {
                }
            }
            
-           root.activePlugin = null;
-           root.pluginResults = [];
-           root.pluginCard = null;
-           root.pluginForm = null;
-           root.pluginPrompt = "";
-           root.pluginPlaceholder = "";
-           root.lastSelectedItem = null;
-           root.pluginContext = "";
-           root.pluginError = "";
-           root.pluginBusy = false;
-           root.inputMode = "realtime";
-           root.pluginActions = [];
-           root.navigationDepth = 0;
-           root.pendingNavigation = false;
-           root.pendingBack = false;
-           root.pluginClosed();
-       }
+            root.activePlugin = null;
+            root.pluginResults = [];
+            root.pluginCard = null;
+            root.pluginForm = null;
+            root.pluginPrompt = "";
+            root.pluginPlaceholder = "";
+            root.lastSelectedItem = null;
+            root.pluginContext = "";
+            root.pluginError = "";
+            root.pluginBusy = false;
+            root.inputMode = "realtime";
+            root.pluginActions = [];
+            root.navigationDepth = 0;
+            root.pendingNavigation = false;
+            root.pendingBack = false;
+            root._pendingBuiltinResults = null;
+            root._lastSearchQuery = "";
+            root._lastHandlerPrependResults = [];
+            root.pluginClosed();
+        }
        
         // Patch individual items in pluginResults without replacing the array
         // This is used for incremental updates (e.g., slider adjustments)
@@ -1852,21 +1994,75 @@ Singleton {
                     break;
                     
                case "results":
-                    root.pluginResults = response.results ?? [];
-                    root.resultsVersion++;
-                    root.pluginCard = null;
-                    root.pluginForm = null;
-                    if (response.placeholder !== undefined) {
-                        root.pluginPlaceholder = response.placeholder ?? "";
-                    }
-                    if (response.context !== undefined) {
-                        root.pluginContext = response.context ?? "";
-                    }
-                    root.inputMode = response.inputMode ?? "realtime";
-                    if (response.pluginActions !== undefined) {
-                        root.pluginActions = response.pluginActions ?? [];
-                    }
-                    if (response.clearInput) {
+                     // Hybrid search: if we have pending builtin results, merge them
+                     // Handler results are prepended, builtin results appended
+                     let finalResults = response.results ?? [];
+                     const pluginId = root.activePlugin?.id;
+                     
+                     if (root._pendingBuiltinResults !== null) {
+                         // Search step response - merge handler + builtin results
+                         const handlerResults = finalResults;
+                         const builtinResults = root._pendingBuiltinResults;
+                         
+                         // Store handler results for re-filtering after actions
+                         root._lastHandlerPrependResults = handlerResults;
+                         
+                         // Deduplicate: handler results take precedence
+                         const handlerIds = new Set(handlerResults.map(r => r.id));
+                         const dedupedBuiltin = builtinResults.filter(r => !handlerIds.has(r.id));
+                         
+                         finalResults = [...handlerResults, ...dedupedBuiltin];
+                         root._pendingBuiltinResults = null;
+                     } else if (root._lastSearchQuery && pluginId && root.hasIndexedItems(pluginId)) {
+                         // Action step response with active query - filter with builtin search
+                         // This happens when user performs action (toggle, delete) while search is active
+                         // Handler returns full list, but we need filtered results
+                         
+                         // Process other response fields first
+                         if (response.placeholder !== undefined) {
+                             root.pluginPlaceholder = response.placeholder ?? "";
+                         }
+                         if (response.context !== undefined) {
+                             root.pluginContext = response.context ?? "";
+                         }
+                         root.inputMode = response.inputMode ?? "realtime";
+                         if (response.pluginActions !== undefined) {
+                             root.pluginActions = response.pluginActions ?? [];
+                         }
+                         if (response.status && pluginId) {
+                             root.updatePluginStatus(pluginId, response.status);
+                         }
+                         
+                         if (response.clearInput) {
+                             root.clearInputRequested();
+                             root._lastSearchQuery = "";
+                             root._lastHandlerPrependResults = [];
+                             // Show unfiltered results since query is cleared
+                             root.pluginResults = finalResults;
+                             root.resultsVersion++;
+                         } else {
+                             // Apply builtin search immediately to avoid flicker
+                             // Use stored handler prepend results from last search
+                             root.doBuiltinSearchOnly(pluginId, root._lastSearchQuery, root._lastHandlerPrependResults);
+                         }
+                         break;
+                     }
+                     
+                     root.pluginResults = finalResults;
+                     root.resultsVersion++;
+                     root.pluginCard = null;
+                     root.pluginForm = null;
+                     if (response.placeholder !== undefined) {
+                         root.pluginPlaceholder = response.placeholder ?? "";
+                     }
+                     if (response.context !== undefined) {
+                         root.pluginContext = response.context ?? "";
+                     }
+                     root.inputMode = response.inputMode ?? "realtime";
+                     if (response.pluginActions !== undefined) {
+                         root.pluginActions = response.pluginActions ?? [];
+                     }
+                     if (response.clearInput) {
                         root.clearInputRequested();
                     }
                     // Update plugin status if provided

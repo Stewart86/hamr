@@ -422,20 +422,24 @@ Singleton {
              return result;
          });
          
-         for (const id of Object.keys(existingCache)) {
-             if (!newCache[id]) {
-                 const cached = existingCache[id];
-                 if (cached?.result) {
-                     cached.result.destroy();
-                 }
-                 if (cached?.actions) {
-                     for (const action of cached.actions) {
-                         action.destroy();
+         // Defer cache cleanup and update to avoid binding loop
+         // (modifying state during binding evaluation causes loops)
+         Qt.callLater(() => {
+             for (const id of Object.keys(existingCache)) {
+                 if (!newCache[id]) {
+                     const cached = existingCache[id];
+                     if (cached?.result) {
+                         cached.result.destroy();
+                     }
+                     if (cached?.actions) {
+                         for (const action of cached.actions) {
+                             action.destroy();
+                         }
                      }
                  }
              }
-         }
-         root._pluginResultCacheHolder.cache = newCache;
+             root._pluginResultCacheHolder.cache = newCache;
+         });
          
          return results;
      }

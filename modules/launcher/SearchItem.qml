@@ -752,6 +752,7 @@ RippleButton {
     }
 
     function updateActionToolTip() {
+        if (!root.entry) return;
         const actions = root.entry.actions ?? [];
         const isCurrent = root.ListView.isCurrentItem;
         

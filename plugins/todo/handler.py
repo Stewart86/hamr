@@ -165,6 +165,10 @@ def emit_status(todos: list[dict]) -> None:
     emit({"type": "status", "status": get_status(todos)})
 
 
+def emit_index(todos: list[dict]) -> None:
+    emit({"type": "index", "items": get_todo_results(todos)})
+
+
 def respond(
     results: list[dict],
     todos: list[dict],
@@ -204,6 +208,10 @@ def handle_request(request: dict, current_query: str) -> tuple[str, list[dict]]:
     context = request.get("context", "")
 
     todos = load_todos()
+
+    if step == "index":
+        emit_index(todos)
+        return query, todos
 
     if step == "initial":
         respond(
@@ -266,43 +274,22 @@ def handle_request(request: dict, current_query: str) -> tuple[str, list[dict]]:
                 )
             return query, todos
 
+        # Hybrid search: only return "Add" shortcut - hamr appends builtin search results
         if query:
-            filtered = []
             encoded = base64.b64encode(query.encode()).decode()
-            filtered.append(
-                {
-                    "id": f"__add__:{encoded}",
-                    "key": "__add__",
-                    "name": f"Add: {query}",
-                    "icon": "add_circle",
-                    "description": "Press Enter to add as new task",
-                }
+            respond(
+                [
+                    {
+                        "id": f"__add__:{encoded}",
+                        "key": "__add__",
+                        "name": f"Add: {query}",
+                        "icon": "add_circle",
+                        "description": "Press Enter to add as new task",
+                    }
+                ],
+                todos,
+                plugin_actions=get_plugin_actions(todos),
             )
-            for i, todo in enumerate(todos):
-                content = todo.get("content", "")
-                if query.lower() in content.lower():
-                    done = todo.get("done", False)
-                    filtered.append(
-                        {
-                            "id": f"todo:{i}",
-                            "name": content,
-                            "icon": "check_circle"
-                            if done
-                            else "radio_button_unchecked",
-                            "description": "Done" if done else "Pending",
-                            "verb": "Undone" if done else "Done",
-                            "actions": [
-                                {
-                                    "id": "toggle",
-                                    "name": "Undone" if done else "Done",
-                                    "icon": "undo" if done else "check_circle",
-                                },
-                                {"id": "edit", "name": "Edit", "icon": "edit"},
-                                {"id": "delete", "name": "Delete", "icon": "delete"},
-                            ],
-                        }
-                    )
-            respond(filtered, todos, plugin_actions=get_plugin_actions(todos))
         else:
             respond(
                 get_todo_results(todos),
@@ -543,6 +530,7 @@ def main():
     todos = load_todos()
     if not TEST_MODE:
         emit_status(todos)
+        emit_index(todos)
 
     current_query = ""
     inotify_fd = create_inotify_fd()
@@ -572,6 +560,7 @@ def main():
                 if todo_filename in changed_files:
                     todos = load_todos()
                     if not TEST_MODE:
+                        emit_index(todos)
                         respond(
                             get_todo_results(todos),
                             todos,
@@ -602,6 +591,7 @@ def main():
                     last_mtime = new_mtime
                     todos = load_todos()
                     if not TEST_MODE:
+                        emit_index(todos)
                         respond(
                             get_todo_results(todos),
                             todos,

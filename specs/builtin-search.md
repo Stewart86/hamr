@@ -28,14 +28,42 @@ Has index (pluginIndexes[pluginId].items.length > 0) → Builtin search
 No index → Handler search
 ```
 
+### Hybrid Mode: Prepend Handler Results
+
+When a plugin has **both** indexed items and a search handler, hamr:
+1. Calls builtin search on indexed items
+2. Calls handler's search step
+3. **Prepends** handler results before builtin results
+
+This allows plugins to inject custom results (like "Add: {query}" for todo) while still benefiting from builtin fuzzy+frecency search on their items.
+
+```
+Plugin has index + search handler → Handler results + Builtin results
+Plugin has index only            → Builtin results only
+Plugin has search handler only   → Handler results only
+```
+
+**Example: Todo plugin**
+```
+User types "buy milk"
+→ Handler returns: [{ "Add: buy milk" }]
+→ Builtin search returns: [{ "buy groceries" }, { "milk reminder" }]
+→ Final results: [{ "Add: buy milk" }, { "buy groceries" }, { "milk reminder" }]
+```
+
 ### Step Handling
 
 | Step | Handled By | Purpose |
 |------|------------|---------|
 | `index` | Handler | Provide items to search |
 | `initial` | Handler | Custom landing UI (categories, etc.) |
-| `search` | **Hamr** (if has index) | Builtin fuzzy+frecency search |
+| `search` | **Hamr + Handler** | Builtin search + optional handler prepend |
 | `action` | Handler | Handle item selection |
+
+For search step:
+- If plugin has index: Hamr does builtin search
+- If plugin also has search handler: Handler results are prepended
+- Handler can return empty results to use pure builtin search
 
 ### Search Scope
 
@@ -169,14 +197,15 @@ function doBuiltinSearch(pluginId, query) {
 
 ### Handler Simplification
 
-Plugins with indexes can remove their `search` step handling entirely:
+Plugins with indexes can simplify their `search` step:
 
+**Option 1: Remove search step entirely (pure builtin search)**
 ```python
-def handle_request(request, all_apps, frecency):
+def handle_request(request):
     step = request.get("step", "initial")
     
     if step == "index":
-        # Provide items - REQUIRED
+        # Provide items - hamr will search them
         
     if step == "initial":
         # Show landing UI (optional)
@@ -184,7 +213,29 @@ def handle_request(request, all_apps, frecency):
     # search step - HANDLED BY HAMR AUTOMATICALLY
         
     if step == "action":
-        # Handle item selection - REQUIRED
+        # Handle item selection
+```
+
+**Option 2: Prepend custom results (hybrid search)**
+```python
+def handle_request(request):
+    step = request.get("step", "initial")
+    query = request.get("query", "")
+    
+    if step == "index":
+        # Provide items to search
+        return {"type": "index", "results": todos}
+        
+    if step == "search":
+        # Only return "extra" results - hamr appends builtin results
+        if query:
+            return {"type": "results", "results": [
+                {"id": "__add__", "name": f"Add: {query}", "icon": "add_circle"}
+            ]}
+        return {"type": "results", "results": []}
+        
+    if step == "action":
+        # Handle item selection
 ```
 
 ## Affected Plugins
@@ -231,6 +282,45 @@ Return empty array, UI shows "No results" state.
 
 ### 5. staticIndex plugins
 Plugins using `staticIndex` in manifest also get builtin search since their items are loaded into `pluginIndexes`.
+
+### 6. Handler prepend with empty results
+If handler returns empty results for search step, only builtin results are shown.
+
+### 7. Deduplication
+If handler returns an item that also exists in builtin results (same `id`), the handler version takes precedence (it appears first, builtin duplicate is filtered).
+
+## Migration Guide
+
+### Plugins that need migration
+
+Plugins that currently do their own filtering in search step should:
+1. Add `index` step to return all searchable items
+2. Simplify `search` step to only return "extra" results (or remove entirely)
+
+**Before (todo plugin):**
+```python
+if step == "search":
+    if query:
+        # Manual filtering - REMOVE THIS
+        filtered = [t for t in todos if query.lower() in t["content"].lower()]
+        results = [{"id": "__add__", "name": f"Add: {query}"}] + filtered
+```
+
+**After (todo plugin):**
+```python
+if step == "index":
+    # Return all todos for builtin search
+    return {"type": "index", "results": [
+        {"id": f"todo:{i}", "name": t["content"], ...} for i, t in enumerate(todos)
+    ]}
+
+if step == "search":
+    # Only return the "Add" shortcut - hamr appends matching todos
+    if query:
+        return {"type": "results", "results": [
+            {"id": "__add__", "name": f"Add: {query}", "icon": "add_circle"}
+        ]}
+```
 
 ## Future Enhancements
 
