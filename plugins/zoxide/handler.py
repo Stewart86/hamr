@@ -263,7 +263,8 @@ def handle_request(input_data: dict) -> None:
 
         if action_id == "files":
             try:
-                subprocess.Popen(["xdg-open", path])
+                if not TEST_MODE:
+                    subprocess.Popen(["xdg-open", path])
                 print(json.dumps({"type": "execute", "close": True}))
             except Exception as e:
                 print(json.dumps({"type": "error", "message": str(e)}))
@@ -271,11 +272,12 @@ def handle_request(input_data: dict) -> None:
 
         if action_id == "copy":
             try:
-                subprocess.run(
-                    ["wl-copy"],
-                    input=path.encode(),
-                    timeout=5,
-                )
+                if not TEST_MODE:
+                    subprocess.run(
+                        ["wl-copy"],
+                        input=path.encode(),
+                        timeout=5,
+                    )
                 print(json.dumps({"type": "execute", "close": True}))
             except Exception as e:
                 print(json.dumps({"type": "error", "message": str(e)}))
@@ -283,8 +285,9 @@ def handle_request(input_data: dict) -> None:
 
         # Default action: open terminal
         try:
-            cmd = make_terminal_cmd(path)
-            subprocess.Popen(cmd)
+            if not TEST_MODE:
+                cmd = make_terminal_cmd(path)
+                subprocess.Popen(cmd)
             print(json.dumps({"type": "execute", "close": True}))
         except Exception as e:
             print(json.dumps({"type": "error", "message": str(e)}))

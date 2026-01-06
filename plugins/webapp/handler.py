@@ -631,11 +631,12 @@ def handle_request(input_data: dict):
             app = next((a for a in webapps if a["id"] == selected_id), None)
             if app:
                 try:
-                    subprocess.Popen(
-                        [str(LAUNCHER_SCRIPT), "--floating", app["url"]],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
+                    if not TEST_MODE:
+                        subprocess.Popen(
+                            [str(LAUNCHER_SCRIPT), "--floating", app["url"]],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
                     print(json.dumps({"type": "execute", "close": True}))
                 except Exception:
                     print(
@@ -670,11 +671,12 @@ def handle_request(input_data: dict):
         app = next((a for a in webapps if a["id"] == selected_id), None)
         if app:
             try:
-                subprocess.Popen(
-                    [str(LAUNCHER_SCRIPT), app["url"]],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
+                if not TEST_MODE:
+                    subprocess.Popen(
+                        [str(LAUNCHER_SCRIPT), app["url"]],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
                 print(json.dumps({"type": "execute", "close": True}))
             except Exception:
                 print(json.dumps({"type": "error", "message": "Failed to launch app"}))
