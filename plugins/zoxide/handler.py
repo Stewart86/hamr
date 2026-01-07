@@ -185,14 +185,18 @@ def dir_to_index_item(dir_info: dict) -> dict:
     else:
         preview_content = get_directory_preview(path)
 
+    item_id = f"zoxide:{path}"
     return {
-        "id": f"zoxide:{path}",
+        "id": item_id,
         "name": name,
         "description": display_path,
         "icon": "folder_special",
         "keywords": path_parts,
         "verb": "Open",
-        "entryPoint": path,
+        "entryPoint": {
+            "step": "action",
+            "selected": {"id": item_id},
+        },
         "preview": {
             "type": "text",
             "content": preview_content,
@@ -254,8 +258,15 @@ def handle_request(input_data: dict) -> None:
         return
 
     if step == "action":
-        action_id = input_data.get("actionId")
-        path = input_data.get("entryPoint")
+        action_id = input_data.get("action")
+        selected = input_data.get("selected", {})
+        item_id = selected.get("id", "")
+
+        # Extract path from item_id (format: "zoxide:/path/to/dir")
+        if not item_id.startswith("zoxide:"):
+            print(json.dumps({"type": "error", "message": "Invalid item ID"}))
+            return
+        path = item_id[7:]  # Remove "zoxide:" prefix
 
         if not path:
             print(json.dumps({"type": "error", "message": "Missing path"}))
