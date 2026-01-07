@@ -43,7 +43,6 @@ Singleton {
             try {
                 const windowsData = JSON.parse(output);
                 windows = windowsData;
-                console.info("NiriService: Loaded", windowsData.length, "windows");
             } catch (e) {
                 console.warn("NiriService: Failed to parse windows:", e);
             }
@@ -93,7 +92,6 @@ Singleton {
             try {
                 const outputsData = JSON.parse(output);
                 outputs = outputsData;
-                console.info("NiriService: Loaded", Object.keys(outputsData).length, "outputs");
                 updateDisplayScales();
             } catch (e) {
                 console.warn("NiriService: Failed to parse outputs:", e);

@@ -582,11 +582,11 @@ def main():
     signal.signal(signal.SIGINT, shutdown_handler)
 
     timers = load_timers()
-     for timer in timers:
-         if timer.state == TimerState.RUNNING:
-             timer.tick()
- 
-     emit_status(timers)
+    for timer in timers:
+        if timer.state == TimerState.RUNNING:
+            timer.tick()
+
+    emit_status(timers)
 
     current_query = ""
     plugin_active = False
@@ -620,13 +620,13 @@ def main():
                         completed_any = True
                         handle_timer_completion(timer)
 
-                 if completed_any:
-                     save_timers(timers)
- 
-                 if plugin_active:
-                     respond(timers, query=current_query)
-                 else:
-                     emit_status(timers)
+                if completed_any:
+                    save_timers(timers)
+
+                if plugin_active:
+                    respond(timers, query=current_query)
+                else:
+                    emit_status(timers)
 
 
 if __name__ == "__main__":

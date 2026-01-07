@@ -2117,6 +2117,11 @@ Singleton {
             case "index":
                 if (!response.items || !Array.isArray(response.items)) {
                     errors.push("'index' response missing 'items' array");
+                } else {
+                    response.items.forEach((item, i) => {
+                        if (!item.id) errors.push(`items[${i}]: missing required 'id'`);
+                        if (!item.name) errors.push(`items[${i}]: missing required 'name'`);
+                    });
                 }
                 break;
         }
