@@ -210,27 +210,146 @@ if step == "index":
 | `iconType` | string | No | `"material"` or `"system"` |
 | `keywords` | array | No | Additional search terms |
 | `verb` | string | No | Action text (e.g., "Open") |
-| `execute` | object | Yes | Action to perform |
-| `entryPoint` | object | No | Handler entry point for complex actions |
+| `entryPoint` | object | Yes | How to invoke the handler (see below) |
+| `actions` | array | No | Secondary action buttons |
 
-### Using `entryPoint` for Handler Logic
+### Understanding `entryPoint`
 
-For items that need handler processing on selection:
+**`entryPoint` is only needed for indexed items** - items that appear in main search outside your plugin.
+
+When a user selects an indexed item from main search, hamr has no context about your plugin. The `entryPoint` is a stored "recipe" that tells hamr what request to send to your handler.
+
+**When `entryPoint` is needed:**
+
+| Scenario | `entryPoint` needed? |
+|----------|---------------------|
+| Plugin without indexing (`index.enabled: false`) | No |
+| Result items inside an active plugin | No |
+| Index items (appear in main search) | Yes |
+
+For most simple plugins without indexing, you never need `entryPoint`.
+
+### `entryPoint` Schema
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `step` | string | `"action"` | Step type to send to handler |
+| `selected` | object | - | Selected item info, usually `{"id": "..."}` |
+| `action` | string | - | Which action to perform |
+| `query` | string | - | Query string (for search-based entry points) |
+
+### `entryPoint` vs `action`
+
+| Concept | What it is | Example |
+|---------|------------|---------|
+| `entryPoint` | Blueprint/recipe for invoking the handler | `{"step": "action", "selected": {"id": "x"}, "action": "copy"}` |
+| `action` | String identifier for which operation | `"copy"`, `"delete"`, `"edit"` |
+
+### Full Indexing Flow
+
+The complete flow from indexing to execution:
+
+```mermaid
+sequenceDiagram
+    participant Handler
+    participant Hamr
+    participant Index as Search Index
+    participant User
+    
+    Note over Handler,Index: 1. Indexing Phase
+    Hamr->>Handler: {"step": "index"}
+    Handler->>Hamr: {"type": "index", "items": [<br/>  {id, name, entryPoint: {...}, actions: [...]}<br/>]}
+    Hamr->>Index: Store items with entryPoints
+    
+    Note over User,Handler: 2. Execution Phase (later)
+    User->>Hamr: Types "github" in main search
+    Index->>Hamr: Returns matching indexed items
+    Hamr->>User: Shows "GitHub" item
+    User->>Hamr: Clicks "Copy Password" action
+    Note over Hamr: Reads action's entryPoint:<br/>{step: "action", selected: {id: "..."}, action: "copy_password"}
+    Hamr->>Handler: {"step": "action", "selected": {"id": "github-login"}, "action": "copy_password"}
+    Handler->>Hamr: {"type": "execute", "notify": "Copied!", "close": true}
+```
+
+**Key points:**
+
+1. **Handler provides `entryPoint`** - Hamr doesn't construct it automatically
+2. **Hamr stores `entryPoint`** - Saved with indexed items for later use
+3. **Handler receives standard request** - Same format as inside-plugin clicks
+
+### Inside Plugin vs Main Search
+
+The handler receives the same request format regardless of origin:
+
+```mermaid
+flowchart TB
+    subgraph "Inside Plugin"
+        A[User clicks item/action] --> B[Hamr builds request<br/>from click context]
+    end
+    
+    subgraph "Main Search"
+        C[User clicks indexed item] --> D[Hamr reads stored entryPoint]
+        D --> E[Hamr builds request<br/>from entryPoint]
+    end
+    
+    B --> F["Handler receives:<br/>{step, selected, action}"]
+    E --> F
+    
+    style F fill:#c8e6c9
+```
+
+**Inside plugin:** Hamr builds the request directly - no `entryPoint` needed in result items.
+
+**From main search:** Hamr uses the stored `entryPoint` from the index response.
+
+**Handler logic is identical for both:**
+
+```python
+if step == "action":
+    item_id = selected.get("id")
+    action = input_data.get("action", "")
+    
+    if action == "copy_password":
+        # User clicked the "Copy Password" button
+        pass
+    else:
+        # User clicked the item itself (default action)
+        pass
+```
+
+### Index Item Example
+
+The handler must provide `entryPoint` on index items and their actions:
 
 ```python
 {
-    "id": "note:123",
-    "name": "My Note",
-    "icon": "sticky_note_2",
-    "verb": "View",
-    "entryPoint": {
+    "id": "github-login",
+    "name": "GitHub",
+    "icon": "key",
+    "entryPoint": {                          # Required: default click
         "step": "action",
-        "selected": {"id": "note:123"},
-        "action": "view"
+        "selected": {"id": "github-login"}
     },
-    "keepOpen": True
+    "actions": [
+        {
+            "id": "copy_password",
+            "name": "Copy Password",
+            "icon": "key",
+            "entryPoint": {                  # Required: action button click
+                "step": "action",
+                "selected": {"id": "github-login"},
+                "action": "copy_password"
+            }
+        }
+    ]
 }
 ```
+
+**Why the handler must provide `entryPoint`:**
+
+- Hamr doesn't know what `step` to use (could be `"action"`, `"search"`, etc.)
+- Hamr doesn't know what fields `selected` should contain
+- Hamr doesn't know what `action` string maps to each button
 
 ### Index-Only Plugins
 

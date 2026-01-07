@@ -243,11 +243,15 @@ Every plugin needs a `manifest.json`:
     "step": "initial|search|action",    # What happened
     "query": "user input",               # Search bar text (search step)
     "selected": {"id": "item-id"},       # Selected item (action step)
-    "action": "button-id",               # Action button clicked (optional)
+    "action": "button-id",               # Action button ID (action step, optional)
     "context": "your-state",             # Your custom state (persisted)
     "session": "session-id"              # Unique session identifier
 }
 ```
+
+The `action` field tells you which action button was clicked:
+- **Not set:** User clicked the item itself (default action)
+- **Set:** User clicked a specific action button (e.g., `"copy"`, `"delete"`)
 
 ### Output (What You Return)
 

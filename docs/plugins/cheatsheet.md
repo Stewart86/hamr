@@ -100,6 +100,38 @@ if __name__ == "__main__":
 }
 ```
 
+## Index Item (for plugins with `index.enabled: true`)
+
+**Note:** Only needed if your manifest has `index.enabled: true`. Most simple plugins don't need this.
+
+```python
+{
+    "id": "app:firefox",         # Required
+    "name": "Firefox",           # Required
+    "description": "Web Browser",
+    "icon": "firefox",
+    "iconType": "system",
+    "keywords": ["browser", "web"],
+    "verb": "Open",
+    "entryPoint": {              # Required - how to invoke handler from main search
+        "step": "action",
+        "selected": {"id": "app:firefox"}
+    },
+    "actions": [
+        {
+            "id": "private",
+            "name": "Private Window", 
+            "icon": "security",
+            "entryPoint": {      # Required for indexed item actions
+                "step": "action",
+                "selected": {"id": "app:firefox"},
+                "action": "private"
+            }
+        }
+    ]
+}
+```
+
 ## Slider Item
 
 ```python
@@ -160,6 +192,24 @@ if __name__ == "__main__":
 | `form` | Form submitted | `formData` |
 | `poll` | Polling tick | `query` |
 | `index` | Indexing request | `mode` |
+
+## `entryPoint` (for indexed items only)
+
+**Only needed for plugins with `index.enabled: true`.**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `step` | string | `"action"` | Step type |
+| `selected` | object | - | Item info, e.g. `{"id": "..."}` |
+| `action` | string | - | Action to perform |
+| `query` | string | - | Query string |
+
+```python
+"entryPoint": {"step": "action", "selected": {"id": "item-1"}, "action": "copy"}
+```
+
+- **Inside active plugin:** Hamr builds request directly - no `entryPoint` needed
+- **From main search:** Hamr uses stored `entryPoint` to build request
 
 ## Special IDs
 

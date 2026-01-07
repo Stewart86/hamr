@@ -96,6 +96,13 @@ Display a list of selectable items. This is the most common response type.
 ]
 ```
 
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Action identifier sent to handler |
+| `name` | string | Yes | Button label/tooltip |
+| `icon` | string | No | Material icon |
+| `entryPoint` | object | No | For indexed items only (see below) |
+
 When user clicks an action button, you receive:
 ```python
 {
@@ -104,6 +111,29 @@ When user clicks an action button, you receive:
     "action": "edit"  # The action button ID
 }
 ```
+
+#### Actions on Indexed Items
+
+**Note:** `entryPoint` is only needed for plugins with indexing enabled (`index.enabled: true` in manifest). For regular plugins without indexing, you don't need `entryPoint` - hamr builds the request directly from click context.
+
+For indexed items that appear in main search, actions need an `entryPoint` so hamr knows how to invoke your handler:
+
+```python
+"actions": [
+    {
+        "id": "copy",
+        "name": "Copy",
+        "icon": "content_copy",
+        "entryPoint": {
+            "step": "action",
+            "selected": {"id": "item-id"},
+            "action": "copy"
+        }
+    }
+]
+```
+
+See [Plugin Indexing](advanced-features.md#plugin-indexing) for details.
 
 ### Plugin Actions (Toolbar)
 
@@ -116,14 +146,14 @@ When user clicks an action button, you receive:
 ]
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Action ID sent to handler |
-| `name` | string | Button label |
-| `icon` | string | Material icon |
-| `shortcut` | string | Keyboard shortcut hint (default: Ctrl+1-6) |
-| `confirm` | string | Confirmation dialog message |
-| `active` | bool | Highlight as active (for toggles) |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Action ID sent to handler |
+| `name` | string | Yes | Button label |
+| `icon` | string | No | Material icon |
+| `shortcut` | string | No | Keyboard shortcut hint (default: Ctrl+1-6) |
+| `confirm` | string | No | Confirmation dialog message |
+| `active` | bool | No | Highlight as active (for toggles) |
 
 When clicked, you receive:
 ```python
