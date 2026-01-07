@@ -490,7 +490,7 @@ def get_windows() -> list[dict]:
         windows.sort(
             key=lambda w: (
                 0 if w.get("is_focused") else 1,
-                -w.get("focus_timestamp", {}).get("secs", 0),
+                -(w.get("focus_timestamp") or {}).get("secs", 0),
             )
         )
         return windows
