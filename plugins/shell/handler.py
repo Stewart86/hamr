@@ -127,7 +127,11 @@ def get_shell_history() -> list[str]:
         parse_func = parse_fish
     else:
         history_file = home / ".bash_history"
-        parse_func = lambda line: line.strip()
+
+        def parse_bash(line: str) -> str:
+            return line.strip()
+
+        parse_func = parse_bash
 
     if not history_file or not history_file.exists():
         return []
@@ -237,7 +241,7 @@ ydotool type --key-delay=0 -- {cmd_repr} && ydotool key 28:1 28:0
         # Hyprland: spawn terminal with optional float, poll for active window, then type
         wait_script = f"""
 terminal_class="{terminal}"
-hyprctl dispatch exec '{f"[float] " if floating else ""}{terminal}'
+hyprctl dispatch exec '{"[float] " if floating else ""}{terminal}'
 for i in $(seq 1 50); do
     active=$(hyprctl activewindow -j 2>/dev/null | jq -r '.class // empty' 2>/dev/null)
     if [[ "$active" == *"$terminal_class"* ]] || [[ "$active" == *"ghostty"* ]] || [[ "$active" == *"kitty"* ]] || [[ "$active" == *"alacritty"* ]] || [[ "$active" == *"foot"* ]]; then

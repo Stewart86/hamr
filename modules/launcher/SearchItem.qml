@@ -283,9 +283,9 @@ RippleButton {
     property list<string> urls: {
          if (!root.itemName) return [];
          const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi;
-         const matches = root.itemName?.match(urlRegex)
+         const matches = root.itemName.match(urlRegex)
              ?.filter(url => !url.includes("…"))
-         return matches ? matches : [];
+         return matches ?? [];
      }
     
     PointingHandInteraction {}

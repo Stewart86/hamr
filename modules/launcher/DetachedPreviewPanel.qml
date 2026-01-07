@@ -205,7 +205,7 @@ PanelWindow {
                 
                 Rectangle {
                     Layout.fillWidth: true
-                    height: 1
+                    Layout.preferredHeight: 1
                     color: Appearance.colors.colOutlineVariant
                 }
                 
