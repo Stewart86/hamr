@@ -3,20 +3,5 @@
   "description": "Pick a color from screen and copy to clipboard",
   "icon": "colorize",
   "supportedCompositors": ["*"],
-  "frecency": "none",
-  "staticIndex": [
-    {
-      "id": "pick",
-      "name": "Pick Color",
-      "description": "Pick a color from screen and copy hex value",
-      "icon": "colorize",
-      "verb": "Pick",
-      "keywords": ["color", "pick", "picker", "eyedropper", "hex", "rgb"],
-      "execute": {
-        "command": ["hyprpicker", "-a"],
-        "name": "Pick Color",
-        "close": true
-      }
-    }
-  ]
+  "frecency": "none"
 }

@@ -2,35 +2,5 @@
   "name": "Theme",
   "description": "Switch between light and dark mode",
   "icon": "contrast",
-  "supportedCompositors": ["*"],
-  "staticIndex": [
-    {
-      "id": "light",
-      "name": "Light Mode",
-      "description": "Switch to light color scheme",
-      "icon": "light_mode",
-      "verb": "Switch",
-      "keywords": ["light", "theme", "bright", "day", "white"],
-      "execute": {
-        "command": ["bash", "-c", "script=$(find ~/.config/hamr/scripts/colors/switchwall.sh ~/.config/quickshell/scripts/colors/switchwall.sh 2>/dev/null | head -1); [ -x \"$script\" ] && \"$script\" --mode light --noswitch || gsettings set org.gnome.desktop.interface color-scheme prefer-light"],
-        "name": "Light Mode",
-        "notify": "Light mode activated",
-        "close": true
-      }
-    },
-    {
-      "id": "dark",
-      "name": "Dark Mode",
-      "description": "Switch to dark color scheme",
-      "icon": "dark_mode",
-      "verb": "Switch",
-      "keywords": ["dark", "theme", "night", "black"],
-      "execute": {
-        "command": ["bash", "-c", "script=$(find ~/.config/hamr/scripts/colors/switchwall.sh ~/.config/quickshell/scripts/colors/switchwall.sh 2>/dev/null | head -1); [ -x \"$script\" ] && \"$script\" --mode dark --noswitch || gsettings set org.gnome.desktop.interface color-scheme prefer-dark"],
-        "name": "Dark Mode",
-        "notify": "Dark mode activated",
-        "close": true
-      }
-    }
-  ]
+  "supportedCompositors": ["*"]
 }

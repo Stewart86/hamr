@@ -3,48 +3,5 @@
   "description": "Take screenshot with region selection and annotation",
   "icon": "screenshot",
   "supportedCompositors": ["*"],
-  "frecency": "none",
-  "staticIndex": [
-    {
-      "id": "snip",
-      "name": "Screenshot Snip",
-      "description": "Select region and annotate with satty",
-      "icon": "screenshot",
-      "verb": "Take",
-      "keywords": ["screenshot", "snip", "capture", "region", "annotate", "satty"],
-      "execute": {
-        "command": ["bash", "-c", "grim -g \"$(slurp)\" - | satty -f -"],
-        "name": "Screenshot Snip",
-        "close": true
-      }
-    },
-    {
-      "id": "snip-copy",
-      "name": "Screenshot to Clipboard",
-      "description": "Select region and copy to clipboard",
-      "icon": "content_copy",
-      "verb": "Take",
-      "keywords": ["screenshot", "snip", "capture", "copy", "clipboard"],
-      "execute": {
-        "command": ["bash", "-c", "grim -g \"$(slurp)\" - | wl-copy"],
-        "name": "Screenshot to Clipboard",
-        "notify": "Screenshot copied to clipboard",
-        "close": true
-      }
-    },
-    {
-      "id": "snip-save",
-      "name": "Screenshot to File",
-      "description": "Select region and save to Screenshots folder",
-      "icon": "save",
-      "verb": "Take",
-      "keywords": ["screenshot", "snip", "capture", "save", "file"],
-      "execute": {
-        "command": ["bash", "-c", "mkdir -p ~/Pictures/Screenshots && grim -g \"$(slurp)\" ~/Pictures/Screenshots/screenshot_$(date +%Y-%m-%d_%H.%M.%S).png"],
-        "name": "Screenshot to File",
-        "notify": "Screenshot saved to Pictures/Screenshots",
-        "close": true
-      }
-    }
-  ]
+  "frecency": "none"
 }
