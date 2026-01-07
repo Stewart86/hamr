@@ -16,7 +16,6 @@ import os
 import sys
 from pathlib import Path
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 CONFIG_PATH = Path.home() / ".config/hamr/config.json"
 
 SETTINGS_SCHEMA: dict = {
@@ -325,8 +324,6 @@ CATEGORY_NAMES = {
 
 
 def load_config() -> dict:
-    if TEST_MODE:
-        return {}
     if not CONFIG_PATH.exists():
         return {}
     try:
@@ -337,8 +334,6 @@ def load_config() -> dict:
 
 
 def save_config(config: dict) -> bool:
-    if TEST_MODE:
-        return True
     try:
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(CONFIG_PATH, "w") as f:

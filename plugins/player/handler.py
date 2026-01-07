@@ -1,34 +1,12 @@
 #!/usr/bin/env python3
 import json
-import os
 import signal
 import select
 import subprocess
 import sys
 import time
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 shutdown = False
-
-MOCK_PLAYERS = [
-    {
-        "name": "spotify",
-        "status": "Playing",
-        "title": "Bohemian Rhapsody",
-        "artist": "Queen",
-        "album": "A Night at the Opera",
-        "artUrl": "file:///tmp/album-art.jpg",
-    },
-    {
-        "name": "firefox",
-        "status": "Paused",
-        "title": "YouTube Video",
-        "artist": "YouTube",
-        "album": "",
-        "artUrl": "",
-    },
-]
 
 
 def emit(data: dict):
@@ -54,9 +32,6 @@ def run_playerctl(args: list[str]) -> tuple[str, int]:
 
 
 def get_players() -> list[dict]:
-    if TEST_MODE:
-        return MOCK_PLAYERS
-
     output, code = run_playerctl(["-l"])
     if code != 0 or not output:
         return []
@@ -253,8 +228,7 @@ def control_to_result(control: dict, player_name: str) -> dict:
 
 
 def run_player_command(player_name: str, cmd: list[str]):
-    if not TEST_MODE:
-        run_playerctl(["-p", player_name] + cmd)
+    run_playerctl(["-p", player_name] + cmd)
 
 
 def return_players_view():

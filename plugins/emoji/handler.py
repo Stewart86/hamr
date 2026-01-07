@@ -13,9 +13,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Test mode for development
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 # Load emojis from bundled file
 PLUGIN_DIR = Path(__file__).parent
 EMOJIS_FILE = PLUGIN_DIR / "emojis.tsv"
@@ -28,8 +25,6 @@ MAX_RECENT_EMOJIS = 20
 
 def load_recent_emojis() -> list[str]:
     """Load recently used emojis from cache"""
-    if TEST_MODE:
-        return []
     if not RECENT_EMOJIS_FILE.exists():
         return []
     try:
@@ -40,8 +35,6 @@ def load_recent_emojis() -> list[str]:
 
 def save_recent_emoji(emoji: str) -> None:
     """Save emoji to recent list (most recent first)"""
-    if TEST_MODE:
-        return
     recents = load_recent_emojis()
     if emoji in recents:
         recents.remove(emoji)
@@ -159,8 +152,6 @@ def format_grid_items(
 
 def copy_to_clipboard(text: str) -> None:
     """Copy text to clipboard using wl-copy."""
-    if TEST_MODE:
-        return  # Skip clipboard in test mode
     try:
         subprocess.run(["wl-copy", text], check=True)
     except FileNotFoundError:
@@ -175,8 +166,6 @@ def copy_to_clipboard(text: str) -> None:
 
 def type_text(text: str) -> None:
     """Type text using wtype (wayland) or xdotool (x11)."""
-    if TEST_MODE:
-        return  # Skip typing in test mode
     try:
         subprocess.run(["wtype", text], check=True)
     except FileNotFoundError:
@@ -346,13 +335,11 @@ def main():
     # Load emojis once at startup
     emojis = load_emojis()
 
-    # Emit full index on startup (skip in test mode - tests use explicit index step)
-    if not TEST_MODE:
-        items = format_index_items(emojis)
-        print(
-            json.dumps({"type": "index", "mode": "full", "items": items}),
-            flush=True,
-        )
+    items = format_index_items(emojis)
+    print(
+        json.dumps({"type": "index", "mode": "full", "items": items}),
+        flush=True,
+    )
 
     # Daemon loop
     while True:

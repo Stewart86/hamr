@@ -15,8 +15,6 @@ import sys
 import time
 from pathlib import Path
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 # Cache directory for image thumbnails and OCR
 CACHE_DIR = (
     Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
@@ -1032,19 +1030,18 @@ def main():
     indexed_ids: set[str] = set()
 
     # Emit initial status and full index on startup (for background daemon)
-    if not TEST_MODE:
-        emit_status()
-        # Build and emit full initial index
-        entries = get_clipboard_entries()
-        ocr_cache = load_ocr_cache()
-        ocr_texts = get_ocr_text_for_entries(entries, ocr_cache)
-        initial_entries = entries[:100]
-        indexed_ids = {f"clip:{get_entry_hash(e)}" for e in initial_entries}
-        initial_items = [entry_to_index_item(e, ocr_texts) for e in initial_entries]
-        print(
-            json.dumps({"type": "index", "mode": "full", "items": initial_items}),
-            flush=True,
-        )
+    emit_status()
+    # Build and emit full initial index
+    entries = get_clipboard_entries()
+    ocr_cache = load_ocr_cache()
+    ocr_texts = get_ocr_text_for_entries(entries, ocr_cache)
+    initial_entries = entries[:100]
+    indexed_ids = {f"clip:{get_entry_hash(e)}" for e in initial_entries}
+    initial_items = [entry_to_index_item(e, ocr_texts) for e in initial_entries]
+    print(
+        json.dumps({"type": "index", "mode": "full", "items": initial_items}),
+        flush=True,
+    )
 
     # Track state for refreshing results when clipboard changes
     last_db_mtime = get_db_mtime()
@@ -1092,24 +1089,23 @@ def main():
             current_mtime = get_db_mtime()
             if current_mtime != last_db_mtime:
                 last_db_mtime = current_mtime
-                if not TEST_MODE:
-                    # 1. Update status badge (item count)
-                    emit_status()
+                # 1. Update status badge (item count)
+                emit_status()
 
-                    # 2. Update index (new items become searchable from main launcher)
-                    indexed_ids = emit_incremental_index(indexed_ids)
+                # 2. Update index (new items become searchable from main launcher)
+                indexed_ids = emit_incremental_index(indexed_ids)
 
-                    # 3. If plugin is open, refresh the results list
-                    if plugin_active:
-                        entries = get_clipboard_entries()
-                        ocr_cache = load_ocr_cache()
-                        ocr_texts = get_ocr_text_for_entries(entries, ocr_cache)
-                        respond(
-                            get_entry_results(
-                                entries, current_query, current_context, ocr_texts
-                            ),
-                            active_filter=current_context,
-                        )
+                # 3. If plugin is open, refresh the results list
+                if plugin_active:
+                    entries = get_clipboard_entries()
+                    ocr_cache = load_ocr_cache()
+                    ocr_texts = get_ocr_text_for_entries(entries, ocr_cache)
+                    respond(
+                        get_entry_results(
+                            entries, current_query, current_context, ocr_texts
+                        ),
+                        active_filter=current_context,
+                    )
 
 
 if __name__ == "__main__":

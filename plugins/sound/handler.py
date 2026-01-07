@@ -7,12 +7,8 @@ import subprocess
 import sys
 import time
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 
 def run_cmd(cmd: list[str]) -> tuple[str, int]:
-    if TEST_MODE:
-        return "", 0
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
         return result.stdout.strip(), result.returncode
@@ -21,9 +17,6 @@ def run_cmd(cmd: list[str]) -> tuple[str, int]:
 
 
 def get_volume_info() -> dict:
-    if TEST_MODE:
-        return {"volume": 0.50, "muted": False}
-
     output, code = run_cmd(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"])
     if code != 0:
         return {"volume": 0, "muted": False}
@@ -43,9 +36,6 @@ def get_volume_info() -> dict:
 
 
 def get_mic_info() -> dict:
-    if TEST_MODE:
-        return {"volume": 0.80, "muted": False}
-
     output, code = run_cmd(["wpctl", "get-volume", "@DEFAULT_AUDIO_SOURCE@"])
     if code != 0:
         return {"volume": 0, "muted": False}
@@ -318,13 +308,6 @@ def main():
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
 
-    # In test mode, handle single request and exit
-    if TEST_MODE:
-        input_data = json.load(sys.stdin)
-        handle_request(input_data)
-        return
-
-    # Emit initial index on startup so items appear in main search
     emit_index()
 
     # Track last known values to detect external changes

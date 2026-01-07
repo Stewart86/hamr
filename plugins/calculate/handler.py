@@ -19,8 +19,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 # Calculation history tracking
 CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "hamr"
 CALC_HISTORY_FILE = CACHE_DIR / "calc-history.json"
@@ -32,8 +30,6 @@ def load_calc_history() -> list[dict]:
 
     Returns list of {"query": "2+2", "result": "4"} dicts, most recent first.
     """
-    if TEST_MODE:
-        return []
     if not CALC_HISTORY_FILE.exists():
         return []
     try:
@@ -44,8 +40,6 @@ def load_calc_history() -> list[dict]:
 
 def save_calc_history(query: str, result: str) -> None:
     """Save calculation to history (most recent first)."""
-    if TEST_MODE:
-        return
     history = load_calc_history()
     # Remove duplicates of same query
     history = [h for h in history if h.get("query") != query]
@@ -325,17 +319,6 @@ def calculate(expr: str) -> str | None:
     hex_bin_result = convert_hex_binary(expr)
     if hex_bin_result:
         return hex_bin_result
-
-    if TEST_MODE:
-        # Mock responses for testing
-        mock_results = {
-            "2+2": "4",
-            "sqrt(16)": "4",
-            "10 celsius to fahrenheit": "50 °F",
-            "50 USD": "50 USD",
-            "20% * 32": "6.4",
-        }
-        return mock_results.get(expr, f"= {expr}")
 
     try:
         result = subprocess.run(

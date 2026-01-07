@@ -14,7 +14,6 @@ import subprocess
 import sys
 import time
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 INDEX_DEBOUNCE_INTERVAL = 2.0
 
 NIRI_ACTIONS = [
@@ -448,37 +447,8 @@ NIRI_ACTIONS = [
     },
 ]
 
-MOCK_WINDOWS = [
-    {
-        "id": 1,
-        "title": "Terminal",
-        "app_id": "com.mitchellh.ghostty",
-        "pid": 12345,
-        "workspace_id": 1,
-        "is_focused": True,
-        "is_floating": False,
-    },
-    {
-        "id": 2,
-        "title": "GitHub - Mozilla Firefox",
-        "app_id": "firefox",
-        "pid": 12346,
-        "workspace_id": 2,
-        "is_focused": False,
-        "is_floating": False,
-    },
-]
-
-MOCK_WORKSPACES = [
-    {"id": 1, "idx": 1, "output": "DP-1", "is_active": True, "is_focused": True},
-    {"id": 2, "idx": 2, "output": "DP-1", "is_active": False, "is_focused": False},
-]
-
 
 def get_windows() -> list[dict]:
-    if TEST_MODE:
-        return MOCK_WINDOWS
-
     try:
         result = subprocess.run(
             ["niri", "msg", "--json", "windows"],
@@ -499,9 +469,6 @@ def get_windows() -> list[dict]:
 
 
 def get_workspaces() -> list[dict]:
-    if TEST_MODE:
-        return MOCK_WORKSPACES
-
     try:
         result = subprocess.run(
             ["niri", "msg", "--json", "workspaces"],
@@ -614,9 +581,6 @@ def action_to_result(action: dict) -> dict:
 
 
 def focus_window(window_id: int) -> tuple[bool, str]:
-    if TEST_MODE:
-        return True, f"Focused window {window_id}"
-
     try:
         subprocess.run(
             ["niri", "msg", "action", "focus-window", "--id", str(window_id)],
@@ -629,9 +593,6 @@ def focus_window(window_id: int) -> tuple[bool, str]:
 
 
 def close_window(window_id: int) -> tuple[bool, str]:
-    if TEST_MODE:
-        return True, f"Closed window {window_id}"
-
     try:
         subprocess.run(
             ["niri", "msg", "action", "focus-window", "--id", str(window_id)],
@@ -649,9 +610,6 @@ def close_window(window_id: int) -> tuple[bool, str]:
 
 
 def move_window_to_workspace(window_id: int, workspace_idx: int) -> tuple[bool, str]:
-    if TEST_MODE:
-        return True, f"Moved window {window_id} to workspace {workspace_idx}"
-
     try:
         subprocess.run(
             ["niri", "msg", "action", "focus-window", "--id", str(window_id)],
@@ -670,9 +628,6 @@ def move_window_to_workspace(window_id: int, workspace_idx: int) -> tuple[bool, 
 
 def execute_action(action: dict) -> tuple[bool, str]:
     action_name = action.get("action", "")
-
-    if TEST_MODE:
-        return True, f"Would run: niri msg action {action_name}"
 
     try:
         subprocess.run(
@@ -898,18 +853,6 @@ def handle_request(input_data: dict):
                 ws_idx = action_id_full.split(":")[1]
                 cmd = ["niri", "msg", "action", "focus-workspace", ws_idx]
                 name = f"Go to Workspace {ws_idx}"
-                if TEST_MODE:
-                    print(
-                        json.dumps(
-                            {
-                                "type": "execute",
-                                "close": True,
-                                "notify": f"Would run: {' '.join(cmd)}",
-                            }
-                        ),
-                        flush=True,
-                    )
-                    return
                 try:
                     subprocess.run(cmd, check=True, capture_output=True)
                     print(
@@ -933,18 +876,6 @@ def handle_request(input_data: dict):
                 ws_idx = action_id_full.split(":")[1]
                 cmd = ["niri", "msg", "action", "move-window-to-workspace", ws_idx]
                 name = f"Move to Workspace {ws_idx}"
-                if TEST_MODE:
-                    print(
-                        json.dumps(
-                            {
-                                "type": "execute",
-                                "close": True,
-                                "notify": f"Would run: {' '.join(cmd)}",
-                            }
-                        ),
-                        flush=True,
-                    )
-                    return
                 try:
                     subprocess.run(cmd, check=True, capture_output=True)
                     print(
@@ -1067,11 +998,6 @@ def main():
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
-
-    if TEST_MODE:
-        input_data = json.load(sys.stdin)
-        handle_request(input_data)
-        return
 
     items = get_index_items()
     print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)

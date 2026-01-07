@@ -13,7 +13,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 IS_NIRI = bool(os.environ.get("NIRI_SOCKET"))
 
 MAX_ITEMS = 50
@@ -65,15 +64,6 @@ def get_zoxide_dirs() -> list[dict]:
 
     except (subprocess.TimeoutExpired, Exception):
         return []
-
-
-def get_mock_dirs() -> list[dict]:
-    """Return mock data for testing."""
-    return [
-        {"path": "/home/user/Projects/hamr", "score": 100.0},
-        {"path": "/home/user/Documents", "score": 80.0},
-        {"path": "/home/user/.config", "score": 60.0},
-    ]
 
 
 def make_terminal_cmd(path: str) -> list[str]:
@@ -179,11 +169,7 @@ def dir_to_index_item(dir_info: dict) -> dict:
 
     path_parts = [p for p in path.lower().split("/") if p]
 
-    # Get directory contents preview
-    if TEST_MODE:
-        preview_content = "subdir1/\nsubdir2/\nfile1.txt\nfile2.py"
-    else:
-        preview_content = get_directory_preview(path)
+    preview_content = get_directory_preview(path)
 
     item_id = f"zoxide:{path}"
     return {
@@ -228,10 +214,7 @@ def handle_request(input_data: dict) -> None:
         mode = input_data.get("mode", "full")
         indexed_ids = set(input_data.get("indexedIds", []))
 
-        if TEST_MODE:
-            dirs = get_mock_dirs()
-        else:
-            dirs = get_zoxide_dirs()
+        dirs = get_zoxide_dirs()
 
         current_ids = {f"zoxide:{d['path']}" for d in dirs}
 
@@ -262,11 +245,10 @@ def handle_request(input_data: dict) -> None:
         selected = input_data.get("selected", {})
         item_id = selected.get("id", "")
 
-        # Extract path from item_id (format: "zoxide:/path/to/dir")
         if not item_id.startswith("zoxide:"):
             print(json.dumps({"type": "error", "message": "Invalid item ID"}))
             return
-        path = item_id[7:]  # Remove "zoxide:" prefix
+        path = item_id[7:]
 
         if not path:
             print(json.dumps({"type": "error", "message": "Missing path"}))
@@ -274,8 +256,7 @@ def handle_request(input_data: dict) -> None:
 
         if action_id == "files":
             try:
-                if not TEST_MODE:
-                    subprocess.Popen(["xdg-open", path])
+                subprocess.Popen(["xdg-open", path])
                 print(json.dumps({"type": "execute", "close": True}))
             except Exception as e:
                 print(json.dumps({"type": "error", "message": str(e)}))
@@ -283,22 +264,19 @@ def handle_request(input_data: dict) -> None:
 
         if action_id == "copy":
             try:
-                if not TEST_MODE:
-                    subprocess.run(
-                        ["wl-copy"],
-                        input=path.encode(),
-                        timeout=5,
-                    )
+                subprocess.run(
+                    ["wl-copy"],
+                    input=path.encode(),
+                    timeout=5,
+                )
                 print(json.dumps({"type": "execute", "close": True}))
             except Exception as e:
                 print(json.dumps({"type": "error", "message": str(e)}))
             return
 
-        # Default action: open terminal
         try:
-            if not TEST_MODE:
-                cmd = make_terminal_cmd(path)
-                subprocess.Popen(cmd)
+            cmd = make_terminal_cmd(path)
+            subprocess.Popen(cmd)
             print(json.dumps({"type": "execute", "close": True}))
         except Exception as e:
             print(json.dumps({"type": "error", "message": str(e)}))
@@ -309,10 +287,7 @@ def handle_request(input_data: dict) -> None:
 
 def emit_full_index() -> None:
     """Emit full index of zoxide directories."""
-    if TEST_MODE:
-        dirs = get_mock_dirs()
-    else:
-        dirs = get_zoxide_dirs()
+    dirs = get_zoxide_dirs()
 
     items = [dir_to_index_item(d) for d in dirs]
     print(
@@ -322,17 +297,11 @@ def emit_full_index() -> None:
 
 
 def main():
-    if TEST_MODE:
-        input_data = json.load(sys.stdin)
-        handle_request(input_data)
-        return
-
     import signal
 
     signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
     signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
 
-    # Emit full index on startup
     emit_full_index()
 
     watch_dir = ZOXIDE_DB.parent
@@ -344,7 +313,6 @@ def main():
     inotify_fd = create_inotify_fd(watch_dir)
 
     if inotify_fd is not None:
-        # Daemon mode with inotify
         while True:
             readable, _, _ = select.select([sys.stdin, inotify_fd], [], [], 1.0)
 
@@ -365,7 +333,6 @@ def main():
                     if watch_filename in changed:
                         emit_full_index()
     else:
-        # Fallback: mtime polling
         last_mtime = ZOXIDE_DB.stat().st_mtime if ZOXIDE_DB.exists() else 0
 
         while True:
@@ -382,7 +349,6 @@ def main():
                 except json.JSONDecodeError:
                     continue
 
-            # Check mtime
             if ZOXIDE_DB.exists():
                 current = ZOXIDE_DB.stat().st_mtime
                 if current != last_mtime:

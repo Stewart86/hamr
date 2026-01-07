@@ -12,9 +12,6 @@ import sys
 import time
 from pathlib import Path
 
-# Test mode - skip external tool calls
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 # inotify constants
 IN_CLOSE_WRITE = 0x00000008
 IN_MOVED_TO = 0x00000080
@@ -145,8 +142,6 @@ def get_todo_results(todos: list[dict], show_add: bool = False) -> list[dict]:
 
 def refresh_sidebar():
     """Refresh the Todo sidebar via IPC"""
-    if TEST_MODE:
-        return  # Skip IPC in test mode
     try:
         subprocess.Popen(
             ["qs", "-c", "ii", "ipc", "call", "todo", "refresh"],
@@ -154,7 +149,7 @@ def refresh_sidebar():
             stderr=subprocess.DEVNULL,
         )
     except FileNotFoundError:
-        pass  # qs not installed, skip refresh
+        pass
 
 
 def emit(data: dict) -> None:
@@ -528,9 +523,8 @@ def main():
     signal.signal(signal.SIGINT, shutdown_handler)
 
     todos = load_todos()
-    if not TEST_MODE:
-        emit_status(todos)
-        emit_index(todos)
+    emit_status(todos)
+    emit_index(todos)
 
     current_query = ""
     inotify_fd = create_inotify_fd()
@@ -559,13 +553,12 @@ def main():
                 changed_files = read_inotify_events(inotify_fd)
                 if todo_filename in changed_files:
                     todos = load_todos()
-                    if not TEST_MODE:
-                        emit_index(todos)
-                        respond(
-                            get_todo_results(todos),
-                            todos,
-                            plugin_actions=get_plugin_actions(todos),
-                        )
+                    emit_index(todos)
+                    respond(
+                        get_todo_results(todos),
+                        todos,
+                        plugin_actions=get_plugin_actions(todos),
+                    )
     else:
         last_mtime = get_file_mtime()
         last_check = time.time()
@@ -590,13 +583,12 @@ def main():
                 if new_mtime != last_mtime and new_mtime != 0:
                     last_mtime = new_mtime
                     todos = load_todos()
-                    if not TEST_MODE:
-                        emit_index(todos)
-                        respond(
-                            get_todo_results(todos),
-                            todos,
-                            plugin_actions=get_plugin_actions(todos),
-                        )
+                    emit_index(todos)
+                    respond(
+                        get_todo_results(todos),
+                        todos,
+                        plugin_actions=get_plugin_actions(todos),
+                    )
                 last_check = now
 
 

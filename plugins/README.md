@@ -12,14 +12,13 @@ Full documentation is available at: **https://stewart86.github.io/hamr**
 | [Response Types](../docs/plugins/response-types.md) | All response types (`results`, `execute`, `card`, `form`, etc.) |
 | [Visual Elements](../docs/plugins/visual-elements.md) | Sliders, switches, badges, gauges, progress bars |
 | [Advanced Features](../docs/plugins/advanced-features.md) | Daemon mode, indexing, search ranking |
-| [Testing](../docs/plugins/testing.md) | Test harness usage and mock data patterns |
+| [Testing](../docs/plugins/testing.md) | Manual testing and debugging |
 | [Cheat Sheet](../docs/plugins/cheatsheet.md) | Quick reference for common patterns |
 | [Raycast Conversion](../docs/plugins/raycast-conversion.md) | Porting Raycast extensions to Hamr |
 
 ## Quick Links
 
 - **Start here:** [docs/plugins/index.md](../docs/plugins/index.md)
-- **Test your plugin:** `HAMR_TEST_MODE=1 ./test-harness ./my-plugin/handler.py initial`
 - **View logs:** `journalctl --user -f`
 
 ## Built-in Plugins

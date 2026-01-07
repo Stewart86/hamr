@@ -23,9 +23,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Test mode for development
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 # Config and default paths
 XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
 XDG_CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
@@ -49,8 +46,6 @@ def load_wallpaper_history() -> list[str]:
 
 def save_wallpaper_to_history(path: str) -> None:
     """Save wallpaper path to history"""
-    if TEST_MODE:
-        return
     history = load_wallpaper_history()
     if path in history:
         history.remove(path)
@@ -250,8 +245,7 @@ def main():
                 mode = "dark"
                 command = build_wallpaper_command(random_path, mode)
                 save_wallpaper_to_history(random_path)
-                if not TEST_MODE:
-                    subprocess.Popen(command)
+                subprocess.Popen(command)
                 print(
                     json.dumps(
                         {
@@ -333,8 +327,7 @@ def main():
         mode = "dark"
         command = build_wallpaper_command(file_path, mode)
         save_wallpaper_to_history(file_path)
-        if not TEST_MODE:
-            subprocess.Popen(command)
+        subprocess.Popen(command)
 
         print(
             json.dumps(
@@ -399,8 +392,7 @@ def main():
 
         # Save to history
         save_wallpaper_to_history(file_path)
-        if not TEST_MODE:
-            subprocess.Popen(command)
+        subprocess.Popen(command)
 
         print(
             json.dumps(

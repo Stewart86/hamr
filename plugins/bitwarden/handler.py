@@ -33,10 +33,6 @@ def _get_keyring():  # type: ignore
         return None
 
 
-# Test mode - return mock data instead of calling real Bitwarden CLI
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
-
 # inotify constants
 IN_CLOSE_WRITE = 0x00000008
 IN_MOVED_TO = 0x00000080
@@ -80,51 +76,6 @@ def read_inotify_events(fd: int) -> list[str]:
     return filenames
 
 
-# Mock vault items for testing
-MOCK_VAULT_ITEMS = [
-    {
-        "id": "mock-github-id",
-        "name": "GitHub",
-        "type": 1,
-        "login": {
-            "username": "testuser@example.com",
-            "password": "mock-password-123",
-            "totp": "JBSWY3DPEHPK3PXP",
-            "uris": [{"uri": "https://github.com"}],
-        },
-        "notes": "Personal GitHub account",
-    },
-    {
-        "id": "mock-google-id",
-        "name": "Google",
-        "type": 1,
-        "login": {
-            "username": "testuser@gmail.com",
-            "password": "mock-google-pass",
-            "totp": None,
-            "uris": [
-                {"uri": "https://google.com"},
-                {"uri": "https://mail.google.com"},
-            ],
-        },
-        "notes": "",
-    },
-    {
-        "id": "mock-note-id",
-        "name": "Secret Note",
-        "type": 2,
-        "login": {},
-        "notes": "This is a secure note with sensitive info",
-    },
-    {
-        "id": "mock-card-id",
-        "name": "Credit Card",
-        "type": 3,
-        "login": {},
-        "notes": "Main credit card",
-    },
-]
-
 # Cache directory for vault items (use runtime dir for security - never persists to disk)
 CACHE_DIR = (
     Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
@@ -167,9 +118,6 @@ if _OLD_CACHE_DIR.exists():
 
 def find_bw() -> str | None:
     """Find bw executable, checking common user paths"""
-    if TEST_MODE:
-        return "/mock/bw"  # Return fake path in test mode
-
     bw_path = shutil.which("bw")
     if bw_path:
         return bw_path
@@ -202,9 +150,6 @@ BW_PATH = find_bw()
 
 def get_bw_status(session: str | None = None) -> dict:
     """Get Bitwarden CLI status, optionally with session to check if unlocked"""
-    if TEST_MODE:
-        return {"status": "unlocked", "userEmail": "test@example.com"}
-
     success, output = run_bw(["status"], session=session)
     if success:
         try:
@@ -251,17 +196,11 @@ def clear_session_from_keyring() -> bool:
 
 def get_session() -> str | None:
     """Get session from keyring"""
-    if TEST_MODE:
-        return "mock-session-token"
-
     return get_session_from_keyring()
 
 
 def unlock_vault(password: str) -> tuple[bool, str]:
     """Unlock vault with master password, returns (success, session_or_error)"""
-    if TEST_MODE:
-        return True, "mock-session-token"
-
     if not BW_PATH:
         return False, "Bitwarden CLI not found"
 
@@ -276,7 +215,6 @@ def unlock_vault(password: str) -> tuple[bool, str]:
         if result.returncode == 0:
             session = result.stdout.strip()
             if session:
-                # Save to keyring for future use
                 save_session_to_keyring(session)
                 return True, session
         return False, result.stderr.strip() or "Failed to unlock"
@@ -288,9 +226,6 @@ def unlock_vault(password: str) -> tuple[bool, str]:
 
 def login_vault(email: str, password: str, code: str = "") -> tuple[bool, str]:
     """Login to vault, returns (success, session_or_error)"""
-    if TEST_MODE:
-        return True, "mock-session-token"
-
     if not BW_PATH:
         return False, "Bitwarden CLI not found"
 
@@ -321,22 +256,6 @@ def login_vault(email: str, password: str, code: str = "") -> tuple[bool, str]:
 
 def run_bw(args: list[str], session: str | None = None) -> tuple[bool, str]:
     """Run bw command and return (success, output)"""
-    # In test mode, return mock responses
-    if TEST_MODE:
-        if args == ["list", "items"]:
-            return True, json.dumps(MOCK_VAULT_ITEMS)
-        elif args == ["sync"]:
-            return True, "Syncing complete."
-        elif len(args) >= 3 and args[0] == "get" and args[1] == "item":
-            item_id = args[2]
-            for item in MOCK_VAULT_ITEMS:
-                if item["id"] == item_id:
-                    return True, json.dumps(item)
-            return False, "Item not found"
-        elif len(args) >= 3 and args[0] == "get" and args[1] == "totp":
-            return True, "123456"  # Mock TOTP code
-        return True, ""
-
     if not BW_PATH:
         return False, "Bitwarden CLI not found"
 
@@ -353,7 +272,6 @@ def run_bw(args: list[str], session: str | None = None) -> tuple[bool, str]:
             timeout=30,
             env=env,
         )
-        # Clean node.js warnings from output
         stdout = "\n".join(
             line
             for line in result.stdout.split("\n")
@@ -490,7 +408,6 @@ def search_items(query: str, session: str, force_refresh: bool = False) -> list[
         return q in name.lower() or q in username.lower()
 
     if cached_items is not None:
-        # Filter locally
         if query:
             results = [
                 item for item in cached_items if matches_query(item, query.lower())
@@ -498,13 +415,11 @@ def search_items(query: str, session: str, force_refresh: bool = False) -> list[
         else:
             results = cached_items
 
-        # Background sync if stale
         if not is_cache_fresh():
             sync_vault_background(session)
 
         return results[:50]
 
-    # No cache - fetch from bw
     items = fetch_all_items(session)
     if items:
         save_items_cache(items)
@@ -523,7 +438,6 @@ def get_totp(item_id: str, session: str) -> str | None:
 
 def get_plugin_actions(cache_age: float | None = None) -> list[dict]:
     """Get plugin-level actions for the action bar"""
-    # Cache status for sync button
     if cache_age is not None:
         if cache_age < 60:
             cache_status = "just now"
@@ -559,19 +473,13 @@ def get_plugin_actions(cache_age: float | None = None) -> list[dict]:
 
 def lock_vault() -> tuple[bool, str]:
     """Lock the vault and clear session"""
-    if TEST_MODE:
-        return True, "Vault locked"
-
     if not BW_PATH:
         return False, "Bitwarden CLI not found"
 
-    # Clear session from keyring
     clear_session_from_keyring()
 
-    # Clear items cache
     clear_items_cache()
 
-    # Lock via bw CLI
     try:
         result = subprocess.run(
             [BW_PATH, "lock"],
@@ -589,26 +497,19 @@ def lock_vault() -> tuple[bool, str]:
 
 def logout_vault() -> tuple[bool, str]:
     """Logout from the vault completely"""
-    if TEST_MODE:
-        return True, "Logged out"
-
     if not BW_PATH:
         return False, "Bitwarden CLI not found"
 
-    # Clear session from keyring
     clear_session_from_keyring()
 
-    # Clear items cache
     clear_items_cache()
 
-    # Clear last email
     if LAST_EMAIL_FILE.exists():
         try:
             LAST_EMAIL_FILE.unlink()
         except OSError:
             pass
 
-    # Logout via bw CLI
     try:
         result = subprocess.run(
             [BW_PATH, "logout"],
@@ -619,7 +520,6 @@ def logout_vault() -> tuple[bool, str]:
         )
         if result.returncode == 0:
             return True, "Logged out"
-        # Already logged out is fine
         if "not logged in" in result.stderr.lower():
             return True, "Logged out"
         return False, result.stderr.strip() or "Failed to logout"
@@ -643,8 +543,6 @@ def get_item_uris(item: dict) -> list[str]:
 
 def open_url(url: str) -> None:
     """Open URL in default browser"""
-    if TEST_MODE:
-        return
     subprocess.Popen(
         ["xdg-open", url],
         stdout=subprocess.DEVNULL,
@@ -656,10 +554,10 @@ def get_item_type_badge(item: dict) -> dict | None:
     """Get badge for item type"""
     item_type = item.get("type", 1)
     badges = {
-        1: None,  # Login - most common, no badge needed
-        2: {"icon": "note", "color": "#9c27b0"},  # Secure Note - purple
-        3: {"icon": "credit_card", "color": "#ff9800"},  # Card - orange
-        4: {"icon": "person", "color": "#4caf50"},  # Identity - green
+        1: None,
+        2: {"icon": "note", "color": "#9c27b0"},
+        3: {"icon": "credit_card", "color": "#ff9800"},
+        4: {"icon": "person", "color": "#4caf50"},
     }
     return badges.get(item_type)
 
@@ -827,7 +725,6 @@ def item_to_index_item(item: dict) -> dict:
     has_totp = bool(login.get("totp"))
     uris = get_item_uris(item)
 
-    # Build actions with entryPoints (no passwords stored!)
     actions = []
     if username:
         actions.append(
@@ -897,7 +794,6 @@ def item_to_index_item(item: dict) -> dict:
         "icon": get_item_icon(item),
         "verb": "Copy Password" if has_password else "Copy Username",
         "actions": actions,
-        # Default action: copy password if available, else username
         "entryPoint": {
             "step": "action",
             "selected": {"id": item_id},
@@ -919,8 +815,6 @@ def handle_request(input_data: dict):
     selected = input_data.get("selected", {})
     action = input_data.get("action", "")
 
-    # Uses cached items only - does not require active session
-    # Never includes passwords - uses entryPoint for secure execution
     if step == "index":
         mode = input_data.get("mode", "full")
         indexed_ids = set(input_data.get("indexedIds", []))
@@ -930,11 +824,9 @@ def handle_request(input_data: dict):
             print(json.dumps({"type": "index", "items": []}))
             return
 
-        # Build current ID set
         current_ids = {f"bitwarden:{item.get('id', '')}" for item in cached_items}
 
         if mode == "incremental" and indexed_ids:
-            # Find new items
             new_ids = current_ids - indexed_ids
             new_items = [
                 item_to_index_item(item)
@@ -942,7 +834,6 @@ def handle_request(input_data: dict):
                 if f"bitwarden:{item.get('id', '')}" in new_ids
             ]
 
-            # Find removed items
             removed_ids = list(indexed_ids - current_ids)
 
             print(
@@ -956,12 +847,10 @@ def handle_request(input_data: dict):
                 )
             )
         else:
-            # Full reindex
             items = [item_to_index_item(item) for item in cached_items]
             print(json.dumps({"type": "index", "items": items}))
         return
 
-    # Handle form submissions (login/unlock)
     if step == "form":
         form_id = input_data.get("formId", "")
         form_data = input_data.get("formData", {})
@@ -973,7 +862,6 @@ def handle_request(input_data: dict):
                 return
             success, result = unlock_vault(password)
             if success:
-                # Session saved to keyring, now fetch items and show results
                 items = fetch_all_items(result)
                 if items:
                     save_items_cache(items)
@@ -1008,9 +896,7 @@ def handle_request(input_data: dict):
                 return
             success, result = login_vault(email, password, code)
             if success:
-                # Save email for next login convenience
                 save_last_email(email)
-                # Fetch items and show results
                 items = fetch_all_items(result)
                 if items:
                     save_items_cache(items)
@@ -1033,7 +919,6 @@ def handle_request(input_data: dict):
                         "Logged in but no items found. Your vault may be empty.",
                     )
             else:
-                # Check if 2FA is required
                 if (
                     "Two-step" in result
                     or "two-step" in result
@@ -1058,7 +943,6 @@ def handle_request(input_data: dict):
                     respond_card("Login Failed", f"**Error:** {result}")
             return
 
-    # Check bw is installed
     if not BW_PATH:
         respond_card(
             "Bitwarden CLI Required",
@@ -1067,20 +951,15 @@ def handle_request(input_data: dict):
         )
         return
 
-    # Check keyring for session first (fast path)
-    # If session exists, it's valid because we clear it on lock/logout
     session = get_session()
 
     if session:
-        # Session exists - vault is unlocked, proceed directly
         pass
     else:
-        # No session - check bw status to determine what to show
         status = get_bw_status()
         bw_status = status.get("status", "unauthenticated")
 
         if bw_status == "unauthenticated":
-            # Not logged in - show login form
             clear_items_cache()
             last_email = get_last_email()
             respond_form(
@@ -1106,7 +985,6 @@ def handle_request(input_data: dict):
             return
 
         if bw_status == "locked":
-            # Logged in but locked - show unlock form
             user_email = status.get("userEmail", "")
             respond_form(
                 "unlock",
@@ -1123,7 +1001,6 @@ def handle_request(input_data: dict):
             )
             return
 
-        # Status is unlocked but no session in keyring (edge case - external unlock)
         respond_card(
             "Session Required",
             "Vault is unlocked but session not found.\n\n"
@@ -1134,7 +1011,6 @@ def handle_request(input_data: dict):
     if step == "initial":
         items = search_items("", session)
         if not items:
-            # Might be locked or no items
             respond_card(
                 "No Items Found",
                 "Either your vault is empty, locked, or the session expired.\n\n"
@@ -1188,7 +1064,6 @@ def handle_request(input_data: dict):
     if step == "action":
         item_id = selected.get("id", "")
 
-        # Plugin-level action: sync (from action bar) - view refresh, not navigation
         if item_id == "__plugin__" and action == "sync":
             run_bw(["sync"], session=session)
             clear_items_cache()
@@ -1210,7 +1085,6 @@ def handle_request(input_data: dict):
             )
             return
 
-        # Plugin-level action: lock vault
         if item_id == "__plugin__" and action == "lock":
             success, message = lock_vault()
             if success:
@@ -1222,7 +1096,6 @@ def handle_request(input_data: dict):
                 respond_card("Error", f"Failed to lock vault: {message}")
             return
 
-        # Plugin-level action: logout
         if item_id == "__plugin__" and action == "logout":
             success, message = logout_vault()
             if success:
@@ -1234,7 +1107,6 @@ def handle_request(input_data: dict):
                 respond_card("Error", f"Failed to logout: {message}")
             return
 
-        # Legacy sync button (keep for backwards compatibility)
         if item_id == "__sync__":
             run_bw(["sync"], session=session)
             clear_items_cache()
@@ -1256,14 +1128,11 @@ def handle_request(input_data: dict):
             )
             return
 
-        # No results placeholder
         if item_id == "__no_results__":
             return
 
-        # Get item from cache first (fast), fall back to API (slow)
         item = get_cached_item(item_id)
         if not item:
-            # Not in cache, fetch from API
             success, output = run_bw(["get", "item", item_id], session=session)
             if not success:
                 respond_card("Error", f"Failed to get item: {output}")
@@ -1279,11 +1148,8 @@ def handle_request(input_data: dict):
         password = login.get("password", "") or ""
         name = item.get("name", "Unknown")
 
-        # Copy username (from cache - instant)
-        # Uses entryPoint for history so credentials aren't stored in command
         if action == "copy_username" and username:
-            if not TEST_MODE:
-                subprocess.run(["wl-copy", username], check=False)
+            subprocess.run(["wl-copy", username], check=False)
             respond_execute(
                 notify=f"Username copied: {username[:30]}{'...' if len(username) > 30 else ''}",
                 name=f"Copy username: {name}",
@@ -1296,11 +1162,8 @@ def handle_request(input_data: dict):
             )
             return
 
-        # Copy password (from cache - instant)
-        # Uses entryPoint - password is NEVER stored in history
         if action == "copy_password" and password:
-            if not TEST_MODE:
-                subprocess.run(["wl-copy", password], check=False)
+            subprocess.run(["wl-copy", password], check=False)
             respond_execute(
                 notify="Password copied to clipboard",
                 name=f"Copy password: {name}",
@@ -1313,13 +1176,10 @@ def handle_request(input_data: dict):
             )
             return
 
-        # Copy TOTP (must fetch live - changes every 30s)
-        # Uses entryPoint - TOTP must always be fetched fresh
         if action == "copy_totp":
             totp = get_totp(item_id, session)
             if totp:
-                if not TEST_MODE:
-                    subprocess.run(["wl-copy", totp], check=False)
+                subprocess.run(["wl-copy", totp], check=False)
                 respond_execute(
                     notify=f"TOTP copied: {totp}",
                     name=f"Copy TOTP: {name}",
@@ -1334,11 +1194,10 @@ def handle_request(input_data: dict):
                 respond_card("Error", "Failed to get TOTP code")
             return
 
-        # Open URL in browser
         if action == "open_url":
             uris = get_item_uris(item)
             if uris:
-                url = uris[0]  # Open first URL
+                url = uris[0]
                 open_url(url)
                 respond_execute(
                     notify=f"Opening {url[:40]}{'...' if len(url) > 40 else ''}",
@@ -1354,11 +1213,8 @@ def handle_request(input_data: dict):
                 respond_card("Error", "No URL found for this item")
             return
 
-        # Default: copy password or username (from cache - instant)
-        # Uses entryPoint for history tracking
         if password:
-            if not TEST_MODE:
-                subprocess.run(["wl-copy", password], check=False)
+            subprocess.run(["wl-copy", password], check=False)
             respond_execute(
                 notify="Password copied to clipboard",
                 name=f"Copy password: {name}",
@@ -1370,8 +1226,7 @@ def handle_request(input_data: dict):
                 },
             )
         elif username:
-            if not TEST_MODE:
-                subprocess.run(["wl-copy", username], check=False)
+            subprocess.run(["wl-copy", username], check=False)
             respond_execute(
                 notify=f"Username copied: {username[:30]}...",
                 name=f"Copy username: {name}",
@@ -1393,19 +1248,16 @@ def main():
     watch_dir = CACHE_DIR
     watch_filename = "items.json"
 
-    # Emit full index on startup
-    if not TEST_MODE:
-        cached_items = load_cached_items()
-        if cached_items:
-            items = [item_to_index_item(item) for item in cached_items]
-        else:
-            items = []
-        print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
+    cached_items = load_cached_items()
+    if cached_items:
+        items = [item_to_index_item(item) for item in cached_items]
+    else:
+        items = []
+    print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
 
     inotify_fd = create_inotify_fd(watch_dir)
 
     if inotify_fd is not None:
-        # Daemon mode with inotify
         while True:
             readable, _, _ = select.select([sys.stdin, inotify_fd], [], [], 1.0)
 
@@ -1437,7 +1289,6 @@ def main():
                         )
                         sys.stdout.flush()
     else:
-        # Fallback: mtime polling
         last_mtime = (
             ITEMS_CACHE_FILE.stat().st_mtime if ITEMS_CACHE_FILE.exists() else 0
         )
@@ -1456,7 +1307,6 @@ def main():
                 except json.JSONDecodeError:
                     continue
 
-            # Check mtime
             if ITEMS_CACHE_FILE.exists():
                 current = ITEMS_CACHE_FILE.stat().st_mtime
                 if current != last_mtime:

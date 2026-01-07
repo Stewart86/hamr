@@ -4,41 +4,11 @@ Top Memory daemon - show processes sorted by memory usage.
 """
 
 import json
-import os
 import select
 import signal
 import subprocess
 import sys
 import time
-
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
-MOCK_PROCESSES = [
-    {
-        "pid": "5678",
-        "name": "code",
-        "cpu": 15.3,
-        "mem": 12.1,
-        "rss": 1267589120,
-        "user": "user",
-    },
-    {
-        "pid": "1234",
-        "name": "firefox",
-        "cpu": 25.5,
-        "mem": 8.2,
-        "rss": 858993459,
-        "user": "user",
-    },
-    {
-        "pid": "9012",
-        "name": "python3",
-        "cpu": 8.7,
-        "mem": 2.5,
-        "rss": 262144000,
-        "user": "user",
-    },
-]
 
 
 def format_bytes(bytes_val: int) -> str:
@@ -55,9 +25,6 @@ def format_bytes(bytes_val: int) -> str:
 
 def get_processes() -> list[dict]:
     """Get processes sorted by memory usage"""
-    if TEST_MODE:
-        return MOCK_PROCESSES
-
     try:
         # Use ps to get process info sorted by memory
         result = subprocess.run(
@@ -157,9 +124,6 @@ def get_process_results(processes: list[dict], query: str = "") -> list[dict]:
 
 def kill_process(pid: str, force: bool = False) -> tuple[bool, str]:
     """Kill a process by PID"""
-    if TEST_MODE:
-        return True, f"Process {pid} killed"
-
     try:
         signal = "-9" if force else "-15"
         subprocess.run(["kill", signal, pid], check=True)

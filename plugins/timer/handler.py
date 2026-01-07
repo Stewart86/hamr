@@ -10,8 +10,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 DATA_DIR = Path.home() / ".config" / "hamr" / "data" / "timer"
 DATA_FILE = DATA_DIR / "data.json"
 
@@ -584,12 +582,11 @@ def main():
     signal.signal(signal.SIGINT, shutdown_handler)
 
     timers = load_timers()
-    for timer in timers:
-        if timer.state == TimerState.RUNNING:
-            timer.tick()
-
-    if not TEST_MODE:
-        emit_status(timers)
+     for timer in timers:
+         if timer.state == TimerState.RUNNING:
+             timer.tick()
+ 
+     emit_status(timers)
 
     current_query = ""
     plugin_active = False
@@ -623,14 +620,13 @@ def main():
                         completed_any = True
                         handle_timer_completion(timer)
 
-                if completed_any:
-                    save_timers(timers)
-
-                if not TEST_MODE:
-                    if plugin_active:
-                        respond(timers, query=current_query)
-                    else:
-                        emit_status(timers)
+                 if completed_any:
+                     save_timers(timers)
+ 
+                 if plugin_active:
+                     respond(timers, query=current_query)
+                 else:
+                     emit_status(timers)
 
 
 if __name__ == "__main__":

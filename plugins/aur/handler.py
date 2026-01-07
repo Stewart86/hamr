@@ -22,8 +22,6 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 AUR_RPC = "https://aur.archlinux.org/rpc/v5/search"
 AUR_INFO = "https://aur.archlinux.org/rpc/v5/info"
 AUR_WEB = "https://aur.archlinux.org/packages"
@@ -35,9 +33,6 @@ CACHE_TTL = 300
 
 def detect_aur_helper() -> str | None:
     """Detect available AUR helper (yay or paru)"""
-    if TEST_MODE:
-        return "yay"
-
     for helper in ("paru", "yay"):
         if shutil.which(helper):
             return helper
@@ -81,9 +76,6 @@ def save_cached_results(query: str, results: list[dict]) -> None:
 
 def get_installed_packages() -> set[str]:
     """Get set of installed package names"""
-    if TEST_MODE:
-        return {"yay", "paru"}
-
     try:
         result = subprocess.run(
             ["pacman", "-Qq"],
@@ -100,43 +92,6 @@ def get_installed_packages() -> set[str]:
 
 def search_aur(query: str) -> list[dict]:
     """Search AUR API for packages with caching"""
-    if TEST_MODE:
-        return [
-            {
-                "Name": "yay",
-                "Version": "12.5.7-1",
-                "Description": "Yet another yogurt. Pacman wrapper and AUR helper written in Go.",
-                "Maintainer": "Jguer",
-                "NumVotes": 2500,
-                "Popularity": 85.5,
-                "OutOfDate": None,
-                "FirstSubmitted": 1500000000,
-                "LastModified": 1700000000,
-            },
-            {
-                "Name": "paru",
-                "Version": "2.1.0-1",
-                "Description": "Feature packed AUR helper",
-                "Maintainer": "Morganamilo",
-                "NumVotes": 1800,
-                "Popularity": 75.2,
-                "OutOfDate": None,
-                "FirstSubmitted": 1600000000,
-                "LastModified": 1700000000,
-            },
-            {
-                "Name": "pacseek",
-                "Version": "1.8.6-1",
-                "Description": "A terminal user interface for searching and installing Arch Linux packages",
-                "Maintainer": "moson-mo",
-                "NumVotes": 570,
-                "Popularity": 12.5,
-                "OutOfDate": None,
-                "FirstSubmitted": 1620000000,
-                "LastModified": 1734000000,
-            },
-        ]
-
     cached = get_cached_results(query)
     if cached is not None:
         return cached
@@ -383,8 +338,7 @@ def main():
                 f'notify-send "AUR" "{pkg_name} uninstalled" -a "Hamr" || '
                 f'notify-send "AUR" "Failed to uninstall {pkg_name}" -a "Hamr"'
             )
-            if not TEST_MODE:
-                subprocess.Popen(["bash", "-c", cmd])
+            subprocess.Popen(["bash", "-c", cmd])
             print(
                 json.dumps(
                     {
@@ -402,8 +356,7 @@ def main():
                 f'notify-send "AUR" "{pkg_name} installed" -a "Hamr" || '
                 f'notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
             )
-            if not TEST_MODE:
-                subprocess.Popen(["bash", "-c", cmd])
+            subprocess.Popen(["bash", "-c", cmd])
             print(
                 json.dumps(
                     {
@@ -434,8 +387,7 @@ def main():
                 f'notify-send "AUR" "{pkg_name} installed" -a "Hamr" || '
                 f'notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
             )
-            if not TEST_MODE:
-                subprocess.Popen(["bash", "-c", cmd])
+            subprocess.Popen(["bash", "-c", cmd])
             print(
                 json.dumps(
                     {

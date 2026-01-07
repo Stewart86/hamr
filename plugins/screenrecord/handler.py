@@ -13,8 +13,6 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-# Test mode - mock external tool calls
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 IS_NIRI = bool(os.environ.get("NIRI_SOCKET"))
 
 # Directories
@@ -30,8 +28,6 @@ TRIM_BUFFER_MS = 500  # Extra buffer to ensure hamr animation is trimmed
 
 def is_recording() -> bool:
     """Check if wf-recorder is currently running."""
-    if TEST_MODE:
-        return False  # Not recording in test mode
     try:
         return (
             subprocess.run(["pgrep", "wf-recorder"], capture_output=True).returncode
@@ -43,8 +39,6 @@ def is_recording() -> bool:
 
 def get_focused_monitor() -> str:
     """Get the name of the currently focused monitor."""
-    if TEST_MODE:
-        return "eDP-1"  # Mock monitor name
     try:
         if IS_NIRI:
             result = subprocess.run(
@@ -75,8 +69,6 @@ def get_focused_monitor() -> str:
 
 def get_audio_source() -> str:
     """Get the monitor audio source for recording system audio."""
-    if TEST_MODE:
-        return "alsa_output.pci-0000_00_1f.3.analog-stereo.monitor"  # Mock audio source
     try:
         result = subprocess.run(
             ["pactl", "list", "sources"],
@@ -349,15 +341,13 @@ notify-send "Recording Stopped" "Saved to Videos folder"
 """
 
             clear_recording_state()
-            if not TEST_MODE:
-                subprocess.Popen(["bash", "-c", script])
+            subprocess.Popen(["bash", "-c", script])
 
             print(json.dumps({"type": "execute", "close": True}))
             return
 
         if item_id == "browse":
-            if not TEST_MODE:
-                subprocess.Popen(["xdg-open", str(VIDEOS_DIR)])
+            subprocess.Popen(["xdg-open", str(VIDEOS_DIR)])
             print(json.dumps({"type": "execute", "close": True}))
             return
 
@@ -371,8 +361,7 @@ notify-send "Recording Stopped" "Saved to Videos folder"
             start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
             save_recording_state(output_path, start_time_ms)
 
-            if not TEST_MODE:
-                subprocess.Popen(["bash", "-c", script])
+            subprocess.Popen(["bash", "-c", script])
             print(json.dumps({"type": "execute", "close": True}))
             return
 
@@ -381,8 +370,7 @@ notify-send "Recording Stopped" "Saved to Videos folder"
             start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
             save_recording_state(output_path, start_time_ms)
 
-            if not TEST_MODE:
-                subprocess.Popen(["bash", "-c", script])
+            subprocess.Popen(["bash", "-c", script])
             print(json.dumps({"type": "execute", "close": True}))
             return
 
@@ -391,8 +379,7 @@ notify-send "Recording Stopped" "Saved to Videos folder"
             start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
             save_recording_state(output_path, start_time_ms)
 
-            if not TEST_MODE:
-                subprocess.Popen(["bash", "-c", script])
+            subprocess.Popen(["bash", "-c", script])
             print(json.dumps({"type": "execute", "close": True}))
             return
 
@@ -401,8 +388,7 @@ notify-send "Recording Stopped" "Saved to Videos folder"
             start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
             save_recording_state(output_path, start_time_ms)
 
-            if not TEST_MODE:
-                subprocess.Popen(["bash", "-c", script])
+            subprocess.Popen(["bash", "-c", script])
             print(json.dumps({"type": "execute", "close": True}))
             return
 

@@ -23,14 +23,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Test mode support
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 # Config file location
-if TEST_MODE and os.environ.get("HAMR_TEST_CONFIG_DIR"):
-    CONFIG_DIR = Path(os.environ["HAMR_TEST_CONFIG_DIR"])
-else:
-    CONFIG_DIR = Path.home() / ".config/hamr"
+CONFIG_DIR = Path.home() / ".config/hamr"
 
 WEBAPPS_FILE = CONFIG_DIR / "webapps.json"
 ICONS_DIR = CONFIG_DIR / "webapp-icons"
@@ -631,12 +625,11 @@ def handle_request(input_data: dict):
             app = next((a for a in webapps if a["id"] == selected_id), None)
             if app:
                 try:
-                    if not TEST_MODE:
-                        subprocess.Popen(
-                            [str(LAUNCHER_SCRIPT), "--floating", app["url"]],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                        )
+                    subprocess.Popen(
+                        [str(LAUNCHER_SCRIPT), "--floating", app["url"]],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
                     print(json.dumps({"type": "execute", "close": True}))
                 except Exception:
                     print(
@@ -671,12 +664,11 @@ def handle_request(input_data: dict):
         app = next((a for a in webapps if a["id"] == selected_id), None)
         if app:
             try:
-                if not TEST_MODE:
-                    subprocess.Popen(
-                        [str(LAUNCHER_SCRIPT), app["url"]],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
+                subprocess.Popen(
+                    [str(LAUNCHER_SCRIPT), app["url"]],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
                 print(json.dumps({"type": "execute", "close": True}))
             except Exception:
                 print(json.dumps({"type": "error", "message": "Failed to launch app"}))
@@ -692,9 +684,8 @@ def main():
     inotify_fd = create_inotify_fd(watch_dir)
 
     # Emit full index on startup
-    if not TEST_MODE:
-        items = get_index_items()
-        print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
+    items = get_index_items()
+    print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
 
     if inotify_fd is not None:
         # Daemon mode with inotify

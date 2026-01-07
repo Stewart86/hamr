@@ -15,8 +15,6 @@ import sys
 import time
 from pathlib import Path
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 # Notes file location
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
 NOTES_FILE = CONFIG_DIR / "hamr" / "notes.json"
@@ -506,9 +504,8 @@ def main():
 
     notes = load_notes()
 
-    if not TEST_MODE:
-        items = get_index_items(notes)
-        emit({"type": "index", "mode": "full", "items": items})
+    items = get_index_items(notes)
+    emit({"type": "index", "mode": "full", "items": items})
 
     while True:
         readable, _, _ = select.select([sys.stdin], [], [], 0.5)

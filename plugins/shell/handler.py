@@ -464,9 +464,6 @@ def handle_request(input_data: dict):
             print(json.dumps({"type": "execute", "close": True}))
 
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
-
 def main():
     """Main entry point - daemon mode with inotify file watching."""
     shell = os.environ.get("SHELL", "/bin/bash")
@@ -483,10 +480,8 @@ def main():
     watch_dirs = list({f.parent for f in history_files if f.parent.exists()})
     history_names = {f.name for f in history_files}
 
-    # Emit full index on startup (skip in test mode - tests use explicit index step)
-    if not TEST_MODE:
-        items = get_index_items()
-        print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
+    items = get_index_items()
+    print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
 
     inotify_fd, wd_to_path = create_inotify_fd(watch_dirs)
 

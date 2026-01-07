@@ -8,8 +8,6 @@ import json
 import os
 import sys
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 
 def normalize_url(url: str) -> str:
     """Add https:// if no protocol specified."""

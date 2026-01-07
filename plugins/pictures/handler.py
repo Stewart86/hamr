@@ -11,17 +11,12 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Test mode for development
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 PICTURES_DIR = Path(os.environ.get("XDG_PICTURES_DIR", Path.home() / "Pictures"))
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"}
 
 
 def get_image_dimensions(path: str) -> tuple[int, int] | None:
     """Get image dimensions using PIL if available, else return None"""
-    if TEST_MODE:
-        return (1920, 1080)  # Mock dimensions
     try:
         from PIL import Image
 
@@ -251,8 +246,7 @@ def main():
 
         if item_id.startswith("copy-image:"):
             path = item_id.split(":", 1)[1]
-            if not TEST_MODE:
-                subprocess.Popen(["wl-copy", "-t", "image/png", path])
+            subprocess.Popen(["wl-copy", "-t", "image/png", path])
             print(
                 json.dumps(
                     {

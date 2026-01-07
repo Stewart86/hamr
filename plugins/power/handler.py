@@ -12,8 +12,6 @@ import signal
 import subprocess
 import sys
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 POWER_ACTIONS = [
     {
         "id": "shutdown",
@@ -202,16 +200,12 @@ def handle_request(request: dict) -> None:
             )
             return
 
-        # Execute the command in the handler
-        if not TEST_MODE:
-            subprocess.Popen(
-                action["command"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-
-        # Return safe API response (just close, command already executed)
+        subprocess.Popen(
+            action["command"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
         print(
             json.dumps(
                 {
@@ -232,13 +226,11 @@ def main():
     signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
     signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
 
-    # Emit full index on startup (skip in test mode - tests use explicit index step)
-    if not TEST_MODE:
-        items = get_index_items()
-        print(
-            json.dumps({"type": "index", "mode": "full", "items": items}),
-            flush=True,
-        )
+    items = get_index_items()
+    print(
+        json.dumps({"type": "index", "mode": "full", "items": items}),
+        flush=True,
+    )
 
     while True:
         readable, _, _ = select.select([sys.stdin], [], [], 1.0)

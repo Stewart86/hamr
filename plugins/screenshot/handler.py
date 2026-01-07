@@ -11,8 +11,6 @@ import sys
 import hashlib
 from pathlib import Path
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 # Directories
 PICTURES_DIR = Path.home() / "Pictures"
 SCREENSHOTS_DIR = PICTURES_DIR / "Screenshots"
@@ -148,15 +146,12 @@ def main():
 
         # Copy image to clipboard
         if action_id == "copy":
-            if not TEST_MODE:
-                try:
-                    with open(file_path, "rb") as f:
-                        subprocess.Popen(["wl-copy"], stdin=f)
-                except (FileNotFoundError, subprocess.SubprocessError, IOError):
-                    print(
-                        json.dumps({"type": "error", "message": "Failed to copy image"})
-                    )
-                    return
+            try:
+                with open(file_path, "rb") as f:
+                    subprocess.Popen(["wl-copy"], stdin=f)
+            except (FileNotFoundError, subprocess.SubprocessError, IOError):
+                print(json.dumps({"type": "error", "message": "Failed to copy image"}))
+                return
             print(
                 json.dumps(
                     {
@@ -206,20 +201,15 @@ def main():
 
         # Delete (move to trash)
         if action_id == "delete":
-            if not TEST_MODE:
-                try:
-                    subprocess.run(
-                        ["gio", "trash", file_path],
-                        check=True,
-                        capture_output=True,
-                    )
-                except (subprocess.CalledProcessError, FileNotFoundError):
-                    print(
-                        json.dumps(
-                            {"type": "error", "message": "Failed to delete file"}
-                        )
-                    )
-                    return
+            try:
+                subprocess.run(
+                    ["gio", "trash", file_path],
+                    check=True,
+                    capture_output=True,
+                )
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                print(json.dumps({"type": "error", "message": "Failed to delete file"}))
+                return
             print(
                 json.dumps(
                     {

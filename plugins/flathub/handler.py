@@ -20,8 +20,6 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 FLATHUB_API = "https://flathub.org/api/v2/search"
 FLATHUB_WEB = "https://flathub.org/apps"
 CACHE_DIR = (
@@ -132,28 +130,6 @@ def get_installed_app_ids() -> set[str]:
 
 def search_flathub(query: str) -> list[dict]:
     """Search Flathub API for apps with caching"""
-    if TEST_MODE:
-        return [
-            {
-                "app_id": "org.mozilla.firefox",
-                "name": "Firefox",
-                "summary": "Fast, Private & Safe Web Browser",
-                "icon": "https://dl.flathub.org/repo/appstream/x86_64/icons/128x128/org.mozilla.firefox.png",
-                "developer_name": "Mozilla",
-                "installs_last_month": 314667,
-                "verification_verified": True,
-            },
-            {
-                "app_id": "org.videolan.VLC",
-                "name": "VLC",
-                "summary": "VLC media player",
-                "icon": "https://dl.flathub.org/repo/appstream/x86_64/icons/128x128/org.videolan.VLC.png",
-                "developer_name": "VideoLAN",
-                "installs_last_month": 200000,
-                "verification_verified": True,
-            },
-        ]
-
     cached = get_cached_results(query)
     if cached is not None:
         return cached
@@ -257,21 +233,6 @@ def main():
     # Initial: show installed apps
     if step == "initial":
         installed_apps = get_installed_apps()
-        if TEST_MODE:
-            installed_apps = [
-                {
-                    "app_id": "org.mozilla.firefox",
-                    "name": "Firefox",
-                    "summary": "Web Browser",
-                    "icon": "file:///var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/org.mozilla.firefox.png",
-                },
-                {
-                    "app_id": "org.videolan.VLC",
-                    "name": "VLC",
-                    "summary": "Media Player",
-                    "icon": "file:///var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/org.videolan.VLC.png",
-                },
-            ]
 
         results = []
         for app in installed_apps:
@@ -385,21 +346,6 @@ def main():
     # Default search: filter installed apps
     if step == "search":
         installed_apps = get_installed_apps()
-        if TEST_MODE:
-            installed_apps = [
-                {
-                    "app_id": "org.mozilla.firefox",
-                    "name": "Firefox",
-                    "summary": "Web Browser",
-                    "icon": "file:///var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/org.mozilla.firefox.png",
-                },
-                {
-                    "app_id": "org.videolan.VLC",
-                    "name": "VLC",
-                    "summary": "Media Player",
-                    "icon": "file:///var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/org.videolan.VLC.png",
-                },
-            ]
 
         # Filter installed apps by query
         if query:
@@ -489,21 +435,6 @@ def main():
         # Back navigation
         if selected_id == "__back__":
             installed_apps = get_installed_apps()
-            if TEST_MODE:
-                installed_apps = [
-                    {
-                        "app_id": "org.mozilla.firefox",
-                        "name": "Firefox",
-                        "summary": "Web Browser",
-                        "icon": "file:///var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/org.mozilla.firefox.png",
-                    },
-                    {
-                        "app_id": "org.videolan.VLC",
-                        "name": "VLC",
-                        "summary": "Media Player",
-                        "icon": "file:///var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/org.videolan.VLC.png",
-                    },
-                ]
 
             results = []
             for app in installed_apps:

@@ -17,8 +17,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 # Hyprland events that trigger reindex
 WATCH_EVENTS = {"openwindow", "closewindow", "movewindow", "windowtitle"}
 
@@ -510,17 +508,9 @@ HYPR_DISPATCHERS = [
     },
 ]
 
-MOCK_GLOBAL_SHORTCUTS = [
-    {"id": "quickshell:overlayToggle", "description": "Toggles overlay on press"},
-    {"id": "com.example.app:toggle", "description": "Toggle feature"},
-]
-
 
 def get_global_shortcuts() -> list[dict]:
     """Get registered global shortcuts from Hyprland"""
-    if TEST_MODE:
-        return MOCK_GLOBAL_SHORTCUTS
-
     try:
         result = subprocess.run(
             ["hyprctl", "globalshortcuts"],
@@ -587,45 +577,8 @@ def shortcut_to_index_item(shortcut: dict) -> dict:
     }
 
 
-MOCK_WINDOWS = [
-    {
-        "address": "0x55587961e9a0",
-        "class": "com.mitchellh.ghostty",
-        "title": "Terminal",
-        "workspace": {"id": 1, "name": "1"},
-        "pid": 12345,
-        "focusHistoryID": 0,
-    },
-    {
-        "address": "0x55587961e9b0",
-        "class": "firefox",
-        "title": "GitHub - Mozilla Firefox",
-        "workspace": {"id": 2, "name": "2"},
-        "pid": 12346,
-        "focusHistoryID": 1,
-    },
-    {
-        "address": "0x55587961e9c0",
-        "class": "code",
-        "title": "handler.py - hamr - Visual Studio Code",
-        "workspace": {"id": 1, "name": "1"},
-        "pid": 12347,
-        "focusHistoryID": 2,
-    },
-]
-
-MOCK_WORKSPACES = [
-    {"id": 1, "name": "1"},
-    {"id": 2, "name": "2"},
-    {"id": 3, "name": "3"},
-]
-
-
 def get_windows() -> list[dict]:
     """Get all open windows from Hyprland"""
-    if TEST_MODE:
-        return MOCK_WINDOWS
-
     try:
         result = subprocess.run(
             ["hyprctl", "clients", "-j"],
@@ -643,9 +596,6 @@ def get_windows() -> list[dict]:
 
 def get_workspaces() -> list[dict]:
     """Get all workspaces from Hyprland"""
-    if TEST_MODE:
-        return MOCK_WORKSPACES
-
     try:
         result = subprocess.run(
             ["hyprctl", "workspaces", "-j"],
@@ -740,9 +690,6 @@ def window_to_result(window: dict, workspaces: list[dict] | None = None) -> dict
 
 def focus_window(address: str) -> tuple[bool, str]:
     """Focus a window by address"""
-    if TEST_MODE:
-        return True, f"Focused window {address}"
-
     try:
         subprocess.run(
             ["hyprctl", "dispatch", "focuswindow", f"address:{address}"],
@@ -756,9 +703,6 @@ def focus_window(address: str) -> tuple[bool, str]:
 
 def close_window(address: str) -> tuple[bool, str]:
     """Close a window by address"""
-    if TEST_MODE:
-        return True, f"Closed window {address}"
-
     try:
         subprocess.run(
             ["hyprctl", "dispatch", "closewindow", f"address:{address}"],
@@ -772,9 +716,6 @@ def close_window(address: str) -> tuple[bool, str]:
 
 def move_window_to_workspace(address: str, workspace_id: int) -> tuple[bool, str]:
     """Move a window to a workspace (silently, without switching to it)"""
-    if TEST_MODE:
-        return True, f"Moved window {address} to workspace {workspace_id}"
-
     try:
         subprocess.run(
             [
@@ -1068,9 +1009,6 @@ def execute_dispatcher(dispatcher: dict, param: str | None = None) -> tuple[bool
     dispatcher_name = dispatcher.get("dispatcher", "")
     dispatcher_param = param or dispatcher.get("param", "")
 
-    if TEST_MODE:
-        return True, f"Would run: hyprctl dispatch {dispatcher_name} {dispatcher_param}"
-
     try:
         cmd = ["hyprctl", "dispatch", dispatcher_name]
         if dispatcher_param:
@@ -1194,17 +1132,6 @@ def handle_request(input_data: dict):
             shortcut = next((s for s in shortcuts if s["id"] == shortcut_id), None)
             name = shortcut["description"] if shortcut else shortcut_id
 
-            if TEST_MODE:
-                print(
-                    json.dumps(
-                        {
-                            "type": "execute",
-                            "close": True,
-                            "notify": f"Would run: {' '.join(cmd)}",
-                        }
-                    )
-                )
-                return
             try:
                 subprocess.run(cmd, check=True, capture_output=True)
                 print(
@@ -1249,17 +1176,6 @@ def handle_request(input_data: dict):
 
             if dispatcher_id_full in static_commands:
                 cmd, name = static_commands[dispatcher_id_full]
-                if TEST_MODE:
-                    print(
-                        json.dumps(
-                            {
-                                "type": "execute",
-                                "close": True,
-                                "notify": f"Would run: {' '.join(cmd)}",
-                            }
-                        )
-                    )
-                    return
                 try:
                     subprocess.run(cmd, check=True, capture_output=True)
                     print(
@@ -1280,17 +1196,6 @@ def handle_request(input_data: dict):
                 ws = dispatcher_id_full.split(":")[1]
                 cmd = ["hyprctl", "dispatch", "workspace", ws]
                 name = f"Go to Workspace {ws}"
-                if TEST_MODE:
-                    print(
-                        json.dumps(
-                            {
-                                "type": "execute",
-                                "close": True,
-                                "notify": f"Would run: {' '.join(cmd)}",
-                            }
-                        )
-                    )
-                    return
                 try:
                     subprocess.run(cmd, check=True, capture_output=True)
                     print(
@@ -1310,17 +1215,6 @@ def handle_request(input_data: dict):
                 ws = dispatcher_id_full.split(":")[1]
                 cmd = ["hyprctl", "dispatch", "movetoworkspace", ws]
                 name = f"Move to Workspace {ws}"
-                if TEST_MODE:
-                    print(
-                        json.dumps(
-                            {
-                                "type": "execute",
-                                "close": True,
-                                "notify": f"Would run: {' '.join(cmd)}",
-                            }
-                        )
-                    )
-                    return
                 try:
                     subprocess.run(cmd, check=True, capture_output=True)
                     print(
@@ -1438,12 +1332,6 @@ def handle_request(input_data: dict):
 
 def main():
     """Daemon main loop with Hyprland IPC socket watching."""
-    # In test mode, handle single request and exit
-    if TEST_MODE:
-        input_data = json.load(sys.stdin)
-        handle_request(input_data)
-        return
-
     # Emit full index on startup
     items = get_index_items()
     print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)

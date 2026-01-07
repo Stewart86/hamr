@@ -33,9 +33,6 @@ IN_CLOSE_WRITE = 0x00000008
 IN_MOVED_TO = 0x00000080
 IN_CREATE = 0x00000100
 
-# Test mode - mock external tool availability
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 SNIPPETS_PATH = Path.home() / ".config/hamr/snippets.json"
 # Delay in ms before typing to allow focus to return
 TYPE_DELAY_MS = 150
@@ -43,8 +40,6 @@ TYPE_DELAY_MS = 150
 
 def get_clipboard_content() -> str:
     """Get current clipboard content"""
-    if TEST_MODE:
-        return "clipboard_content"
     try:
         result = subprocess.run(
             ["wl-paste", "-n"],
@@ -292,8 +287,6 @@ def get_main_menu(snippets: list[dict], query: str = "") -> list[dict]:
 
 def check_ydotool() -> bool:
     """Check if ydotool is available"""
-    if TEST_MODE:
-        return True  # Assume available in test mode
     return shutil.which("ydotool") is not None
 
 
@@ -604,12 +597,11 @@ def handle_request(request: dict, snippets: list[dict]) -> list[dict]:
             if snippet:
                 expanded_value = expand_variables(snippet["value"])
                 # Copy in handler
-                if not TEST_MODE:
-                    subprocess.run(
-                        ["wl-copy", expanded_value],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
+                subprocess.run(
+                    ["wl-copy", expanded_value],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
                 emit(
                     {
                         "type": "execute",
@@ -663,12 +655,11 @@ def handle_request(request: dict, snippets: list[dict]) -> list[dict]:
         if not check_ydotool():
             # Fallback to clipboard
             expanded_value = expand_variables(snippet["value"])
-            if not TEST_MODE:
-                subprocess.run(
-                    ["wl-copy", expanded_value],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
+            subprocess.run(
+                ["wl-copy", expanded_value],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             emit(
                 {
                     "type": "execute",
@@ -710,17 +701,15 @@ def main():
 
     snippets = load_snippets()
     current_query = ""
-    # Disable inotify in test mode to avoid race conditions
-    inotify_fd = None if TEST_MODE else create_inotify_fd()
+    inotify_fd = create_inotify_fd()
 
     # Emit full index on startup, but only if no input is waiting
-    # (if input is waiting, we're likely being started for an entryPoint execution)
-    if not TEST_MODE:
-        # Check if stdin has data waiting (non-blocking)
-        ready, _, _ = select.select([sys.stdin], [], [], 0)
-        if not ready:
-            items = [snippet_to_index_item(s) for s in snippets]
-            emit({"type": "index", "mode": "full", "items": items})
+    # (if input is waiting, we\'re likely being started for an entryPoint execution)
+    # Check if stdin has data waiting (non-blocking)
+    ready, _, _ = select.select([sys.stdin], [], [], 0)
+    if not ready:
+        items = [snippet_to_index_item(s) for s in snippets]
+        emit({"type": "index", "mode": "full", "items": items})
 
     if inotify_fd is not None:
         snippets_filename = SNIPPETS_PATH.name

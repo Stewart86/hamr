@@ -10,15 +10,11 @@ Returns a list of word suggestions with copy actions.
 """
 
 import json
-import os
 import shutil
 import subprocess
 import sys
 
-# Test mode - return mock data instead of calling real AI
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
-OPENCODE_AVAILABLE = shutil.which("opencode") is not None or TEST_MODE
+OPENCODE_AVAILABLE = shutil.which("opencode") is not None
 
 SYSTEM_PROMPT = """You are a word-finding assistant. The user will either:
 1. Describe a word they're trying to remember (e.g., "the fear of heights")
@@ -38,24 +34,7 @@ Return 3-8 words maximum, most likely first."""
 
 
 def query_ai(user_input: str) -> list[str]:
-    """Query OpenCode for word suggestions (or mock in test mode)"""
-    # In test mode, return mock suggestions based on input patterns
-    if TEST_MODE:
-        input_lower = user_input.lower()
-        # Common test patterns with mock responses
-        if "fear" in input_lower and "height" in input_lower:
-            return ["acrophobia", "vertigo", "altophobia"]
-        elif "definat" in input_lower or "definit" in input_lower:
-            return ["definitely", "defiantly", "definite"]
-        elif "postpone" in input_lower or "delay" in input_lower:
-            return ["procrastinate", "defer", "delay", "postpone"]
-        elif "deja" in input_lower or "already" in input_lower:
-            return ["déjà vu", "familiarity", "recognition"]
-        elif input_lower.strip():
-            # Return generic mock suggestions for any non-empty query
-            return ["suggestion1", "suggestion2", "suggestion3"]
-        return []
-
+    """Query OpenCode for word suggestions"""
     try:
         prompt = f"{SYSTEM_PROMPT}\n\nUser input: {user_input}"
         result = subprocess.run(
@@ -285,23 +264,21 @@ def main():
             )
             return
 
-        # Word selection - copy to clipboard
-        if selected_id.startswith("word:"):
-            word = selected_id[5:]  # Remove "word:" prefix
+         # Word selection - copy to clipboard
+         if selected_id.startswith("word:"):
+             word = selected_id[5:]  # Remove "word:" prefix
 
-            # Copy action or default selection (skip in test mode)
-            if not TEST_MODE:
-                subprocess.run(["wl-copy", word], check=False)
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "notify": f"Copied: {word}",
-                        "close": True,
-                    }
-                )
-            )
-            return
+             subprocess.run(["wl-copy", word], check=False)
+             print(
+                 json.dumps(
+                     {
+                         "type": "execute",
+                         "notify": f"Copied: {word}",
+                         "close": True,
+                     }
+                 )
+             )
+             return
 
 
 if __name__ == "__main__":

@@ -23,10 +23,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-# Test mode - mock external dependencies
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
-OPENCODE_AVAILABLE = shutil.which("opencode") is not None or TEST_MODE
+OPENCODE_AVAILABLE = shutil.which("opencode") is not None
 
 # Session storage file
 SESSION_FILE = Path.home() / ".cache" / "hamr" / "create-plugin-session.json"
@@ -137,26 +134,6 @@ prioritize what works well on Linux. Safari support doesn't make sense on Linux,
 
 def chat_with_opencode(user_message: str, session: dict) -> tuple[bool, dict]:
     """Send a message to OpenCode and return a structured payload."""
-
-    # Mock response in test mode
-    if TEST_MODE:
-        messages = session.get("messages", [])
-        now = int(time.time())
-        mock_response = f"Mock AI response to: {user_message}"
-        messages.append({"role": "user", "content": user_message, "ts": now})
-        messages.append(
-            {
-                "role": "assistant",
-                "content": mock_response,
-                "ts": now,
-                "thinking": "",
-                "toolCalls": "",
-                "raw": "",
-            }
-        )
-        session["messages"] = messages
-        save_session(session)
-        return True, {"text": mock_response}
 
     try:
         messages = session.get("messages", [])

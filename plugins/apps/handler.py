@@ -18,9 +18,6 @@ import sys
 from configparser import ConfigParser
 from pathlib import Path
 
-# Test mode - skip external tool calls
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
 # XDG application directories
 APP_DIRS = [
     Path.home() / ".local/share/applications",
@@ -588,13 +585,12 @@ def handle_request(request: dict, all_apps: list[dict]) -> None:
                     if action and action.get("exec"):
                         # Execute desktop action command in handler
                         exec_parts = action["exec"].split()
-                        if not TEST_MODE:
-                            subprocess.Popen(
-                                exec_parts,
-                                stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL,
-                                start_new_session=True,
-                            )
+                        subprocess.Popen(
+                            exec_parts,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            start_new_session=True,
+                        )
                         emit(
                             {
                                 "type": "execute",
@@ -671,9 +667,8 @@ def main():
     all_apps.sort(key=lambda app: app["name"].lower())
 
     # Emit initial full index on startup (for background daemon)
-    if not TEST_MODE:
-        items = [app_to_index_item(app) for app in all_apps]
-        emit({"type": "index", "mode": "full", "items": items})
+    items = [app_to_index_item(app) for app in all_apps]
+    emit({"type": "index", "mode": "full", "items": items})
 
     # Main daemon loop - read requests from stdin
     while True:

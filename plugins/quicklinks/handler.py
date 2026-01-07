@@ -700,9 +700,6 @@ def handle_request(request: dict, quicklinks: list[dict], current_query: str) ->
     return current_query
 
 
-TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-
-
 def main():
     """Daemon mode event loop."""
 
@@ -715,10 +712,8 @@ def main():
     quicklinks = load_quicklinks()
     current_query = ""
 
-    # Emit full index on startup (skip in test mode - tests use explicit index step)
-    if not TEST_MODE:
-        items = [quicklink_to_index_item(link) for link in quicklinks]
-        emit({"type": "index", "mode": "full", "items": items})
+    items = [quicklink_to_index_item(link) for link in quicklinks]
+    emit({"type": "index", "mode": "full", "items": items})
 
     inotify_fd = create_inotify_fd()
 
