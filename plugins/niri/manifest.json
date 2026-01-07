@@ -3,7 +3,7 @@
   "description": "Window management and Niri actions",
   "icon": "desktop_windows",
   "supportedCompositors": ["niri"],
-  "frecency": "none",
+  "frecency": "item",
   "daemon": {
     "enabled": true,
     "background": true
