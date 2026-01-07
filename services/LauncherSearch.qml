@@ -162,11 +162,6 @@ Singleton {
 
     Connections {
         target: PluginRunner
-        function onActionExecuted(actionInfo) {
-            if (actionInfo.workflowId && actionInfo.itemId) {
-                PluginRunner.recordExecution(actionInfo.workflowId, actionInfo.itemId);
-            }
-        }
         function onClearInputRequested() {
             root.pluginClearing = true;
             root.query = "";

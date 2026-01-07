@@ -99,12 +99,6 @@ Singleton {
     signal pluginClosed()
     signal clearInputRequested()  // Signal to clear the search input
     
-    // Signal when a trackable action is executed (has name field)
-    // Payload: { name, command, entryPoint, icon, thumbnail, workflowId, workflowName }
-    // - command: Direct shell command for simple replay (optional)
-    // - entryPoint: Plugin step to replay for complex actions (optional)
-    signal actionExecuted(var actionInfo)
-    
     // Signal when plugin index is updated (for LauncherSearch to rebuild searchables)
     signal pluginIndexChanged(string pluginId)
     
@@ -2073,6 +2067,12 @@ Singleton {
                     response.results.forEach((item, i) => {
                         if (!item.id) errors.push(`results[${i}]: missing required 'id'`);
                         if (!item.name) errors.push(`results[${i}]: missing required 'name'`);
+                        if (item.actions && Array.isArray(item.actions)) {
+                            item.actions.forEach((action, j) => {
+                                if (!action.id) errors.push(`results[${i}].actions[${j}]: missing required 'id'`);
+                                if (!action.name) errors.push(`results[${i}].actions[${j}]: missing required 'name'`);
+                            });
+                        }
                     });
                 }
                 break;
@@ -2121,9 +2121,23 @@ Singleton {
                     response.items.forEach((item, i) => {
                         if (!item.id) errors.push(`items[${i}]: missing required 'id'`);
                         if (!item.name) errors.push(`items[${i}]: missing required 'name'`);
+                        if (item.actions && Array.isArray(item.actions)) {
+                            item.actions.forEach((action, j) => {
+                                if (!action.id) errors.push(`items[${i}].actions[${j}]: missing required 'id'`);
+                                if (!action.name) errors.push(`items[${i}].actions[${j}]: missing required 'name'`);
+                            });
+                        }
                     });
                 }
                 break;
+        }
+        
+        // Validate pluginActions if present (can appear with results/index responses)
+        if (response.pluginActions && Array.isArray(response.pluginActions)) {
+            response.pluginActions.forEach((action, i) => {
+                if (!action.id) errors.push(`pluginActions[${i}]: missing required 'id'`);
+                if (!action.name) errors.push(`pluginActions[${i}]: missing required 'name'`);
+            });
         }
         
         if (errors.length > 0) {
@@ -2331,19 +2345,6 @@ Singleton {
                       
                       // Process safe API actions
                       root.processExecuteAction(response, pluginId);
-                      
-                     // If handler provides name, emit for history tracking
-                     if (response.name) {
-                         root.actionExecuted({
-                             name: response.name,
-                             entryPoint: response.entryPoint ?? null,
-                             icon: response.icon ?? pluginIcon,
-                             iconType: response.iconType ?? "material",
-                             thumbnail: response.thumbnail ?? "",
-                             workflowId: pluginId,
-                             workflowName: pluginName
-                         });
-                     }
                      
                      // Clear replay info after use
                      if (wasReplayMode) {
