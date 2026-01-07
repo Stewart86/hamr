@@ -188,40 +188,19 @@ def fuzzy_filter(query: str, commands: list[str]) -> list[str]:
     return results
 
 
-def make_terminal_cmd_for_index(cmd: str, execute: bool = True) -> list[str]:
-    """Build command for index items (can't use function, needs inline script)."""
-    terminal = os.environ.get("TERMINAL", "ghostty")
-    cmd_repr = repr(cmd)
-    enter_key = "&& ydotool key 28:1 28:0" if execute else ""
-
-    if IS_NIRI:
-        script = f"""
-niri msg action spawn -- {terminal}
-sleep 0.3
-ydotool type --key-delay=0 -- {cmd_repr} {enter_key}
-"""
-    else:
-        script = f"""
-hyprctl dispatch exec '[float] {terminal}'
-for i in $(seq 1 50); do
-    active=$(hyprctl activewindow -j 2>/dev/null | jq -r '.class // empty' 2>/dev/null)
-    case "$active" in *ghostty*|*kitty*|*alacritty*|*foot*|*{terminal}*) ydotool type --key-delay=0 -- {cmd_repr} {enter_key}; exit 0 ;; esac
-    sleep 0.02
-done
-ydotool type --key-delay=0 -- {cmd_repr} {enter_key}
-"""
-    return ["bash", "-c", script.strip()]
-
-
 def binary_to_index_item(binary: str) -> dict:
     """Convert a binary name to indexable item format for main search."""
+    item_id = f"bin:{binary}"
     return {
-        "id": binary,
+        "id": item_id,
         "name": binary,
         "description": "Command",
         "icon": "terminal",
         "verb": "Run",
-        "entryPoint": "run",
+        "entryPoint": {
+            "step": "action",
+            "selected": {"id": item_id},
+        },
         "actions": [
             {
                 "id": "run",
@@ -242,21 +221,20 @@ def get_cmd_hash(cmd: str) -> str:
     return hashlib.md5(cmd.encode()).hexdigest()[:12]
 
 
-def make_terminal_cmd(cmd: str, floating: bool = True) -> list[str]:
-    """Build command to run in terminal, waiting for terminal to be ready."""
+def run_in_terminal(cmd: str, floating: bool = True) -> None:
+    """Open terminal and type command, then press enter."""
     terminal = os.environ.get("TERMINAL", "ghostty")
     cmd_repr = repr(cmd)
 
     if IS_NIRI:
-        # Niri doesn't have hyprctl - use simple sleep approach
+        # Niri: spawn terminal, wait, then type command
         wait_script = f"""
 niri msg action spawn -- {terminal}
 sleep 0.3
 ydotool type --key-delay=0 -- {cmd_repr} && ydotool key 28:1 28:0
 """
     else:
-        # Wait for terminal window to become active instead of fixed sleep
-        # Uses hyprctl to poll for active window class matching terminal
+        # Hyprland: spawn terminal with optional float, poll for active window, then type
         wait_script = f"""
 terminal_class="{terminal}"
 hyprctl dispatch exec '{f"[float] " if floating else ""}{terminal}'
@@ -271,21 +249,31 @@ done
 # Fallback after 1 second
 ydotool type --key-delay=0 -- {cmd_repr} && ydotool key 28:1 28:0
 """
-    return ["bash", "-c", wait_script.strip()]
+    # Run in background so we don't block the handler
+    subprocess.Popen(
+        ["bash", "-c", wait_script.strip()],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
 
 
 def history_to_index_item(cmd: str) -> dict:
     """Convert a shell history command to indexable item format for main search."""
     display_cmd = cmd if len(cmd) <= 60 else cmd[:60] + "..."
+    item_id = f"history:{get_cmd_hash(cmd)}"
 
     return {
-        "id": cmd,
+        "id": item_id,
         "name": display_cmd,
         "description": "History",
         "keywords": cmd.lower().split()[:10],
         "icon": "history",
         "verb": "Run",
-        "entryPoint": "run",
+        "entryPoint": {
+            "step": "action",
+            "selected": {"id": item_id},
+        },
         "actions": [
             {
                 "id": "copy",
@@ -435,33 +423,41 @@ def handle_request(input_data: dict):
         return
 
     if step == "action":
-        cmd = selected.get("id", "")
-        if not cmd:
+        item_id = selected.get("id", "")
+        if not item_id:
             print(json.dumps({"type": "error", "message": "No command selected"}))
             return
 
-        if action == "run-float":
-            terminal_cmd = make_terminal_cmd(cmd, floating=True)
-            print(
-                json.dumps({"type": "execute", "terminal": terminal_cmd, "close": True})
-            )
-        elif action == "run-tiled":
-            terminal_cmd = make_terminal_cmd(cmd, floating=False)
-            print(
-                json.dumps({"type": "execute", "terminal": terminal_cmd, "close": True})
-            )
-        elif action == "copy":
-            print(json.dumps({"type": "execute", "copy": cmd, "close": True}))
-        elif action == "run":
-            terminal_cmd = make_terminal_cmd_for_index(cmd, execute=True)
-            print(
-                json.dumps({"type": "execute", "terminal": terminal_cmd, "close": True})
-            )
+        # Extract command from item_id
+        # Index items have format "bin:command" or "history:hash"
+        # Interactive items use the raw command as id
+        if item_id.startswith("bin:"):
+            cmd = item_id[4:]  # Remove "bin:" prefix
+        elif item_id.startswith("history:"):
+            # For history items, we need to look up the command by hash
+            cmd_hash = item_id[8:]  # Remove "history:" prefix
+            commands = get_shell_history()
+            cmd = next((c for c in commands if get_cmd_hash(c) == cmd_hash), None)
+            if not cmd:
+                print(
+                    json.dumps(
+                        {"type": "error", "message": "Command not found in history"}
+                    )
+                )
+                return
         else:
-            terminal_cmd = make_terminal_cmd(cmd, floating=True)
-            print(
-                json.dumps({"type": "execute", "terminal": terminal_cmd, "close": True})
-            )
+            # Interactive mode: id is the raw command
+            cmd = item_id
+
+        if action == "copy":
+            print(json.dumps({"type": "execute", "copy": cmd, "close": True}))
+        elif action == "run-tiled":
+            run_in_terminal(cmd, floating=False)
+            print(json.dumps({"type": "execute", "close": True}))
+        else:
+            # Default: run floating (covers "run-float", "run", and no action)
+            run_in_terminal(cmd, floating=True)
+            print(json.dumps({"type": "execute", "close": True}))
 
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
