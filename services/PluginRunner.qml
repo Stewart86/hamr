@@ -718,8 +718,8 @@ Singleton {
                 const keywordsScore = result[1]?.score ?? 0;
                 const baseScore = nameScore * 1.0 + keywordsScore * 0.3;
                 
-                // Exact name match bonus
-                const nameLower = (searchable.name ?? "").toLowerCase();
+                // Exact name match bonus (use original item.name, not prepared object)
+                const nameLower = (searchable.item.name ?? "").toLowerCase();
                 const exactMatchBonus = (searchQuery === nameLower) ? 0.5 : 0;
                 
                 // Frecency boost
