@@ -68,6 +68,19 @@ SETTINGS_SCHEMA: dict = {
             "type": "number",
             "description": "Max recent history items shown",
         },
+        "diversityDecay": {
+            "default": 0.7,
+            "type": "slider",
+            "min": 0,
+            "max": 1,
+            "step": 0.05,
+            "description": "Decay factor for consecutive results from same plugin (lower = more diverse)",
+        },
+        "maxResultsPerPlugin": {
+            "default": 0,
+            "type": "number",
+            "description": "Hard limit per plugin (0 = no limit, relies on decay only)",
+        },
         "shellHistoryLimit": {
             "default": 50,
             "type": "number",

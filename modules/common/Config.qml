@@ -109,6 +109,8 @@ Singleton {
                 property int maxHistoryItems: 500 // Max search history entries (affects memory & fuzzy search speed)
                 property int maxDisplayedResults: 16 // Max results shown in launcher
                 property int maxRecentItems: 20 // Max recent history items shown
+                property real diversityDecay: 0.7 // Decay factor for consecutive results from same plugin (0-1, lower = more diverse)
+                property int maxResultsPerPlugin: 0 // Hard limit per plugin (0 = no limit, relies on decay only)
                 property int shellHistoryLimit: 50 // Shell history results limit
                 property string engineBaseUrl: "https://www.google.com/search?q="
                 property list<string> excludedSites: ["quora.com", "facebook.com"]

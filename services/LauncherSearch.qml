@@ -416,6 +416,7 @@ Singleton {
                 name: preppedPlugin.name,
                 sourceType: "plugin",
                 id: plugin.id,
+                pluginId: plugin.id,
                 data: {
                     plugin
                 },
@@ -430,6 +431,7 @@ Singleton {
                 keywords: item.keywords?.length > 0 ? Fuzzy.prepare(item.keywords.join(" ")) : null,
                 sourceType: ResultFactory.sourceType.INDEXED_ITEM,
                 id: item.id,
+                pluginId: item._pluginId ?? "",
                 data: {
                     item
                 },
@@ -490,6 +492,7 @@ Singleton {
                     name: Fuzzy.prepare(term),
                     sourceType: ResultFactory.sourceType.INDEXED_ITEM,
                     id: item.id,
+                    pluginId: pluginId,
                     data: {
                         item: enrichedItem
                     },
@@ -690,9 +693,10 @@ Singleton {
 
         const resultObj = ResultFactory.createResultFromSearchable(item, query, fuzzyScore, root.resultFactoryDependencies, frecency, resultMatchType);
 
-        // Add composite score for efficient sorting
+        // Add composite score and pluginId for sorting and diversity
         if (resultObj) {
             resultObj.compositeScore = FrecencyScorer.getCompositeScore(resultMatchType, fuzzyScore, frecency);
+            resultObj._pluginId = item.pluginId ?? item.data?.item?._pluginId ?? item.data?.plugin?.id ?? "";
         }
 
         return resultObj;
@@ -965,11 +969,20 @@ Singleton {
         // Use composite score for faster sorting (single numeric comparison)
         allResults.sort(FrecencyScorer.compareByCompositeScore);
 
+        // Apply diversity to prevent single plugin from dominating results
+        const maxPerPlugin = Config.options.search?.maxResultsPerPlugin ?? 0;
+        const diversityOptions = {
+            decayFactor: Config.options.search?.diversityDecay ?? 0.7,
+            maxPerSource: maxPerPlugin > 0 ? maxPerPlugin : Infinity
+        };
+        const diverseResults = FrecencyScorer.applyDiversity(allResults, diversityOptions);
+
         const webSearchQuery = StringUtils.cleanPrefix(root.query, Config.options.search.prefix.webSearch);
-        allResults.push({
+        diverseResults.push({
             matchType: FrecencyScorer.matchType.NONE,
             fuzzyScore: 0,
             frecency: 0,
+            _pluginId: "__websearch__",
             result: resultComp.createObject(null, {
                 name: webSearchQuery,
                 verb: "Search",
@@ -987,7 +1000,7 @@ Singleton {
         });
 
         const maxResults = Config.options.search?.maxDisplayedResults ?? 16;
-        return allResults.slice(0, maxResults).map(item => item.result);
+        return diverseResults.slice(0, maxResults).map(item => item.result);
     }
 
     Component {

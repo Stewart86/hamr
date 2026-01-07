@@ -61,4 +61,78 @@ Singleton {
     function compareByCompositeScore(a, b) {
         return b.compositeScore - a.compositeScore;
     }
+
+    // Diversity-aware result selection using round-robin interleaving with decay penalty
+    // Returns results ordered to maximize diversity while respecting relevance
+    function applyDiversity(results, options) {
+        const decayFactor = options?.decayFactor ?? 0.7;
+        const maxPerSource = options?.maxPerSource ?? Infinity;
+
+        if (results.length === 0) return [];
+
+        // Group results by source (pluginId)
+        const bySource = new Map();
+        for (const item of results) {
+            const sourceId = item._pluginId ?? item.result?._pluginId ?? "__unknown__";
+            if (!bySource.has(sourceId)) {
+                bySource.set(sourceId, []);
+            }
+            bySource.get(sourceId).push(item);
+        }
+
+        // Sort each source's results by composite score (highest first)
+        for (const [sourceId, items] of bySource) {
+            items.sort((a, b) => b.compositeScore - a.compositeScore);
+        }
+
+        // Track how many items we've taken from each source for decay calculation
+        const sourceCounts = new Map();
+        for (const sourceId of bySource.keys()) {
+            sourceCounts.set(sourceId, 0);
+        }
+
+        const diverseResults = [];
+        const totalResults = results.length;
+
+        // Round-robin with decay: repeatedly pick the best available item
+        // considering decay penalty for sources we've already drawn from
+        while (diverseResults.length < totalResults) {
+            let bestSource = null;
+            let bestEffectiveScore = -Infinity;
+            let bestItem = null;
+
+            for (const [sourceId, items] of bySource) {
+                if (items.length === 0) continue;
+
+                const count = sourceCounts.get(sourceId);
+                
+                // Hard limit check
+                if (count >= maxPerSource) continue;
+
+                const candidate = items[0];
+                const baseScore = candidate.compositeScore;
+
+                // Apply exponential decay: score * (decayFactor ^ count)
+                // First item from source: no penalty (decay^0 = 1)
+                // Second item: score * 0.7
+                // Third item: score * 0.49, etc.
+                const effectiveScore = baseScore * Math.pow(decayFactor, count);
+
+                if (effectiveScore > bestEffectiveScore) {
+                    bestEffectiveScore = effectiveScore;
+                    bestSource = sourceId;
+                    bestItem = candidate;
+                }
+            }
+
+            if (!bestItem) break;
+
+            // Take the best item
+            diverseResults.push(bestItem);
+            bySource.get(bestSource).shift();
+            sourceCounts.set(bestSource, sourceCounts.get(bestSource) + 1);
+        }
+
+        return diverseResults;
+    }
 }

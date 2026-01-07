@@ -961,6 +961,8 @@ You can reorder, remove, or add hints. For example, to replace emoji with notes:
 | **Search** | `maxDisplayedResults` | `16` | Maximum results shown in launcher |
 | | `maxRecentItems` | `20` | Recent history items on empty search |
 | | `debounceMs` | `50` | Search input debounce (ms) |
+| | `diversityDecay` | `0.7` | Decay for consecutive results from same plugin (0-1, lower = more diverse) |
+| | `maxResultsPerPlugin` | `0` | Hard limit per plugin (0 = no limit) |
 | **Appearance** | `backgroundTransparency` | `0.2` | Background transparency (0-1) |
 | | `launcherXRatio` | `0.5` | Horizontal position (0=left, 1=right) |
 | | `launcherYRatio` | `0.1` | Vertical position (0=top, 1=bottom) |
