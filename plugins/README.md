@@ -2438,7 +2438,64 @@ Actions on index items can include direct execution commands or entry points for
 
 ### Index Item `entryPoint`
 
-For indexed items that need to open the plugin UI (e.g., view details, edit):
+The `entryPoint` field defines how an indexed item should be executed when selected from main search. This is critical for items that need handler logic (not just shell commands).
+
+**Required format:**
+
+```python
+{
+    "id": "action:close-window",
+    "name": "Close Window",
+    "icon": "close",
+    "verb": "Run",
+    "entryPoint": {
+        "step": "action",                    # Required: step type
+        "selected": {"id": "action:close-window"},  # Required: item ID
+        "action": "view",                    # Optional: sub-action
+        "query": "search term",              # Optional: pre-fill search
+    },
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `step` | string | Yes | Step type, usually `"action"` |
+| `selected.id` | string | Yes | The item ID (must match the indexed item's `id`) |
+| `action` | string | No | Sub-action for items with multiple actions |
+| `query` | string | No | Pre-fill search query when opening plugin |
+
+**Why `selected.id` is required:**
+
+When an indexed item is selected from main search, hamr calls `PluginRunner.executeAction()` which builds an input object from the `entryPoint`. The handler receives:
+
+```python
+{
+    "step": "action",
+    "selected": {"id": "action:close-window"},  # From entryPoint.selected
+    "action": "view",                            # From entryPoint.action (if set)
+    "replay": true,                              # Set for index executions
+    "session": "..."
+}
+```
+
+Without `selected.id`, the handler won't know which item was selected.
+
+**Common mistake - DO NOT use `command` in entryPoint:**
+
+```python
+# WRONG - command is ignored, handler receives no selected.id
+"entryPoint": {
+    "command": ["niri", "msg", "action", "close-window"],
+}
+
+# CORRECT - handler receives selected.id to look up and execute
+"entryPoint": {
+    "step": "action",
+    "selected": {"id": "action:close-window"},
+}
+```
+
+**For items that open plugin UI (e.g., view details, edit):**
 
 ```python
 {
@@ -2446,17 +2503,16 @@ For indexed items that need to open the plugin UI (e.g., view details, edit):
     "name": "My Note",
     "icon": "sticky_note_2",
     "verb": "View",
-    # Opens plugin with this entry point instead of executing
     "entryPoint": {
         "step": "action",
-        "selected": {"id": "123"},
+        "selected": {"id": "note:123"},
         "action": "view",
     },
-    "keepOpen": True,  # Required for entryPoint to work
+    "keepOpen": True,  # Keep launcher open to show plugin UI
 }
 ```
 
-**Example plugins:** [`notes/`](notes/handler.py), [`bitwarden/`](bitwarden/handler.py)
+**Example plugins:** [`notes/`](notes/handler.py), [`bitwarden/`](bitwarden/handler.py), [`niri/`](niri/handler.py), [`hyprland/`](hyprland/handler.py)
 
 ### Incremental Indexing
 
