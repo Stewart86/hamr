@@ -565,9 +565,10 @@ def shortcut_to_index_item(shortcut: dict) -> dict:
     shortcut_id = shortcut["id"]
     description = shortcut["description"]
     app_name = shortcut_id.split(":")[0] if ":" in shortcut_id else shortcut_id
+    item_id = f"shortcut:{shortcut_id}"
 
     return {
-        "id": f"shortcut:{shortcut_id}",
+        "id": item_id,
         "name": description,
         "description": f"{app_name} shortcut",
         "icon": "keyboard",
@@ -580,7 +581,8 @@ def shortcut_to_index_item(shortcut: dict) -> dict:
             "global",
         ],
         "entryPoint": {
-            "command": ["hyprctl", "dispatch", "global", shortcut_id],
+            "step": "action",
+            "selected": {"id": item_id},
         },
     }
 
@@ -671,15 +673,17 @@ def window_to_index_item(window: dict) -> dict:
     if workspace_name:
         description = f"{window_class} (workspace {workspace_name})"
 
+    item_id = f"window:{address}"
     return {
-        "id": f"window:{address}",
+        "id": item_id,
         "name": title or window_class,
         "description": description,
         "icon": window_class,
         "iconType": "system",
         "verb": "Focus",
         "entryPoint": {
-            "command": ["hyprctl", "dispatch", "focuswindow", f"address:{address}"],
+            "step": "action",
+            "selected": {"id": item_id},
         },
     }
 
@@ -836,9 +840,10 @@ def dispatcher_to_index_item(dispatcher: dict) -> dict:
     """Convert dispatcher to index item format"""
     name = dispatcher.get("name", "")
     icon = dispatcher.get("icon", "terminal")
+    item_id = f"dispatch:{dispatcher['id']}"
 
     item = {
-        "id": f"dispatch:{dispatcher['id']}",
+        "id": item_id,
         "name": name,
         "description": dispatcher.get("description", ""),
         "icon": icon,
@@ -852,12 +857,9 @@ def dispatcher_to_index_item(dispatcher: dict) -> dict:
 
     # Add entryPoint for dispatchers with static params (can be executed directly)
     if dispatcher.get("param_type") != "workspace":
-        cmd = ["hyprctl", "dispatch", dispatcher.get("dispatcher", "")]
-        param = dispatcher.get("param", "")
-        if param:
-            cmd.append(param)
         item["entryPoint"] = {
-            "command": cmd,
+            "step": "action",
+            "selected": {"id": item_id},
         }
 
     return item
@@ -940,11 +942,13 @@ def generate_workspace_index_items() -> list[dict]:
 
     for ws in range(1, 11):
         icon = number_icons.get(ws, "space_dashboard")
+        goto_id = f"dispatch:goto-workspace:{ws}"
+        move_id = f"dispatch:move-to-workspace:{ws}"
         goto_name = f"Go to Workspace {ws}"
         move_name = f"Move to Workspace {ws}"
         items.append(
             {
-                "id": f"dispatch:goto-workspace:{ws}",
+                "id": goto_id,
                 "name": goto_name,
                 "description": f"Switch to workspace {ws}",
                 "icon": icon,
@@ -956,20 +960,22 @@ def generate_workspace_index_items() -> list[dict]:
                     f"switch to {ws}",
                 ],
                 "entryPoint": {
-                    "command": ["hyprctl", "dispatch", "workspace", str(ws)],
+                    "step": "action",
+                    "selected": {"id": goto_id},
                 },
             }
         )
         items.append(
             {
-                "id": f"dispatch:move-to-workspace:{ws}",
+                "id": move_id,
                 "name": move_name,
                 "description": f"Move active window to workspace {ws}",
                 "icon": icon,
                 "verb": "Run",
                 "keywords": [f"move to {ws}", f"send to {ws}", f"move workspace {ws}"],
                 "entryPoint": {
-                    "command": ["hyprctl", "dispatch", "movetoworkspace", str(ws)],
+                    "step": "action",
+                    "selected": {"id": move_id},
                 },
             }
         )
@@ -984,7 +990,8 @@ def generate_workspace_index_items() -> list[dict]:
             "verb": "Run",
             "keywords": ["scratchpad", "special", "toggle special", "scratch"],
             "entryPoint": {
-                "command": ["hyprctl", "dispatch", "togglespecialworkspace"],
+                "step": "action",
+                "selected": {"id": "dispatch:goto-special"},
             },
         }
     )
@@ -997,7 +1004,8 @@ def generate_workspace_index_items() -> list[dict]:
             "verb": "Run",
             "keywords": ["move to scratchpad", "send to special", "move special"],
             "entryPoint": {
-                "command": ["hyprctl", "dispatch", "movetoworkspacesilent", "special"],
+                "step": "action",
+                "selected": {"id": "dispatch:move-to-special"},
             },
         }
     )
@@ -1012,7 +1020,8 @@ def generate_workspace_index_items() -> list[dict]:
             "verb": "Run",
             "keywords": ["next workspace", "workspace next", "ws next"],
             "entryPoint": {
-                "command": ["hyprctl", "dispatch", "workspace", "+1"],
+                "step": "action",
+                "selected": {"id": "dispatch:workspace-next"},
             },
         }
     )
@@ -1031,7 +1040,8 @@ def generate_workspace_index_items() -> list[dict]:
                 "back workspace",
             ],
             "entryPoint": {
-                "command": ["hyprctl", "dispatch", "workspace", "-1"],
+                "step": "action",
+                "selected": {"id": "dispatch:workspace-prev"},
             },
         }
     )
@@ -1044,7 +1054,8 @@ def generate_workspace_index_items() -> list[dict]:
             "verb": "Run",
             "keywords": ["empty workspace", "new workspace", "blank workspace"],
             "entryPoint": {
-                "command": ["hyprctl", "dispatch", "workspace", "empty"],
+                "step": "action",
+                "selected": {"id": "dispatch:workspace-empty"},
             },
         }
     )
