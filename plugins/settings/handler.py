@@ -100,11 +100,6 @@ SETTINGS_SCHEMA: dict = {
             "type": "list",
             "description": "Action button shortcuts (Ctrl + key)",
         },
-        "actionBarHintsJson": {
-            "default": '[{"prefix":"~","icon":"folder","label":"Files","plugin":"files"},{"prefix":";","icon":"content_paste","label":"Clipboard","plugin":"clipboard"},{"prefix":"/","icon":"extension","label":"Plugins","plugin":"action"},{"prefix":"!","icon":"terminal","label":"Shell","plugin":"shell"},{"prefix":"=","icon":"calculate","label":"Math","plugin":"calculate"},{"prefix":":","icon":"emoji_emotions","label":"Emoji","plugin":"emoji"}]',
-            "type": "actionbarhints",
-            "description": "Action bar shortcuts (prefix, icon, label, plugin)",
-        },
     },
     "search.shellHistory": {
         "enable": {
@@ -164,11 +159,6 @@ SETTINGS_SCHEMA: dict = {
         },
     },
     "appearance": {
-        "compactMode": {
-            "default": False,
-            "type": "boolean",
-            "description": "Use compact UI spacing",
-        },
         "backgroundTransparency": {
             "default": 0.2,
             "type": "slider",
@@ -322,6 +312,33 @@ CATEGORY_NAMES = {
     "paths": "Paths",
 }
 
+DEFAULT_ACTION_BAR_HINTS = [
+    {"prefix": "~", "icon": "folder", "label": "Files", "plugin": "files"},
+    {
+        "prefix": ";",
+        "icon": "content_paste",
+        "label": "Clipboard",
+        "plugin": "clipboard",
+    },
+    {"prefix": "/", "icon": "extension", "label": "Plugins", "plugin": "plugins"},
+    {"prefix": "!", "icon": "terminal", "label": "Shell", "plugin": "shell"},
+    {"prefix": "=", "icon": "calculate", "label": "Math", "plugin": "calculate"},
+    {"prefix": ":", "icon": "emoji_emotions", "label": "Emoji", "plugin": "emoji"},
+]
+
+
+def get_action_bar_hints(config: dict) -> list[dict]:
+    """Get current action bar hints from config, parsing JSON string."""
+    hints_json = get_nested_value(config, "search.actionBarHintsJson", None)
+    if hints_json and isinstance(hints_json, str):
+        try:
+            hints = json.loads(hints_json)
+            if isinstance(hints, list):
+                return hints
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return DEFAULT_ACTION_BAR_HINTS
+
 
 def load_config() -> dict:
     if not CONFIG_PATH.exists():
@@ -398,34 +415,6 @@ def fuzzy_match(query: str, text: str) -> bool:
     return qi == len(query)
 
 
-DEFAULT_ACTION_BAR_HINTS = [
-    {"prefix": "~", "icon": "folder", "label": "Files", "plugin": "files"},
-    {
-        "prefix": ";",
-        "icon": "content_paste",
-        "label": "Clipboard",
-        "plugin": "clipboard",
-    },
-    {"prefix": "/", "icon": "extension", "label": "Plugins", "plugin": "action"},
-    {"prefix": "!", "icon": "terminal", "label": "Shell", "plugin": "shell"},
-    {"prefix": "=", "icon": "calculate", "label": "Math", "plugin": "calculate"},
-    {"prefix": ":", "icon": "emoji_emotions", "label": "Emoji", "plugin": "emoji"},
-]
-
-
-def get_action_bar_hints(config: dict) -> list[dict]:
-    """Get current action bar hints from config, parsing JSON string."""
-    hints_json = get_nested_value(config, "search.actionBarHintsJson", None)
-    if hints_json and isinstance(hints_json, str):
-        try:
-            hints = json.loads(hints_json)
-            if isinstance(hints, list):
-                return hints
-        except (json.JSONDecodeError, TypeError):
-            pass
-    return DEFAULT_ACTION_BAR_HINTS
-
-
 def format_value(value) -> str:
     """Format a value for display."""
     if isinstance(value, bool):
@@ -437,30 +426,121 @@ def format_value(value) -> str:
     return str(value)
 
 
+def count_modified_in_category(config: dict, category: str) -> int:
+    """Count how many settings in a category are modified from default."""
+    schema = SETTINGS_SCHEMA.get(category, {})
+    modified = 0
+    for key, info in schema.items():
+        default = info.get("default")
+        current = get_current_value(config, category, key)
+        if current != default:
+            modified += 1
+    return modified
+
+
+def is_hint_modified(hint: dict, default_hint: dict) -> bool:
+    """Check if a hint differs from its default."""
+    for key in ("prefix", "icon", "label", "plugin"):
+        if hint.get(key, "") != default_hint.get(key, ""):
+            return True
+    return False
+
+
 def get_categories() -> list[dict]:
     """Get list of categories."""
+    config = load_config()
     results = []
     for category in SETTINGS_SCHEMA:
         settings_count = len(SETTINGS_SCHEMA[category])
-        results.append(
-            {
-                "id": f"category:{category}",
-                "name": CATEGORY_NAMES.get(category, category),
-                "description": f"{settings_count} settings",
-                "icon": CATEGORY_ICONS.get(category, "settings"),
-                "verb": "Browse",
-            }
-        )
-    # Add special category for action bar hints
-    results.append(
-        {
-            "id": "category:search.actionBarHints",
-            "name": "Action Bar Hints",
-            "description": "6 action shortcuts",
-            "icon": "keyboard_command_key",
-            "verb": "Configure",
+        modified_count = count_modified_in_category(config, category)
+
+        item: dict = {
+            "id": f"category:{category}",
+            "name": CATEGORY_NAMES.get(category, category),
+            "description": f"{settings_count} settings",
+            "icon": CATEGORY_ICONS.get(category, "settings"),
+            "verb": "Browse",
         }
+
+        if modified_count > 0:
+            item["chips"] = [
+                {
+                    "text": f"{modified_count} modified",
+                    "icon": "edit",
+                    "color": "#4caf50",
+                }
+            ]
+
+        results.append(item)
+
+    # Add special category for action bar hints
+    hints = get_action_bar_hints(config)
+    hints_modified_count = sum(
+        1
+        for i, hint in enumerate(hints)
+        if i < len(DEFAULT_ACTION_BAR_HINTS)
+        and is_hint_modified(hint, DEFAULT_ACTION_BAR_HINTS[i])
     )
+    hint_item: dict = {
+        "id": "category:actionBarHints",
+        "name": "Action Bar Hints",
+        "description": f"{len(hints)} shortcuts",
+        "icon": "keyboard_command_key",
+        "verb": "Configure",
+    }
+    if hints_modified_count > 0:
+        hint_item["chips"] = [
+            {
+                "text": f"{hints_modified_count} modified",
+                "icon": "edit",
+                "color": "#4caf50",
+            }
+        ]
+    results.append(hint_item)
+
+    return results
+
+
+def is_modified(config: dict, category: str, key: str) -> bool:
+    """Check if a setting is modified from its default."""
+    schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
+    default = schema.get("default")
+    current = get_current_value(config, category, key)
+    return current != default
+
+
+def get_action_bar_hints_list(config: dict) -> list[dict]:
+    """Get action bar hints as a list of result items."""
+    hints = get_action_bar_hints(config)
+    results = []
+
+    for i, hint in enumerate(hints):
+        prefix = hint.get("prefix", "")
+        icon = hint.get("icon", "extension")
+        label = hint.get("label", "")
+        plugin = hint.get("plugin", "")
+
+        default_hint = (
+            DEFAULT_ACTION_BAR_HINTS[i] if i < len(DEFAULT_ACTION_BAR_HINTS) else {}
+        )
+        modified = is_hint_modified(hint, default_hint)
+
+        item: dict = {
+            "id": f"actionHint:{i}",
+            "name": f"{prefix} {label}",
+            "description": f"Opens {plugin}",
+            "icon": icon,
+            "verb": "Edit",
+            "actions": [
+                {"id": "reset", "name": "Reset to Default", "icon": "restart_alt"},
+            ],
+        }
+
+        if modified:
+            item["badges"] = [{"text": "*", "color": "#4caf50"}]
+
+        results.append(item)
+
     return results
 
 
@@ -468,87 +548,26 @@ def get_settings_for_category(config: dict, category: str) -> list[dict]:
     """Get settings list for a specific category."""
     results = []
 
-    # Special handling for action bar hints category - show 6 actions to navigate into
-    if category == "search.actionBarHints":
-        hints = get_action_bar_hints(config)
-        for i in range(6):
-            if i < len(hints):
-                hint = hints[i]
-                prefix = hint.get("prefix", "")
-                icon = hint.get("icon", "extension")
-                label = hint.get("label", "")
-                plugin = hint.get("plugin", "")
-                desc = f"{prefix} → {label} ({plugin})"
-            else:
-                icon = "add"
-                desc = "(not configured)"
-
-            results.append(
-                {
-                    "id": f"action:{i + 1}",
-                    "name": f"Action {i + 1}",
-                    "description": desc,
-                    "icon": icon,
-                    "verb": "Configure",
-                }
-            )
-        return results
-
-    # Special handling for individual action - show fields as settings
-    if category.startswith("action:"):
-        action_num = int(category.split(":")[1])
-        hints = get_action_bar_hints(config)
-        default_hint = (
-            DEFAULT_ACTION_BAR_HINTS[action_num - 1]
-            if action_num <= len(DEFAULT_ACTION_BAR_HINTS)
-            else {}
-        )
-
-        if action_num <= len(hints):
-            hint = hints[action_num - 1]
-        else:
-            hint = {"prefix": "", "icon": "", "label": "", "plugin": ""}
-
-        fields = [
-            ("prefix", "Prefix", "Keyboard shortcut prefix (e.g., ~, ;, /)"),
-            ("icon", "Icon", "Material icon name (e.g., folder, terminal)"),
-            ("label", "Label", "Display label for the action"),
-            ("plugin", "Plugin", "Plugin to invoke (e.g., files, shell, calculate)"),
-        ]
-
-        for field_id, field_name, field_desc in fields:
-            current_value = hint.get(field_id, "")
-            default_value = default_hint.get(field_id, "")
-
-            results.append(
-                {
-                    "id": f"actionfield:{action_num}.{field_id}",
-                    "name": field_name,
-                    "description": current_value if current_value else "(empty)",
-                    "icon": "text_fields",
-                    "verb": "Edit",
-                    "actions": [
-                        {
-                            "id": "reset",
-                            "name": f"Reset to '{default_value}'",
-                            "icon": "restart_alt",
-                        },
-                    ],
-                }
-            )
-        return results
+    # Special handling for action bar hints
+    if category == "actionBarHints":
+        return get_action_bar_hints_list(config)
 
     schema = SETTINGS_SCHEMA.get(category, {})
     for key, info in schema.items():
         setting_type = info.get("type", "string")
         current = get_current_value(config, category, key)
+        default = info.get("default")
+        modified = current != default
 
-        result = {
+        result: dict = {
             "id": f"setting:{category}.{key}",
             "name": key,
             "description": format_value(current),
             "icon": get_type_icon(setting_type),
         }
+
+        if modified:
+            result["badges"] = [{"text": "*", "color": "#4caf50"}]
 
         if setting_type == "readonly":
             result["description"] = info.get("description", "")
@@ -556,6 +575,32 @@ def get_settings_for_category(config: dict, category: str) -> list[dict]:
             result["type"] = "switch"
             result["value"] = bool(current)
             result["description"] = info.get("description", "")
+            result["actions"] = [
+                {"id": "reset", "name": "Reset to Default", "icon": "restart_alt"},
+            ]
+        elif setting_type == "slider":
+            slider_default = info.get("default", 0)
+            slider_value = current if current is not None else slider_default
+            result["type"] = "slider"
+            result["value"] = (
+                float(slider_value) if isinstance(slider_value, (int, float)) else 0.0
+            )
+            result["min"] = info.get("min", 0)
+            result["max"] = info.get("max", 1)
+            result["step"] = info.get("step", 0.05)
+            result["description"] = info.get("description", "")
+            result["actions"] = [
+                {
+                    "id": "reset",
+                    "name": f"Reset to {slider_default}",
+                    "icon": "restart_alt",
+                },
+            ]
+        elif setting_type == "select":
+            options = info.get("options", [])
+            result["description"] = f"{current} | {info.get('description', '')}"
+            result["verb"] = "Edit"
+            result["chips"] = [{"text": str(current)}]
             result["actions"] = [
                 {"id": "reset", "name": "Reset to Default", "icon": "restart_alt"},
             ]
@@ -581,6 +626,8 @@ def get_all_settings(config: dict) -> list[dict]:
                 continue
 
             current = get_current_value(config, category, key)
+            default = info.get("default")
+            modified = current != default
 
             result: dict = {
                 "id": f"setting:{category}.{key}",
@@ -588,6 +635,9 @@ def get_all_settings(config: dict) -> list[dict]:
                 "icon": get_type_icon(setting_type),
                 "category": category,
             }
+
+            if modified:
+                result["badges"] = [{"text": "*", "color": "#4caf50"}]
 
             if setting_type == "readonly":
                 result["description"] = (
@@ -599,6 +649,40 @@ def get_all_settings(config: dict) -> list[dict]:
                 result["description"] = (
                     f"{CATEGORY_NAMES.get(category, category)} | {info.get('description', '')}"
                 )
+                result["actions"] = [
+                    {
+                        "id": "reset",
+                        "name": "Reset to Default",
+                        "icon": "restart_alt",
+                    },
+                ]
+            elif setting_type == "slider":
+                slider_value = current if current is not None else default
+                result["type"] = "slider"
+                result["value"] = (
+                    float(slider_value)
+                    if isinstance(slider_value, (int, float))
+                    else 0.0
+                )
+                result["min"] = info.get("min", 0)
+                result["max"] = info.get("max", 1)
+                result["step"] = info.get("step", 0.05)
+                result["description"] = (
+                    f"{CATEGORY_NAMES.get(category, category)} | {info.get('description', '')}"
+                )
+                result["actions"] = [
+                    {
+                        "id": "reset",
+                        "name": f"Reset to {default}",
+                        "icon": "restart_alt",
+                    },
+                ]
+            elif setting_type == "select":
+                result["description"] = (
+                    f"{CATEGORY_NAMES.get(category, category)} | {current}"
+                )
+                result["verb"] = "Edit"
+                result["chips"] = [{"text": str(current)}]
                 result["actions"] = [
                     {
                         "id": "reset",
@@ -620,30 +704,6 @@ def get_all_settings(config: dict) -> list[dict]:
                 ]
 
             results.append(result)
-
-    # Add individual action bar hints as searchable items
-    hints = get_action_bar_hints(config)
-    for i in range(6):
-        if i < len(hints):
-            hint = hints[i]
-            prefix = hint.get("prefix", "")
-            icon = hint.get("icon", "extension")
-            label = hint.get("label", "")
-            plugin = hint.get("plugin", "")
-            desc = f"Action Bar Hints | {prefix} → {label} ({plugin})"
-        else:
-            icon = "add"
-            desc = "Action Bar Hints | (not configured)"
-
-        results.append(
-            {
-                "id": f"action:{i + 1}",
-                "name": f"Action {i + 1}",
-                "description": desc,
-                "icon": icon,
-                "verb": "Configure",
-            }
-        )
 
     return results
 
@@ -767,24 +827,39 @@ def show_edit_form(category: str, key: str, info: dict, current_value):
 
 
 def show_appearance_form(config: dict):
-    """Show a live form with all appearance sliders."""
+    """Show a live form with all appearance settings."""
     appearance = SETTINGS_SCHEMA.get("appearance", {})
     fields = []
 
     for key, info in appearance.items():
+        setting_type = info.get("type", "string")
         current = get_current_value(config, "appearance", key)
-        fields.append(
-            {
-                "id": f"appearance.{key}",
-                "type": "slider",
-                "label": key,
-                "min": info.get("min", 0),
-                "max": info.get("max", 1),
-                "step": info.get("step", 0.05),
-                "default": current if current is not None else info.get("default"),
-                "hint": info.get("description", ""),
-            }
-        )
+
+        if setting_type == "boolean":
+            fields.append(
+                {
+                    "id": f"appearance.{key}",
+                    "type": "switch",
+                    "label": key,
+                    "default": bool(current)
+                    if current is not None
+                    else bool(info.get("default")),
+                    "hint": info.get("description", ""),
+                }
+            )
+        elif setting_type == "slider":
+            fields.append(
+                {
+                    "id": f"appearance.{key}",
+                    "type": "slider",
+                    "label": key,
+                    "min": info.get("min", 0),
+                    "max": info.get("max", 1),
+                    "step": info.get("step", 0.05),
+                    "default": current if current is not None else info.get("default"),
+                    "hint": info.get("description", ""),
+                }
+            )
 
     print(
         json.dumps(
@@ -973,6 +1048,45 @@ def main():
     if step == "form":
         form_data = input_data.get("formData", {})
 
+        if context.startswith("editActionHint:"):
+            hint_idx = int(context.split(":", 1)[1])
+            hints = get_action_bar_hints(config)
+
+            # Ensure we have enough hints
+            while len(hints) <= hint_idx:
+                hints.append({"prefix": "", "icon": "", "label": "", "plugin": ""})
+
+            # Update the hint with form data
+            hints[hint_idx] = {
+                "prefix": form_data.get("prefix", "").strip(),
+                "plugin": form_data.get("plugin", "").strip(),
+                "label": form_data.get("label", "").strip(),
+                "icon": form_data.get("icon", "").strip(),
+            }
+
+            config = set_nested_value(
+                config, "search.actionBarHintsJson", json.dumps(hints)
+            )
+            if save_config(config):
+                settings = get_action_bar_hints_list(config)
+                print(
+                    json.dumps(
+                        {
+                            "type": "results",
+                            "results": settings,
+                            "inputMode": "realtime",
+                            "clearInput": True,
+                            "context": "category:actionBarHints",
+                            "placeholder": "Configure action bar shortcuts...",
+                            "pluginActions": get_plugin_actions(),
+                            "navigateBack": True,
+                        }
+                    )
+                )
+            else:
+                print(json.dumps({"type": "error", "message": "Failed to save config"}))
+            return
+
         if context.startswith("edit:"):
             path = context.split(":", 1)[1]
             parts = path.rsplit(".", 1)
@@ -1009,43 +1123,6 @@ def main():
             else:
                 print(json.dumps({"type": "error", "message": "Failed to save config"}))
 
-        elif context.startswith("editActionField:"):
-            # Format: editActionField:1.prefix
-            parts = context.split(":", 1)[1]
-            action_num, field_id = parts.split(".")
-            action_num = int(action_num)
-
-            new_value = form_data.get("value", "").strip()
-
-            hints = get_action_bar_hints(config)
-            # Ensure we have 6 positions
-            while len(hints) < 6:
-                hints.append({"prefix": "", "icon": "", "label": "", "plugin": ""})
-
-            hints[action_num - 1][field_id] = new_value
-
-            # Save as JSON string
-            config = set_nested_value(
-                config, "search.actionBarHintsJson", json.dumps(hints)
-            )
-            if save_config(config):
-                settings = get_settings_for_category(config, f"action:{action_num}")
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": settings,
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": f"category:action:{action_num}",
-                            "placeholder": f"Edit Action {action_num} fields...",
-                            "pluginActions": get_plugin_actions(),
-                            "navigateBack": True,
-                        }
-                    )
-                )
-            else:
-                print(json.dumps({"type": "error", "message": "Failed to save config"}))
         return
 
     if step == "action":
@@ -1059,6 +1136,20 @@ def main():
                 if schema and schema.get("type") == "boolean":
                     new_value = input_data.get("value", False)
                     config = set_nested_value(config, path, bool(new_value))
+                    save_config(config)
+                    print(json.dumps({"type": "noop"}))
+                    return
+
+        # Handle inline slider changes in category view
+        if action == "slider" and selected_id.startswith("setting:"):
+            path = selected_id.split(":", 1)[1]
+            parts = path.rsplit(".", 1)
+            if len(parts) == 2:
+                category, key = parts
+                schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
+                if schema and schema.get("type") == "slider":
+                    new_value = input_data.get("value", 0)
+                    config = set_nested_value(config, path, float(new_value))
                     save_config(config)
                     print(json.dumps({"type": "noop"}))
                     return
@@ -1122,11 +1213,9 @@ def main():
                         }
                     )
                 )
-            elif context.startswith("editActionField:"):
-                # Format: editActionField:1.prefix - go back to action fields
-                parts = context.split(":", 1)[1]
-                action_num = int(parts.split(".")[0])
-                settings = get_settings_for_category(config, f"action:{action_num}")
+            elif context.startswith("editActionHint:"):
+                # Go back to action hints list
+                settings = get_action_bar_hints_list(config)
                 print(
                     json.dumps(
                         {
@@ -1134,8 +1223,8 @@ def main():
                             "results": settings,
                             "inputMode": "realtime",
                             "clearInput": True,
-                            "context": f"category:action:{action_num}",
-                            "placeholder": f"Edit Action {action_num} fields...",
+                            "context": "category:actionBarHints",
+                            "placeholder": "Configure action bar shortcuts...",
                             "pluginActions": get_plugin_actions(),
                         }
                     )
@@ -1190,22 +1279,6 @@ def main():
                         }
                     )
                 )
-            elif context.startswith("category:action:"):
-                # Going back from action fields to action list
-                settings = get_settings_for_category(config, "search.actionBarHints")
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": settings,
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": "category:search.actionBarHints",
-                            "placeholder": "Configure action bar shortcuts...",
-                            "pluginActions": get_plugin_actions(),
-                        }
-                    )
-                )
             elif context.startswith("category:"):
                 print(
                     json.dumps(
@@ -1246,6 +1319,11 @@ def main():
                 return
 
             settings = get_settings_for_category(config, category)
+            placeholder = (
+                "Configure action bar shortcuts..."
+                if category == "actionBarHints"
+                else f"Filter {CATEGORY_NAMES.get(category, category)} settings..."
+            )
             print(
                 json.dumps(
                     {
@@ -1254,7 +1332,7 @@ def main():
                         "inputMode": "realtime",
                         "clearInput": True,
                         "context": f"category:{category}",
-                        "placeholder": f"Filter {CATEGORY_NAMES.get(category, category)} settings...",
+                        "placeholder": placeholder,
                         "pluginActions": get_plugin_actions(),
                         "navigateForward": True,
                     }
@@ -1262,111 +1340,80 @@ def main():
             )
             return
 
-        if selected_id.startswith("action:"):
-            action_num = int(selected_id.split(":", 1)[1])
-
-            # Navigate into the action to show its fields
-            settings = get_settings_for_category(config, f"action:{action_num}")
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": settings,
-                        "inputMode": "realtime",
-                        "clearInput": True,
-                        "context": f"category:action:{action_num}",
-                        "placeholder": f"Edit Action {action_num} fields...",
-                        "pluginActions": get_plugin_actions(),
-                        "navigateForward": True,
-                    }
-                )
-            )
-            return
-
-        if selected_id.startswith("actionfield:"):
-            # Format: actionfield:1.prefix
-            parts = selected_id.split(":", 1)[1]
-            action_num, field_id = parts.split(".")
-            action_num = int(action_num)
-
+        if selected_id.startswith("actionHint:"):
+            hint_idx = int(selected_id.split(":", 1)[1])
             hints = get_action_bar_hints(config)
             default_hint = (
-                DEFAULT_ACTION_BAR_HINTS[action_num - 1]
-                if action_num <= len(DEFAULT_ACTION_BAR_HINTS)
+                DEFAULT_ACTION_BAR_HINTS[hint_idx]
+                if hint_idx < len(DEFAULT_ACTION_BAR_HINTS)
                 else {}
             )
-
-            if action_num <= len(hints):
-                hint = hints[action_num - 1]
-            else:
-                hint = {"prefix": "", "icon": "", "label": "", "plugin": ""}
+            current_hint = hints[hint_idx] if hint_idx < len(hints) else {}
 
             if action == "reset":
-                # Reset just this field to default
-                while len(hints) < 6:
-                    hints.append({"prefix": "", "icon": "", "label": "", "plugin": ""})
-                hints[action_num - 1][field_id] = default_hint.get(field_id, "")
-                config = set_nested_value(
-                    config, "search.actionBarHintsJson", json.dumps(hints)
+                if hint_idx < len(hints):
+                    hints[hint_idx] = default_hint.copy()
+                    config = set_nested_value(
+                        config, "search.actionBarHintsJson", json.dumps(hints)
+                    )
+                    save_config(config)
+                settings = get_action_bar_hints_list(config)
+                print(
+                    json.dumps(
+                        {
+                            "type": "results",
+                            "results": settings,
+                            "inputMode": "realtime",
+                            "context": "category:actionBarHints",
+                            "placeholder": "Configure action bar shortcuts...",
+                            "pluginActions": get_plugin_actions(),
+                            "navigateForward": False,
+                        }
+                    )
                 )
-                if save_config(config):
-                    settings = get_settings_for_category(config, f"action:{action_num}")
-                    print(
-                        json.dumps(
-                            {
-                                "type": "results",
-                                "results": settings,
-                                "inputMode": "realtime",
-                                "context": f"category:action:{action_num}",
-                                "placeholder": f"Edit Action {action_num} fields...",
-                                "pluginActions": get_plugin_actions(),
-                            }
-                        )
-                    )
-                else:
-                    print(
-                        json.dumps(
-                            {"type": "error", "message": "Failed to save config"}
-                        )
-                    )
                 return
 
-            # Show edit form for the field
-            field_names = {
-                "prefix": "Prefix",
-                "icon": "Icon",
-                "label": "Label",
-                "plugin": "Plugin",
-            }
-            field_hints = {
-                "prefix": "Keyboard shortcut prefix (e.g., ~, ;, /)",
-                "icon": "Material icon name (e.g., folder, terminal)",
-                "label": "Display label for the action",
-                "plugin": "Plugin to invoke (e.g., files, shell, calculate)",
-            }
-
-            current_value = hint.get(field_id, "")
-            default_value = default_hint.get(field_id, "")
-
+            # Show form to edit this action hint
             print(
                 json.dumps(
                     {
                         "type": "form",
                         "form": {
-                            "title": f"Edit {field_names.get(field_id, field_id)}",
+                            "title": f"Edit Action {hint_idx + 1}",
                             "submitLabel": "Save",
                             "cancelLabel": "Cancel",
                             "fields": [
                                 {
-                                    "id": "value",
+                                    "id": "prefix",
                                     "type": "text",
-                                    "label": field_names.get(field_id, field_id),
-                                    "default": current_value,
-                                    "hint": f"{field_hints.get(field_id, '')}\nDefault: {default_value}",
-                                }
+                                    "label": "Prefix",
+                                    "default": current_hint.get("prefix", ""),
+                                    "hint": f"Keyboard shortcut (e.g., ~, ;, /)\nDefault: {default_hint.get('prefix', '')}",
+                                },
+                                {
+                                    "id": "plugin",
+                                    "type": "text",
+                                    "label": "Plugin",
+                                    "default": current_hint.get("plugin", ""),
+                                    "hint": f"Plugin to open (e.g., files, clipboard, emoji)\nDefault: {default_hint.get('plugin', '')}",
+                                },
+                                {
+                                    "id": "label",
+                                    "type": "text",
+                                    "label": "Label",
+                                    "default": current_hint.get("label", ""),
+                                    "hint": f"Display label\nDefault: {default_hint.get('label', '')}",
+                                },
+                                {
+                                    "id": "icon",
+                                    "type": "text",
+                                    "label": "Icon",
+                                    "default": current_hint.get("icon", ""),
+                                    "hint": f"Material icon name\nDefault: {default_hint.get('icon', '')}",
+                                },
                             ],
                         },
-                        "context": f"editActionField:{action_num}.{field_id}",
+                        "context": f"editActionHint:{hint_idx}",
                         "navigateForward": True,
                     }
                 )
@@ -1382,14 +1429,41 @@ def main():
                 print(json.dumps({"type": "error", "message": "Invalid setting path"}))
                 return
 
+            schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
+            setting_type = schema.get("type", "string")
+
             if action == "reset":
                 config = delete_nested_value(config, path)
-                if save_config(config):
-                    current_category = (
-                        context.split(":", 1)[1]
-                        if context.startswith("category:")
-                        else category
+                save_config(config)
+
+                default = schema.get("default")
+                current_category = (
+                    context.split(":", 1)[1]
+                    if context.startswith("category:")
+                    else category
+                )
+
+                # For inline controls (slider/switch), use update response
+                if setting_type in ("slider", "boolean"):
+                    update_item: dict = {"id": selected_id}
+                    if setting_type == "slider":
+                        slider_val = (
+                            default if isinstance(default, (int, float)) else 0.0
+                        )
+                        update_item["value"] = float(slider_val)
+                    else:
+                        update_item["value"] = bool(default)
+                    # Remove badge since it's now at default
+                    update_item["badges"] = []
+                    print(
+                        json.dumps(
+                            {
+                                "type": "update",
+                                "items": [update_item],
+                            }
+                        )
                     )
+                else:
                     settings = get_settings_for_category(config, current_category)
                     print(
                         json.dumps(
@@ -1400,18 +1474,12 @@ def main():
                                 "context": f"category:{current_category}",
                                 "placeholder": f"Filter {CATEGORY_NAMES.get(current_category, current_category)} settings...",
                                 "pluginActions": get_plugin_actions(),
+                                "navigateForward": False,
                             }
-                        )
-                    )
-                else:
-                    print(
-                        json.dumps(
-                            {"type": "error", "message": "Failed to save config"}
                         )
                     )
                 return
 
-            schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
             if not schema:
                 print(
                     json.dumps({"type": "error", "message": f"Unknown setting: {path}"})
@@ -1419,7 +1487,7 @@ def main():
                 return
 
             # Readonly settings cannot be edited
-            if schema.get("type") == "readonly":
+            if setting_type == "readonly":
                 current_category = (
                     context.split(":", 1)[1]
                     if context.startswith("category:")
@@ -1438,6 +1506,11 @@ def main():
                         }
                     )
                 )
+                return
+
+            # Slider and boolean are inline - clicking on them should not open a form
+            if setting_type in ("slider", "boolean"):
+                print(json.dumps({"type": "noop"}))
                 return
 
             current = get_current_value(config, category, key)
