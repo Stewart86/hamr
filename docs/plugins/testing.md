@@ -12,6 +12,7 @@ cd ~/path/to/hamr
 ```
 
 Dev mode:
+
 - Stops any running production Hamr
 - Runs Hamr from the current directory
 - Auto-reloads when plugin files change
@@ -64,17 +65,17 @@ echo '{"step": "initial"}' | ./handler.py | jq .
 
 Hamr validates all responses. Invalid responses show errors in the UI.
 
-| Response Type | Required Fields |
-|---------------|-----------------|
-| `results` | `type`, `results[]` with `id` and `name` |
-| `card` | `type`, `card.content` |
-| `execute` | `type` |
-| `imageBrowser` | `type`, `imageBrowser.directory` |
-| `gridBrowser` | `type`, `gridBrowser.items[]` with `id` and `name` |
-| `form` | `type`, `form.fields[]` with `id`, `type` |
-| `prompt` | `type`, `prompt` object |
-| `error` | `type`, `message` |
-| `noop` | `type` only |
+| Response Type  | Required Fields                                    |
+| -------------- | -------------------------------------------------- |
+| `results`      | `type`, `results[]` with `id` and `name`           |
+| `card`         | `type`, `card.content`                             |
+| `execute`      | `type`                                             |
+| `imageBrowser` | `type`, `imageBrowser.directory`                   |
+| `gridBrowser`  | `type`, `gridBrowser.items[]` with `id` and `name` |
+| `form`         | `type`, `form.fields[]` with `id`, `type`          |
+| `prompt`       | `type`, `prompt` object                            |
+| `error`        | `type`, `message`                                  |
+| `noop`         | `type` only                                        |
 
 ---
 
@@ -102,9 +103,9 @@ journalctl --user -u hamr --since "5 min ago" | grep -i error
 
 ### Common Issues
 
-| Issue | Solution |
-|-------|----------|
-| Plugin doesn't appear | Check `supportedCompositors` in manifest |
-| Handler errors | Check `journalctl --user -u hamr -f` |
-| Invalid JSON | Test with `echo '{"step": "initial"}' \| ./handler.py \| jq .` |
-| Missing fields | Check schema requirements above |
+| Issue                 | Solution                                                       |
+| --------------------- | -------------------------------------------------------------- |
+| Plugin doesn't appear | Check `supportedCompositors` in manifest                       |
+| Handler errors        | Check `journalctl --user -u hamr -f`                           |
+| Invalid JSON          | Test with `echo '{"step": "initial"}' \| ./handler.py \| jq .` |
+| Missing fields        | Check schema requirements above                                |

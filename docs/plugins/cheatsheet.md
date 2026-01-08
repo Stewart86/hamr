@@ -14,6 +14,23 @@ Quick reference for Hamr plugin development.
 }
 ```
 
+## Pattern Matching Manifest
+
+For plugins that show results instantly in main search:
+
+```json
+{
+  "name": "Calculate",
+  "description": "Calculator",
+  "icon": "calculate",
+  "supportedCompositors": ["*"],
+  "match": {
+    "patterns": ["^=", "^[\\d\\.]+\\s*[\\+\\-\\*\\/]"],
+    "priority": 100
+  }
+}
+```
+
 ## Handler Skeleton
 
 ```python
@@ -79,6 +96,10 @@ if __name__ == "__main__":
 # Error
 {"type": "error", "message": "Something went wrong"}
 
+# Match result (for pattern matching plugins)
+{"type": "match", "result": {"id": "...", "name": "result", "icon": "...", "copy": "..."}}
+{"type": "match", "result": None}  # No valid result, hide
+
 # No operation
 {"type": "noop"}
 ```
@@ -120,7 +141,7 @@ if __name__ == "__main__":
     "actions": [
         {
             "id": "private",
-            "name": "Private Window", 
+            "name": "Private Window",
             "icon": "security",
             "entryPoint": {      # Required for indexed item actions
                 "step": "action",
@@ -184,25 +205,26 @@ if __name__ == "__main__":
 
 ## Input Steps
 
-| Step | When | Key Fields |
-|------|------|------------|
-| `initial` | Plugin opens | - |
-| `search` | User types | `query` |
-| `action` | User selects | `selected.id`, `action` |
-| `form` | Form submitted | `formData` |
-| `poll` | Polling tick | `query` |
-| `index` | Indexing request | `mode` |
+| Step      | When                           | Key Fields              |
+| --------- | ------------------------------ | ----------------------- |
+| `initial` | Plugin opens                   | -                       |
+| `search`  | User types                     | `query`                 |
+| `action`  | User selects                   | `selected.id`, `action` |
+| `match`   | Pattern matched in main search | `query`                 |
+| `form`    | Form submitted                 | `formData`              |
+| `poll`    | Polling tick                   | `query`                 |
+| `index`   | Indexing request               | `mode`                  |
 
 ## `entryPoint` (for indexed items only)
 
 **Only needed for plugins with `index.enabled: true`.**
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `step` | string | `"action"` | Step type |
-| `selected` | object | - | Item info, e.g. `{"id": "..."}` |
-| `action` | string | - | Action to perform |
-| `query` | string | - | Query string |
+| Field      | Type   | Default    | Description                     |
+| ---------- | ------ | ---------- | ------------------------------- |
+| `step`     | string | `"action"` | Step type                       |
+| `selected` | object | -          | Item info, e.g. `{"id": "..."}` |
+| `action`   | string | -          | Action to perform               |
+| `query`    | string | -          | Query string                    |
 
 ```python
 "entryPoint": {"step": "action", "selected": {"id": "item-1"}, "action": "copy"}
@@ -213,12 +235,12 @@ if __name__ == "__main__":
 
 ## Special IDs
 
-| ID | Meaning |
-|----|---------|
-| `__back__` | Back button/Escape |
-| `__plugin__` | Plugin action clicked |
-| `__form_cancel__` | Form cancelled |
-| `__empty__` | Non-actionable placeholder |
+| ID                | Meaning                    |
+| ----------------- | -------------------------- |
+| `__back__`        | Back button/Escape         |
+| `__plugin__`      | Plugin action clicked      |
+| `__form_cancel__` | Form cancelled             |
+| `__empty__`       | Non-actionable placeholder |
 
 ## Navigation
 
@@ -256,28 +278,30 @@ journalctl --user -u hamr -f
 
 ## Common Icons
 
-| Category | Icons |
-|----------|-------|
-| Actions | `add`, `delete`, `edit`, `save`, `content_copy`, `open_in_new` |
-| Files | `folder`, `description`, `image`, `code`, `video_file` |
-| UI | `search`, `settings`, `star`, `favorite`, `info`, `error` |
-| Navigation | `arrow_back`, `home`, `menu`, `close` |
-| Status | `check`, `warning`, `sync`, `downloading` |
+| Category   | Icons                                                          |
+| ---------- | -------------------------------------------------------------- |
+| Actions    | `add`, `delete`, `edit`, `save`, `content_copy`, `open_in_new` |
+| Files      | `folder`, `description`, `image`, `code`, `video_file`         |
+| UI         | `search`, `settings`, `star`, `favorite`, `info`, `error`      |
+| Navigation | `arrow_back`, `home`, `menu`, `close`                          |
+| Status     | `check`, `warning`, `sync`, `downloading`                      |
 
 ## Manifest Options
 
-| Field | Required | Values | Description |
-|-------|----------|--------|-------------|
-| `name` | Yes | string | Plugin display name |
-| `description` | Yes | string | Short description |
-| `icon` | Yes | string | Material icon name |
-| `supportedCompositors` | Yes | `["*"]`, `["hyprland"]`, `["niri"]` | Compositor support |
-| `handler` | No | filename | Handler script (default: `handler.py`) |
-| `frecency` | No | `"item"`, `"plugin"`, `"none"` | Usage tracking (see [Search Ranking](advanced-features.md#search-ranking)) |
-| `daemon.enabled` | No | bool | Enable daemon mode |
-| `daemon.background` | No | bool | Run always vs when open |
-| `index.enabled` | No | bool | Enable indexing (requires daemon) |
-| `indexOnly` | No | bool | No interactive mode |
+| Field                  | Required | Values                              | Description                                                                |
+| ---------------------- | -------- | ----------------------------------- | -------------------------------------------------------------------------- |
+| `name`                 | Yes      | string                              | Plugin display name                                                        |
+| `description`          | Yes      | string                              | Short description                                                          |
+| `icon`                 | Yes      | string                              | Material icon name                                                         |
+| `supportedCompositors` | Yes      | `["*"]`, `["hyprland"]`, `["niri"]` | Compositor support                                                         |
+| `handler`              | No       | filename                            | Handler script (default: `handler.py`)                                     |
+| `frecency`             | No       | `"item"`, `"plugin"`, `"none"`      | Usage tracking (see [Search Ranking](advanced-features.md#search-ranking)) |
+| `daemon.enabled`       | No       | bool                                | Enable daemon mode                                                         |
+| `daemon.background`    | No       | bool                                | Run always vs when open                                                    |
+| `index.enabled`        | No       | bool                                | Enable indexing (requires daemon)                                          |
+| `indexOnly`            | No       | bool                                | No interactive mode                                                        |
+| `match.patterns`       | No       | array                               | Regex patterns for instant match                                           |
+| `match.priority`       | No       | number                              | Match priority (default: 50)                                               |
 
 ## CLI Commands
 

@@ -17,11 +17,11 @@
 
 ## Prefix Shortcuts
 
-| Prefix | Function | Prefix | Function |
-|--------|----------|--------|----------|
-| `~` | File search | `;` | Clipboard history |
-| `/` | Actions & plugins | `!` | Shell history |
-| `=` | Calculator | `:` | Emoji picker |
+| Prefix | Function          | Prefix | Function          |
+| ------ | ----------------- | ------ | ----------------- |
+| `~`    | File search       | `;`    | Clipboard history |
+| `/`    | Actions & plugins | `!`    | Shell history     |
+| `=`    | Calculator        | `:`    | Emoji picker      |
 
 These shortcuts are fully customizable. See [Configuration](getting-started/configuration.md#prefix-shortcuts) for details.
 
@@ -37,41 +37,41 @@ Powered by [qalculate](https://qalculate.github.io/) - supports 150+ currencies,
 
 All plugins are indexed and searchable directly from the main bar - no prefix required. Just type what you want (e.g., "clipboard", "emoji", "power") and Hamr finds it.
 
-| Plugin | Description |
-|--------|-------------|
-| `apps` | App drawer with categories (like rofi/dmenu) |
-| `bitwarden` | Password manager with keyring integration |
-| `calculate` | Calculator with currency, units, and temperature |
-| `clipboard` | Clipboard history with OCR search, filter by type |
-| `create-plugin` | AI helper to create new plugins (requires [OpenCode](https://opencode.ai)) |
-| `dictionary` | Dictionary lookup with definitions |
-| `emoji` | Emoji picker with search |
-| `files` | File search with fd + fzf, thumbnails for images |
-| `aur` | Search and install packages from AUR (yay/paru) |
-| `flathub` | Search and install apps from Flathub |
-| `notes` | Quick notes with multi-line content support |
-| `pictures` | Browse images with thumbnails |
-| `player` | Media player controls via playerctl |
-| `power` | System power and session controls |
-| `quicklinks` | Web search with customizable quicklinks |
-| `screenrecord` | Screen recording with auto-trim (wf-recorder) |
-| `screenshot` | Browse screenshots with OCR text search |
-| `settings` | Configure Hamr launcher options |
-| `sound` | System volume controls |
-| `shell` | Shell command history (zsh/bash/fish) |
-| `snippet` | Text snippets for quick insertion |
-| `theme` | Dark/light mode and accent color switching |
-| `timer` | Countdown timers with presets, FAB display, and notifications |
-| `todo` | Simple todo list manager (live updates via daemon) |
-| `topcpu` | Process monitor sorted by CPU usage (live daemon refresh) |
-| `topmem` | Process monitor sorted by memory usage (live daemon refresh) |
-| `url` | Open URLs in browser (auto-detects domain patterns) |
-| `wallpaper` | Wallpaper selector (swww, hyprpaper, swaybg, feh) |
-| `webapp` | Install and manage web apps |
-| `whats-that-word` | Find words from descriptions or fix misspellings |
-| `zoxide` | Jump to frequently used directories |
-| `hyprland` | Window management, dispatchers, and global shortcuts (Hyprland only) |
-| `niri` | Window management and compositor actions (Niri only) |
+| Plugin            | Description                                                                |
+| ----------------- | -------------------------------------------------------------------------- |
+| `apps`            | App drawer with categories (like rofi/dmenu)                               |
+| `bitwarden`       | Password manager with keyring integration                                  |
+| `calculate`       | Calculator with currency, units, and temperature                           |
+| `clipboard`       | Clipboard history with OCR search, filter by type                          |
+| `create-plugin`   | AI helper to create new plugins (requires [OpenCode](https://opencode.ai)) |
+| `dictionary`      | Dictionary lookup with definitions                                         |
+| `emoji`           | Emoji picker with search                                                   |
+| `files`           | File search with fd + fzf, thumbnails for images                           |
+| `aur`             | Search and install packages from AUR (yay/paru)                            |
+| `flathub`         | Search and install apps from Flathub                                       |
+| `notes`           | Quick notes with multi-line content support                                |
+| `pictures`        | Browse images with thumbnails                                              |
+| `player`          | Media player controls via playerctl                                        |
+| `power`           | System power and session controls                                          |
+| `quicklinks`      | Web search with customizable quicklinks                                    |
+| `screenrecord`    | Screen recording with auto-trim (wf-recorder)                              |
+| `screenshot`      | Browse screenshots with OCR text search                                    |
+| `settings`        | Configure Hamr launcher options                                            |
+| `sound`           | System volume controls                                                     |
+| `shell`           | Shell command history (zsh/bash/fish)                                      |
+| `snippet`         | Text snippets for quick insertion                                          |
+| `theme`           | Dark/light mode and accent color switching                                 |
+| `timer`           | Countdown timers with presets, FAB display, and notifications              |
+| `todo`            | Simple todo list manager (live updates via daemon)                         |
+| `topcpu`          | Process monitor sorted by CPU usage (live daemon refresh)                  |
+| `topmem`          | Process monitor sorted by memory usage (live daemon refresh)               |
+| `url`             | Open URLs in browser (auto-detects domain patterns)                        |
+| `wallpaper`       | Wallpaper selector (swww, hyprpaper, swaybg, feh)                          |
+| `webapp`          | Install and manage web apps                                                |
+| `whats-that-word` | Find words from descriptions or fix misspellings                           |
+| `zoxide`          | Jump to frequently used directories                                        |
+| `hyprland`        | Window management, dispatchers, and global shortcuts (Hyprland only)       |
+| `niri`            | Window management and compositor actions (Niri only)                       |
 
 ---
 
@@ -159,12 +159,12 @@ When you open Hamr with an empty search, you may see suggested apps at the top m
 
 **What triggers suggestions:**
 
-| Signal | Weight | Example |
-|--------|--------|---------|
-| **App sequences** | High | VS Code suggested after opening Terminal |
-| **Session start** | High | Email client suggested right after login |
-| **Time of day** | Medium | Slack suggested at 9am if you always open it then |
-| **Workspace** | Medium | Browser suggested on workspace 1 |
-| **Day of week** | Low | Personal apps suggested on weekends |
+| Signal            | Weight | Example                                           |
+| ----------------- | ------ | ------------------------------------------------- |
+| **App sequences** | High   | VS Code suggested after opening Terminal          |
+| **Session start** | High   | Email client suggested right after login          |
+| **Time of day**   | Medium | Slack suggested at 9am if you always open it then |
+| **Workspace**     | Medium | Browser suggested on workspace 1                  |
+| **Day of week**   | Low    | Personal apps suggested on weekends               |
 
 **No configuration needed.** Suggestions appear automatically as patterns emerge.

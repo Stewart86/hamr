@@ -30,37 +30,37 @@ Toggle the launcher with `hamr toggle` (bind this to a key in your compositor).
 
 ### Basic Usage
 
-| Action | Description |
-|--------|-------------|
-| Start typing | Search apps and indexed items |
-| `/plugin` | Open a specific plugin |
-| `Tab` | View actions for selected item |
-| `Enter` | Execute selected item/action |
-| `Escape` | Go back / close |
+| Action       | Description                    |
+| ------------ | ------------------------------ |
+| Start typing | Search apps and indexed items  |
+| `/plugin`    | Open a specific plugin         |
+| `Tab`        | View actions for selected item |
+| `Enter`      | Execute selected item/action   |
+| `Escape`     | Go back / close                |
 
 ## Documentation
 
 <div class="grid cards" markdown>
 
--   :material-book-open-variant:{ .lg .middle } **Getting Started**
+- :material-book-open-variant:{ .lg .middle } **Getting Started**
 
-    ---
+  ***
 
-    Installation, configuration, and theming
+  Installation, configuration, and theming
 
-    [:octicons-arrow-right-24: Installation](getting-started/installation.md)
+  [:octicons-arrow-right-24: Installation](getting-started/installation.md)
 
-    [:octicons-arrow-right-24: Theming](getting-started/theming.md)
+  [:octicons-arrow-right-24: Theming](getting-started/theming.md)
 
--   :material-puzzle:{ .lg .middle } **Plugins**
+- :material-puzzle:{ .lg .middle } **Plugins**
 
-    ---
+  ***
 
-    Build custom plugins to extend Hamr
+  Build custom plugins to extend Hamr
 
-    [:octicons-arrow-right-24: Building Plugins](plugins/index.md)
+  [:octicons-arrow-right-24: Building Plugins](plugins/index.md)
 
-    [:octicons-arrow-right-24: Cheat Sheet](plugins/cheatsheet.md)
+  [:octicons-arrow-right-24: Cheat Sheet](plugins/cheatsheet.md)
 
 </div>
 

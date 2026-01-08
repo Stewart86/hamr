@@ -250,6 +250,7 @@ Every plugin needs a `manifest.json`:
 ```
 
 The `action` field tells you which action button was clicked:
+
 - **Not set:** User clicked the item itself (default action)
 - **Set:** User clicked a specific action button (e.g., `"copy"`, `"delete"`)
 
@@ -346,9 +347,11 @@ Now that you understand the basics:
 
 2. **[Visual Elements](visual-elements.md)** - Add sliders, switches, badges, gauges, and progress bars
 
-3. **[Advanced Features](advanced-features.md)** - Daemon mode, indexing, search ranking, FAB override
+3. **[Advanced Features](advanced-features.md)** - Pattern matching, daemon mode, indexing, search ranking
 
-4. **[Cheat Sheet](cheatsheet.md)** - Quick reference for common patterns
+4. **[API Reference](api-reference.md)** - Complete schema reference for all fields and types
+
+5. **[Cheat Sheet](cheatsheet.md)** - Quick reference for common patterns
 
 ---
 
@@ -356,14 +359,17 @@ Now that you understand the basics:
 
 Study these plugins to learn common patterns:
 
-| Plugin        | Features                      | Good For Learning    |
-| ------------- | ----------------------------- | -------------------- |
-| `quicklinks/` | CRUD, context, input modes    | State management     |
-| `todo/`       | Daemon, file watching, status | Real-time updates    |
-| `clipboard/`  | Thumbnails, filters, actions  | Rich UI              |
-| `bitwarden/`  | Forms, caching, entryPoint    | Complex workflows    |
-| `sound/`      | Sliders, switches, updates    | Interactive controls |
-| `emoji/`      | Grid browser                  | Large item sets      |
+| Plugin        | Features                                    | Good For Learning        |
+| ------------- | ------------------------------------------- | ------------------------ |
+| `calculate/`  | Pattern matching, instant results           | Main search integration  |
+| `url/`        | Pattern matching, actions                   | Simple match handler     |
+| `timer/`      | Daemon, FAB override, ambient items, status | Advanced daemon patterns |
+| `quicklinks/` | CRUD, context, input modes                  | State management         |
+| `todo/`       | Daemon, file watching, status               | Real-time updates        |
+| `clipboard/`  | Thumbnails, filters, actions                | Rich UI                  |
+| `bitwarden/`  | Forms, caching, entryPoint                  | Complex workflows        |
+| `sound/`      | Sliders, switches, updates                  | Interactive controls     |
+| `emoji/`      | Grid browser                                | Large item sets          |
 
 ---
 

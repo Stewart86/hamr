@@ -4,12 +4,12 @@ This guide helps you port [Raycast](https://raycast.com) extensions to Hamr plug
 
 ## Architecture Comparison
 
-| Aspect | Raycast | Hamr |
-|--------|---------|------|
-| **Language** | TypeScript/React | Any (Python recommended) |
-| **UI Model** | React components | JSON responses |
-| **Data Flow** | React hooks + state | stdin/stdout per step |
-| **Platform** | macOS | Linux (Wayland) |
+| Aspect        | Raycast             | Hamr                     |
+| ------------- | ------------------- | ------------------------ |
+| **Language**  | TypeScript/React    | Any (Python recommended) |
+| **UI Model**  | React components    | JSON responses           |
+| **Data Flow** | React hooks + state | stdin/stdout per step    |
+| **Platform**  | macOS               | Linux (Wayland)          |
 
 ## Raycast Extension Structure
 
@@ -26,53 +26,53 @@ raycast-extension/
 
 ## Component Mapping
 
-| Raycast Component | Hamr Equivalent |
-|-------------------|-----------------|
-| `<List>` | `{"type": "results", "results": [...]}` |
-| `<List.Item>` | `{"id": "...", "name": "...", "icon": "..."}` |
-| `<List.Item.Detail>` | `{"type": "card", "card": {...}}` |
-| `<Detail>` | `{"type": "card", "card": {...}}` |
-| `<Grid>` | `{"type": "imageBrowser"}` or results with thumbnails |
-| `<Form>` | `{"type": "form"}` or multi-step with submit mode |
-| `<ActionPanel>` | `"actions": [...]` on result items |
-| `Action.CopyToClipboard` | `{"copy": "text"}` |
-| `Action.OpenInBrowser` | `{"openUrl": "url"}` |
-| `Action.Push` | Return new results (navigation) |
-| `showToast()` | `{"notify": "message"}` |
-| `getPreferenceValues()` | Config file or environment |
+| Raycast Component        | Hamr Equivalent                                       |
+| ------------------------ | ----------------------------------------------------- |
+| `<List>`                 | `{"type": "results", "results": [...]}`               |
+| `<List.Item>`            | `{"id": "...", "name": "...", "icon": "..."}`         |
+| `<List.Item.Detail>`     | `{"type": "card", "card": {...}}`                     |
+| `<Detail>`               | `{"type": "card", "card": {...}}`                     |
+| `<Grid>`                 | `{"type": "imageBrowser"}` or results with thumbnails |
+| `<Form>`                 | `{"type": "form"}` or multi-step with submit mode     |
+| `<ActionPanel>`          | `"actions": [...]` on result items                    |
+| `Action.CopyToClipboard` | `{"copy": "text"}`                                    |
+| `Action.OpenInBrowser`   | `{"openUrl": "url"}`                                  |
+| `Action.Push`            | Return new results (navigation)                       |
+| `showToast()`            | `{"notify": "message"}`                               |
+| `getPreferenceValues()`  | Config file or environment                            |
 
 ## Hook Translation
 
-| Raycast Hook | Hamr Equivalent |
-|--------------|-----------------|
-| `usePromise` | Fetch in handler, return results |
-| `useCachedPromise` | Cache to JSON file |
-| `useCachedState` | Use `context` field |
-| `useState` | Use `context` for state |
-| `useEffect` | Not needed (stateless calls) |
+| Raycast Hook       | Hamr Equivalent                  |
+| ------------------ | -------------------------------- |
+| `usePromise`       | Fetch in handler, return results |
+| `useCachedPromise` | Cache to JSON file               |
+| `useCachedState`   | Use `context` field              |
+| `useState`         | Use `context` for state          |
+| `useEffect`        | Not needed (stateless calls)     |
 
 ## Path Mapping (macOS to Linux)
 
-| macOS | Linux |
-|-------|-------|
-| `~/Library/Application Support/Google/Chrome` | `~/.config/google-chrome` |
+| macOS                                                       | Linux                                   |
+| ----------------------------------------------------------- | --------------------------------------- |
+| `~/Library/Application Support/Google/Chrome`               | `~/.config/google-chrome`               |
 | `~/Library/Application Support/BraveSoftware/Brave-Browser` | `~/.config/BraveSoftware/Brave-Browser` |
-| `~/Library/Application Support/Microsoft Edge` | `~/.config/microsoft-edge` |
-| `~/Library/Application Support/Firefox` | `~/.mozilla/firefox` |
-| `~/Library/Preferences` | `~/.config` |
-| `~/Library/Caches` | `~/.cache` |
+| `~/Library/Application Support/Microsoft Edge`              | `~/.config/microsoft-edge`              |
+| `~/Library/Application Support/Firefox`                     | `~/.mozilla/firefox`                    |
+| `~/Library/Preferences`                                     | `~/.config`                             |
+| `~/Library/Caches`                                          | `~/.cache`                              |
 
 ## API Mapping (macOS to Linux)
 
-| Raycast/macOS | Linux Equivalent |
-|---------------|------------------|
-| `Clipboard.copy()` | `wl-copy` |
-| `Clipboard.paste()` | `wl-paste` |
-| `showHUD()` | `notify-send` |
-| `open` command | `xdg-open` |
+| Raycast/macOS               | Linux Equivalent          |
+| --------------------------- | ------------------------- |
+| `Clipboard.copy()`          | `wl-copy`                 |
+| `Clipboard.paste()`         | `wl-paste`                |
+| `showHUD()`                 | `notify-send`             |
+| `open` command              | `xdg-open`                |
 | `getFrontmostApplication()` | `hyprctl activewindow -j` |
-| AppleScript | D-Bus or CLI tools |
-| Keychain | `secret-tool` (libsecret) |
+| AppleScript                 | D-Bus or CLI tools        |
+| Keychain                    | `secret-tool` (libsecret) |
 
 ---
 
@@ -84,28 +84,28 @@ raycast-extension/
 import { List, ActionPanel, Action } from "@raycast/api";
 
 export default function Command() {
-    const items = [
-        { id: "1", title: "First", url: "https://example.com" },
-        { id: "2", title: "Second", url: "https://example.org" },
-    ];
+  const items = [
+    { id: "1", title: "First", url: "https://example.com" },
+    { id: "2", title: "Second", url: "https://example.org" },
+  ];
 
-    return (
-        <List searchBarPlaceholder="Search bookmarks...">
-            {items.map((item) => (
-                <List.Item
-                    key={item.id}
-                    title={item.title}
-                    subtitle={item.url}
-                    actions={
-                        <ActionPanel>
-                            <Action.OpenInBrowser url={item.url} />
-                            <Action.CopyToClipboard content={item.url} />
-                        </ActionPanel>
-                    }
-                />
-            ))}
-        </List>
-    );
+  return (
+    <List searchBarPlaceholder="Search bookmarks...">
+      {items.map((item) => (
+        <List.Item
+          key={item.id}
+          title={item.title}
+          subtitle={item.url}
+          actions={
+            <ActionPanel>
+              <Action.OpenInBrowser url={item.url} />
+              <Action.CopyToClipboard content={item.url} />
+            </ActionPanel>
+          }
+        />
+      ))}
+    </List>
+  );
 }
 ```
 
@@ -240,11 +240,13 @@ Focus on Chrome and Firefox support for Linux.
 ### Preferences
 
 Raycast:
+
 ```tsx
 const { apiKey } = getPreferenceValues<Preferences>();
 ```
 
 Hamr:
+
 ```python
 import os
 from pathlib import Path
@@ -262,11 +264,13 @@ api_key = os.environ.get("MY_API_KEY") or get_config().get("apiKey")
 ### Caching
 
 Raycast:
+
 ```tsx
 const { data, isLoading } = useCachedPromise(fetchData);
 ```
 
 Hamr:
+
 ```python
 import time
 
@@ -278,7 +282,7 @@ def get_cached_data():
         cache = json.loads(CACHE_FILE.read_text())
         if time.time() - cache.get("timestamp", 0) < CACHE_TTL:
             return cache.get("data")
-    
+
     data = fetch_data()
     CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
     CACHE_FILE.write_text(json.dumps({"data": data, "timestamp": time.time()}))
@@ -288,11 +292,13 @@ def get_cached_data():
 ### Detail View
 
 Raycast:
+
 ```tsx
 <List.Item.Detail markdown={`# ${item.title}\n\n${item.content}`} />
 ```
 
 Hamr:
+
 ```python
 {
     "type": "card",
@@ -307,11 +313,13 @@ Hamr:
 ### Navigation (Push)
 
 Raycast:
+
 ```tsx
 <Action.Push title="View Details" target={<DetailView item={item} />} />
 ```
 
 Hamr:
+
 ```python
 # On action, return new results with navigateForward
 if action == "view":

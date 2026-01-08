@@ -1,6 +1,206 @@
 # Advanced Features
 
-This page covers daemon mode, plugin indexing, status badges, FAB override, and ambient items.
+This page covers pattern matching, daemon mode, plugin indexing, status badges, FAB override, and ambient items.
+
+## Pattern Matching
+
+Show results instantly in main search without opening the plugin. When the user types something that matches your pattern, your handler receives a `match` step.
+
+### Use Cases
+
+- **Calculator**: `2+2`, `$50 to EUR`, `10c` (temperature)
+- **URL opener**: `github.com`, `docs.python.org`
+- **Unit converter**: `10ft to m`, `5 miles in km`
+
+### Enable in Manifest
+
+```json
+{
+  "name": "Calculate",
+  "description": "Calculator with currency and units",
+  "icon": "calculate",
+  "supportedCompositors": ["*"],
+  "match": {
+    "patterns": ["^=", "^[\\d\\.]+\\s*[\\+\\-\\*\\/]", "^[$€£¥]"],
+    "priority": 100
+  }
+}
+```
+
+| Field      | Type   | Description                                                    |
+| ---------- | ------ | -------------------------------------------------------------- |
+| `patterns` | array  | Regex patterns to match against user input                     |
+| `priority` | number | Higher priority wins when multiple plugins match (default: 50) |
+
+### Handle the `match` Step
+
+When user input matches any pattern, your handler receives:
+
+```python
+{
+    "step": "match",
+    "query": "2+2"
+}
+```
+
+Return a `match` response with a single result:
+
+```python
+if step == "match":
+    result = calculate(query)
+
+    if result:
+        print(json.dumps({
+            "type": "match",
+            "result": {
+                "id": "calc_result",
+                "name": result,           # "4"
+                "description": query,     # "2+2"
+                "icon": "calculate",
+                "verb": "Copy",
+                "copy": result,           # Copy on Enter
+                "notify": f"Copied: {result}",
+                "priority": 100
+            }
+        }))
+    else:
+        # No valid result - return null to hide
+        print(json.dumps({"type": "match", "result": None}))
+    return
+```
+
+### Match Response Fields
+
+| Field         | Type   | Description                         |
+| ------------- | ------ | ----------------------------------- |
+| `id`          | string | Unique identifier                   |
+| `name`        | string | Primary display text (the result)   |
+| `description` | string | Secondary text (the input)          |
+| `icon`        | string | Material icon name                  |
+| `verb`        | string | Action button text ("Copy", "Open") |
+| `copy`        | string | Text to copy on selection           |
+| `openUrl`     | string | URL to open on selection            |
+| `notify`      | string | Notification message after action   |
+| `close`       | bool   | Close launcher after action         |
+| `priority`    | number | Ranking among match results         |
+| `actions`     | array  | Additional action buttons           |
+
+### Pattern Examples
+
+**Calculator** (`plugins/calculate/manifest.json`):
+
+```json
+{
+  "match": {
+    "patterns": [
+      "^=", // Explicit: "=2+2"
+      "^[\\d\\.]+\\s*[\\+\\-\\*\\/\\^\\%]", // Math: "2+2", "10/5"
+      "^\\(", // Parentheses: "(2+3)*4"
+      "^(sin|cos|tan|sqrt|log)\\s*\\(", // Functions: "sqrt(16)"
+      "^-?\\d+\\.?\\d*\\s*°?[cf](\\s|$)", // Temperature: "10c", "34f"
+      "^[$€£¥₹]", // Currency: "$50"
+      "^\\d+\\.?\\d*\\s*%\\s*(of|off)\\s+" // Percentage: "20% of 32"
+    ],
+    "priority": 100
+  }
+}
+```
+
+**URL opener** (`plugins/url/manifest.json`):
+
+```json
+{
+  "match": {
+    "patterns": ["^[a-zA-Z0-9][a-zA-Z0-9-]*\\.[a-zA-Z]{2,}"],
+    "priority": 90
+  }
+}
+```
+
+### Complete Handler Example
+
+```python
+#!/usr/bin/env python3
+import json
+import sys
+
+def main():
+    input_data = json.load(sys.stdin)
+    step = input_data.get("step", "initial")
+    query = input_data.get("query", "").strip()
+
+    # Pattern match from main search
+    if step == "match":
+        url = normalize_url(query)
+        print(json.dumps({
+            "type": "match",
+            "result": {
+                "id": "open_url",
+                "name": url,
+                "description": "Open in browser",
+                "icon": "open_in_browser",
+                "verb": "Open",
+                "openUrl": url,
+                "close": True,
+                "actions": [
+                    {"id": "copy", "name": "Copy URL", "icon": "content_copy"}
+                ]
+            }
+        }))
+        return
+
+    # Handle action (from match result or inside plugin)
+    if step == "action":
+        action = input_data.get("action", "")
+        url = input_data.get("selected", {}).get("id", "")
+
+        if action == "copy":
+            print(json.dumps({
+                "type": "execute",
+                "copy": url,
+                "notify": f"Copied: {url}",
+                "close": True
+            }))
+        else:
+            print(json.dumps({
+                "type": "execute",
+                "openUrl": url,
+                "close": True
+            }))
+        return
+
+    # Standard plugin flow (initial, search)
+    # ...
+
+def normalize_url(url):
+    if not url.startswith(("http://", "https://")):
+        return "https://" + url
+    return url
+
+if __name__ == "__main__":
+    main()
+```
+
+### Priority Guidelines
+
+| Priority | Use Case                                             |
+| -------- | ---------------------------------------------------- |
+| 100+     | High confidence matches (calculator with `=` prefix) |
+| 80-99    | Medium confidence (URL detection)                    |
+| 50-79    | Lower confidence (fuzzy matches)                     |
+
+When multiple plugins match the same input, higher priority wins.
+
+### Tips
+
+1. **Be specific**: Narrow patterns reduce false positives
+2. **Return null for invalid input**: `{"type": "match", "result": null}` hides the result
+3. **Include actions**: Secondary actions (copy, share) enhance usability
+4. **Use priority**: Ensure your plugin ranks appropriately against others
+
+**Example plugins:** [`calculate/`](https://github.com/stewart86/hamr/tree/main/plugins/calculate), [`url/`](https://github.com/stewart86/hamr/tree/main/plugins/url)
+
+---
 
 ## Daemon Mode
 
@@ -18,10 +218,10 @@ For plugins that need live updates, file watching, or persistent state, use daem
 }
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `enabled` | bool | false | Enable daemon mode |
-| `background` | bool | false | Run always (true) or only when plugin open (false) |
+| Field        | Type | Default | Description                                        |
+| ------------ | ---- | ------- | -------------------------------------------------- |
+| `enabled`    | bool | false   | Enable daemon mode                                 |
+| `background` | bool | false   | Run always (true) or only when plugin open (false) |
 
 ### Daemon Lifecycle
 
@@ -47,27 +247,27 @@ def main():
     # Graceful shutdown
     signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
     signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
-    
+
     current_query = ""
     last_refresh = 0
     refresh_interval = 2.0
-    
+
     while True:
         # Non-blocking stdin read with timeout
         readable, _, _ = select.select([sys.stdin], [], [], 0.5)
-        
+
         if readable:
             line = sys.stdin.readline()
             if not line:
                 break  # EOF - hamr closed connection
-            
+
             try:
                 request = json.loads(line.strip())
             except json.JSONDecodeError:
                 continue
-            
+
             step = request.get("step", "")
-            
+
             if step == "initial":
                 current_query = ""
                 emit({
@@ -77,7 +277,7 @@ def main():
                 })
                 last_refresh = time.time()
                 continue
-            
+
             if step == "search":
                 current_query = request.get("query", "")
                 emit({
@@ -86,12 +286,12 @@ def main():
                 })
                 last_refresh = time.time()
                 continue
-            
+
             if step == "action":
                 # Handle actions...
                 emit({"type": "results", "results": get_results(current_query)})
                 continue
-        
+
         # Periodic refresh
         now = time.time()
         if now - last_refresh >= refresh_interval:
@@ -107,13 +307,13 @@ if __name__ == "__main__":
 
 ### Key Differences from Request-Response
 
-| Aspect | Request-Response | Daemon |
-|--------|-----------------|--------|
-| Process lifecycle | New per request | Single persistent |
-| stdin | `json.load(sys.stdin)` | `readline()` in loop |
-| stdout | Single print | Multiple `emit()` calls |
-| State | Stateless | Persistent variables |
-| Updates | On user action | Can push anytime |
+| Aspect            | Request-Response       | Daemon                  |
+| ----------------- | ---------------------- | ----------------------- |
+| Process lifecycle | New per request        | Single persistent       |
+| stdin             | `json.load(sys.stdin)` | `readline()` in loop    |
+| stdout            | Single print           | Multiple `emit()` calls |
+| State             | Stateless              | Persistent variables    |
+| Updates           | On user action         | Can push anytime        |
 
 ### File Watching with inotify
 
@@ -135,7 +335,7 @@ def create_inotify_fd(watch_path):
         fd = libc.inotify_init()
         if fd < 0:
             return None
-        
+
         watch_path.mkdir(parents=True, exist_ok=True)
         mask = IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE
         wd = libc.inotify_add_watch(fd, str(watch_path).encode(), mask)
@@ -154,7 +354,7 @@ if inotify_fd:
         # Handle stdin and inotify events...
 ```
 
-**Example plugins:** [`topcpu/`](https://github.com/stewart86/hamr/tree/main/plugins/topcpu), [`todo/`](https://github.com/stewart86/hamr/tree/main/plugins/todo), [`clipboard/`](https://github.com/stewart86/hamr/tree/main/plugins/clipboard)
+**Example plugins:** [`timer/`](https://github.com/stewart86/hamr/tree/main/plugins/timer), [`topcpu/`](https://github.com/stewart86/hamr/tree/main/plugins/topcpu), [`todo/`](https://github.com/stewart86/hamr/tree/main/plugins/todo), [`clipboard/`](https://github.com/stewart86/hamr/tree/main/plugins/clipboard)
 
 ---
 
@@ -201,17 +401,17 @@ if step == "index":
 
 ### Index Item Fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | string | Yes | Unique identifier |
-| `name` | string | Yes | Display name (searchable) |
-| `description` | string | No | Subtitle |
-| `icon` | string | No | Icon name |
-| `iconType` | string | No | `"material"` or `"system"` |
-| `keywords` | array | No | Additional search terms |
-| `verb` | string | No | Action text (e.g., "Open") |
-| `entryPoint` | object | Yes | How to invoke the handler (see below) |
-| `actions` | array | No | Secondary action buttons |
+| Field         | Type   | Required | Description                           |
+| ------------- | ------ | -------- | ------------------------------------- |
+| `id`          | string | Yes      | Unique identifier                     |
+| `name`        | string | Yes      | Display name (searchable)             |
+| `description` | string | No       | Subtitle                              |
+| `icon`        | string | No       | Icon name                             |
+| `iconType`    | string | No       | `"material"` or `"system"`            |
+| `keywords`    | array  | No       | Additional search terms               |
+| `verb`        | string | No       | Action text (e.g., "Open")            |
+| `entryPoint`  | object | Yes      | How to invoke the handler (see below) |
+| `actions`     | array  | No       | Secondary action buttons              |
 
 ### Understanding `entryPoint`
 
@@ -221,29 +421,29 @@ When a user selects an indexed item from main search, hamr has no context about 
 
 **When `entryPoint` is needed:**
 
-| Scenario | `entryPoint` needed? |
-|----------|---------------------|
-| Plugin without indexing (`index.enabled: false`) | No |
-| Result items inside an active plugin | No |
-| Index items (appear in main search) | Yes |
+| Scenario                                         | `entryPoint` needed? |
+| ------------------------------------------------ | -------------------- |
+| Plugin without indexing (`index.enabled: false`) | No                   |
+| Result items inside an active plugin             | No                   |
+| Index items (appear in main search)              | Yes                  |
 
 For most simple plugins without indexing, you never need `entryPoint`.
 
 ### `entryPoint` Schema
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `step` | string | `"action"` | Step type to send to handler |
-| `selected` | object | - | Selected item info, usually `{"id": "..."}` |
-| `action` | string | - | Which action to perform |
-| `query` | string | - | Query string (for search-based entry points) |
+| Field      | Type   | Default    | Description                                  |
+| ---------- | ------ | ---------- | -------------------------------------------- |
+| `step`     | string | `"action"` | Step type to send to handler                 |
+| `selected` | object | -          | Selected item info, usually `{"id": "..."}`  |
+| `action`   | string | -          | Which action to perform                      |
+| `query`    | string | -          | Query string (for search-based entry points) |
 
 ### `entryPoint` vs `action`
 
-| Concept | What it is | Example |
-|---------|------------|---------|
+| Concept      | What it is                                | Example                                                         |
+| ------------ | ----------------------------------------- | --------------------------------------------------------------- |
 | `entryPoint` | Blueprint/recipe for invoking the handler | `{"step": "action", "selected": {"id": "x"}, "action": "copy"}` |
-| `action` | String identifier for which operation | `"copy"`, `"delete"`, `"edit"` |
+| `action`     | String identifier for which operation     | `"copy"`, `"delete"`, `"edit"`                                  |
 
 ### Full Indexing Flow
 
@@ -255,12 +455,12 @@ sequenceDiagram
     participant Hamr
     participant Index as Search Index
     participant User
-    
+
     Note over Handler,Index: 1. Indexing Phase
     Hamr->>Handler: {"step": "index"}
     Handler->>Hamr: {"type": "index", "items": [<br/>  {id, name, entryPoint: {...}, actions: [...]}<br/>]}
     Hamr->>Index: Store items with entryPoints
-    
+
     Note over User,Handler: 2. Execution Phase (later)
     User->>Hamr: Types "github" in main search
     Index->>Hamr: Returns matching indexed items
@@ -286,15 +486,15 @@ flowchart TB
     subgraph "Inside Plugin"
         A[User clicks item/action] --> B[Hamr builds request<br/>from click context]
     end
-    
+
     subgraph "Main Search"
         C[User clicks indexed item] --> D[Hamr reads stored entryPoint]
         D --> E[Hamr builds request<br/>from entryPoint]
     end
-    
+
     B --> F["Handler receives:<br/>{step, selected, action}"]
     E --> F
-    
+
     style F fill:#c8e6c9
 ```
 
@@ -308,7 +508,7 @@ flowchart TB
 if step == "action":
     item_id = selected.get("id")
     action = input_data.get("action", "")
-    
+
     if action == "copy_password":
         # User clicked the "Copy Password" button
         pass
@@ -379,14 +579,14 @@ For efficient updates with large datasets:
 if step == "index":
     mode = input_data.get("mode", "full")
     indexed_ids = set(input_data.get("indexedIds", []))
-    
+
     if mode == "incremental" and indexed_ids:
         current_items = get_all_items()
         current_ids = {item["id"] for item in current_items}
-        
+
         new_items = [i for i in current_items if i["id"] not in indexed_ids]
         removed_ids = list(indexed_ids - current_ids)
-        
+
         print(json.dumps({
             "type": "index",
             "mode": "incremental",
@@ -416,12 +616,12 @@ Hamr combines multiple signals to rank results:
 composite_score = fuzzy_score + exact_match_bonus + frecency_boost + history_boost
 ```
 
-| Signal | Weight | Description |
-|--------|--------|-------------|
-| **Fuzzy Score** | 0-1000 | Base relevance from fuzzysort matching |
-| **Exact Match** | +500 | Query exactly matches item name |
-| **Frecency** | 0-300 | Usage frequency × recency multiplier |
-| **History Term** | +200 | Query matches a learned search term |
+| Signal           | Weight | Description                            |
+| ---------------- | ------ | -------------------------------------- |
+| **Fuzzy Score**  | 0-1000 | Base relevance from fuzzysort matching |
+| **Exact Match**  | +500   | Query exactly matches item name        |
+| **Frecency**     | 0-300  | Usage frequency × recency multiplier   |
+| **History Term** | +200   | Query matches a learned search term    |
 
 ### Frecency Calculation
 
@@ -432,11 +632,11 @@ frecency = count × recency_multiplier
 ```
 
 | Time Since Last Use | Multiplier |
-|---------------------|------------|
-| < 1 hour | 4× |
-| < 24 hours | 2× |
-| < 7 days | 1× |
-| > 7 days | 0.5× |
+| ------------------- | ---------- |
+| < 1 hour            | 4×         |
+| < 24 hours          | 2×         |
+| < 7 days            | 1×         |
+| > 7 days            | 0.5×       |
 
 ### Diversity (Decay)
 
@@ -447,8 +647,9 @@ effective_score = composite_score × (decay_factor ^ position_in_plugin)
 ```
 
 With default `decay_factor = 0.7`:
+
 - 1st item from plugin: 100% score
-- 2nd item from plugin: 70% score  
+- 2nd item from plugin: 70% score
 - 3rd item from plugin: 49% score
 - 4th item from plugin: 34% score
 
@@ -460,6 +661,7 @@ This ensures diverse results even when one plugin has many high-scoring matches.
 - Add `keywords` for alternative search terms users might type
 
 **Example with keywords:**
+
 ```python
 {
     "id": "app:firefox",
@@ -485,10 +687,10 @@ Users can tune search behavior in `~/.config/hamr/config.json`:
 }
 ```
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `diversityDecay` | 0.7 | Decay factor (0-1). Lower = more diverse results |
-| `maxResultsPerPlugin` | 0 | Hard limit per plugin (0 = no limit, decay only) |
+| Option                | Default | Description                                      |
+| --------------------- | ------- | ------------------------------------------------ |
+| `diversityDecay`      | 0.7     | Decay factor (0-1). Lower = more diverse results |
+| `maxResultsPerPlugin` | 0       | Hard limit per plugin (0 = no limit, decay only) |
 
 ---
 
@@ -552,8 +754,8 @@ Badges use the theme's surface color as background (not customizable).
 
 Override the floating action button (FAB) when launcher is minimized.
 
-| Normal FAB | With Override |
-|:----------:|:-------------:|
+|              Normal FAB              |                    With Override                    |
+| :----------------------------------: | :-------------------------------------------------: |
 | ![Normal FAB](images/fab-normal.png) | ![FAB with timer override](images/fab-override.png) |
 
 ### Set FAB Override
@@ -573,12 +775,12 @@ emit({
 })
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `chips` | array | Chip widgets to display |
-| `badges` | array | Badge widgets to display |
+| Field      | Type   | Description                             |
+| ---------- | ------ | --------------------------------------- |
+| `chips`    | array  | Chip widgets to display                 |
+| `badges`   | array  | Badge widgets to display                |
 | `priority` | number | Higher wins if multiple plugins set FAB |
-| `showFab` | bool | Force FAB visible when launcher closed |
+| `showFab`  | bool   | Force FAB visible when launcher closed  |
 
 ### Clear FAB Override
 
@@ -664,14 +866,15 @@ Specify which compositors your plugin supports:
 }
 ```
 
-| Value | Description |
-|-------|-------------|
-| `["*"]` | All compositors |
-| `["hyprland"]` | Hyprland only (default) |
-| `["niri"]` | Niri only |
-| `["hyprland", "niri"]` | Both |
+| Value                  | Description             |
+| ---------------------- | ----------------------- |
+| `["*"]`                | All compositors         |
+| `["hyprland"]`         | Hyprland only (default) |
+| `["niri"]`             | Niri only               |
+| `["hyprland", "niri"]` | Both                    |
 
 **Guidelines:**
+
 - Uses `hyprctl` → `["hyprland"]`
 - Uses `niri msg` → `["niri"]`
 - Uses generic tools (`wl-copy`, `notify-send`) → `["*"]`
@@ -689,13 +892,14 @@ Control how your plugin's usage is recorded:
 }
 ```
 
-| Value | Behavior | Use Case |
-|-------|----------|----------|
-| `"item"` | Track individual items (default) | Apps, clipboard, emojis |
-| `"plugin"` | Track plugin only | Todo, notes, bitwarden |
-| `"none"` | Don't track | Monitoring plugins |
+| Value      | Behavior                         | Use Case                |
+| ---------- | -------------------------------- | ----------------------- |
+| `"item"`   | Track individual items (default) | Apps, clipboard, emojis |
+| `"plugin"` | Track plugin only                | Todo, notes, bitwarden  |
+| `"none"`   | Don't track                      | Monitoring plugins      |
 
 **Guidelines:**
+
 - Items are sensitive → `"plugin"`
 - Items are ephemeral → `"plugin"` or `"none"`
 - Plugin is for monitoring → `"none"`
@@ -776,6 +980,7 @@ hamr audio <subcommand>   # Audio control
 ### Keybinding Examples
 
 **Hyprland** (`~/.config/hypr/hyprland.conf`):
+
 ```bash
 bind = SUPER, Space, exec, hamr toggle
 bind = SUPER, V, exec, hamr plugin clipboard
@@ -784,6 +989,7 @@ bind = SUPER, P, exec, hamr plugin bitwarden
 ```
 
 **Niri** (`~/.config/niri/config.kdl`):
+
 ```
 Mod+Space { spawn "hamr" "toggle"; }
 Mod+V { spawn "hamr" "plugin" "clipboard"; }
@@ -823,11 +1029,11 @@ qs -c hamr ipc call pluginRunner reindex apps
 qs -c hamr ipc call shellHistoryService update
 ```
 
-| Target | Method | Description |
-|--------|--------|-------------|
-| `hamr` | `toggle` | Toggle launcher |
-| `hamr` | `plugin <name>` | Open plugin |
-| `pluginRunner` | `updateStatus <id> <json>` | Update plugin status |
-| `pluginRunner` | `reindex <id>` | Trigger plugin reindex |
-| `shellHistoryService` | `update` | Refresh shell history |
-| `audio` | `play <sound>` | Play sound |
+| Target                | Method                     | Description            |
+| --------------------- | -------------------------- | ---------------------- |
+| `hamr`                | `toggle`                   | Toggle launcher        |
+| `hamr`                | `plugin <name>`            | Open plugin            |
+| `pluginRunner`        | `updateStatus <id> <json>` | Update plugin status   |
+| `pluginRunner`        | `reindex <id>`             | Trigger plugin reindex |
+| `shellHistoryService` | `update`                   | Refresh shell history  |
+| `audio`               | `play <sound>`             | Play sound             |

@@ -4,19 +4,19 @@ Every handler response must include a `type` field. This page documents all avai
 
 ## Quick Reference
 
-| Type | Purpose | When to Use |
-|------|---------|-------------|
-| [`results`](#results) | Show a list of items | Search results, menus, lists |
-| [`execute`](#execute) | Run an action | Open files, copy text, close launcher |
-| [`card`](#card) | Show rich content | Markdown text, definitions, details |
-| [`form`](#form) | Show input form | Multi-field input, settings |
-| [`imageBrowser`](#imagebrowser) | Image grid browser | Wallpapers, screenshots |
-| [`gridBrowser`](#gridbrowser) | Generic grid | Emojis, icons |
-| [`prompt`](#prompt) | Simple text prompt | Initial input request |
-| [`error`](#error) | Show error message | Something went wrong |
-| [`update`](#update) | Patch existing items | Slider adjustments, live updates |
-| [`index`](#index) | Provide searchable items | Main search integration |
-| [`noop`](#noop) | No UI change | Background operations |
+| Type                            | Purpose                  | When to Use                           |
+| ------------------------------- | ------------------------ | ------------------------------------- |
+| [`results`](#results)           | Show a list of items     | Search results, menus, lists          |
+| [`execute`](#execute)           | Run an action            | Open files, copy text, close launcher |
+| [`card`](#card)                 | Show rich content        | Markdown text, definitions, details   |
+| [`form`](#form)                 | Show input form          | Multi-field input, settings           |
+| [`imageBrowser`](#imagebrowser) | Image grid browser       | Wallpapers, screenshots               |
+| [`gridBrowser`](#gridbrowser)   | Generic grid             | Emojis, icons                         |
+| [`prompt`](#prompt)             | Simple text prompt       | Initial input request                 |
+| [`error`](#error)               | Show error message       | Something went wrong                  |
+| [`update`](#update)             | Patch existing items     | Slider adjustments, live updates      |
+| [`index`](#index)               | Provide searchable items | Main search integration               |
+| [`noop`](#noop)                 | No UI change             | Background operations                 |
 
 ---
 
@@ -54,36 +54,36 @@ Display a list of selectable items. This is the most common response type.
 
 ### Result Item Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | **Required.** Unique identifier sent back on selection |
-| `name` | string | **Required.** Primary display text |
-| `description` | string | Secondary text below name |
-| `icon` | string | Material icon name (e.g., `"star"`, `"folder"`) |
-| `iconType` | string | `"material"` (default) or `"system"` (desktop app icons) |
-| `thumbnail` | string | Image file path (overrides icon) |
-| `verb` | string | Action text shown on hover (e.g., "Open", "Copy") |
-| `actions` | array | Secondary action buttons (up to 4) |
-| `badges` | array | Compact circular indicators (up to 5) |
-| `chips` | array | Pill-shaped tags |
-| `graph` | object | Line graph data (replaces icon) |
-| `gauge` | object | Circular progress (replaces icon) |
-| `progress` | object | Horizontal progress bar (replaces description) |
-| `preview` | object | Side panel preview content |
+| Field         | Type   | Description                                              |
+| ------------- | ------ | -------------------------------------------------------- |
+| `id`          | string | **Required.** Unique identifier sent back on selection   |
+| `name`        | string | **Required.** Primary display text                       |
+| `description` | string | Secondary text below name                                |
+| `icon`        | string | Material icon name (e.g., `"star"`, `"folder"`)          |
+| `iconType`    | string | `"material"` (default) or `"system"` (desktop app icons) |
+| `thumbnail`   | string | Image file path (overrides icon)                         |
+| `verb`        | string | Action text shown on hover (e.g., "Open", "Copy")        |
+| `actions`     | array  | Secondary action buttons (up to 4)                       |
+| `badges`      | array  | Compact circular indicators (up to 5)                    |
+| `chips`       | array  | Pill-shaped tags                                         |
+| `graph`       | object | Line graph data (replaces icon)                          |
+| `gauge`       | object | Circular progress (replaces icon)                        |
+| `progress`    | object | Horizontal progress bar (replaces description)           |
+| `preview`     | object | Side panel preview content                               |
 
 ### Response-Level Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `placeholder` | string | Search bar placeholder text |
-| `inputMode` | string | `"realtime"` (every keystroke) or `"submit"` (on Enter) |
-| `clearInput` | bool | Clear the search bar |
-| `context` | string | Custom state persisted across search calls |
-| `notify` | string | Show notification toast |
-| `pluginActions` | array | Toolbar buttons below search bar |
-| `navigateForward` | bool | Increase navigation depth |
-| `navigateBack` | bool | Decrease navigation depth |
-| `navigationDepth` | int | Set exact navigation depth |
+| Field             | Type   | Description                                             |
+| ----------------- | ------ | ------------------------------------------------------- |
+| `placeholder`     | string | Search bar placeholder text                             |
+| `inputMode`       | string | `"realtime"` (every keystroke) or `"submit"` (on Enter) |
+| `clearInput`      | bool   | Clear the search bar                                    |
+| `context`         | string | Custom state persisted across search calls              |
+| `notify`          | string | Show notification toast                                 |
+| `pluginActions`   | array  | Toolbar buttons below search bar                        |
+| `navigateForward` | bool   | Increase navigation depth                               |
+| `navigateBack`    | bool   | Decrease navigation depth                               |
+| `navigationDepth` | int    | Set exact navigation depth                              |
 
 ### Action Buttons
 
@@ -96,14 +96,15 @@ Display a list of selectable items. This is the most common response type.
 ]
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | string | Yes | Action identifier sent to handler |
-| `name` | string | Yes | Button label/tooltip |
-| `icon` | string | No | Material icon |
-| `entryPoint` | object | No | For indexed items only (see below) |
+| Field        | Type   | Required | Description                        |
+| ------------ | ------ | -------- | ---------------------------------- |
+| `id`         | string | Yes      | Action identifier sent to handler  |
+| `name`       | string | Yes      | Button label/tooltip               |
+| `icon`       | string | No       | Material icon                      |
+| `entryPoint` | object | No       | For indexed items only (see below) |
 
 When user clicks an action button, you receive:
+
 ```python
 {
     "step": "action",
@@ -146,16 +147,17 @@ See [Plugin Indexing](advanced-features.md#plugin-indexing) for details.
 ]
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | string | Yes | Action ID sent to handler |
-| `name` | string | Yes | Button label |
-| `icon` | string | No | Material icon |
-| `shortcut` | string | No | Keyboard shortcut hint (default: Ctrl+1-6) |
-| `confirm` | string | No | Confirmation dialog message |
-| `active` | bool | No | Highlight as active (for toggles) |
+| Field      | Type   | Required | Description                                |
+| ---------- | ------ | -------- | ------------------------------------------ |
+| `id`       | string | Yes      | Action ID sent to handler                  |
+| `name`     | string | Yes      | Button label                               |
+| `icon`     | string | No       | Material icon                              |
+| `shortcut` | string | No       | Keyboard shortcut hint (default: Ctrl+1-6) |
+| `confirm`  | string | No       | Confirmation dialog message                |
+| `active`   | bool   | No       | Highlight as active (for toggles)          |
 
 When clicked, you receive:
+
 ```python
 {
     "step": "action",
@@ -219,16 +221,16 @@ Execute an action and optionally close the launcher.
 
 ### Execute Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `launch` | string | Desktop file path (runs `gio launch`) |
-| `copy` | string | Text to copy (runs `wl-copy`) |
-| `typeText` | string | Text to type (uses `ydotool`) |
-| `openUrl` | string | URL to open (Qt.openUrlExternally) |
-| `open` | string | File/folder path (runs `xdg-open`) |
-| `notify` | string | Notification message |
-| `sound` | string | Sound effect name (see [Sound Effects](#sound-effects)) |
-| `close` | bool | Close launcher after execution |
+| Field      | Type   | Description                                             |
+| ---------- | ------ | ------------------------------------------------------- |
+| `launch`   | string | Desktop file path (runs `gio launch`)                   |
+| `copy`     | string | Text to copy (runs `wl-copy`)                           |
+| `typeText` | string | Text to type (uses `ydotool`)                           |
+| `openUrl`  | string | URL to open (Qt.openUrlExternally)                      |
+| `open`     | string | File/folder path (runs `xdg-open`)                      |
+| `notify`   | string | Notification message                                    |
+| `sound`    | string | Sound effect name (see [Sound Effects](#sound-effects)) |
+| `close`    | bool   | Close launcher after execution                          |
 
 ### Running Custom Commands
 
@@ -273,6 +275,7 @@ Display markdown-formatted content with optional actions.
 ```
 
 When user clicks a card action:
+
 ```python
 {
     "step": "action",
@@ -320,17 +323,17 @@ Display a multi-field input dialog.
 
 ### Field Types
 
-| Type | Description | Extra Fields |
-|------|-------------|--------------|
-| `text` | Single-line input | `placeholder`, `required`, `default`, `hint` |
-| `textarea` | Multi-line input | `placeholder`, `required`, `default`, `rows`, `hint` |
-| `email` | Email with validation | `placeholder`, `required`, `default`, `hint` |
-| `password` | Masked input | `placeholder`, `required`, `hint` |
-| `hidden` | Hidden field | `value` (required) |
-| `select` | Dropdown | `options` (required), `default`, `hint` |
-| `checkbox` | Checkbox | `default` (bool), `hint` |
-| `switch` | Toggle switch | `default` (bool), `hint` |
-| `slider` | Range slider | `min`, `max`, `step`, `unit`, `default`, `hint` |
+| Type       | Description           | Extra Fields                                         |
+| ---------- | --------------------- | ---------------------------------------------------- |
+| `text`     | Single-line input     | `placeholder`, `required`, `default`, `hint`         |
+| `textarea` | Multi-line input      | `placeholder`, `required`, `default`, `rows`, `hint` |
+| `email`    | Email with validation | `placeholder`, `required`, `default`, `hint`         |
+| `password` | Masked input          | `placeholder`, `required`, `hint`                    |
+| `hidden`   | Hidden field          | `value` (required)                                   |
+| `select`   | Dropdown              | `options` (required), `default`, `hint`              |
+| `checkbox` | Checkbox              | `default` (bool), `hint`                             |
+| `switch`   | Toggle switch         | `default` (bool), `hint`                             |
+| `slider`   | Range slider          | `min`, `max`, `step`, `unit`, `default`, `hint`      |
 
 ### Select Options
 
@@ -351,6 +354,7 @@ Display a multi-field input dialog.
 ### Form Submission
 
 When user submits:
+
 ```python
 {
     "step": "form",
@@ -363,6 +367,7 @@ When user submits:
 ```
 
 When user cancels:
+
 ```python
 {
     "step": "action",
@@ -416,6 +421,7 @@ Open a rich image browser with thumbnails and directory navigation.
 ```
 
 When user selects an image:
+
 ```python
 {
     "step": "action",
@@ -460,14 +466,15 @@ Display items in a grid layout. Ideal for emojis, icons, or large item sets.
 }
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `columns` | int | 8 | Number of columns |
-| `cellAspectRatio` | float | 1.0 | Width/height ratio |
-| `items` | array | required | Grid items |
-| `actions` | array | [] | Action buttons |
+| Field             | Type  | Default  | Description        |
+| ----------------- | ----- | -------- | ------------------ |
+| `columns`         | int   | 8        | Number of columns  |
+| `cellAspectRatio` | float | 1.0      | Width/height ratio |
+| `items`           | array | required | Grid items         |
+| `actions`         | array | []       | Action buttons     |
 
 When user selects:
+
 ```python
 {
     "step": "action",
@@ -529,6 +536,7 @@ Patch individual items without replacing the entire results array. Preserves sel
 ```
 
 **Use cases:**
+
 - Slider value changes
 - Live status updates
 - Badge/gauge updates
@@ -572,6 +580,7 @@ Signal that the action was handled but no UI update is needed.
 ```
 
 **Use cases:**
+
 - Slider adjustments (UI already shows new value)
 - Background operations
 - Toggle states with immediate visual feedback
@@ -582,10 +591,10 @@ Signal that the action was handled but no UI update is needed.
 
 The `inputMode` field controls when search queries are sent:
 
-| Mode | Behavior | Use Case |
-|------|----------|----------|
+| Mode       | Behavior                        | Use Case                |
+| ---------- | ------------------------------- | ----------------------- |
 | `realtime` | Every keystroke triggers search | Filtering, fuzzy search |
-| `submit` | Only Enter triggers search | Text input, forms |
+| `submit`   | Only Enter triggers search      | Text input, forms       |
 
 ```python
 # Realtime: filter as user types
@@ -636,11 +645,11 @@ Hamr tracks navigation depth to show breadcrumbs and enable back navigation. The
 
 Hamr sets `pendingNavigation` automatically based on user interaction:
 
-| User Action | Hamr Behavior |
-|-------------|---------------|
+| User Action                   | Hamr Behavior                            |
+| ----------------------------- | ---------------------------------------- |
 | Click item (no action button) | Sets `pendingNavigation=true` → depth +1 |
-| Click action button | No pending navigation → depth unchanged |
-| Click `__back__` | Sets `pendingBack=true` → depth -1 |
+| Click action button           | No pending navigation → depth unchanged  |
+| Click `__back__`              | Sets `pendingBack=true` → depth -1       |
 
 If your response doesn't include navigation fields, Hamr applies the pending state automatically.
 
@@ -652,7 +661,7 @@ Use these response fields to explicitly control depth:
 # Drill into sub-view (depth +1)
 {"type": "results", "navigateForward": True, ...}
 
-# Return to parent (depth -1)  
+# Return to parent (depth -1)
 {"type": "results", "navigateBack": True, ...}
 
 # Jump to specific depth
@@ -684,7 +693,7 @@ if action == "delete":
     del items[idx]
     save_items(items)
     print(json.dumps({
-        "type": "results", 
+        "type": "results",
         "results": get_items(),
         "navigateForward": False  # Stay on same view
     }))
@@ -704,6 +713,7 @@ Without `navigateForward: False`, these actions would incorrectly push a new nav
 ### Back Button
 
 When user presses Escape or clicks Back:
+
 ```python
 {
     "step": "action",
@@ -712,6 +722,7 @@ When user presses Escape or clicks Back:
 ```
 
 Handle it to return to the previous view:
+
 ```python
 if selected.get("id") == "__back__":
     print(json.dumps({
@@ -738,13 +749,13 @@ Include sounds in execute responses:
 }
 ```
 
-| Sound | Use Case |
-|-------|----------|
-| `alarm` | Timer/alarm completion |
-| `timer` | Pomodoro, countdown |
-| `complete` | Task done |
-| `notification` | Alerts |
-| `error` | Failed operations |
-| `warning` | Caution alerts |
+| Sound          | Use Case               |
+| -------------- | ---------------------- |
+| `alarm`        | Timer/alarm completion |
+| `timer`        | Pomodoro, countdown    |
+| `complete`     | Task done              |
+| `notification` | Alerts                 |
+| `error`        | Failed operations      |
+| `warning`      | Caution alerts         |
 
 Custom sounds: Place in `~/.config/hamr/sounds/` (supports `.wav`, `.ogg`, `.mp3`, `.flac`)

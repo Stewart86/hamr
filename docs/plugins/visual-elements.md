@@ -27,14 +27,14 @@ Sliders let users adjust numeric values (volume, brightness, etc.).
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `value` | number | Current slider value |
-| `min` | number | Minimum value |
-| `max` | number | Maximum value |
-| `step` | number | Step increment (also determines decimal precision) |
-| `unit` | string | Unit suffix (e.g., `"%"`, `"px"`, `"ms"`) |
-| `displayValue` | string | Override display text entirely |
+| Field          | Type   | Description                                        |
+| -------------- | ------ | -------------------------------------------------- |
+| `value`        | number | Current slider value                               |
+| `min`          | number | Minimum value                                      |
+| `max`          | number | Maximum value                                      |
+| `step`         | number | Step increment (also determines decimal precision) |
+| `unit`         | string | Unit suffix (e.g., `"%"`, `"px"`, `"ms"`)          |
+| `displayValue` | string | Override display text entirely                     |
 
 ### Handling Slider Changes
 
@@ -55,10 +55,10 @@ Handle it and return updated results:
 if action == "slider":
     item_id = selected.get("id")
     new_value = input_data.get("value", 0)
-    
+
     # Apply the change
     set_volume(item_id, new_value)
-    
+
     # Return updated results
     print(json.dumps({
         "type": "results",
@@ -97,10 +97,10 @@ Switches are boolean toggles (mute, enable/disable).
 
 The name describes the **action**, the icon shows the **current state**:
 
-| State | Name | Icon |
-|-------|------|------|
-| Not muted | "Mute Volume" | `volume_up` |
-| Muted | "Unmute Volume" | `volume_off` |
+| State     | Name            | Icon         |
+| --------- | --------------- | ------------ |
+| Not muted | "Mute Volume"   | `volume_up`  |
+| Muted     | "Unmute Volume" | `volume_off` |
 
 ### Handling Switch Changes
 
@@ -121,7 +121,7 @@ Return an `update` response:
 if action == "switch":
     new_value = input_data.get("value", False)
     set_mute(new_value)
-    
+
     print(json.dumps({
         "type": "update",
         "items": [
@@ -159,12 +159,12 @@ Small circular indicators beside the item name. Max 5 per item.
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `text` | string | 1-3 characters (initials) |
-| `icon` | string | Material icon (overrides text) |
-| `image` | string | Image path (overrides text) |
-| `color` | string | Text/icon color (hex) |
+| Field   | Type   | Description                    |
+| ------- | ------ | ------------------------------ |
+| `text`  | string | 1-3 characters (initials)      |
+| `icon`  | string | Material icon (overrides text) |
+| `image` | string | Image path (overrides text)    |
+| `color` | string | Text/icon color (hex)          |
 
 **Note:** Background is always theme default. Use `color` to tint text/icons.
 
@@ -189,11 +189,11 @@ Pill-shaped tags for longer text. Show beside the item name.
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `text` | string | Label text |
-| `icon` | string | Optional icon before text |
-| `color` | string | Text/icon color (hex) |
+| Field   | Type   | Description               |
+| ------- | ------ | ------------------------- |
+| `text`  | string | Label text                |
+| `icon`  | string | Optional icon before text |
+| `color` | string | Text/icon color (hex)     |
 
 ---
 
@@ -215,10 +215,10 @@ Circular progress indicator shown in place of the icon.
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `value` | number | Current value |
-| `max` | number | Maximum value |
+| Field   | Type   | Description            |
+| ------- | ------ | ---------------------- |
+| `value` | number | Current value          |
+| `max`   | number | Maximum value          |
 | `label` | string | Center text (optional) |
 
 ---
@@ -265,12 +265,12 @@ Horizontal progress bar shown below the name. Replaces description.
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `value` | number | Current progress |
-| `max` | number | Maximum value (default: 100) |
-| `label` | string | Text shown beside bar |
-| `color` | string | Custom bar color (hex) |
+| Field   | Type   | Description                  |
+| ------- | ------ | ---------------------------- |
+| `value` | number | Current progress             |
+| `max`   | number | Maximum value (default: 100) |
+| `label` | string | Text shown beside bar        |
+| `color` | string | Custom bar color (hex)       |
 
 ---
 
@@ -303,12 +303,12 @@ Add a `preview` field to show rich content in a side panel on hover/selection.
 
 ### Preview Types
 
-| Type | Content Field | Description |
-|------|---------------|-------------|
-| `image` | File path | Shows image with optional metadata |
-| `markdown` | Markdown text | Renders markdown |
-| `text` | Plain text | Monospace display |
-| `metadata` | (uses metadata array) | Key-value pairs only |
+| Type       | Content Field         | Description                        |
+| ---------- | --------------------- | ---------------------------------- |
+| `image`    | File path             | Shows image with optional metadata |
+| `markdown` | Markdown text         | Renders markdown                   |
+| `text`     | Plain text            | Monospace display                  |
+| `metadata` | (uses metadata array) | Key-value pairs only               |
 
 ### Detachable Previews
 
@@ -342,12 +342,12 @@ Use any icon from [Material Symbols](https://fonts.google.com/icons).
 
 Common icons:
 
-| Category | Icons |
-|----------|-------|
-| Navigation | `arrow_back`, `home`, `menu`, `close` |
-| Actions | `open_in_new`, `content_copy`, `delete`, `edit`, `add` |
-| Files | `folder`, `description`, `image`, `video_file` |
-| UI | `search`, `settings`, `star`, `favorite`, `info` |
+| Category   | Icons                                                  |
+| ---------- | ------------------------------------------------------ |
+| Navigation | `arrow_back`, `home`, `menu`, `close`                  |
+| Actions    | `open_in_new`, `content_copy`, `delete`, `edit`, `add` |
+| Files      | `folder`, `description`, `image`, `video_file`         |
+| UI         | `search`, `settings`, `star`, `favorite`, `info`       |
 
 ### System Icons
 
@@ -400,6 +400,7 @@ Use `type: "update"` to patch items without replacing the entire list:
 ```
 
 This preserves selection and focus - ideal for:
+
 - Slider adjustments
 - Live status updates
 - Real-time data changes
