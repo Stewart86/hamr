@@ -47,9 +47,5 @@
   "tertiary_fixed": "{{colors.tertiary_fixed.default.hex}}",
   "tertiary_fixed_dim": "{{colors.tertiary_fixed_dim.default.hex}}",
   "on_tertiary_fixed": "{{colors.on_tertiary_fixed.default.hex}}",
-  "on_tertiary_fixed_variant": "{{colors.on_tertiary_fixed_variant.default.hex}}",
-  "success": "{{colors.success.default.hex}}",
-  "on_success": "{{colors.on_success.default.hex}}",
-  "success_container": "{{colors.success_container.default.hex}}",
-  "on_success_container": "{{colors.on_success_container.default.hex}}"
+  "on_tertiary_fixed_variant": "{{colors.on_tertiary_fixed_variant.default.hex}}"
 }
