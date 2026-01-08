@@ -1,0 +1,45 @@
+{
+  "nodes": {
+    "hamr-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1767774541,
+        "narHash": "sha256-KVUcoSRB9nNXQ0x8JHyuuvHVXWC1qnqMzgD5qM7A00U=",
+        "owner": "Stewart86",
+        "repo": "hamr",
+        "rev": "2e15a15973c0c8295697e134c57ad9ec295810ba",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Stewart86",
+        "ref": "v0.17.4",
+        "repo": "hamr",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1767767207,
+        "narHash": "sha256-Mj3d3PfwltLmukFal5i3fFt27L6NiKXdBezC1EBuZs4=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "5912c1772a44e31bf1c63c0390b90501e5026886",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "hamr-src": "hamr-src",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
