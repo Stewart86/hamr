@@ -5,7 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     hamr-src = {
-      url = "github:Stewart86/hamr/v0.17.4";
+      url = "github:Stewart86/hamr";
       flake = false;
     };
   };
@@ -25,7 +25,10 @@
       };
   in {
     overlays.default = final: prev: {
-      hamr = final.callPackage ./package.nix {src = hamr-src;};
+      hamr = final.callPackage ./package.nix {
+        src = hamr-src;
+        rev = hamr-src.shortRev or "dirty";
+      };
     };
 
     packages = forAllSystems (system: {

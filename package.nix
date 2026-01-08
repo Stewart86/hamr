@@ -3,6 +3,7 @@
   stdenvNoCC,
   makeWrapper,
   src,
+  rev,
   # Core dependencies
   quickshell,
   qt6Packages,
@@ -48,8 +49,9 @@
       pygobject3
     ]);
 
-  # Extract version from source
-  version = builtins.elemAt (builtins.match ".*VERSION=\"([0-9.]+)\".*" (builtins.readFile "${src}/hamr")) 0;
+  # Extract base version from source, append commit hash
+  baseVersion = builtins.elemAt (builtins.match ".*VERSION=\"([0-9.]+)\".*" (builtins.readFile "${src}/hamr")) 0;
+  version = "${baseVersion}+${rev}";
 in
   stdenvNoCC.mkDerivation {
     pname = "hamr";

@@ -3,16 +3,15 @@
     "hamr-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1767774541,
-        "narHash": "sha256-KVUcoSRB9nNXQ0x8JHyuuvHVXWC1qnqMzgD5qM7A00U=",
+        "lastModified": 1767873382,
+        "narHash": "sha256-Uqcs9/mk+xZvoyr1oAZy3eu8khMWkyiFfGxjKKXmieA=",
         "owner": "Stewart86",
         "repo": "hamr",
-        "rev": "2e15a15973c0c8295697e134c57ad9ec295810ba",
+        "rev": "8b00fe293fbbfbf5d5f14c51cf082c4eb0fcde9b",
         "type": "github"
       },
       "original": {
         "owner": "Stewart86",
-        "ref": "v0.17.4",
         "repo": "hamr",
         "type": "github"
       }
