@@ -3,7 +3,7 @@
   stdenvNoCC,
   makeWrapper,
   src,
-  rev,
+  version,
   # Core dependencies
   quickshell,
   qt6Packages,
@@ -49,44 +49,40 @@
       pygobject3
     ]);
 
-  # Extract base version from PKGBUILD, append commit hash
-  baseVersion = builtins.elemAt (builtins.match ".*pkgver=([0-9.]+).*" (builtins.readFile "${src}/PKGBUILD")) 0;
-  version = "${baseVersion}+${rev}";
+  # Runtime dependencies that need to be in PATH
+  runtimeDeps = [
+    quickshell
+    qt6Packages.qt5compat
+    pythonEnv
+    wl-clipboard
+    cliphist
+    fd
+    fzf
+    xdg-utils
+    libnotify
+    gtk3
+    libpulseaudio
+    jq
+    libqalculate
+    gnome-desktop
+    procps
+    coreutils
+    bash
+    # Plugin dependencies
+    zoxide
+    tesseract
+    imagemagick
+    slurp
+    wf-recorder
+    bitwarden-cli
+    ydotool
+  ];
 in
   stdenvNoCC.mkDerivation {
     pname = "hamr";
     inherit src version;
 
     nativeBuildInputs = [makeWrapper];
-
-    # Runtime dependencies that need to be in PATH
-    runtimeDeps = [
-      quickshell
-      qt6Packages.qt5compat
-      pythonEnv
-      wl-clipboard
-      cliphist
-      fd
-      fzf
-      xdg-utils
-      libnotify
-      gtk3
-      libpulseaudio
-      jq
-      libqalculate
-      gnome-desktop
-      procps
-      coreutils
-      bash
-      # Plugin dependencies
-      zoxide
-      tesseract
-      imagemagick
-      slurp
-      wf-recorder
-      bitwarden-cli
-      ydotool
-    ];
 
     installPhase = ''
       runHook preInstall

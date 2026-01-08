@@ -1,21 +1,5 @@
 {
   "nodes": {
-    "hamr-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1767873382,
-        "narHash": "sha256-Uqcs9/mk+xZvoyr1oAZy3eu8khMWkyiFfGxjKKXmieA=",
-        "owner": "Stewart86",
-        "repo": "hamr",
-        "rev": "8b00fe293fbbfbf5d5f14c51cf082c4eb0fcde9b",
-        "type": "github"
-      },
-      "original": {
-        "owner": "Stewart86",
-        "repo": "hamr",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1767767207,
@@ -34,7 +18,6 @@
     },
     "root": {
       "inputs": {
-        "hamr-src": "hamr-src",
         "nixpkgs": "nixpkgs"
       }
     }

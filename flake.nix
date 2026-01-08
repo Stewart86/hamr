@@ -3,17 +3,11 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-
-    hamr-src = {
-      url = "github:Stewart86/hamr";
-      flake = false;
-    };
   };
 
   outputs = {
     self,
     nixpkgs,
-    hamr-src,
   }: let
     supportedSystems = ["x86_64-linux" "aarch64-linux"];
     forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
@@ -23,11 +17,13 @@
         inherit system;
         overlays = [self.overlays.default];
       };
+
+    version = builtins.replaceStrings ["\n"] [""] (builtins.readFile ./VERSION);
   in {
     overlays.default = final: prev: {
       hamr = final.callPackage ./package.nix {
-        src = hamr-src;
-        rev = hamr-src.shortRev or "dirty";
+        src = self;
+        inherit version;
       };
     };
 
