@@ -39,6 +39,45 @@ def detect_aur_helper() -> str | None:
     return None
 
 
+def detect_terminal() -> str | None:
+    """Detect available terminal emulator"""
+    terminals = (
+        "kitty",
+        "foot",
+        "alacritty",
+        "wezterm",
+        "ghostty",
+        "gnome-terminal",
+        "konsole",
+        "xterm",
+    )
+    for term in terminals:
+        if shutil.which(term):
+            return term
+    return None
+
+
+def spawn_in_terminal(terminal: str, cmd: str) -> None:
+    """Spawn a command in the detected terminal"""
+    shell_cmd = f'{cmd}; echo ""; echo "Press Enter to close..."; read'
+    if terminal == "kitty":
+        subprocess.Popen(["kitty", "--", "bash", "-c", shell_cmd])
+    elif terminal == "foot":
+        subprocess.Popen(["foot", "--", "bash", "-c", shell_cmd])
+    elif terminal == "alacritty":
+        subprocess.Popen(["alacritty", "-e", "bash", "-c", shell_cmd])
+    elif terminal == "wezterm":
+        subprocess.Popen(["wezterm", "start", "--", "bash", "-c", shell_cmd])
+    elif terminal == "ghostty":
+        subprocess.Popen(["ghostty", "-e", "bash", "-c", shell_cmd])
+    elif terminal == "gnome-terminal":
+        subprocess.Popen(["gnome-terminal", "--", "bash", "-c", shell_cmd])
+    elif terminal == "konsole":
+        subprocess.Popen(["konsole", "-e", "bash", "-c", shell_cmd])
+    elif terminal == "xterm":
+        subprocess.Popen(["xterm", "-e", "bash", "-c", shell_cmd])
+
+
 def get_cache_path(query: str) -> Path:
     """Get cache file path for a query"""
     query_hash = hashlib.md5(query.lower().encode()).hexdigest()
@@ -332,13 +371,12 @@ def main():
             return
 
         if action == "uninstall":
-            cmd = (
-                f'notify-send "AUR" "Uninstalling {pkg_name}..." -a "Hamr" && '
-                f"{aur_helper} -Rns --noconfirm {pkg_name} && "
-                f'notify-send "AUR" "{pkg_name} uninstalled" -a "Hamr" || '
-                f'notify-send "AUR" "Failed to uninstall {pkg_name}" -a "Hamr"'
-            )
-            subprocess.Popen(["bash", "-c", cmd])
+            cmd = f'{aur_helper} -Rns {pkg_name} && notify-send "AUR" "{pkg_name} uninstalled" -a "Hamr" || notify-send "AUR" "Failed to uninstall {pkg_name}" -a "Hamr"'
+            terminal = detect_terminal()
+            if terminal:
+                spawn_in_terminal(terminal, cmd)
+            else:
+                subprocess.Popen(["bash", "-c", cmd])
             print(
                 json.dumps(
                     {
@@ -350,13 +388,12 @@ def main():
             return
 
         if action == "install":
-            cmd = (
-                f'notify-send "AUR" "Installing {pkg_name}..." -a "Hamr" && '
-                f"{aur_helper} -S --noconfirm {pkg_name} && "
-                f'notify-send "AUR" "{pkg_name} installed" -a "Hamr" || '
-                f'notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
-            )
-            subprocess.Popen(["bash", "-c", cmd])
+            cmd = f'{aur_helper} -S {pkg_name} && notify-send "AUR" "{pkg_name} installed" -a "Hamr" || notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
+            terminal = detect_terminal()
+            if terminal:
+                spawn_in_terminal(terminal, cmd)
+            else:
+                subprocess.Popen(["bash", "-c", cmd])
             print(
                 json.dumps(
                     {
@@ -381,13 +418,12 @@ def main():
                 )
             )
         else:
-            cmd = (
-                f'notify-send "AUR" "Installing {pkg_name}..." -a "Hamr" && '
-                f"{aur_helper} -S --noconfirm {pkg_name} && "
-                f'notify-send "AUR" "{pkg_name} installed" -a "Hamr" || '
-                f'notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
-            )
-            subprocess.Popen(["bash", "-c", cmd])
+            cmd = f'{aur_helper} -S {pkg_name} && notify-send "AUR" "{pkg_name} installed" -a "Hamr" || notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
+            terminal = detect_terminal()
+            if terminal:
+                spawn_in_terminal(terminal, cmd)
+            else:
+                subprocess.Popen(["bash", "-c", cmd])
             print(
                 json.dumps(
                     {
