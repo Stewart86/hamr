@@ -49,8 +49,8 @@
       pygobject3
     ]);
 
-  # Extract base version from source, append commit hash
-  baseVersion = builtins.elemAt (builtins.match ".*VERSION=\"([0-9.]+)\".*" (builtins.readFile "${src}/hamr")) 0;
+  # Extract base version from PKGBUILD, append commit hash
+  baseVersion = builtins.elemAt (builtins.match ".*pkgver=([0-9.]+).*" (builtins.readFile "${src}/PKGBUILD")) 0;
   version = "${baseVersion}+${rev}";
 in
   stdenvNoCC.mkDerivation {
