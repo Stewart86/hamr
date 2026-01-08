@@ -17,7 +17,7 @@ Hamr is an extensible launcher for Wayland compositors built with [Quickshell](h
 
 **Supported Compositors:** Hyprland, Niri
 
-![Hamr Main View](assets/screenshots/hamr-main-view.png)
+![Hamr Main View](docs/plugins/images/results-list.png)
 
 ## Philosophy
 
