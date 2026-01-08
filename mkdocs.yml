@@ -36,8 +36,10 @@ theme:
 
 nav:
   - Home: index.md
+  - Features: features.md
   - Getting Started:
       - Installation: getting-started/installation.md
+      - Configuration: getting-started/configuration.md
       - Theming: getting-started/theming.md
   - Plugins:
       - Building Plugins: plugins/index.md
