@@ -275,8 +275,8 @@ RowLayout {
          Keys.onPressed: event => {
              // Backspace navigation - must be handled here before TextField consumes it
              if (event.key === Qt.Key_Backspace) {
-                 if (event.modifiers & Qt.ControlModifier) {
-                     // Ctrl+Backspace: exit plugin immediately
+                 if (event.modifiers & Qt.ShiftModifier) {
+                     // Shift+Backspace: exit plugin immediately
                      root.exitPluginImmediate();
                      event.accepted = true;
                      return;
@@ -367,17 +367,17 @@ RowLayout {
                 }
             }
             
+            if (event.key === Qt.Key_Down) {
+                root.navigateDown();
+                event.accepted = true;
+                return;
+            }
+            if (event.key === Qt.Key_Up) {
+                root.navigateUp();
+                event.accepted = true;
+                return;
+            }
             if (GlobalStates.imageBrowserOpen || GlobalStates.gridBrowserOpen) {
-                if (event.key === Qt.Key_Down) {
-                    root.navigateDown();
-                    event.accepted = true;
-                    return;
-                }
-                if (event.key === Qt.Key_Up) {
-                    root.navigateUp();
-                    event.accepted = true;
-                    return;
-                }
                 if (event.key === Qt.Key_Left) {
                     root.navigateLeft();
                     event.accepted = true;

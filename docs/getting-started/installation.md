@@ -13,6 +13,49 @@ paru -S hamr
 systemctl --user enable --now hamr
 ```
 
+## NixOS / Nix
+
+### Quick install
+
+```bash
+# Try without installing
+nix run github:Stewart86/hamr -- --help
+
+# Install to your profile
+nix profile install github:Stewart86/hamr
+```
+
+### NixOS / Home Manager
+
+Add the flake input to your configuration:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    hamr.url = "github:Stewart86/hamr";
+  };
+
+  outputs = { self, nixpkgs, hamr, ... }: {
+    # NixOS
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      modules = [{
+        nixpkgs.overlays = [ hamr.overlays.default ];
+        environment.systemPackages = [ pkgs.hamr ];
+      }];
+    };
+
+    # Or Home Manager
+    homeConfigurations.myuser = home-manager.lib.homeManagerConfiguration {
+      modules = [{
+        nixpkgs.overlays = [ hamr.overlays.default ];
+        home.packages = [ pkgs.hamr ];
+      }];
+    };
+  };
+}
+```
+
 ## Other Distributions
 
 ```bash

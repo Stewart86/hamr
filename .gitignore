@@ -22,3 +22,6 @@ hamr/
 plugins/ENHANCEMENTS.md
 plugins/test-widgets/
 specs/
+
+#nix-flake
+result/
