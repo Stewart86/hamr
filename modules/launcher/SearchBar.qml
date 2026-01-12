@@ -275,8 +275,8 @@ RowLayout {
          Keys.onPressed: event => {
              // Backspace navigation - must be handled here before TextField consumes it
              if (event.key === Qt.Key_Backspace) {
-                 if (event.modifiers & Qt.ControlModifier) {
-                     // Ctrl+Backspace: exit plugin immediately
+                 if (event.modifiers & Qt.ShiftModifier) {
+                     // Shift+Backspace: exit plugin immediately
                      root.exitPluginImmediate();
                      event.accepted = true;
                      return;
