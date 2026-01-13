@@ -173,13 +173,13 @@ Item {
                     Kbd {
                         anchors.right: parent.right
                         anchors.bottom: parent.bottom
-                        keys: "^Bksp"
+                        keys: "Shift+Bksp"
                         opacity: 0.5
                     }
                     
                     Kbd {
                         id: stackedKbd
-                        keys: "^Bksp"
+                        keys: "Shift+Bksp"
                     }
                 }
             }

@@ -141,7 +141,7 @@ Rectangle {
                 KeybindingRow { keys: "Enter"; label: "confirm" }
                 KeybindingRow { keys: "Tab"; label: "cycle actions" }
                 KeybindingRow { keys: "Bksp"; label: "go back" }
-                KeybindingRow { keys: "^Bksp"; label: "exit plugin" }
+                KeybindingRow { keys: "Shift+Bksp"; label: "exit plugin" }
                 KeybindingRow { keys: "^UIOP"; label: "item actions 1-4" }
                 KeybindingRow { keys: "^1-6"; label: "plugin actions" }
                 KeybindingRow { keys: "^⇧HL"; label: "slider -/+" }
