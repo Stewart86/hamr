@@ -610,15 +610,18 @@ def get_workspaces() -> list[dict]:
         return []
 
 
-def window_to_index_item(window: dict) -> dict:
-    """Convert window to index item format"""
+def window_to_index_item(window: dict) -> dict | None:
+    """Convert window to index item format. Returns None for invalid windows."""
     address = window.get("address", "")
     title = window.get("title", "")
     window_class = window.get("class", "")
     workspace = window.get("workspace", {})
     workspace_name = workspace.get("name", str(workspace.get("id", "")))
 
-    # Use class as description, add workspace info
+    name = title or window_class
+    if not name:
+        return None
+
     description = window_class
     if workspace_name:
         description = f"{window_class} (workspace {workspace_name})"
@@ -626,9 +629,9 @@ def window_to_index_item(window: dict) -> dict:
     item_id = f"window:{address}"
     return {
         "id": item_id,
-        "name": title or window_class,
+        "name": name,
         "description": description,
-        "icon": window_class,
+        "icon": window_class or "window",
         "iconType": "system",
         "verb": "Focus",
         "entryPoint": {
@@ -638,14 +641,18 @@ def window_to_index_item(window: dict) -> dict:
     }
 
 
-def window_to_result(window: dict, workspaces: list[dict] | None = None) -> dict:
-    """Convert window to result format (for workflow mode)"""
+def window_to_result(window: dict, workspaces: list[dict] | None = None) -> dict | None:
+    """Convert window to result format (for workflow mode). Returns None for invalid windows."""
     address = window.get("address", "")
     title = window.get("title", "")
     window_class = window.get("class", "")
     workspace = window.get("workspace", {})
     workspace_id = workspace.get("id", 0)
     workspace_name = workspace.get("name", str(workspace_id))
+
+    name = title or window_class
+    if not name:
+        return None
 
     description = window_class
     if workspace_name:
@@ -679,9 +686,9 @@ def window_to_result(window: dict, workspaces: list[dict] | None = None) -> dict
 
     return {
         "id": f"window:{address}",
-        "name": title or window_class,
+        "name": name,
         "description": description,
-        "icon": window_class,
+        "icon": window_class or "window",
         "iconType": "system",
         "verb": "Focus",
         "actions": actions,
@@ -1022,13 +1029,11 @@ def execute_dispatcher(dispatcher: dict, param: str | None = None) -> tuple[bool
 def get_index_items() -> list[dict]:
     """Generate full index items (windows + dispatchers + shortcuts)."""
     windows = get_windows()
-    items = [window_to_index_item(w) for w in windows]
-    # Only index dispatchers that have static params (can be executed directly)
+    items = [item for w in windows if (item := window_to_index_item(w)) is not None]
     for d in HYPR_DISPATCHERS:
         if d.get("param_type") != "workspace":
             items.append(dispatcher_to_index_item(d))
     items.extend(generate_workspace_index_items())
-    # Add global shortcuts
     shortcuts = get_global_shortcuts()
     items.extend([shortcut_to_index_item(s) for s in shortcuts])
     return items
@@ -1050,7 +1055,9 @@ def handle_request(input_data: dict):
         return
 
     if step == "initial":
-        results = [window_to_result(w, workspaces) for w in windows]
+        results = [
+            r for w in windows if (r := window_to_result(w, workspaces)) is not None
+        ]
         results.extend(get_common_commands())
         shortcuts = get_global_shortcuts()
         results.extend([shortcut_to_result(s) for s in shortcuts])
@@ -1094,7 +1101,13 @@ def handle_request(input_data: dict):
             if query_lower in s["id"].lower() or query_lower in s["description"].lower()
         ]
         results.extend([shortcut_to_result(s) for s in filtered_shortcuts])
-        results.extend([window_to_result(w, workspaces) for w in filtered_windows])
+        results.extend(
+            [
+                r
+                for w in filtered_windows
+                if (r := window_to_result(w, workspaces)) is not None
+            ]
+        )
 
         if not results:
             results = [
@@ -1275,7 +1288,11 @@ def handle_request(input_data: dict):
                 success, message = close_window(address)
                 windows = get_windows()
                 workspaces = get_workspaces()
-                results = [window_to_result(w, workspaces) for w in windows]
+                results = [
+                    r
+                    for w in windows
+                    if (r := window_to_result(w, workspaces)) is not None
+                ]
                 if not results:
                     results = [
                         {
@@ -1300,7 +1317,11 @@ def handle_request(input_data: dict):
                 success, message = move_window_to_workspace(address, workspace_id)
                 windows = get_windows()
                 workspaces = get_workspaces()
-                results = [window_to_result(w, workspaces) for w in windows]
+                results = [
+                    r
+                    for w in windows
+                    if (r := window_to_result(w, workspaces)) is not None
+                ]
                 if not results:
                     results = [
                         {
