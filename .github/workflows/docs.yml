@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -34,13 +34,8 @@ jobs:
           pip install -r docs/requirements.txt
           pip install mike
 
-      - name: Setup git
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Deploy with versioning
-        run: mike deploy --push --update-aliases v1.0.0-alpha latest
+      - name: Build docs with versioning
+        run: mike deploy v1.0.0-alpha --update-aliases latest
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
