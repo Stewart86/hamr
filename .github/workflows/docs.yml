@@ -40,8 +40,10 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Build docs with versioning
-        run: mike deploy v1.0.0-alpha --update-aliases latest
+      - name: Build and deploy docs version
+        run: |
+          mike deploy v1.0.0-alpha
+          mike alias v1.0.0-alpha latest
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
