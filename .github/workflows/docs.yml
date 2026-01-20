@@ -40,8 +40,23 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Build docs with mike (local only)
-        run: mike deploy v1.0.0-alpha --update-aliases latest
+      - name: Initialize gh-pages branch
+        run: |
+          # Check if gh-pages branch exists
+          if git ls-remote --heads origin gh-pages | grep -q gh-pages; then
+            echo "gh-pages branch exists"
+            git fetch origin gh-pages
+          else
+            echo "Creating gh-pages branch"
+            git checkout --orphan gh-pages
+            git reset --hard
+            git commit --allow-empty -m "Initial gh-pages commit for mike versioning"
+            git push origin gh-pages
+            git checkout rusty-hamr-v1.0.0-alpha
+          fi
+
+      - name: Deploy docs with mike
+        run: mike deploy v1.0.0-alpha --update-aliases latest --push
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
