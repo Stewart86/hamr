@@ -1,0 +1,22 @@
+pkgbase = hamr-git
+	pkgdesc = A fast, extensible desktop launcher for Linux
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/anomalyco/hamr-rs
+	arch = x86_64
+	arch = aarch64
+	license = MIT
+	makedepends = rust
+	makedepends = cargo
+	makedepends = pkgconf
+	depends = gtk4
+	depends = gtk4-layer-shell
+	depends = python
+	optdepends = python-dbus: system dbus integration for plugins
+	optdepends = python-gobject: GObject introspection for plugins
+	provides = hamr
+	conflicts = hamr
+	source = hamr-git::git+https://github.com/anomalyco/hamr-rs.git
+	sha256sums = SKIP
+
+pkgname = hamr-git

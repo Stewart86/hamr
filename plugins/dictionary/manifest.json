@@ -2,19 +2,13 @@
   "name": "Dictionary",
   "description": "Look up word definitions",
   "icon": "menu_book",
-  "version": "1.0",
-  "supportedCompositors": ["*"],
-  "frecency": "plugin",
-  
-  "steps": {
-    "initial": {
-      "prompt": "Enter word to define...",
-      "type": "search"
-    }
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
   },
-  
-  "config": {
-    "persistent": false,
-    "timeout": 10000
-  }
+  "frecency": "plugin",
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

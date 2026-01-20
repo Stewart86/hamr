@@ -1,14 +1,28 @@
 #!/usr/bin/env python3
+"""
+Timer plugin for hamr - Socket-based version
+
+Provides countdown timers with:
+- Preset durations (1m, 5m, 10m, etc.)
+- Custom duration parsing (e.g., "5m30s", "1h")
+- Background tick updates
+- Ambient items showing active timers
+- Status badges/chips for running/paused timers
+"""
+
+import asyncio
 import json
-import os
-import select
-import signal
 import sys
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import Optional
+
+# Add parent directory to path to import SDK
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
 
 DATA_DIR = Path.home() / ".config" / "hamr" / "data" / "timer"
 DATA_FILE = DATA_DIR / "data.json"
@@ -68,6 +82,7 @@ class Timer:
         )
 
     def tick(self) -> bool:
+        """Tick the timer. Returns True if timer completed."""
         if self.state != TimerState.RUNNING:
             return False
 
@@ -81,6 +96,7 @@ class Timer:
         return False
 
     def start(self) -> None:
+        """Start or resume the timer."""
         if self.state == TimerState.PAUSED:
             paused_duration = time.time() - self.paused_at
             self.started_at += paused_duration
@@ -89,12 +105,14 @@ class Timer:
         self.state = TimerState.RUNNING
 
     def pause(self) -> None:
+        """Pause the timer."""
         if self.state == TimerState.RUNNING:
             self.tick()
             self.paused_at = time.time()
             self.state = TimerState.PAUSED
 
     def reset(self) -> None:
+        """Reset the timer to initial state."""
         self.remaining = self.duration
         self.state = TimerState.PAUSED
         self.started_at = 0
@@ -102,6 +120,7 @@ class Timer:
 
 
 def load_timers() -> list[Timer]:
+    """Load timers from persistent storage."""
     if not DATA_FILE.exists():
         return []
     try:
@@ -113,12 +132,14 @@ def load_timers() -> list[Timer]:
 
 
 def save_timers(timers: list[Timer]) -> None:
+    """Save timers to persistent storage."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with open(DATA_FILE, "w") as f:
         json.dump({"timers": [t.to_dict() for t in timers]}, f)
 
 
 def format_time(seconds: int) -> str:
+    """Format seconds as HH:MM:SS or MM:SS."""
     if seconds >= 3600:
         h = seconds // 3600
         m = (seconds % 3600) // 60
@@ -130,6 +151,7 @@ def format_time(seconds: int) -> str:
 
 
 def parse_duration(query: str) -> int | None:
+    """Parse duration string like '5m', '1h30m', '90s'."""
     query = query.strip().lower()
     if not query:
         return None
@@ -164,11 +186,8 @@ def parse_duration(query: str) -> int | None:
     return total if total > 0 else None
 
 
-def emit(data: dict) -> None:
-    print(json.dumps(data), flush=True)
-
-
 def get_timer_icon(timer: Timer) -> str:
+    """Get icon for timer based on state."""
     if timer.state == TimerState.COMPLETED:
         return "alarm"
     if timer.state == TimerState.PAUSED:
@@ -177,6 +196,7 @@ def get_timer_icon(timer: Timer) -> str:
 
 
 def get_timer_actions(timer: Timer) -> list[dict]:
+    """Get available actions for a timer."""
     actions = []
     if timer.state == TimerState.RUNNING:
         actions.append({"id": "pause", "name": "Pause", "icon": "pause"})
@@ -193,11 +213,13 @@ def get_timer_actions(timer: Timer) -> list[dict]:
 
 
 def get_timer_results(timers: list[Timer], query: str = "") -> list[dict]:
+    """Get search results based on current timers and query."""
     results = []
 
     active_timers = [t for t in timers if t.state != TimerState.COMPLETED]
     completed_timers = [t for t in timers if t.state == TimerState.COMPLETED]
 
+    # Active timers
     for timer in active_timers:
         timer.tick()
         state_desc = "Running" if timer.state == TimerState.RUNNING else "Paused"
@@ -212,6 +234,7 @@ def get_timer_results(timers: list[Timer], query: str = "") -> list[dict]:
             }
         )
 
+    # Completed timers
     for timer in completed_timers:
         results.append(
             {
@@ -224,6 +247,7 @@ def get_timer_results(timers: list[Timer], query: str = "") -> list[dict]:
             }
         )
 
+    # Handle search query
     if query:
         query_lower = query.lower()
         results = [r for r in results if query_lower in r["name"].lower()]
@@ -240,6 +264,7 @@ def get_timer_results(timers: list[Timer], query: str = "") -> list[dict]:
                 },
             )
     else:
+        # Show presets when no query
         for preset in PRESETS:
             results.append(
                 {
@@ -250,6 +275,7 @@ def get_timer_results(timers: list[Timer], query: str = "") -> list[dict]:
                 }
             )
 
+    # Empty state
     if not results:
         results.append(
             {
@@ -264,6 +290,7 @@ def get_timer_results(timers: list[Timer], query: str = "") -> list[dict]:
 
 
 def get_plugin_actions(timers: list[Timer]) -> list[dict]:
+    """Get available plugin-level actions."""
     actions = []
     running = [t for t in timers if t.state == TimerState.RUNNING]
     paused = [t for t in timers if t.state == TimerState.PAUSED]
@@ -300,6 +327,7 @@ def get_plugin_actions(timers: list[Timer]) -> list[dict]:
 
 
 def get_status(timers: list[Timer]) -> dict:
+    """Build status object with chips and badges."""
     running = [t for t in timers if t.state == TimerState.RUNNING]
     paused = [t for t in timers if t.state == TimerState.PAUSED]
     completed = [t for t in timers if t.state == TimerState.COMPLETED]
@@ -323,6 +351,7 @@ def get_status(timers: list[Timer]) -> dict:
 
 
 def get_fab_override(timers: list[Timer]) -> dict | None:
+    """Get FAB (floating action button) override showing quickest timer."""
     running = [t for t in timers if t.state == TimerState.RUNNING]
     if not running:
         return None
@@ -337,6 +366,7 @@ def get_fab_override(timers: list[Timer]) -> dict | None:
 
 
 def get_ambient_items(timers: list[Timer]) -> list[dict] | None:
+    """Get ambient items showing active timers."""
     active = [t for t in timers if t.state in (TimerState.RUNNING, TimerState.PAUSED)]
     if not active:
         return None
@@ -357,169 +387,124 @@ def get_ambient_items(timers: list[Timer]) -> list[dict] | None:
         if timer.state == TimerState.RUNNING:
             item["actions"] = [
                 {"id": "pause", "icon": "pause", "name": "Pause"},
-                {"id": "stop", "icon": "stop", "name": "Stop"},
+                {"id": "delete", "icon": "delete", "name": "Delete"},
             ]
         else:
             item["actions"] = [
                 {"id": "resume", "icon": "play_arrow", "name": "Resume"},
-                {"id": "stop", "icon": "stop", "name": "Stop"},
+                {"id": "delete", "icon": "delete", "name": "Delete"},
             ]
         items.append(item)
 
     return items
 
 
-def respond(
-    timers: list[Timer],
-    results: list[dict] | None = None,
-    query: str = "",
-    clear_input: bool = False,
-    navigate_forward: bool | None = None,
-) -> None:
-    if results is None:
-        results = get_timer_results(timers, query)
+# Create plugin instance
+plugin = HamrPlugin(
+    id="timer",
+    name="Timer",
+    description="Countdown timers and stopwatch",
+    icon="timer",
+)
 
+# Plugin state
+state = {
+    "timers": [],
+    "current_query": "",
+    "plugin_active": False,
+}
+
+
+@plugin.on_initial
+async def handle_initial(params=None):
+    """Handle initial request when plugin is opened."""
+    state["timers"] = load_timers()
+    state["plugin_active"] = True
+    return build_response()
+
+
+@plugin.on_search
+async def handle_search(query: str, context: Optional[str]):
+    """Handle search request."""
+    state["current_query"] = query
+    return build_response(query)
+
+
+async def handle_ambient_action(
+    item_id: str, action: Optional[str], timers: list[Timer]
+) -> dict:
+    """
+    Handle ambient actions (from ambient bar).
+
+    For ambient actions, we only emit status updates - we don't return results
+    which would open the plugin view.
+    """
+    if not item_id.startswith("timer:"):
+        return {}
+
+    timer_id = item_id.replace("timer:", "")
+    timer = next((t for t in timers if t.id == timer_id), None)
+
+    if not timer:
+        return {}
+
+    if action == "pause":
+        timer.pause()
+        save_timers(timers)
+    elif action == "resume":
+        timer.start()
+        save_timers(timers)
+    elif action == "delete" or action == "__dismiss__":
+        timers = [t for t in timers if t.id != timer_id]
+        state["timers"] = timers
+        save_timers(timers)
+
+    # Send status update (explicitly set fab/ambient to null to clear)
     status = get_status(timers)
     fab = get_fab_override(timers)
-    ambient = get_ambient_items(timers)
-
     if fab:
         fab["showFab"] = True
-        status["fab"] = fab
-    else:
-        status["fab"] = None
-
-    if ambient:
-        status["ambient"] = ambient
-    else:
-        status["ambient"] = None
-
-    response: dict = {
-        "type": "results",
-        "results": results,
-        "placeholder": "Search timers or enter duration (e.g., 5m, 1h30m)...",
-        "status": status,
-        "pluginActions": get_plugin_actions(timers),
-    }
-
-    if clear_input:
-        response["clearInput"] = True
-    if navigate_forward is not None:
-        response["navigateForward"] = navigate_forward
-
-    emit(response)
-
-
-def emit_status(timers: list[Timer]) -> None:
-    status = get_status(timers)
-    fab = get_fab_override(timers)
+    status["fab"] = fab  # Always set, even if None (to clear)
     ambient = get_ambient_items(timers)
+    status["ambient"] = ambient  # Always set, even if None (to clear)
 
-    if fab:
-        fab["showFab"] = True
-        status["fab"] = fab
-    else:
-        status["fab"] = None
+    await plugin.send_status(status)
 
-    if ambient:
-        status["ambient"] = ambient
-    else:
-        status["ambient"] = None
-
-    emit({"type": "status", "status": status})
+    # Return empty dict - don't return results which would open the plugin view
+    return {}
 
 
-def handle_timer_completion(timer: Timer) -> None:
-    emit(
-        {
-            "type": "execute",
-            "sound": "alarm",
-            "notify": f"Timer completed: {timer.name}",
-        }
-    )
+@plugin.on_action
+async def handle_action(
+    item_id: str, action: Optional[str], context: Optional[str], source: Optional[str]
+):
+    """Handle action request."""
+    timers = state["timers"]
 
+    # Handle ambient actions (from ambient bar) - only emit status, no results
+    if source == "ambient":
+        return await handle_ambient_action(item_id, action, timers)
 
-def handle_request(
-    request: dict,
-    timers: list[Timer],
-    current_query: str,
-    plugin_active: bool,
-) -> tuple[list[Timer], str, bool]:
-    step = request.get("step", "initial")
-    query = request.get("query", "").strip()
-    selected = request.get("selected", {})
-    action = request.get("action", "")
-    source = request.get("source", "")
+    # Handle preset selection
+    if item_id.startswith("preset:"):
+        preset = next((p for p in PRESETS if p["id"] == item_id), None)
+        if preset:
+            timer = Timer(
+                id=str(uuid.uuid4())[:8],
+                name=preset["name"],
+                duration=preset["duration"],
+                remaining=preset["duration"],
+                state=TimerState.RUNNING,
+            )
+            timer.start()
+            timers.append(timer)
+            save_timers(timers)
+            state["current_query"] = ""
+            return {"clearInput": True, **build_response()}
 
-    if step == "initial":
-        respond(timers)
-        return timers, "", True
-
-    if step == "search":
-        respond(timers, query=query)
-        return timers, query, plugin_active
-
-    if step == "action":
-        item_id = selected.get("id", "")
-
-        if source == "ambient":
-            timer_id = item_id.replace("timer:", "")
-            timer = next((t for t in timers if t.id == timer_id), None)
-            if timer:
-                if action == "pause":
-                    timer.pause()
-                    save_timers(timers)
-                    emit_status(timers)
-                elif action == "resume":
-                    timer.start()
-                    save_timers(timers)
-                    emit_status(timers)
-                elif action == "stop" or action == "__dismiss__":
-                    timers = [t for t in timers if t.id != timer_id]
-                    save_timers(timers)
-                    emit_status(timers)
-            return timers, current_query, plugin_active
-
-        if item_id == "__plugin__":
-            if action == "pause_all":
-                for t in timers:
-                    if t.state == TimerState.RUNNING:
-                        t.pause()
-                save_timers(timers)
-                respond(timers, query=current_query)
-                return timers, current_query, plugin_active
-
-            if action == "resume_all":
-                for t in timers:
-                    if t.state == TimerState.PAUSED:
-                        t.start()
-                save_timers(timers)
-                respond(timers, query=current_query)
-                return timers, current_query, plugin_active
-
-            if action == "clear_completed":
-                timers = [t for t in timers if t.state != TimerState.COMPLETED]
-                save_timers(timers)
-                respond(timers, query=current_query)
-                return timers, current_query, plugin_active
-
-        if item_id.startswith("preset:"):
-            preset = next((p for p in PRESETS if p["id"] == item_id), None)
-            if preset:
-                timer = Timer(
-                    id=str(uuid.uuid4())[:8],
-                    name=preset["name"],
-                    duration=preset["duration"],
-                    remaining=preset["duration"],
-                    state=TimerState.RUNNING,
-                )
-                timer.start()
-                timers.append(timer)
-                save_timers(timers)
-                respond(timers, clear_input=True, navigate_forward=False)
-                return timers, "", plugin_active
-
-        if item_id.startswith("__create__:"):
+    # Handle custom duration creation
+    if item_id.startswith("__create__:"):
+        try:
             duration = int(item_id.split(":")[1])
             timer = Timer(
                 id=str(uuid.uuid4())[:8],
@@ -531,103 +516,121 @@ def handle_request(
             timer.start()
             timers.append(timer)
             save_timers(timers)
-            respond(timers, clear_input=True, navigate_forward=False)
-            return timers, "", plugin_active
+            state["current_query"] = ""
+            return {"clearInput": True, **build_response()}
+        except (ValueError, IndexError):
+            return build_response(state["current_query"])
 
-        if item_id.startswith("timer:"):
-            timer_id = item_id.replace("timer:", "")
-            timer = next((t for t in timers if t.id == timer_id), None)
-            if timer:
-                if action == "pause" or (
-                    not action and timer.state == TimerState.RUNNING
-                ):
-                    timer.pause()
-                    save_timers(timers)
-                    respond(timers, query=current_query, navigate_forward=False)
-                elif action == "resume" or (
-                    not action and timer.state == TimerState.PAUSED
-                ):
-                    timer.start()
-                    save_timers(timers)
-                    respond(timers, query=current_query, navigate_forward=False)
-                elif action == "restart" or (
-                    not action and timer.state == TimerState.COMPLETED
-                ):
-                    timer.reset()
-                    timer.start()
-                    save_timers(timers)
-                    respond(timers, query=current_query, navigate_forward=False)
-                elif action == "reset":
-                    timer.reset()
-                    save_timers(timers)
-                    respond(timers, query=current_query, navigate_forward=False)
-                elif action == "delete":
-                    timers = [t for t in timers if t.id != timer_id]
-                    save_timers(timers)
-                    respond(timers, query=current_query)
-            return timers, current_query, plugin_active
+    # Handle timer actions
+    if item_id.startswith("timer:"):
+        timer_id = item_id.replace("timer:", "")
+        timer = next((t for t in timers if t.id == timer_id), None)
+        if timer:
+            if action == "pause" or (not action and timer.state == TimerState.RUNNING):
+                timer.pause()
+            elif action == "resume" or (
+                not action and timer.state == TimerState.PAUSED
+            ):
+                timer.start()
+            elif action == "restart" or (
+                not action and timer.state == TimerState.COMPLETED
+            ):
+                timer.reset()
+                timer.start()
+            elif action == "reset":
+                timer.reset()
+            elif action == "delete":
+                timers = [t for t in timers if t.id != timer_id]
+                state["timers"] = timers
 
-        if item_id == "__empty__":
-            respond(timers, query=current_query)
-            return timers, current_query, plugin_active
+            save_timers(timers)
+            return build_response(state["current_query"])
 
-    return timers, current_query, plugin_active
+    # Handle plugin-level actions
+    if item_id == "__plugin__":
+        if action == "pause_all":
+            for t in timers:
+                if t.state == TimerState.RUNNING:
+                    t.pause()
+            save_timers(timers)
+            return build_response(state["current_query"])
+
+        if action == "resume_all":
+            for t in timers:
+                if t.state == TimerState.PAUSED:
+                    t.start()
+            save_timers(timers)
+            return build_response(state["current_query"])
+
+        if action == "clear_completed":
+            timers = [t for t in timers if t.state != TimerState.COMPLETED]
+            state["timers"] = timers
+            save_timers(timers)
+            return build_response(state["current_query"])
+
+    return build_response(state["current_query"])
 
 
-def main():
-    def shutdown_handler(signum, frame):
-        sys.exit(0)
+def build_response(query: str = "") -> dict:
+    """Build the results response with status and actions."""
+    timers = state["timers"]
+    results = get_timer_results(timers, query)
+    status = get_status(timers)
 
-    signal.signal(signal.SIGTERM, shutdown_handler)
-    signal.signal(signal.SIGINT, shutdown_handler)
+    # Timer uses ambient items for FAB display (with actions), not FAB override
+    ambient = get_ambient_items(timers)
+    status["ambient"] = ambient  # Always set, even if None (to clear)
 
-    timers = load_timers()
-    for timer in timers:
-        if timer.state == TimerState.RUNNING:
-            timer.tick()
+    return HamrPlugin.results(
+        results,
+        status=status,
+        plugin_actions=get_plugin_actions(timers),
+        placeholder="Search timers or enter duration (e.g., 5m, 1h30m)...",
+    )
 
-    emit_status(timers)
 
-    current_query = ""
-    plugin_active = False
-    last_tick = time.time()
-    tick_interval = 1.0
-
+@plugin.add_background_task
+async def timer_tick(p: HamrPlugin):
+    """Background task that ticks timers every second and sends updates."""
     while True:
-        readable, _, _ = select.select([sys.stdin], [], [], 0.5)
+        await asyncio.sleep(1)
 
-        if readable:
-            try:
-                line = sys.stdin.readline()
-                if not line:
-                    break
-                request = json.loads(line.strip())
-                timers, current_query, plugin_active = handle_request(
-                    request, timers, current_query, plugin_active
+        timers = state["timers"]
+        running = [t for t in timers if t.state == TimerState.RUNNING]
+
+        if not running:
+            continue
+
+        completed_any = False
+        for timer in running:
+            if timer.tick():
+                completed_any = True
+                # Play alarm sound
+                await p.send_execute({"type": "sound", "sound": "alarm"})
+                # Show notification
+                await p.send_execute(
+                    {"type": "notify", "message": f"Timer completed: {timer.name}"}
                 )
-            except (json.JSONDecodeError, ValueError):
-                continue
 
-        now = time.time()
-        if now - last_tick >= tick_interval:
-            last_tick = now
+        if completed_any:
+            save_timers(timers)
 
-            running_timers = [t for t in timers if t.state == TimerState.RUNNING]
-            if running_timers:
-                completed_any = False
-                for timer in running_timers:
-                    if timer.tick():
-                        completed_any = True
-                        handle_timer_completion(timer)
+        # Send status update - timer uses ambient items for FAB display
+        status = get_status(timers)
+        ambient = get_ambient_items(timers)
+        status["ambient"] = ambient  # Always set, even if None (to clear)
 
-                if completed_any:
-                    save_timers(timers)
+        await p.send_status(status)
 
-                if plugin_active:
-                    respond(timers, query=current_query)
-                else:
-                    emit_status(timers)
+        # If plugin is active, also send results update
+        if state["plugin_active"]:
+            await p.send_results(
+                get_timer_results(timers, state["current_query"]),
+                status=status,
+                pluginActions=get_plugin_actions(timers),
+                placeholder="Search timers or enter duration (e.g., 5m, 1h30m)...",
+            )
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

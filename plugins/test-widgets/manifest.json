@@ -1,0 +1,20 @@
+{
+  "name": "Widget Showcase",
+  "description": "Demo all Hamr UI widgets: gauges, graphs, badges, chips, sliders, switches, progress bars",
+  "icon": "widgets",
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
+  "daemon": {
+    "enabled": true,
+    "background": false
+  },
+  "frecency": "plugin",
+  "supportedPlatforms": [
+    "niri",
+    "hyprland",
+    "macos",
+    "windows"
+  ]
+}

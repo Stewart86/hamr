@@ -2,6 +2,9 @@
   "name": "Files",
   "description": "Search and browse files",
   "icon": "folder_open",
-  "supportedCompositors": ["*"],
-  "prefix": "~"
+  "prefix": "~",
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

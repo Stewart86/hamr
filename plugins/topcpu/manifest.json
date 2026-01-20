@@ -2,10 +2,19 @@
   "name": "Top CPU",
   "description": "Processes sorted by CPU usage",
   "icon": "speed",
-  "supportedCompositors": ["*"],
-  "frecency": "plugin",
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
   "daemon": {
     "enabled": true,
-    "background": false
-  }
+    "background": false,
+    "restartOnCrash": true
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland",
+    "macos",
+    "windows"
+  ]
 }

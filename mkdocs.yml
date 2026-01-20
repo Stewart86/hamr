@@ -1,5 +1,5 @@
 site_name: Hamr
-site_description: A standalone search bar / launcher for Quickshell
+site_description: A standalone search bar / launcher built with Rust
 site_url: https://hamr.run
 repo_url: https://github.com/stewart86/hamr
 repo_name: stewart86/hamr
@@ -43,13 +43,17 @@ nav:
       - Theming: getting-started/theming.md
   - Plugins:
       - Building Plugins: plugins/index.md
-      - Response Types: plugins/response-types.md
-      - Visual Elements: plugins/visual-elements.md
+      - Python SDK: plugins/python-sdk.md
       - Advanced Features: plugins/advanced-features.md
       - API Reference: plugins/api-reference.md
       - Testing: plugins/testing.md
       - Cheat Sheet: plugins/cheatsheet.md
-      - Raycast Conversion: plugins/raycast-conversion.md
+      - Visual Elements: plugins/visual-elements.md
+      - Response Types: plugins/response-types.md
+  - Architecture: architecture.md
+  - Development:
+        - Plugin Protocol: plugin-protocol.md
+        - Plugin Audit: plugin-audit-results.md
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -78,6 +82,7 @@ markdown_extensions:
 
 plugins:
   - search
+  - mike
 
 extra:
   social:

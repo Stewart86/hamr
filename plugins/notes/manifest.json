@@ -2,10 +2,18 @@
   "name": "Notes",
   "description": "Quick notes - create, read, edit, delete",
   "icon": "sticky_note_2",
-  "supportedCompositors": ["*"],
-  "frecency": "plugin",
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
   "daemon": {
     "enabled": true,
-    "background": true
-  }
+    "background": true,
+    "restartOnCrash": true
+  },
+  "frecency": "plugin",
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

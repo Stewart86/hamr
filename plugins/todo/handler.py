@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-import base64
-import ctypes
-import ctypes.util
+"""
+Todo plugin - Manage your todo list.
+
+Stores tasks in XDG_STATE_HOME/quickshell/user/todo.json (shared with illogical-impulse)
+or ~/.config/hamr/todo.json (standalone).
+"""
+
 import json
 import os
-import select
-import signal
-import struct
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-# inotify constants
-IN_CLOSE_WRITE = 0x00000008
-IN_MOVED_TO = 0x00000080
-IN_CREATE = 0x00000100
+# Add parent directory to path to import SDK
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
 
 # Todo file location
 # Prefer illogical-impulse path for seamless sync between hamr and ii sidebar
@@ -55,14 +55,6 @@ def load_todos() -> list[dict]:
         return []
 
 
-def get_status(todos: list[dict]) -> dict:
-    pending = sum(1 for t in todos if not t.get("done", False))
-    if pending > 0:
-        label = "task" if pending == 1 else "tasks"
-        return {"chips": [{"text": f"{pending} {label}", "icon": "task_alt"}]}
-    return {}
-
-
 def save_todos(todos: list[dict]) -> None:
     """Save todos to file (sorted by creation date, newest first)"""
     # Sort before saving to maintain consistent order
@@ -72,38 +64,43 @@ def save_todos(todos: list[dict]) -> None:
         json.dump(todos, f)
 
 
-def get_plugin_actions(todos: list[dict], in_add_mode: bool = False) -> list[dict]:
+def get_status(todos: list[dict]) -> dict:
+    """Build status object with chips and badges"""
+    pending = sum(1 for t in todos if not t.get("done", False))
+    if pending > 0:
+        label = "task" if pending == 1 else "tasks"
+        return {"chips": [{"text": f"{pending} {label}", "icon": "task_alt"}]}
+    return {}
+
+
+def get_plugin_actions(todos: list[dict]) -> list[dict]:
     """Get plugin-level actions for the action bar"""
-    actions = []
-    if not in_add_mode:
+    actions = [
+        {
+            "id": "add",
+            "name": "Add Task",
+            "icon": "add_circle",
+            "shortcut": "Ctrl+1",
+        }
+    ]
+    # Show clear completed if there are any completed todos
+    completed_count = sum(1 for t in todos if t.get("done", False))
+    if completed_count > 0:
         actions.append(
             {
-                "id": "add",
-                "name": "Add Task",
-                "icon": "add_circle",
-                "shortcut": "Ctrl+1",
+                "id": "clear_completed",
+                "name": f"Clear Done ({completed_count})",
+                "icon": "delete_sweep",
+                "confirm": f"Remove {completed_count} completed task(s)?",
+                "shortcut": "Ctrl+2",
             }
         )
-        # Show clear completed if there are any completed todos
-        completed_count = sum(1 for t in todos if t.get("done", False))
-        if completed_count > 0:
-            actions.append(
-                {
-                    "id": "clear_completed",
-                    "name": f"Clear Done ({completed_count})",
-                    "icon": "delete_sweep",
-                    "confirm": f"Remove {completed_count} completed task(s)?",
-                    "shortcut": "Ctrl+2",
-                }
-            )
     return actions
 
 
-def get_todo_results(todos: list[dict], show_add: bool = False) -> list[dict]:
+def get_todo_results(todos: list[dict]) -> list[dict]:
     """Convert todos to result format"""
     results = []
-
-    # No longer add "Add" as a result item - it's now a plugin action
 
     for i, todo in enumerate(todos):
         done = todo.get("done", False)
@@ -152,445 +149,238 @@ def refresh_sidebar():
         pass
 
 
-def emit(data: dict) -> None:
-    print(json.dumps(data), flush=True)
+# Create plugin instance
+plugin = HamrPlugin(
+    id="todo",
+    name="Todo",
+    description="Manage your todo list",
+    icon="checklist",
+)
+
+# Plugin state
+plugin_state = {
+    "todos": [],
+    "current_query": "",
+}
 
 
-def emit_status(todos: list[dict]) -> None:
-    emit({"type": "status", "status": get_status(todos)})
-
-
-def emit_index(todos: list[dict]) -> None:
-    emit({"type": "index", "items": get_todo_results(todos)})
-
-
-def respond(
-    results: list[dict],
-    todos: list[dict],
-    refresh_ui: bool = False,
-    clear_input: bool = False,
-    context: str = "",
-    placeholder: str = "Search tasks...",
-    input_mode: str = "realtime",
-    plugin_actions: list[dict] | None = None,
-    navigate_forward: bool | None = None,
-):
-    response = {
-        "type": "results",
-        "results": results,
-        "inputMode": input_mode,
-        "placeholder": placeholder,
-        "status": get_status(todos),
-    }
-    if plugin_actions is not None:
-        response["pluginActions"] = plugin_actions
-    if clear_input:
-        response["clearInput"] = True
-    if context:
-        response["context"] = context
-    if navigate_forward is not None:
-        response["navigateForward"] = navigate_forward
-    if refresh_ui:
-        refresh_sidebar()
-    emit(response)
-
-
-def handle_request(request: dict, current_query: str) -> tuple[str, list[dict]]:
-    step = request.get("step", "initial")
-    query = request.get("query", "").strip()
-    selected = request.get("selected", {})
-    action = request.get("action", "")
-    context = request.get("context", "")
-
+@plugin.on_initial
+async def handle_initial(params=None):
+    """Handle initial request when plugin is opened."""
     todos = load_todos()
+    plugin_state["todos"] = todos
+    results = get_todo_results(todos)
 
-    if step == "index":
-        emit_index(todos)
-        return query, todos
+    return HamrPlugin.results(
+        results,
+        status=get_status(todos),
+        input_mode="realtime",
+        placeholder="Search tasks...",
+        plugin_actions=get_plugin_actions(todos),
+    )
 
-    if step == "initial":
-        respond(
-            get_todo_results(todos),
-            todos,
-            plugin_actions=get_plugin_actions(todos),
-        )
-        return query, todos
 
-    if step == "search":
-        if context == "__add_mode__":
-            if query:
-                todos.append(
-                    {
-                        "content": query,
-                        "done": False,
-                        "created": int(time.time() * 1000),
-                    }
-                )
-                save_todos(todos)
-                respond(
-                    get_todo_results(todos),
-                    todos,
-                    refresh_ui=True,
-                    clear_input=True,
-                    plugin_actions=get_plugin_actions(todos),
-                )
-                return "", todos
-            respond(
-                [],
-                todos,
-                placeholder="Type new task... (Enter to add)",
-                context="__add_mode__",
-                input_mode="submit",
-            )
-            return query, todos
+@plugin.on_search
+async def handle_search(query: str, context: str | None):
+    """Handle search request."""
+    todos = plugin_state["todos"]
+    plugin_state["current_query"] = query
 
-        if context.startswith("__edit__:"):
+    # Edit mode: save the edited task
+    if context and context.startswith("__edit__:") and query:
+        try:
             todo_idx = int(context.split(":")[1])
             if 0 <= todo_idx < len(todos):
-                old_content = todos[todo_idx].get("content", "")
-                if query:
-                    todos[todo_idx]["content"] = query
-                    save_todos(todos)
-                    respond(
-                        get_todo_results(todos),
-                        todos,
-                        refresh_ui=True,
-                        clear_input=True,
-                        plugin_actions=get_plugin_actions(todos),
-                        navigate_forward=False,
-                    )
-                    return "", todos
-                respond(
-                    [],
-                    todos,
-                    placeholder=f"Edit: {old_content[:50]}{'...' if len(old_content) > 50 else ''} (Enter to save)",
-                    context=context,
-                    input_mode="submit",
-                )
-            return query, todos
-
-        # Hybrid search: only return "Add" shortcut - hamr appends builtin search results
-        if query:
-            encoded = base64.b64encode(query.encode()).decode()
-            respond(
-                [
-                    {
-                        "id": f"__add__:{encoded}",
-                        "key": "__add__",
-                        "name": f"Add: {query}",
-                        "icon": "add_circle",
-                        "description": "Press Enter to add as new task",
-                    }
-                ],
-                todos,
-                plugin_actions=get_plugin_actions(todos),
-            )
-        else:
-            respond(
-                get_todo_results(todos),
-                todos,
-                plugin_actions=get_plugin_actions(todos),
-            )
-        return query, todos
-
-    if step == "action":
-        item_id = selected.get("id", "")
-
-        if item_id == "__plugin__":
-            if action == "add":
-                respond(
-                    [],
-                    todos,
-                    placeholder="Type new task... (Enter to add)",
-                    clear_input=True,
-                    context="__add_mode__",
-                    input_mode="submit",
-                    plugin_actions=[],
-                )
-                return "", todos
-
-            if action == "clear_completed":
-                todos = [t for t in todos if not t.get("done", False)]
+                todos[todo_idx]["content"] = query
+                plugin_state["todos"] = todos
                 save_todos(todos)
-                respond(
+                refresh_sidebar()
+                return HamrPlugin.results(
                     get_todo_results(todos),
-                    todos,
-                    refresh_ui=True,
+                    status=get_status(todos),
                     clear_input=True,
+                    context=None,  # Clear context to exit edit mode
+                    input_mode="realtime",
+                    placeholder="Search tasks...",
                     plugin_actions=get_plugin_actions(todos),
-                    navigate_forward=False,
                 )
-                return "", todos
+        except (ValueError, IndexError):
+            pass
 
-        if item_id == "__back__":
-            respond(
-                get_todo_results(todos),
-                todos,
-                clear_input=True,
-                plugin_actions=get_plugin_actions(todos),
-            )
-            return query, todos
+    # Add new task mode (when plugin action "add" was triggered)
+    if context == "__add_mode__" and query:
+        todos.append(
+            {
+                "content": query,
+                "done": False,
+                "created": int(time.time() * 1000),
+            }
+        )
+        plugin_state["todos"] = todos
+        save_todos(todos)
+        refresh_sidebar()
+        return HamrPlugin.results(
+            get_todo_results(todos),
+            status=get_status(todos),
+            clear_input=True,
+            context=None,
+            input_mode="realtime",
+            placeholder="Search tasks...",
+            plugin_actions=get_plugin_actions(todos),
+        )
 
-        if item_id == "__add__":
-            respond(
+    # Quick add mode (typing in main view)
+    if query and not context:
+        return HamrPlugin.results(
+            [
+                {
+                    "id": f"__add__:{query}",
+                    "name": f"Add: {query}",
+                    "icon": "add_circle",
+                    "description": "Press Enter to add as new task",
+                }
+            ],
+            status=get_status(todos),
+            input_mode="realtime",
+            placeholder="Search tasks...",
+            plugin_actions=get_plugin_actions(todos),
+        )
+
+    # Search existing todos (empty query or edit mode without query)
+    results = get_todo_results(todos)
+    return HamrPlugin.results(
+        results,
+        status=get_status(todos),
+        input_mode="realtime",
+        placeholder="Search tasks...",
+        plugin_actions=get_plugin_actions(todos),
+    )
+
+
+@plugin.on_action
+async def handle_action(
+    item_id: str, action: str | None, context: str | None, source: str | None = None
+):
+    """Handle action request."""
+    todos = plugin_state["todos"]
+
+    # Plugin-level actions
+    if item_id == "__plugin__":
+        if action == "add":
+            return HamrPlugin.results(
                 [],
-                todos,
-                placeholder="Type new task... (Enter to add)",
                 clear_input=True,
                 context="__add_mode__",
                 input_mode="submit",
+                placeholder="Type new task... (Enter to add)",
+                status=get_status(todos),
             )
-            return "", todos
 
-        if item_id.startswith("__add__:"):
-            encoded = item_id.split(":", 1)[1]
-            if encoded:
-                try:
-                    task_content = base64.b64decode(encoded).decode()
-                    todos.append(
-                        {
-                            "content": task_content,
-                            "done": False,
-                            "created": int(time.time() * 1000),
-                        }
-                    )
-                    save_todos(todos)
-                    respond(
-                        get_todo_results(todos),
-                        todos,
-                        refresh_ui=True,
-                        clear_input=True,
-                        plugin_actions=get_plugin_actions(todos),
-                        navigate_forward=False,
-                    )
-                    return "", todos
-                except Exception:
-                    pass
-            respond(
+        if action == "clear_completed":
+            todos = [t for t in todos if not t.get("done", False)]
+            plugin_state["todos"] = todos
+            save_todos(todos)
+            refresh_sidebar()
+            return HamrPlugin.results(
                 get_todo_results(todos),
-                todos,
-                plugin_actions=get_plugin_actions(todos),
-                navigate_forward=False,
-            )
-            return "", todos
-
-        if item_id.startswith("__save__:"):
-            parts = item_id.split(":", 2)
-            if len(parts) >= 3:
-                todo_idx = int(parts[1])
-                encoded = parts[2]
-                if encoded and 0 <= todo_idx < len(todos):
-                    try:
-                        new_content = base64.b64decode(encoded).decode()
-                        todos[todo_idx]["content"] = new_content
-                        save_todos(todos)
-                        respond(
-                            get_todo_results(todos),
-                            todos,
-                            refresh_ui=True,
-                            clear_input=True,
-                            plugin_actions=get_plugin_actions(todos),
-                            navigate_forward=False,
-                        )
-                        return "", todos
-                    except Exception:
-                        pass
-            respond(
-                get_todo_results(todos),
-                todos,
+                status=get_status(todos),
                 clear_input=True,
+                input_mode="realtime",
+                placeholder="Search tasks...",
                 plugin_actions=get_plugin_actions(todos),
             )
-            return "", todos
 
-        if item_id == "__empty__":
-            respond(
+    # Empty state
+    if item_id == "__empty__":
+        return {}
+
+    # Add quick item
+    if item_id.startswith("__add__:"):
+        task_content = item_id.split(":", 1)[1]
+        if task_content:
+            todos.append(
+                {
+                    "content": task_content,
+                    "done": False,
+                    "created": int(time.time() * 1000),
+                }
+            )
+            plugin_state["todos"] = todos
+            save_todos(todos)
+            refresh_sidebar()
+            return HamrPlugin.results(
                 get_todo_results(todos),
-                todos,
+                status=get_status(todos),
+                clear_input=True,
+                input_mode="realtime",
+                placeholder="Search tasks...",
                 plugin_actions=get_plugin_actions(todos),
             )
-            return query, todos
+        return {}
 
-        if item_id.startswith("todo:"):
+    # Todo item actions
+    if item_id.startswith("todo:"):
+        try:
             todo_idx = int(item_id.split(":")[1])
+        except (ValueError, IndexError):
+            return {}
 
-            if action == "toggle" or not action:
-                if 0 <= todo_idx < len(todos):
-                    todos[todo_idx]["done"] = not todos[todo_idx].get("done", False)
-                    save_todos(todos)
-                    respond(
-                        get_todo_results(todos),
-                        todos,
-                        refresh_ui=True,
-                        plugin_actions=get_plugin_actions(todos),
-                        navigate_forward=False,
-                    )
-                return query, todos
+        if action == "toggle" or not action:
+            if 0 <= todo_idx < len(todos):
+                todos[todo_idx]["done"] = not todos[todo_idx].get("done", False)
+                plugin_state["todos"] = todos
+                save_todos(todos)
+                refresh_sidebar()
+                return HamrPlugin.results(
+                    get_todo_results(todos),
+                    status=get_status(todos),
+                    input_mode="realtime",
+                    placeholder="Search tasks...",
+                    plugin_actions=get_plugin_actions(todos),
+                )
 
-            if action == "edit":
-                if 0 <= todo_idx < len(todos):
-                    content = todos[todo_idx].get("content", "")
-                    respond(
-                        [],
-                        todos,
-                        placeholder=f"Edit: {content[:50]}{'...' if len(content) > 50 else ''} (Enter to save)",
-                        clear_input=True,
-                        context=f"__edit__:{todo_idx}",
-                        input_mode="submit",
-                    )
-                return query, todos
+        if action == "edit":
+            if 0 <= todo_idx < len(todos):
+                content = todos[todo_idx].get("content", "")
+                return HamrPlugin.results(
+                    [],
+                    clear_input=True,
+                    context=f"__edit__:{todo_idx}",
+                    input_mode="submit",
+                    placeholder=f"Edit: {content[:50]}{'...' if len(content) > 50 else ''} (Enter to save)",
+                    status=get_status(todos),
+                )
 
-            if action == "delete":
-                if 0 <= todo_idx < len(todos):
-                    todos.pop(todo_idx)
-                    save_todos(todos)
-                    respond(
-                        get_todo_results(todos),
-                        todos,
-                        refresh_ui=True,
-                        plugin_actions=get_plugin_actions(todos),
-                    )
-                return "", todos
+        if action == "delete":
+            if 0 <= todo_idx < len(todos):
+                todos.pop(todo_idx)
+                plugin_state["todos"] = todos
+                save_todos(todos)
+                refresh_sidebar()
+                return HamrPlugin.results(
+                    get_todo_results(todos),
+                    status=get_status(todos),
+                    input_mode="realtime",
+                    placeholder="Search tasks...",
+                    plugin_actions=get_plugin_actions(todos),
+                )
 
-    return query, todos
-
-
-def get_file_mtime() -> float:
-    if not TODO_FILE.exists():
-        return 0
-    try:
-        return TODO_FILE.stat().st_mtime
-    except OSError:
-        return 0
+    return {}
 
 
-def create_inotify_fd() -> int | None:
-    """Create inotify fd watching the todo file directory. Returns fd or None."""
-    try:
-        libc_name = ctypes.util.find_library("c")
-        if not libc_name:
-            return None
-        libc = ctypes.CDLL(libc_name, use_errno=True)
-
-        inotify_init = libc.inotify_init
-        inotify_init.argtypes = []
-        inotify_init.restype = ctypes.c_int
-
-        inotify_add_watch = libc.inotify_add_watch
-        inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
-        inotify_add_watch.restype = ctypes.c_int
-
-        fd = inotify_init()
-        if fd < 0:
-            return None
-
-        TODO_FILE.parent.mkdir(parents=True, exist_ok=True)
-        watch_dir = str(TODO_FILE.parent).encode()
-        mask = IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE
-        wd = inotify_add_watch(fd, watch_dir, mask)
-        if wd < 0:
-            os.close(fd)
-            return None
-
-        return fd
-    except Exception:
-        return None
+@plugin.on_form_submitted
+async def handle_form_submitted(form_data: dict, context: str | None):
+    """Handle form submission."""
+    # This plugin uses search mode for input instead of forms
+    return {}
 
 
-def read_inotify_events(fd: int) -> list[str]:
-    """Read inotify events and return list of filenames that changed."""
-    filenames = []
-    try:
-        buf = os.read(fd, 4096)
-        offset = 0
-        while offset < len(buf):
-            wd, mask, cookie, length = struct.unpack_from("iIII", buf, offset)
-            offset += 16
-            if length > 0:
-                name = buf[offset : offset + length].rstrip(b"\x00").decode()
-                filenames.append(name)
-                offset += length
-    except (OSError, struct.error):
-        pass
-    return filenames
-
-
-def main():
-    def shutdown_handler(signum, frame):
-        sys.exit(0)
-
-    signal.signal(signal.SIGTERM, shutdown_handler)
-    signal.signal(signal.SIGINT, shutdown_handler)
-
+@plugin.add_background_task
+async def emit_initial_status(p: HamrPlugin):
+    """Background task to emit initial status on startup."""
     todos = load_todos()
-    emit_status(todos)
-    emit_index(todos)
-
-    current_query = ""
-    inotify_fd = create_inotify_fd()
-
-    if inotify_fd is not None:
-        todo_filename = TODO_FILE.name
-
-        while True:
-            readable, _, _ = select.select([sys.stdin, inotify_fd], [], [], 1.0)
-
-            stdin_ready = any(
-                (f if isinstance(f, int) else f.fileno()) == sys.stdin.fileno()
-                for f in readable
-            )
-            if stdin_ready:
-                try:
-                    line = sys.stdin.readline()
-                    if not line:
-                        break
-                    request = json.loads(line.strip())
-                    current_query, todos = handle_request(request, current_query)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-
-            if inotify_fd in readable:
-                changed_files = read_inotify_events(inotify_fd)
-                if todo_filename in changed_files:
-                    todos = load_todos()
-                    emit_index(todos)
-                    respond(
-                        get_todo_results(todos),
-                        todos,
-                        plugin_actions=get_plugin_actions(todos),
-                    )
-    else:
-        last_mtime = get_file_mtime()
-        last_check = time.time()
-        check_interval = 2.0
-
-        while True:
-            readable, _, _ = select.select([sys.stdin], [], [], 0.5)
-
-            if readable:
-                try:
-                    line = sys.stdin.readline()
-                    if not line:
-                        break
-                    request = json.loads(line.strip())
-                    current_query, todos = handle_request(request, current_query)
-                except (json.JSONDecodeError, ValueError):
-                    continue
-
-            now = time.time()
-            if now - last_check >= check_interval:
-                new_mtime = get_file_mtime()
-                if new_mtime != last_mtime and new_mtime != 0:
-                    last_mtime = new_mtime
-                    todos = load_todos()
-                    emit_index(todos)
-                    respond(
-                        get_todo_results(todos),
-                        todos,
-                        plugin_actions=get_plugin_actions(todos),
-                    )
-                last_check = now
+    await p.send_status(get_status(todos))
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

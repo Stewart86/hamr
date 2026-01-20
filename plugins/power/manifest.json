@@ -2,9 +2,12 @@
   "name": "Power",
   "description": "System power and session controls",
   "icon": "power_settings_new",
-  "supportedCompositors": ["*"],
   "daemon": {
     "enabled": true,
     "background": true
-  }
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

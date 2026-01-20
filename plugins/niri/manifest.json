@@ -2,8 +2,13 @@
   "name": "Niri",
   "description": "Window management and Niri actions",
   "icon": "desktop_windows",
-  "supportedCompositors": ["niri"],
-  "frecency": "item",
+  "supportedPlatforms": [
+    "niri"
+  ],
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
   "daemon": {
     "enabled": true,
     "background": true

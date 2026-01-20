@@ -1,7 +1,17 @@
 {
+  "id": "colorpick",
   "name": "Color Picker",
   "description": "Pick a color from screen and copy to clipboard",
   "icon": "colorize",
-  "supportedCompositors": ["*"],
-  "frecency": "none"
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
+  "daemon": {
+    "enabled": false
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

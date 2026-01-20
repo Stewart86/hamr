@@ -2,10 +2,18 @@
   "name": "Bitwarden",
   "description": "Search and copy credentials from Bitwarden vault",
   "icon": "key",
-  "supportedCompositors": ["*"],
-  "frecency": "plugin",
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
   "daemon": {
     "enabled": true,
-    "background": true
-  }
+    "background": true,
+    "restartOnCrash": true
+  },
+  "frecency": "plugin",
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

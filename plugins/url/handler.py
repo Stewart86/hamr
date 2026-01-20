@@ -5,7 +5,6 @@ Triggered via match patterns when user types something that looks like a URL.
 """
 
 import json
-import os
 import sys
 
 
@@ -104,7 +103,7 @@ def main():
                 json.dumps(
                     {
                         "type": "execute",
-                        "copy": url,
+                        "action": {"type": "copy", "text": url},
                         "notify": f"Copied: {url}",
                         "close": True,
                     }
@@ -117,7 +116,7 @@ def main():
             json.dumps(
                 {
                     "type": "execute",
-                    "openUrl": url,
+                    "action": {"type": "open-url", "url": url},
                     "close": True,
                 }
             )

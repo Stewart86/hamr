@@ -1,6 +1,9 @@
 {
   "name": "Pictures",
-  "description": "Search pictures in Downloads folder",
+  "description": "Search pictures in Pictures folder",
   "icon": "image",
-  "supportedCompositors": ["*"]
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

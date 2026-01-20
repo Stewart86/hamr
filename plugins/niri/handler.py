@@ -13,6 +13,11 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
+
+# Add parent directory to path to import SDK
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
 
 INDEX_DEBOUNCE_INTERVAL = 2.0
 
@@ -483,31 +488,6 @@ def get_workspaces() -> list[dict]:
         return []
 
 
-def window_to_index_item(window: dict) -> dict:
-    window_id = window.get("id", 0)
-    title = window.get("title", "")
-    app_id = window.get("app_id", "")
-    workspace_id = window.get("workspace_id", 0)
-
-    description = app_id
-    if workspace_id:
-        description = f"{app_id} (workspace {workspace_id})"
-
-    item_id = f"window:{window_id}"
-    return {
-        "id": item_id,
-        "name": title or app_id,
-        "description": description,
-        "icon": app_id,
-        "iconType": "system",
-        "verb": "Focus",
-        "entryPoint": {
-            "step": "action",
-            "selected": {"id": item_id},
-        },
-    }
-
-
 def window_to_result(window: dict, workspaces: list[dict] | None = None) -> dict:
     window_id = window.get("id", 0)
     title = window.get("title", "")
@@ -547,26 +527,6 @@ def window_to_result(window: dict, workspaces: list[dict] | None = None) -> dict
         "iconType": "system",
         "verb": "Focus",
         "actions": actions,
-    }
-
-
-def action_to_index_item(action: dict) -> dict:
-    action_id = f"action:{action['id']}"
-    return {
-        "id": action_id,
-        "name": action["name"],
-        "description": action["description"],
-        "icon": action["icon"],
-        "verb": "Run",
-        "keywords": [
-            action["id"],
-            action["action"],
-            action["name"].lower(),
-        ],
-        "entryPoint": {
-            "step": "action",
-            "selected": {"id": action_id},
-        },
     }
 
 
@@ -662,407 +622,235 @@ def get_common_commands() -> list[dict]:
     return commands
 
 
-def generate_workspace_index_items() -> list[dict]:
-    items = []
+# Create plugin instance
+plugin = HamrPlugin(
+    id="niri",
+    name="Niri",
+    description="Window management and Niri actions",
+    icon="desktop_windows",
+)
 
-    for ws_idx in range(1, 11):
-        goto_id = f"action:goto-workspace:{ws_idx}"
-        move_id = f"action:move-to-workspace:{ws_idx}"
-        goto_name = f"Go to Workspace {ws_idx}"
-        move_name = f"Move Window to Workspace {ws_idx}"
-        items.append(
-            {
-                "id": goto_id,
-                "name": goto_name,
-                "description": f"Switch to workspace {ws_idx}",
-                "icon": "space_dashboard",
-                "verb": "Run",
-                "keywords": [
-                    f"workspace {ws_idx}",
-                    f"ws {ws_idx}",
-                    f"go to {ws_idx}",
-                    f"switch to {ws_idx}",
-                ],
-                "entryPoint": {
-                    "step": "action",
-                    "selected": {"id": goto_id},
-                },
-            }
-        )
-        items.append(
-            {
-                "id": move_id,
-                "name": move_name,
-                "description": f"Move active window to workspace {ws_idx}",
-                "icon": "drive_file_move",
-                "verb": "Run",
-                "keywords": [
-                    f"move to {ws_idx}",
-                    f"send to {ws_idx}",
-                    f"move workspace {ws_idx}",
-                ],
-                "entryPoint": {
-                    "step": "action",
-                    "selected": {"id": move_id},
-                },
-            }
-        )
-
-    return items
+# Plugin state
+state = {
+    "current_query": "",
+}
 
 
-def get_index_items() -> list[dict]:
-    """Get full index of windows and actions on startup."""
-    items = []
+@plugin.on_initial
+async def handle_initial(params=None):
+    """Handle initial request when plugin is opened."""
     windows = get_windows()
-    for w in windows:
-        items.append(window_to_index_item(w))
-    for a in NIRI_ACTIONS:
-        items.append(action_to_index_item(a))
-    items.extend(generate_workspace_index_items())
-    return items
+    workspaces = get_workspaces()
+    results = [window_to_result(w, workspaces) for w in windows]
+    results.extend(get_common_commands())
+    return HamrPlugin.results(
+        results,
+        placeholder="Filter windows or type a command...",
+        input_mode="realtime",
+    )
 
 
-def start_niri_event_stream() -> subprocess.Popen | None:
-    """Start niri event-stream subprocess. Returns Popen or None."""
-    try:
-        proc = subprocess.Popen(
-            ["niri", "msg", "-j", "event-stream"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            bufsize=1,
-        )
-        return proc
-    except (OSError, FileNotFoundError):
-        return None
+@plugin.on_search
+async def handle_search(query: str, context=None):
+    """Handle search request."""
+    state["current_query"] = query
+    query_lower = query.lower()
+    results = []
+
+    filtered_actions = [
+        a
+        for a in NIRI_ACTIONS
+        if query_lower in a["name"].lower()
+        or query_lower in a["description"].lower()
+        or query_lower in a["id"].lower()
+    ]
+    results.extend([action_to_result(a) for a in filtered_actions])
+
+    windows = get_windows()
+    filtered_windows = [
+        w
+        for w in windows
+        if query_lower in w.get("title", "").lower()
+        or query_lower in w.get("app_id", "").lower()
+    ]
+    workspaces = get_workspaces()
+    results.extend([window_to_result(w, workspaces) for w in filtered_windows])
+
+    if not results:
+        results = [
+            {
+                "id": "__empty__",
+                "name": f"No matches for '{query}'",
+                "icon": "search_off",
+                "description": "Try 'fullscreen', 'floating', 'center'...",
+            }
+        ]
+    return HamrPlugin.results(
+        results,
+        input_mode="realtime",
+    )
 
 
-def read_niri_event(proc: subprocess.Popen) -> str | None:
-    """Read a single event from niri event stream. Returns event type or None."""
+@plugin.on_action
+async def handle_action(item_id: str, action: str = None, context: str = None):
+    """Handle action request."""
+    if item_id == "__empty__":
+        return {"type": "execute", "close": True}
+
+    if item_id.startswith("action:"):
+        action_id_full = item_id.replace("action:", "")
+
+        if action_id_full.startswith("goto-workspace:"):
+            ws_idx = action_id_full.split(":")[1]
+            cmd = ["niri", "msg", "action", "focus-workspace", ws_idx]
+            name = f"Go to Workspace {ws_idx}"
+            try:
+                subprocess.run(cmd, check=True, capture_output=True)
+                return {"type": "execute", "close": True, "notify": f"{name} executed"}
+            except subprocess.CalledProcessError as e:
+                return {"type": "error", "message": f"Failed: {e}"}
+
+        if action_id_full.startswith("move-to-workspace:"):
+            ws_idx = action_id_full.split(":")[1]
+            cmd = ["niri", "msg", "action", "move-window-to-workspace", ws_idx]
+            name = f"Move to Workspace {ws_idx}"
+            try:
+                subprocess.run(cmd, check=True, capture_output=True)
+                return {"type": "execute", "close": True, "notify": f"{name} executed"}
+            except subprocess.CalledProcessError as e:
+                return {"type": "error", "message": f"Failed: {e}"}
+
+        niri_action = next((a for a in NIRI_ACTIONS if a["id"] == action_id_full), None)
+        if not niri_action:
+            return {
+                "type": "error",
+                "message": f"Unknown action: {action_id_full}",
+            }
+
+        success, message = execute_action(niri_action)
+        if success:
+            return {"type": "execute", "close": True, "notify": message}
+        else:
+            return {"type": "error", "message": message}
+
+    if item_id.startswith("window:"):
+        window_id = int(item_id.replace("window:", ""))
+
+        if action == "close":
+            success, message = close_window(window_id)
+            windows = get_windows()
+            workspaces = get_workspaces()
+            results = [window_to_result(w, workspaces) for w in windows]
+            if not results:
+                results = [
+                    {"id": "__empty__", "name": "No windows open", "icon": "info"}
+                ]
+            response = HamrPlugin.results(results)
+            if success:
+                response["status"] = {"notify": message}
+            return response
+
+        if action and action.startswith("move:"):
+            workspace_idx = int(action.replace("move:", ""))
+            success, message = move_window_to_workspace(window_id, workspace_idx)
+            windows = get_windows()
+            workspaces = get_workspaces()
+            results = [window_to_result(w, workspaces) for w in windows]
+            if not results:
+                results = [
+                    {"id": "__empty__", "name": "No windows open", "icon": "info"}
+                ]
+            response = HamrPlugin.results(results)
+            if success:
+                response["status"] = {"notify": message}
+            return response
+
+        success, message = focus_window(window_id)
+        if success:
+            return {"type": "execute", "close": True}
+        else:
+            return {"type": "error", "message": message}
+
+    return {"type": "error", "message": f"Unknown item: {item_id}"}
+
+
+@plugin.add_background_task
+async def watch_niri_events(p: HamrPlugin):
+    """Background task that watches Niri events and sends updates."""
+    import asyncio
     import fcntl
 
-    try:
-        if proc.stdout is None:
+    def start_niri_event_stream() -> subprocess.Popen | None:
+        """Start niri event-stream subprocess. Returns Popen or None."""
+        try:
+            proc = subprocess.Popen(
+                ["niri", "msg", "-j", "event-stream"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                bufsize=1,
+            )
+            # Set stdout to non-blocking
+            if proc.stdout:
+                fd = proc.stdout.fileno()
+                fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+                fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+            return proc
+        except (OSError, FileNotFoundError):
             return None
 
-        fd = proc.stdout.fileno()
-        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-
+    def read_niri_event(proc: subprocess.Popen) -> str | None:
+        """Read a single event from niri event stream (non-blocking). Returns event type or None."""
         try:
+            if proc.stdout is None:
+                return None
+
             line = proc.stdout.readline()
             if not line:
                 return None
             data = json.loads(line)
             keys = list(data.keys())
             return keys[0] if keys else None
-        finally:
-            fcntl.fcntl(fd, fcntl.F_SETFL, fl)
-    except (json.JSONDecodeError, OSError, IOError, BlockingIOError):
-        return None
+        except (json.JSONDecodeError, OSError, IOError, BlockingIOError):
+            return None
 
-
-WATCH_EVENTS = {"WindowOpenedOrChanged", "WindowClosed"}
-
-
-def handle_request(input_data: dict):
-    """Handle a single request (initial, search, action, index)."""
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "").strip()
-    selected = input_data.get("selected", {})
-    action = input_data.get("action", "")
-
-    windows = get_windows()
-    workspaces = get_workspaces()
-
-    if step == "index":
-        items = get_index_items()
-        print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
-        return
-
-    if step == "initial":
-        results = [window_to_result(w, workspaces) for w in windows]
-        results.extend(get_common_commands())
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "placeholder": "Filter windows or type a command...",
-                    "inputMode": "realtime",
-                }
-            ),
-            flush=True,
-        )
-        return
-
-    if step == "search":
-        query_lower = query.lower()
-        results = []
-
-        filtered_actions = [
-            a
-            for a in NIRI_ACTIONS
-            if query_lower in a["name"].lower()
-            or query_lower in a["description"].lower()
-            or query_lower in a["id"].lower()
-        ]
-        results.extend([action_to_result(a) for a in filtered_actions])
-
-        filtered_windows = [
-            w
-            for w in windows
-            if query_lower in w.get("title", "").lower()
-            or query_lower in w.get("app_id", "").lower()
-        ]
-        results.extend([window_to_result(w, workspaces) for w in filtered_windows])
-
-        if not results:
-            results = [
-                {
-                    "id": "__empty__",
-                    "name": f"No matches for '{query}'",
-                    "icon": "search_off",
-                    "description": "Try 'fullscreen', 'floating', 'center'...",
-                }
-            ]
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                }
-            ),
-            flush=True,
-        )
-        return
-
-    if step == "action":
-        item_id = selected.get("id", "")
-
-        if item_id == "__empty__":
-            print(json.dumps({"type": "execute", "close": True}), flush=True)
-            return
-
-        if item_id.startswith("action:"):
-            action_id_full = item_id.replace("action:", "")
-
-            if action_id_full.startswith("goto-workspace:"):
-                ws_idx = action_id_full.split(":")[1]
-                cmd = ["niri", "msg", "action", "focus-workspace", ws_idx]
-                name = f"Go to Workspace {ws_idx}"
-                try:
-                    subprocess.run(cmd, check=True, capture_output=True)
-                    print(
-                        json.dumps(
-                            {
-                                "type": "execute",
-                                "close": True,
-                                "notify": f"{name} executed",
-                            }
-                        ),
-                        flush=True,
-                    )
-                except subprocess.CalledProcessError as e:
-                    print(
-                        json.dumps({"type": "error", "message": f"Failed: {e}"}),
-                        flush=True,
-                    )
-                return
-
-            if action_id_full.startswith("move-to-workspace:"):
-                ws_idx = action_id_full.split(":")[1]
-                cmd = ["niri", "msg", "action", "move-window-to-workspace", ws_idx]
-                name = f"Move to Workspace {ws_idx}"
-                try:
-                    subprocess.run(cmd, check=True, capture_output=True)
-                    print(
-                        json.dumps(
-                            {
-                                "type": "execute",
-                                "close": True,
-                                "notify": f"{name} executed",
-                            }
-                        ),
-                        flush=True,
-                    )
-                except subprocess.CalledProcessError as e:
-                    print(
-                        json.dumps({"type": "error", "message": f"Failed: {e}"}),
-                        flush=True,
-                    )
-                return
-
-            niri_action = next(
-                (a for a in NIRI_ACTIONS if a["id"] == action_id_full), None
-            )
-            if not niri_action:
-                print(
-                    json.dumps(
-                        {
-                            "type": "error",
-                            "message": f"Unknown action: {action_id_full}",
-                        }
-                    ),
-                    flush=True,
-                )
-                return
-
-            success, message = execute_action(niri_action)
-            if success:
-                print(
-                    json.dumps(
-                        {
-                            "type": "execute",
-                            "close": True,
-                            "notify": message,
-                        }
-                    ),
-                    flush=True,
-                )
-            else:
-                print(json.dumps({"type": "error", "message": message}), flush=True)
-            return
-
-        if item_id.startswith("window:"):
-            window_id = int(item_id.replace("window:", ""))
-
-            if action == "close":
-                success, message = close_window(window_id)
-                windows = get_windows()
-                workspaces = get_workspaces()
-                results = [window_to_result(w, workspaces) for w in windows]
-                if not results:
-                    results = [
-                        {"id": "__empty__", "name": "No windows open", "icon": "info"}
-                    ]
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": results,
-                            "notify": message if success else None,
-                        }
-                    ),
-                    flush=True,
-                )
-                return
-
-            if action.startswith("move:"):
-                workspace_idx = int(action.replace("move:", ""))
-                success, message = move_window_to_workspace(window_id, workspace_idx)
-                windows = get_windows()
-                workspaces = get_workspaces()
-                results = [window_to_result(w, workspaces) for w in windows]
-                if not results:
-                    results = [
-                        {"id": "__empty__", "name": "No windows open", "icon": "info"}
-                    ]
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": results,
-                            "notify": message if success else None,
-                        }
-                    ),
-                    flush=True,
-                )
-                return
-
-            success, message = focus_window(window_id)
-            if success:
-                print(
-                    json.dumps({"type": "execute", "close": True}),
-                    flush=True,
-                )
-            else:
-                print(json.dumps({"type": "error", "message": message}), flush=True)
-            return
-
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}), flush=True)
-
-
-def main():
-    event_proc = None
-    running = True
-
-    def shutdown(signum, frame):
-        nonlocal running, event_proc
-        running = False
-        if event_proc is not None:
-            event_proc.terminate()
-        sys.exit(0)
-
-    signal.signal(signal.SIGTERM, shutdown)
-    signal.signal(signal.SIGINT, shutdown)
-
-    items = get_index_items()
-    print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
+    WATCH_EVENTS = {"WindowOpenedOrChanged", "WindowClosed"}
 
     event_proc = start_niri_event_stream()
     last_index_time = 0.0
     pending_index = False
 
     if event_proc is not None:
-        while running:
+        while True:
             now = time.time()
             if pending_index and now - last_index_time >= INDEX_DEBOUNCE_INTERVAL:
-                items = get_index_items()
-                print(
-                    json.dumps({"type": "index", "mode": "full", "items": items}),
-                    flush=True,
+                windows = get_windows()
+                workspaces = get_workspaces()
+                results = [window_to_result(w, workspaces) for w in windows]
+                results.extend(get_common_commands())
+
+                await p.send_results(
+                    results,
+                    placeholder="Filter windows or type a command...",
+                    input_mode="realtime",
                 )
                 last_index_time = now
                 pending_index = False
 
-            try:
-                readable, _, _ = select.select(
-                    [sys.stdin, event_proc.stdout], [], [], 0.2
-                )
-            except (ValueError, OSError):
-                break
+            # Non-blocking check for events
+            event = read_niri_event(event_proc)
+            if event in WATCH_EVENTS:
+                pending_index = True
 
-            for r in readable:
-                if r == sys.stdin:
-                    try:
-                        line = sys.stdin.readline()
-                        if not line:
-                            event_proc.terminate()
-                            return
-                        input_data = json.loads(line)
-                        handle_request(input_data)
-                    except json.JSONDecodeError:
-                        continue
-
-                elif r == event_proc.stdout:
-                    event = read_niri_event(event_proc)
-                    if event in WATCH_EVENTS:
-                        pending_index = True
-
+            # Check if process died
             if event_proc.poll() is not None:
                 event_proc = start_niri_event_stream()
                 if event_proc is None:
                     break
-    else:
-        while True:
-            try:
-                readable, _, _ = select.select([sys.stdin], [], [], 2.0)
-            except (ValueError, OSError):
-                break
 
-            if readable:
-                try:
-                    line = sys.stdin.readline()
-                    if not line:
-                        return
-                    input_data = json.loads(line)
-                    handle_request(input_data)
-                except json.JSONDecodeError:
-                    continue
+            # Yield control to other async tasks - this is critical!
+            await asyncio.sleep(0.1)
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

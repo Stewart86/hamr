@@ -1,11 +1,21 @@
 {
-    "name": "Todo",
-    "description": "Manage your todo list",
-    "icon": "checklist",
-    "supportedCompositors": ["*"],
-    "frecency": "plugin",
-    "daemon": {
-        "enabled": true,
-        "background": true
-    }
+  "name": "Todo",
+  "description": "Manage your todo list",
+  "icon": "checklist",
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
+  "daemon": {
+    "enabled": true,
+    "background": true,
+    "restartOnCrash": true
+  },
+  "frecency": "plugin",
+  "supportedPlatforms": [
+    "niri",
+    "hyprland",
+    "macos",
+    "windows"
+  ]
 }

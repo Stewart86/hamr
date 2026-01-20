@@ -2,6 +2,8 @@
   "name": "What's That Word?",
   "description": "Find words from descriptions or fix misspellings",
   "icon": "lightbulb",
-  "supportedCompositors": ["*"],
-  "frecency": "plugin"
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

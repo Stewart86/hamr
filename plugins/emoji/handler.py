@@ -2,16 +2,19 @@
 """
 Emoji plugin - search and copy emojis.
 Emojis are loaded from bundled emojis.tsv file.
-Runs as a daemon and emits full index on startup.
+Runs as a socket daemon and indexes emojis on startup.
 """
 
+import asyncio
 import json
 import os
-import select
-import signal
 import subprocess
 import sys
 from pathlib import Path
+
+# Add parent directory to path to import SDK
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
 
 # Load emojis from bundled file
 PLUGIN_DIR = Path(__file__).parent
@@ -92,68 +95,10 @@ def fuzzy_match(query: str, emojis: list[dict]) -> list[dict]:
     return results
 
 
-def format_results(emojis: list[dict]) -> list[dict]:
-    """Format emojis as hamr results (list view)."""
-    return [
-        {
-            "id": f"emoji:{e['emoji']}",
-            "name": e["name"] if e["name"] else e["emoji"],
-            "icon": e["emoji"],
-            "iconType": "text",
-            "verb": "Copy",
-            "actions": [
-                {"id": "copy", "name": "Copy", "icon": "content_copy"},
-                {"id": "type", "name": "Type", "icon": "keyboard"},
-            ],
-        }
-        for e in emojis
-    ]
-
-
-def format_grid_items(
-    emojis: list[dict], recent_emojis: list[str] | None = None
-) -> list[dict]:
-    """Format emojis as grid items for gridBrowser.
-
-    If recent_emojis is provided, prepend them to the grid.
-    """
-    items = []
-
-    # Add recently used emojis first (with special styling)
-    if recent_emojis:
-        emoji_lookup = {e["emoji"]: e for e in emojis}
-        for emoji_char in recent_emojis:
-            if emoji_char in emoji_lookup:
-                e = emoji_lookup[emoji_char]
-                items.append(
-                    {
-                        "id": f"emoji:{e['emoji']}",
-                        "name": e["name"][:20] if e["name"] else "",
-                        "keywords": e["keywords"],
-                        "icon": e["emoji"],
-                        "iconType": "text",
-                    }
-                )
-
-    # Add all emojis (will include duplicates of recent, but that's OK for grid)
-    for e in emojis:
-        items.append(
-            {
-                "id": f"emoji:{e['emoji']}",
-                "name": e["name"][:20] if e["name"] else "",
-                "keywords": e["keywords"],
-                "icon": e["emoji"],
-                "iconType": "text",
-            }
-        )
-
-    return items
-
-
 def copy_to_clipboard(text: str) -> None:
     """Copy text to clipboard using wl-copy."""
     try:
-        subprocess.run(["wl-copy", text], check=True)
+        subprocess.run(["wl-copy"], input=text.encode(), check=True)
     except FileNotFoundError:
         # Fallback to xclip if wl-copy not available
         try:
@@ -177,11 +122,7 @@ def type_text(text: str) -> None:
 
 
 def format_index_items(emojis: list[dict]) -> list[dict]:
-    """Format emojis as indexable items for main search.
-
-    Uses entryPoint for execution so handler can track recently used emojis.
-    Name and keywords are separated for proper fuzzy scoring (name matches rank higher).
-    """
+    """Format emojis as indexable items for main search."""
     return [
         {
             "id": f"emoji:{e['emoji']}",
@@ -190,20 +131,11 @@ def format_index_items(emojis: list[dict]) -> list[dict]:
             "icon": e["emoji"],
             "iconType": "text",
             "verb": "Copy",
-            "entryPoint": {
-                "step": "action",
-                "selected": {"id": f"emoji:{e['emoji']}"},
-            },
             "actions": [
                 {
                     "id": "type",
                     "name": "Type",
                     "icon": "keyboard",
-                    "entryPoint": {
-                        "step": "action",
-                        "selected": {"id": f"emoji:{e['emoji']}"},
-                        "action": "type",
-                    },
                 }
             ],
         }
@@ -211,152 +143,101 @@ def format_index_items(emojis: list[dict]) -> list[dict]:
     ]
 
 
-def handle_request(request: dict, emojis: list[dict]) -> None:
-    """Handle a single request from the launcher."""
-    step = request.get("step", "initial")
-    query = request.get("query", "")
-    selected = request.get("selected", {})
-    action = request.get("action", "")
+def format_results(emojis: list[dict]) -> list[dict]:
+    """Format emojis as search results."""
+    return [
+        {
+            "id": f"emoji:{e['emoji']}",
+            "name": e["name"] if e["name"] else e["emoji"],
+            "icon": e["emoji"],
+            "iconType": "text",
+            "verb": "Copy",
+            "actions": [
+                {"id": "copy", "name": "Copy", "icon": "content_copy"},
+                {"id": "type", "name": "Type", "icon": "keyboard"},
+            ],
+        }
+        for e in emojis
+    ]
 
-    if step == "index":
-        items = format_index_items(emojis)
-        print(
-            json.dumps({"type": "index", "mode": "full", "items": items}),
-            flush=True,
-        )
-        return
 
-    if step == "initial":
-        # Show all emojis in grid view, with recently used at the top
-        recent_emojis = load_recent_emojis()
-        grid_items = format_grid_items(emojis, recent_emojis)
-        print(
-            json.dumps(
-                {
-                    "type": "gridBrowser",
-                    "gridBrowser": {
-                        "title": "Select Emoji",
-                        "items": grid_items,
-                        "columns": 10,
-                        "cellAspectRatio": 1.0,
-                        "actions": [
-                            {"id": "copy", "name": "Copy", "icon": "content_copy"},
-                            {"id": "type", "name": "Type", "icon": "keyboard"},
-                        ],
-                    },
-                }
-            ),
-            flush=True,
-        )
-        return
+# Create plugin instance
+plugin = HamrPlugin(
+    id="emoji",
+    name="Emoji",
+    description="Search and copy emojis",
+    icon="emoji_emotions",
+)
 
-    if step == "search":
-        # Search returns list view for better readability
-        matches = fuzzy_match(query, emojis)
-        results = format_results(matches)
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "placeholder": "Search emojis...",
-                }
-            ),
-            flush=True,
-        )
-        return
+# Load emojis once at startup
+emojis = load_emojis()
 
-    if step == "action":
-        selected_id = selected.get("id", "")
 
-        # Handle gridBrowser selection
-        if selected_id == "gridBrowser":
-            item_id = selected.get("itemId", "")
-            # Extract emoji from prefixed ID (emoji:X -> X)
-            emoji = item_id[6:] if item_id.startswith("emoji:") else item_id
-            action_id = selected.get("action", "") or action or "copy"
-        else:
-            # Extract emoji from prefixed ID (emoji:X -> X)
-            emoji = selected_id[6:] if selected_id.startswith("emoji:") else selected_id
-            action_id = action if action else "copy"
-
-        if not emoji:
-            print(
-                json.dumps({"type": "error", "message": "No emoji selected"}),
-                flush=True,
-            )
-            return
-
-        # Look up emoji name for history tracking
-        emoji_data = next((e for e in emojis if e["emoji"] == emoji), None)
-        name = emoji_data["name"][:30] if emoji_data else ""
-        history_name = f"{emoji} {name}" if name else emoji
-
-        if action_id == "type":
-            type_text(emoji)
-            save_recent_emoji(emoji)
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "notify": f"Typed {emoji}",
-                        "close": True,
-                        "name": history_name,
-                    }
-                ),
-                flush=True,
-            )
-        else:
-            copy_to_clipboard(emoji)
-            save_recent_emoji(emoji)
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "notify": f"Copied {emoji}",
-                        "close": True,
-                        "name": history_name,
-                    }
-                ),
-                flush=True,
-            )
-        return
-
-    print(
-        json.dumps({"type": "error", "message": f"Unknown step: {step}"}),
-        flush=True,
+@plugin.on_initial
+async def handle_initial(params=None):
+    """Handle initial request when plugin is opened."""
+    results = format_results(emojis)
+    return HamrPlugin.results(
+        results, placeholder="Search emojis...", display_hint="grid"
     )
 
 
-def main():
-    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
-    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
+@plugin.on_search
+async def handle_search(query: str, context=None):
+    """Handle search request."""
+    matches = fuzzy_match(query, emojis)
+    results = format_results(matches)
+    return HamrPlugin.results(
+        results, placeholder="Search emojis...", display_hint="grid"
+    )
 
-    # Load emojis once at startup
-    emojis = load_emojis()
 
+@plugin.on_action
+async def handle_action(item_id: str, action=None, context=None):
+    """Handle action request (copy or type emoji)."""
+    # Extract emoji from item ID (emoji:X -> X)
+    emoji = item_id[6:] if item_id.startswith("emoji:") else item_id
+
+    if not emoji:
+        return {"error": "No emoji selected"}
+
+    # Look up emoji name for history tracking
+    emoji_data = next((e for e in emojis if e["emoji"] == emoji), None)
+    name = emoji_data["name"][:30] if emoji_data else ""
+    history_name = f"{emoji} {name}" if name else emoji
+
+    if action == "type":
+        type_text(emoji)
+        save_recent_emoji(emoji)
+        await plugin.send_execute(
+            {
+                "type": "notify",
+                "message": f"Typed {emoji}",
+            }
+        )
+        return HamrPlugin.close()
+    else:
+        # Default to copy
+        copy_to_clipboard(emoji)
+        save_recent_emoji(emoji)
+        await plugin.send_execute(
+            {
+                "type": "notify",
+                "message": f"Copied {emoji}",
+            }
+        )
+        return HamrPlugin.close()
+
+
+@plugin.add_background_task
+async def emit_index(p: HamrPlugin):
+    """Background task to emit full index on startup."""
     items = format_index_items(emojis)
-    print(
-        json.dumps({"type": "index", "mode": "full", "items": items}),
-        flush=True,
-    )
-
-    # Daemon loop
+    await p.send_index(items)
+    # Keep task alive but don't do anything else
     while True:
-        readable, _, _ = select.select([sys.stdin], [], [], 1.0)
-        if readable:
-            line = sys.stdin.readline()
-            if not line:
-                break
-            try:
-                request = json.loads(line.strip())
-                handle_request(request, emojis)
-            except json.JSONDecodeError:
-                print(
-                    json.dumps({"type": "error", "message": "Invalid JSON"}),
-                    flush=True,
-                )
+        await asyncio.sleep(1)
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

@@ -1,10 +1,18 @@
 {
+  "id": "webapp",
   "name": "Web Apps",
   "description": "Install and manage web apps",
   "icon": "web",
-  "supportedCompositors": ["*"],
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
   "daemon": {
     "enabled": true,
     "background": true
-  }
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

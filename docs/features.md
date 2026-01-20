@@ -37,41 +37,40 @@ Powered by [qalculate](https://qalculate.github.io/) - supports 150+ currencies,
 
 All plugins are indexed and searchable directly from the main bar - no prefix required. Just type what you want (e.g., "clipboard", "emoji", "power") and Hamr finds it.
 
-| Plugin            | Description                                                                |
-| ----------------- | -------------------------------------------------------------------------- |
-| `apps`            | App drawer with categories (like rofi/dmenu)                               |
-| `bitwarden`       | Password manager with keyring integration                                  |
-| `calculate`       | Calculator with currency, units, and temperature                           |
-| `clipboard`       | Clipboard history with OCR search, filter by type                          |
-| `create-plugin`   | AI helper to create new plugins (requires [OpenCode](https://opencode.ai)) |
-| `dictionary`      | Dictionary lookup with definitions                                         |
-| `emoji`           | Emoji picker with search                                                   |
-| `files`           | File search with fd + fzf, thumbnails for images                           |
-| `aur`             | Search and install packages from AUR (yay/paru)                            |
-| `flathub`         | Search and install apps from Flathub                                       |
-| `notes`           | Quick notes with multi-line content support                                |
-| `pictures`        | Browse images with thumbnails                                              |
-| `player`          | Media player controls via playerctl                                        |
-| `power`           | System power and session controls                                          |
-| `quicklinks`      | Web search with customizable quicklinks                                    |
-| `screenrecord`    | Screen recording with auto-trim (wf-recorder)                              |
-| `screenshot`      | Browse screenshots with OCR text search                                    |
-| `settings`        | Configure Hamr launcher options                                            |
-| `sound`           | System volume controls                                                     |
-| `shell`           | Shell command history (zsh/bash/fish)                                      |
-| `snippet`         | Text snippets for quick insertion                                          |
-| `theme`           | Dark/light mode and accent color switching                                 |
-| `timer`           | Countdown timers with presets, FAB display, and notifications              |
-| `todo`            | Simple todo list manager (live updates via daemon)                         |
-| `topcpu`          | Process monitor sorted by CPU usage (live daemon refresh)                  |
-| `topmem`          | Process monitor sorted by memory usage (live daemon refresh)               |
-| `url`             | Open URLs in browser (auto-detects domain patterns)                        |
-| `wallpaper`       | Wallpaper selector (swww, hyprpaper, swaybg, feh)                          |
-| `webapp`          | Install and manage web apps                                                |
-| `whats-that-word` | Find words from descriptions or fix misspellings                           |
-| `zoxide`          | Jump to frequently used directories                                        |
-| `hyprland`        | Window management, dispatchers, and global shortcuts (Hyprland only)       |
-| `niri`            | Window management and compositor actions (Niri only)                       |
+| Plugin            | Description                                                          |
+| ----------------- | -------------------------------------------------------------------- |
+| `apps`            | App drawer with categories (like rofi/dmenu)                         |
+| `bitwarden`       | Password manager with keyring integration                            |
+| `calculate`       | Calculator with currency, units, and temperature                     |
+| `clipboard`       | Clipboard history with OCR search, filter by type                    |
+| `dictionary`      | Dictionary lookup with definitions                                   |
+| `emoji`           | Emoji picker with search                                             |
+| `files`           | File search with fd + fzf, thumbnails for images                     |
+| `aur`             | Search and install packages from AUR (yay/paru)                      |
+| `flathub`         | Search and install apps from Flathub                                 |
+| `notes`           | Quick notes with multi-line content support                          |
+| `pictures`        | Browse images with thumbnails                                        |
+| `player`          | Media player controls via playerctl                                  |
+| `power`           | System power and session controls                                    |
+| `quicklinks`      | Web search with customizable quicklinks                              |
+| `screenrecord`    | Screen recording with auto-trim (wf-recorder)                        |
+| `screenshot`      | Browse screenshots with OCR text search                              |
+| `settings`        | Configure Hamr launcher options                                      |
+| `sound`           | System volume controls                                               |
+| `shell`           | Shell command history (zsh/bash/fish)                                |
+| `snippet`         | Text snippets for quick insertion                                    |
+| `theme`           | Dark/light mode and accent color switching                           |
+| `timer`           | Countdown timers with presets, FAB display, and notifications        |
+| `todo`            | Simple todo list manager (live updates via daemon)                   |
+| `topcpu`          | Process monitor sorted by CPU usage (live daemon refresh)            |
+| `topmem`          | Process monitor sorted by memory usage (live daemon refresh)         |
+| `url`             | Open URLs in browser (auto-detects domain patterns)                  |
+| `wallpaper`       | Wallpaper selector (swww, hyprpaper, swaybg, feh)                    |
+| `webapp`          | Install and manage web apps                                          |
+| `whats-that-word` | Find words from descriptions or fix misspellings                     |
+| `zoxide`          | Jump to frequently used directories                                  |
+| `hyprland`        | Window management, dispatchers, and global shortcuts (Hyprland only) |
+| `niri`            | Window management and compositor actions (Niri only)                 |
 
 ---
 
