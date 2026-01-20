@@ -628,8 +628,8 @@ WantedBy=graphical-session.target
 fn generate_gtk_service() -> Result<String> {
     let gtk_path = which_gtk()?;
 
-    Ok(format!(
-        r"[Unit]
+    let service_content = format!(
+        r#"[Unit]
 Description=Hamr Launcher GTK UI
 Documentation=https://hamr.run
 PartOf=graphical-session.target
@@ -638,15 +638,18 @@ Requires=hamr-daemon.service
 
 [Service]
 Type=simple
-ExecStart={gtk_path}
-Restart=on-failure
+ExecStart={}
+Restart=always
 RestartSec=3
+# Wait for display to be available
+ExecStartPre=/bin/sh -c 'while ! [ -e "/run/user/$(id -u)/${{WAYLAND_DISPLAY:-wayland-0}}" ]; do sleep 0.1; done'
 
 [Install]
 WantedBy=graphical-session.target
-",
-        gtk_path = gtk_path.display()
-    ))
+"#,
+        gtk_path.display()
+    );
+    Ok(service_content)
 }
 
 /// Find a hamr binary by name

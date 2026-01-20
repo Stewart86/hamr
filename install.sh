@@ -4,6 +4,7 @@
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
+#   ./install.sh  # If running from cloned repository
 #
 # Options (via environment variables):
 #   HAMR_VERSION=v0.1.0    Install specific version (default: latest)
@@ -61,11 +62,17 @@ detect_os() {
 check_requirements() {
     local missing=()
 
+    # Always need curl and tar for remote install
     for cmd in curl tar; do
         if ! command -v "$cmd" &>/dev/null; then
             missing+=("$cmd")
         fi
     done
+
+    # Need cargo for local builds
+    if is_local_clone && ! command -v cargo &>/dev/null; then
+        missing+=("cargo")
+    fi
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         error "Missing required commands: ${missing[*]}"
@@ -157,6 +164,11 @@ add_to_path() {
     info "Run 'source $rc_file' or start a new terminal to use hamr"
 }
 
+# Check if running from local repository clone
+is_local_clone() {
+    [[ -d ".git" ]] && [[ -f "Cargo.toml" ]] && command -v cargo &>/dev/null
+}
+
 main() {
     echo ""
     info "Installing Hamr Launcher"
@@ -164,6 +176,80 @@ main() {
 
     # Check requirements
     check_requirements
+
+    # Check if local clone
+    if is_local_clone; then
+        info "Detected local repository clone, building from source..."
+        # Build from local source
+        if ! cargo build --release; then
+            error "Failed to build from local source"
+        fi
+
+        # Use local build directory
+        local local_build_dir="target/release"
+        if [[ ! -d "$local_build_dir" ]]; then
+            error "Build directory not found: $local_build_dir"
+        fi
+
+        # Create installation directories
+        local bin_dir="$INSTALL_DIR/bin"
+        mkdir -p "$bin_dir"
+
+        # Install binaries from local build
+        info "Installing binaries from local build to $bin_dir..."
+        for binary in hamr hamr-daemon hamr-gtk hamr-tui; do
+            if [[ -f "$local_build_dir/$binary" ]]; then
+                cp "$local_build_dir/$binary" "$bin_dir/"
+                chmod +x "$bin_dir/$binary"
+            fi
+        done
+
+        # Install plugins directory if it exists
+        if [[ -d "plugins" ]]; then
+            info "Installing plugins..."
+            cp -r "plugins" "$bin_dir/../"
+        fi
+
+        success "Binaries installed from local build to $bin_dir"
+
+        # Add to PATH if needed
+        if [[ -z "$NO_MODIFY_PATH" ]]; then
+            add_to_path "$bin_dir"
+        fi
+
+        # Run hamr install to set up config and systemd
+        if [[ -z "$SKIP_INSTALL" ]]; then
+            echo ""
+            info "Running 'hamr install' to set up config and services..."
+            echo ""
+
+            # Add bin_dir to PATH for this invocation
+            export PATH="$bin_dir:$PATH"
+
+            if ! "$bin_dir/hamr" install; then
+                warn "'hamr install' encountered issues. You may need to run it manually."
+            fi
+        else
+            echo ""
+            info "Skipping 'hamr install' (HAMR_SKIP_INSTALL=1)"
+            info "Run 'hamr install' manually to set up config and systemd services"
+        fi
+
+        echo ""
+        success "Installation complete!"
+        echo ""
+        echo "Quick start:"
+        echo "  hamr                    # Start GTK launcher (auto-starts daemon)"
+        echo "  hamr toggle             # Toggle visibility (bind to Super+Space)"
+        echo "  hamr plugin clipboard   # Open clipboard manager"
+        echo ""
+        echo "Keybinding examples (Hyprland):"
+        echo "  exec-once = hamr        # Auto-start on login"
+        echo "  bind = SUPER, Space, exec, hamr toggle"
+        echo ""
+        echo "For more info: https://github.com/${REPO}"
+        return 0
+    fi
 
     # Detect platform
     local os arch
