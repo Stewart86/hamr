@@ -51,9 +51,8 @@ nav:
       - Visual Elements: plugins/visual-elements.md
       - Response Types: plugins/response-types.md
   - Architecture: architecture.md
-  - Development:
-        - Plugin Protocol: plugin-protocol.md
-        - Plugin Audit: plugin-audit-results.md
+   - Development:
+         - Plugin Protocol: plugin-protocol.md
 
 markdown_extensions:
   - pymdownx.highlight:
