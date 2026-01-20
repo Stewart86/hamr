@@ -30,13 +30,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libgtk-4-dev \
-            libgtk4-layer-shell-dev \
             pkg-config
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
-        with:
-          toolchain: stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Build release binaries
         run: cargo build --release
@@ -74,14 +71,14 @@ jobs:
           docker run --rm --platform linux/arm64 \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            ubuntu:24.04 bash -c '
-              apt-get update && apt-get install -y \
-                curl build-essential pkg-config \
-                libgtk-4-dev libgtk4-layer-shell-dev
-              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-              source $HOME/.cargo/env
-              cargo build --release
-            '
+          ubuntu:24.04 bash -c '
+            apt-get update && apt-get install -y \
+              curl build-essential pkg-config \
+              libgtk-4-dev
+            curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            source $HOME/.cargo/env
+            cargo build --release
+          '
 
       - name: Create archive
         run: |
