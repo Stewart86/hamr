@@ -81,7 +81,8 @@ markdown_extensions:
 
 plugins:
   - search
-  - mike
+  - mike:
+      deploy_prefix: rust
 
 extra:
   social:
