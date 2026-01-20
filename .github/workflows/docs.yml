@@ -41,6 +41,8 @@ jobs:
 
       - name: Deploy with versioning
         run: mike deploy --push --update-aliases v1.0.0-alpha latest
+
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
           path: site
