@@ -44,7 +44,7 @@ sudo apt install libgtk-4-dev gtk4-layer-shell-dev python3
 
 # Build
 git clone https://github.com/stewart86/hamr
-cd hamr-rs
+cd hamr
 cargo build --release
 
 # Install
