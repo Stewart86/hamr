@@ -9,6 +9,15 @@ on:
       - 'docs/**'
       - 'mkdocs.yml'
   workflow_dispatch:
+    inputs:
+      docs_type:
+        description: 'Type of docs to build (qml or rust)'
+        required: false
+        default: 'rust'
+        type: choice
+        options:
+          - rust
+          - qml
 
 permissions:
   contents: write
@@ -52,11 +61,40 @@ jobs:
             git reset --hard
             git commit --allow-empty -m "Initial gh-pages commit for mike versioning"
             git push origin gh-pages
-            git checkout rusty-hamr-v1.0.0-alpha
+            git checkout ${{ github.ref_name }}
+          fi
+
+      - name: Get docs type
+        id: docs_type
+        run: |
+          if [ "${{ github.event.inputs.docs_type }}" = "qml" ]; then
+            echo "type=qml" >> $GITHUB_OUTPUT
+            echo "prefix=" >> $GITHUB_OUTPUT
+            echo "version=qml-latest" >> $GITHUB_OUTPUT
+          else
+            echo "type=rust" >> $GITHUB_OUTPUT
+            echo "prefix=rust" >> $GITHUB_OUTPUT
+            echo "version=v1.0.0-alpha" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure mike for docs type
+        run: |
+          if [ "${{ steps.docs_type.outputs.type }}" = "qml" ]; then
+            # For QML docs, temporarily remove deploy_prefix
+            sed -i 's/deploy_prefix: rust/deploy_prefix: ""/' mkdocs.yml
           fi
 
       - name: Deploy docs with mike
-        run: mike deploy v1.0.0-alpha --update-aliases latest --push
+        run: |
+          DOCS_TYPE="${{ steps.docs_type.outputs.type }}"
+          PREFIX="${{ steps.docs_type.outputs.prefix }}"
+          VERSION="${{ steps.docs_type.outputs.version }}"
+
+          if [ "$DOCS_TYPE" = "qml" ]; then
+            mike deploy $VERSION --update-aliases latest --push
+          else
+            mike deploy $VERSION --update-aliases latest --push
+          fi
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
