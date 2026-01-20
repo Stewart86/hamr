@@ -34,6 +34,11 @@ jobs:
           pip install -r docs/requirements.txt
           pip install mike
 
+      - name: Setup git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Build docs with versioning
         run: mike deploy v1.0.0-alpha --update-aliases latest
 
