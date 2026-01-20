@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Clipboard plugin - browse and manage clipboard history via cliphist.
-Socket-based daemon version for hamr-rs.
+Socket-based daemon version for hamr.
 Features: list, search, copy, delete, wipe
 """
 

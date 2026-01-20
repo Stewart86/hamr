@@ -1,14 +1,15 @@
-# AGENTS.md - AI Agent Guidelines for hamr-rs
+# AGENTS.md - AI Agent Guidelines for hamr
 
 This document provides guidance for AI coding agents working on the Hamr launcher core library.
 
 ## Project Overview
 
-Hamr-rs is a Rust rewrite of Hamr, a desktop launcher originally built with QML/Quickshell. The goal is to create a platform-agnostic core with native UI implementations (GTK4 for Linux, future macOS/Windows support).
+Hamr is a Rust rewrite of Hamr, a desktop launcher originally built with QML/Quickshell. The goal is to create a platform-agnostic core with native UI implementations (GTK4 for Linux, future macOS/Windows support).
 
 **IMPORTANT**: This is a standalone project. Do NOT look at or modify files in the old QML project (`~/Projects/Personal/Qml/hamr/`). All code, including plugins, lives within this repository.
 
 The project consists of:
+
 - `hamr-types`: Shared type definitions
 - `hamr-rpc`: JSON-RPC protocol
 - `hamr-core`: Platform-agnostic core library (search, plugins, frecency, index)
@@ -62,7 +63,7 @@ cargo fmt
 cargo clippy
 cargo clippy -- -W clippy::all
 
-# Note: `cargo check` only verifies compilation, while `cargo clippy` 
+# Note: `cargo check` only verifies compilation, while `cargo clippy`
 # also catches common mistakes, non-idiomatic code, and performance issues
 ```
 
@@ -123,10 +124,10 @@ cargo test -p hamr-tui
 
 In debug builds, both daemon and TUI automatically log to timestamped files in `/tmp/`:
 
-| Component | Log File Pattern | Symlink |
-|-----------|-----------------|---------|
-| Daemon | `/tmp/hamr-daemon-YYYYMMDD_HHMMSS.log` | `/tmp/hamr-daemon.log` |
-| TUI | `/tmp/hamr-tui-YYYYMMDD_HHMMSS.log` | `/tmp/hamr-tui.log` |
+| Component | Log File Pattern                       | Symlink                |
+| --------- | -------------------------------------- | ---------------------- |
+| Daemon    | `/tmp/hamr-daemon-YYYYMMDD_HHMMSS.log` | `/tmp/hamr-daemon.log` |
+| TUI       | `/tmp/hamr-tui-YYYYMMDD_HHMMSS.log`    | `/tmp/hamr-tui.log`    |
 
 The symlinks always point to the most recent log file for easy access.
 
@@ -154,15 +155,18 @@ ls -lt /tmp/hamr-tui-*.log | head -5
 ### Debug Mode
 
 Debug builds automatically:
+
 - Log at `debug` level (verbose)
 - Write logs to timestamped files
 - Include file/line numbers in log output
 
 Release builds:
+
 - Log at `info` level
 - Write to stderr only
 
 Override log level with `RUST_LOG`:
+
 ```bash
 RUST_LOG=trace cargo run -p hamr-daemon  # Most verbose
 RUST_LOG=hamr=debug cargo run -p hamr-daemon  # Debug for hamr crates only
@@ -172,6 +176,7 @@ RUST_LOG=warn cargo run -p hamr-daemon  # Warnings and errors only
 ### Common Debugging Scenarios
 
 **Plugin not responding:**
+
 ```bash
 # Check if plugin is connected
 grep "plugin" /tmp/hamr-daemon.log | tail -20
@@ -181,12 +186,14 @@ grep "handle_item_selected\|Forwarding action" /tmp/hamr-daemon.log
 ```
 
 **Deserialization errors:**
+
 ```bash
 # TUI logs show JSON parsing failures
 grep -i "deserialization\|error" /tmp/hamr-tui.log
 ```
 
 **Form/settings issues:**
+
 ```bash
 # Trace form field changes
 grep -i "form\|slider\|switch" /tmp/hamr-daemon.log
@@ -195,12 +202,15 @@ grep -i "form\|slider\|switch" /tmp/hamr-daemon.log
 ## Code Style Guidelines
 
 ### Rust Edition & Toolchain
+
 - **Edition**: 2024
 - **Resolver**: 2
 - Uses workspace-level dependency management
 
 ### Import Organization
+
 Organize imports in this order, separated by blank lines:
+
 1. `crate::` imports (internal modules)
 2. `std::` imports
 3. External crate imports
@@ -217,6 +227,7 @@ use tracing::{debug, error, info, warn};
 ```
 
 ### Naming Conventions
+
 - **Types/Structs/Enums**: PascalCase (`HamrCore`, `SearchResult`, `PluginResponse`)
 - **Functions/Methods**: snake_case (`handle_query_changed`, `calculate_frecency`)
 - **Constants**: SCREAMING_SNAKE_CASE
@@ -224,6 +235,7 @@ use tracing::{debug, error, info, warn};
 - **Module files**: snake_case, use `mod.rs` for multi-file modules
 
 ### Error Handling
+
 - Use `thiserror` for library errors in `error.rs`
 - Define custom `Error` enum with `#[error("...")]` messages
 - Use type alias: `pub type Result<T> = std::result::Result<T, Error>`
@@ -242,6 +254,7 @@ pub enum Error {
 ```
 
 ### Serde Patterns
+
 - Use `#[serde(rename_all = "camelCase")]` for JSON protocol types
 - Use `#[serde(skip_serializing_if = "Option::is_none")]` for optional fields
 - Use `#[serde(default)]` with custom default functions when needed
@@ -259,22 +272,26 @@ pub struct ResultItem {
 ```
 
 ### Async Patterns
+
 - Use `tokio` runtime with `#[tokio::main]` and `#[tokio::test]`
 - `Arc<Mutex<T>>` for shared mutable state across async contexts
 - Use `tokio::time::timeout` for time-bounded operations
 - Async functions: `async fn method_name(&mut self) -> Result<T>`
 
 ### Struct Defaults
+
 - Derive `Default` when all fields have sensible defaults
 - Use `..Default::default()` for partial struct initialization
 - Create helper functions like `fn default_verb() -> String`
 
 ### Documentation & Comments
+
 - Module-level docs with `//!` for test modules
 - Doc comments `///` on public items that provide context beyond the name
 - **Minimize inline comments** - code should be self-documenting
 
 **Comment Rules:**
+
 - **DO NOT** add comments that describe "what" the code does (the code is self-documenting)
 - **DO NOT** add comments that restate the obvious (e.g., `// Create widget`, `// Return result`)
 - **DO NOT** add section header comments (e.g., `// === Section ===`)
@@ -329,18 +346,22 @@ crates/
 ## Key Architecture Patterns
 
 ### Event-Driven State Machine
+
 - `CoreEvent` flows from UI to core
 - `CoreUpdate` flows from core to UI
 - Process events via `core.process(event).await`
 - Poll for daemon updates via `core.poll_daemons().await`
 
 ### Plugin Protocol
+
 Steps: `initial` -> `search` -> `action` -> `form`
 
 Response types: `results`, `execute`, `card`, `form`, `index`, `status`, `update`, `error`
 
 ### Testing Patterns
+
 Use fixtures for test data:
+
 ```rust
 use super::fixtures::*;
 
@@ -362,11 +383,13 @@ Time helpers: `now_millis()`, `hours_ago(n)`, `days_ago(n)`
 5. **CLI commands**: Add variant to `Commands` enum, match arm in `main()`
 
 ## When Modifying Search
+
 - `SearchEngine` uses nucleo matcher
 - Composite scoring in `FrecencyScorer::composite_score()`
 - Diversity limiting via `FrecencyScorer::apply_diversity()`
 
 ## When Modifying Plugins
+
 - `PluginManager` handles discovery
 - `PluginProcess` handles IPC
 - Manifest parsing in `manifest.rs`
@@ -375,7 +398,9 @@ Time helpers: `now_millis()`, `hours_ago(n)`, `days_ago(n)`
 ## GTK4 Gotchas (hamr-gtk)
 
 ### Overlay Widget Positioning
+
 When using `gtk4::Overlay` with overlay children that need precise positioning:
+
 - **Problem**: By default, overlay children are NOT included in size measurements
 - **Symptom**: Overlay appears misaligned/shifted relative to main child
 - **Solution**: Call `overlay.set_measure_overlay(&child, true)` after `add_overlay()`
@@ -389,17 +414,18 @@ overlay.set_measure_overlay(&overlay_widget, true);
 ```
 
 ### CSS margin vs padding for Overlays
+
 - **margin** on overlay children causes positioning issues (pushes element asymmetrically)
 - **padding** is internal and doesn't affect overlay positioning
 - Prefer `padding` for spacing inside overlay children
 
 ## Dependencies (Key Crates)
 
-| Category       | Crate              | Purpose                  |
-|----------------|--------------------|--------------------------| 
-| Async          | `tokio`            | Async runtime            |
-| Serialization  | `serde`, `serde_json` | JSON protocol         |
-| Fuzzy search   | `nucleo`           | High-perf fuzzy matching |
-| Error handling | `thiserror`        | Typed errors             |
-| Logging        | `tracing`          | Structured logging       |
-| CLI            | `clap`             | Argument parsing         |
+| Category       | Crate                 | Purpose                  |
+| -------------- | --------------------- | ------------------------ |
+| Async          | `tokio`               | Async runtime            |
+| Serialization  | `serde`, `serde_json` | JSON protocol            |
+| Fuzzy search   | `nucleo`              | High-perf fuzzy matching |
+| Error handling | `thiserror`           | Typed errors             |
+| Logging        | `tracing`             | Structured logging       |
+| CLI            | `clap`                | Argument parsing         |

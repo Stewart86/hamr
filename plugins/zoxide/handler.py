@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Zoxide plugin - index frequently used directories from zoxide.
-Socket-based daemon version for hamr-rs.
+Socket-based daemon version for hamr.
 """
 
 import asyncio

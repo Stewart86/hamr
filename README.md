@@ -4,7 +4,7 @@ A fast, extensible desktop launcher for Linux.
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Rust](https://img.shields.io/badge/rust-1.85+-orange)
-![Platform](https://img.shields.io/badge/platform-Linux%20(Wayland)-green)
+![Platform](<https://img.shields.io/badge/platform-Linux%20(Wayland)-green>)
 
 Hamr learns from your usage patterns to surface what you need, when you need it. Type a few characters to launch apps, calculate math, search files, access clipboard history, and more.
 
@@ -23,7 +23,7 @@ Hamr learns from your usage patterns to surface what you need, when you need it.
 ### Quick Install (Linux x86_64/aarch64)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/anomalyco/hamr-rs/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
 ```
 
 This downloads the latest release, installs to `~/.local/bin`, copies essential plugins, and sets up systemd services.
@@ -43,7 +43,7 @@ sudo dnf install gtk4-devel gtk4-layer-shell-devel python3
 sudo apt install libgtk-4-dev gtk4-layer-shell-dev python3
 
 # Build
-git clone https://github.com/anomalyco/hamr-rs
+git clone https://github.com/stewart86/hamr
 cd hamr-rs
 cargo build --release
 
@@ -57,20 +57,20 @@ hamr install
 
 ```bash
 # Try without installing
-nix run github:anomalyco/hamr-rs
+nix run github:stewart86/hamr
 
 # Install to profile
-nix profile install github:anomalyco/hamr-rs
+nix profile install github:stewart86/hamr
 ```
 
 Or add to your flake:
 
 ```nix
 {
-  inputs.hamr.url = "github:anomalyco/hamr-rs";
+  inputs.hamr.url = "github:stewart86/hamr";
   # ...
   nixpkgs.overlays = [ hamr.overlays.default ];
-  environment.systemPackages = [ pkgs.hamr-rs ];
+  environment.systemPackages = [ pkgs.hamr ];
 }
 ```
 
@@ -115,20 +115,20 @@ binds {
 
 ## Built-in Plugins
 
-| Plugin      | Description                                      |
-|-------------|--------------------------------------------------|
-| `apps`      | Application launcher with categories             |
-| `shell`     | Execute shell commands                           |
-| `calculate` | Calculator with currency, units, temperature     |
-| `clipboard` | Clipboard history with search                    |
-| `power`     | Shutdown, reboot, suspend, logout                |
+| Plugin      | Description                                  |
+| ----------- | -------------------------------------------- |
+| `apps`      | Application launcher with categories         |
+| `shell`     | Execute shell commands                       |
+| `calculate` | Calculator with currency, units, temperature |
+| `clipboard` | Clipboard history with search                |
+| `power`     | Shutdown, reboot, suspend, logout            |
 
 Additional plugins available: `bitwarden`, `dictionary`, `emoji`, `files`, `quicklinks`, `snippets`, `totp`, `weather`, `wifi`, `youtube`.
 
 ## Prefix Shortcuts
 
 | Prefix | Function          | Prefix | Function          |
-|--------|-------------------|--------|-------------------|
+| ------ | ----------------- | ------ | ----------------- |
 | `~`    | File search       | `;`    | Clipboard history |
 | `/`    | Actions & plugins | `!`    | Shell history     |
 | `=`    | Calculator        | `:`    | Emoji picker      |

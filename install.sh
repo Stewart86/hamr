@@ -3,7 +3,7 @@
 # Hamr Launcher Installer
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/anomalyco/hamr-rs/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
 #
 # Options (via environment variables):
 #   HAMR_VERSION=v0.1.0    Install specific version (default: latest)
@@ -22,7 +22,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Repository information
-REPO="anomalyco/hamr-rs"
+REPO="stewart86/hamr"
 BINARY_NAME="hamr"
 
 # Configuration
@@ -60,13 +60,13 @@ detect_os() {
 # Check for required commands
 check_requirements() {
     local missing=()
-    
+
     for cmd in curl tar; do
         if ! command -v "$cmd" &>/dev/null; then
             missing+=("$cmd")
         fi
     done
-    
+
     if [[ ${#missing[@]} -gt 0 ]]; then
         error "Missing required commands: ${missing[*]}"
     fi
@@ -76,13 +76,13 @@ check_requirements() {
 get_latest_version() {
     local url="https://api.github.com/repos/${REPO}/releases/latest"
     local version
-    
+
     version=$(curl -fsSL "$url" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-    
+
     if [[ -z "$version" ]]; then
         error "Failed to get latest version from GitHub"
     fi
-    
+
     echo "$version"
 }
 
@@ -91,25 +91,25 @@ verify_checksum() {
     local archive="$1"
     local checksums_file="$2"
     local expected
-    
+
     if ! command -v sha256sum &>/dev/null; then
         warn "sha256sum not found, skipping checksum verification"
         return 0
     fi
-    
+
     expected=$(grep "$(basename "$archive")" "$checksums_file" | awk '{print $1}')
     if [[ -z "$expected" ]]; then
         warn "No checksum found for $(basename "$archive"), skipping verification"
         return 0
     fi
-    
+
     local actual
     actual=$(sha256sum "$archive" | awk '{print $1}')
-    
+
     if [[ "$expected" != "$actual" ]]; then
         error "Checksum mismatch for $archive\n  Expected: $expected\n  Actual:   $actual"
     fi
-    
+
     success "Checksum verified"
 }
 
@@ -118,7 +118,7 @@ add_to_path() {
     local bin_dir="$1"
     local rc_file=""
     local shell_name=""
-    
+
     # Detect shell
     shell_name=$(basename "$SHELL")
     case "$shell_name" in
@@ -130,17 +130,17 @@ add_to_path() {
             return
             ;;
     esac
-    
+
     # Check if already in PATH
     if [[ ":$PATH:" == *":$bin_dir:"* ]]; then
         return 0
     fi
-    
+
     # Check if rc file already has the path
     if [[ -f "$rc_file" ]] && grep -q "$bin_dir" "$rc_file" 2>/dev/null; then
         return 0
     fi
-    
+
     # Add to rc file
     local path_line
     if [[ "$shell_name" == "fish" ]]; then
@@ -148,11 +148,11 @@ add_to_path() {
     else
         path_line="export PATH=\"$bin_dir:\$PATH\""
     fi
-    
+
     echo "" >> "$rc_file"
     echo "# Added by hamr installer" >> "$rc_file"
     echo "$path_line" >> "$rc_file"
-    
+
     info "Added $bin_dir to PATH in $rc_file"
     info "Run 'source $rc_file' or start a new terminal to use hamr"
 }
@@ -161,40 +161,40 @@ main() {
     echo ""
     info "Installing Hamr Launcher"
     echo ""
-    
+
     # Check requirements
     check_requirements
-    
+
     # Detect platform
     local os arch
     os=$(detect_os)
     arch=$(detect_arch)
     info "Detected platform: $os-$arch"
-    
+
     # Get version
     if [[ -z "$VERSION" ]]; then
         info "Fetching latest release..."
         VERSION=$(get_latest_version)
     fi
     info "Version: $VERSION"
-    
+
     # Construct download URLs
     local archive_name="hamr-${os}-${arch}.tar.gz"
     local base_url="https://github.com/${REPO}/releases/download/${VERSION}"
     local archive_url="${base_url}/${archive_name}"
     local checksums_url="${base_url}/checksums.txt"
-    
+
     # Create temp directory
     local tmp_dir
     tmp_dir=$(mktemp -d)
     trap 'rm -rf "$tmp_dir"' EXIT
-    
+
     # Download archive
     info "Downloading $archive_name..."
     if ! curl -fsSL --progress-bar "$archive_url" -o "$tmp_dir/$archive_name"; then
         error "Failed to download $archive_url"
     fi
-    
+
     # Download and verify checksums
     info "Verifying checksum..."
     if curl -fsSL "$checksums_url" -o "$tmp_dir/checksums.txt" 2>/dev/null; then
@@ -202,22 +202,22 @@ main() {
     else
         warn "Could not download checksums, skipping verification"
     fi
-    
+
     # Extract archive
     info "Extracting..."
     tar -xzf "$tmp_dir/$archive_name" -C "$tmp_dir"
-    
+
     # Find extracted directory (hamr-linux-x86_64 or similar)
     local extract_dir
     extract_dir=$(find "$tmp_dir" -maxdepth 1 -type d -name "hamr-*" | head -1)
     if [[ -z "$extract_dir" ]]; then
         error "Could not find extracted directory"
     fi
-    
+
     # Create installation directories
     local bin_dir="$INSTALL_DIR/bin"
     mkdir -p "$bin_dir"
-    
+
     # Install binaries
     info "Installing binaries to $bin_dir..."
     for binary in hamr hamr-daemon hamr-gtk hamr-tui; do
@@ -226,29 +226,29 @@ main() {
             chmod +x "$bin_dir/$binary"
         fi
     done
-    
+
     # Install plugins directory next to binaries (for plugin discovery)
     if [[ -d "$extract_dir/plugins" ]]; then
         info "Installing plugins..."
         cp -r "$extract_dir/plugins" "$bin_dir/../"
     fi
-    
+
     success "Binaries installed to $bin_dir"
-    
+
     # Add to PATH if needed
     if [[ -z "$NO_MODIFY_PATH" ]]; then
         add_to_path "$bin_dir"
     fi
-    
+
     # Run hamr install to set up config and systemd
     if [[ -z "$SKIP_INSTALL" ]]; then
         echo ""
         info "Running 'hamr install' to set up config and services..."
         echo ""
-        
+
         # Add bin_dir to PATH for this invocation
         export PATH="$bin_dir:$PATH"
-        
+
         if ! "$bin_dir/hamr" install; then
             warn "'hamr install' encountered issues. You may need to run it manually."
         fi
@@ -257,7 +257,7 @@ main() {
         info "Skipping 'hamr install' (HAMR_SKIP_INSTALL=1)"
         info "Run 'hamr install' manually to set up config and systemd services"
     fi
-    
+
     echo ""
     success "Installation complete!"
     echo ""

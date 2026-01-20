@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Shared JSON-RPC 2.0 protocol definitions for hamr-rs"
+description = "Shared JSON-RPC 2.0 protocol definitions for hamr"
 
 [lints]
 workspace = true

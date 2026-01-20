@@ -1,5 +1,5 @@
 # Maintainer: Stewart <stewart@anomaly.co>
-# AUR package for hamr-rs - builds from source
+# AUR package for hamr - builds from source
 
 pkgname=hamr-git
 pkgver=1.0.0-alpha

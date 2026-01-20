@@ -1,4 +1,4 @@
-//! Shared JSON-RPC 2.0 protocol definitions for hamr-rs.
+//! Shared JSON-RPC 2.0 protocol definitions for hamr.
 //!
 //! This crate provides the protocol types, transport codec, and client helper
 //! for communication between hamr components over Unix sockets.
