@@ -178,6 +178,22 @@ The `niri` plugin provides natural language access to Niri window management, op
 
 Type `/niri` to browse all available actions, or search directly from the main bar.
 
+## Alternative Versions
+
+### Rust Version (Public Alpha)
+
+A Rust-based rewrite is available in public alpha. It offers the same features with improved performance and a more streamlined codebase.
+
+**Try it out:**
+
+```bash
+git clone https://github.com/stewart86/hamr.git
+cd hamr
+./install.sh
+```
+
+This will install the Rust version instead of the QML version. The alpha version is stable for daily use but may have some rough edges.
+
 ## Installation
 
 **Requirements:** Linux with a supported Wayland compositor (Hyprland or Niri)
