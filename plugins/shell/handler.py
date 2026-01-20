@@ -16,6 +16,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Add parent directory to path to import SDK
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
+
 IS_NIRI = bool(os.environ.get("NIRI_SOCKET"))
 
 IN_CLOSE_WRITE = 0x00000008
@@ -370,9 +374,7 @@ def handle_request(input_data: dict):
             for cmd in commands
         ]
 
-        print(
-            json.dumps({"type": "results", "results": results, "inputMode": "realtime"})
-        )
+        print(json.dumps(HamrPlugin.results(results, input_mode="realtime")))
         return
 
     if step == "search":
@@ -421,15 +423,13 @@ def handle_request(input_data: dict):
                 }
             )
 
-        print(
-            json.dumps({"type": "results", "results": results, "inputMode": "realtime"})
-        )
+        print(json.dumps(HamrPlugin.results(results, input_mode="realtime")))
         return
 
     if step == "action":
         item_id = selected.get("id", "")
         if not item_id:
-            print(json.dumps({"type": "error", "message": "No command selected"}))
+            print(json.dumps(HamrPlugin.error("No command selected")))
             return
 
         # Extract command from item_id
@@ -454,14 +454,14 @@ def handle_request(input_data: dict):
             cmd = item_id
 
         if action == "copy":
-            print(json.dumps({"type": "execute", "copy": cmd, "close": True}))
+            print(json.dumps(HamrPlugin.copy_and_close(cmd)))
         elif action == "run-tiled":
             run_in_terminal(cmd, floating=False)
-            print(json.dumps({"type": "execute", "close": True}))
+            print(json.dumps(HamrPlugin.close()))
         else:
             # Default: run floating (covers "run-float", "run", and no action)
             run_in_terminal(cmd, floating=True)
-            print(json.dumps({"type": "execute", "close": True}))
+            print(json.dumps(HamrPlugin.close()))
 
 
 def main():

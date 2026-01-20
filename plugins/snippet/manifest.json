@@ -2,9 +2,13 @@
   "name": "Snippets",
   "description": "Text snippets for quick insertion",
   "icon": "content_paste",
-  "supportedCompositors": ["*"],
-  "daemon": {
-    "enabled": true,
-    "background": true
-  }
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
+  },
+  "frecency": "item",
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

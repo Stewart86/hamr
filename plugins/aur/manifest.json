@@ -2,6 +2,16 @@
   "name": "AUR",
   "description": "Search and install packages from AUR",
   "icon": "inventory_2",
-  "supportedCompositors": ["*"],
-  "frecency": "plugin"
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
+  "daemon": {
+    "enabled": false
+  },
+  "frecency": "plugin",
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

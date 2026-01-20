@@ -1,29 +1,24 @@
 #!/usr/bin/env python3
 """
 Screen recorder plugin for hamr.
+
 Uses wf-recorder for recording, slurp for region selection.
-Automatically trims the end of recordings to remove hamr UI.
 """
 
 import json
 import os
 import subprocess
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
+
 IS_NIRI = bool(os.environ.get("NIRI_SOCKET"))
 
-# Directories
 VIDEOS_DIR = Path.home() / "Videos"
-CACHE_DIR = Path.home() / ".cache" / "hamr"
-LAUNCH_TIMESTAMP_FILE = CACHE_DIR / "launch_timestamp"
-RECORDING_STATE_FILE = CACHE_DIR / "screenrecord_state.json"
-
-# Timing constants
 START_DELAY_SECONDS = 3
-TRIM_BUFFER_MS = 500  # Extra buffer to ensure hamr animation is trimmed
 
 
 def is_recording() -> bool:
@@ -34,6 +29,15 @@ def is_recording() -> bool:
             == 0
         )
     except FileNotFoundError:
+        return False
+
+
+def has_wf_recorder() -> bool:
+    """Check if wf-recorder is installed."""
+    try:
+        subprocess.run(["which", "wf-recorder"], capture_output=True, check=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
 
@@ -51,7 +55,10 @@ def get_focused_monitor() -> str:
             return output.get("name", "")
         else:
             result = subprocess.run(
-                ["hyprctl", "monitors", "-j"], capture_output=True, text=True, timeout=5
+                ["hyprctl", "monitors", "-j"],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             monitors = json.loads(result.stdout)
             for monitor in monitors:
@@ -91,109 +98,6 @@ def get_output_path() -> str:
     return str(VIDEOS_DIR / f"recording_{timestamp}.mp4")
 
 
-def get_hamr_launch_time() -> int:
-    """Get timestamp (ms) when hamr was last opened."""
-    try:
-        return int(LAUNCH_TIMESTAMP_FILE.read_text().strip())
-    except (FileNotFoundError, ValueError):
-        return int(time.time() * 1000)
-
-
-def save_recording_state(recording_path: str, start_time_ms: int) -> None:
-    """Save recording state for later trimming."""
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    state = {
-        "recording_path": recording_path,
-        "start_time_ms": start_time_ms,
-    }
-    RECORDING_STATE_FILE.write_text(json.dumps(state))
-
-
-def load_recording_state() -> dict:
-    """Load recording state."""
-    try:
-        return json.loads(RECORDING_STATE_FILE.read_text())
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-
-def clear_recording_state() -> None:
-    """Clear recording state file."""
-    try:
-        RECORDING_STATE_FILE.unlink()
-    except FileNotFoundError:
-        pass
-
-
-def get_video_duration(video_path: str) -> float:
-    """Get video duration in seconds using ffprobe."""
-    try:
-        result = subprocess.run(
-            [
-                "ffprobe",
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                video_path,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        return float(result.stdout.strip())
-    except (subprocess.TimeoutExpired, ValueError):
-        return 0.0
-
-
-def trim_video_end(video_path: str, trim_seconds: float) -> bool:
-    """Trim the end of a video using ffmpeg. Returns True on success."""
-    if trim_seconds <= 0:
-        return True
-
-    duration = get_video_duration(video_path)
-    if duration <= 0:
-        return False
-
-    new_duration = duration - trim_seconds
-    if new_duration <= 0:
-        return False
-
-    # Create temp output path
-    temp_path = video_path.replace(".mp4", "_trimmed.mp4")
-
-    try:
-        result = subprocess.run(
-            [
-                "ffmpeg",
-                "-y",  # Overwrite
-                "-i",
-                video_path,
-                "-t",
-                str(new_duration),
-                "-c",
-                "copy",  # No re-encoding
-                temp_path,
-            ],
-            capture_output=True,
-            timeout=60,
-        )
-
-        if result.returncode == 0:
-            # Replace original with trimmed version
-            Path(temp_path).replace(video_path)
-            return True
-        else:
-            # Clean up temp file on failure
-            Path(temp_path).unlink(missing_ok=True)
-            return False
-    except subprocess.TimeoutExpired:
-        Path(temp_path).unlink(missing_ok=True)
-        return False
-
-
 def build_start_record_script(
     output_path: str, monitor: str = "", region: bool = False, audio: bool = False
 ) -> str:
@@ -202,11 +106,9 @@ def build_start_record_script(
     audio_flag = f'--audio="{audio_source}"' if audio and audio_source else ""
 
     if region:
-        # Region selection with slurp
         record_cmd = f"wf-recorder --pixel-format yuv420p -f '{output_path}' --geometry \"$region\" {audio_flag}"
         region_select = 'region=$(slurp 2>&1) || { notify-send "Recording cancelled" "Selection was cancelled"; exit 1; }'
     else:
-        # Full screen recording
         monitor_flag = f'-o "{monitor}"' if monitor else ""
         record_cmd = f"wf-recorder --pixel-format yuv420p -f '{output_path}' {monitor_flag} {audio_flag}"
         region_select = ""
@@ -220,180 +122,148 @@ sleep {START_DELAY_SECONDS}
     return script.strip()
 
 
-def build_stop_record_script(recording_path: str, trim_seconds: float) -> str:
-    """Build shell script for stopping and trimming recording."""
-    if trim_seconds > 0:
-        trim_cmd = f"""
-# Trim the end of the recording
-duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 '{recording_path}')
-new_duration=$(echo "$duration - {trim_seconds}" | bc)
-if (( $(echo "$new_duration > 0" | bc -l) )); then
-    temp_path='{recording_path.replace(".mp4", "_trimmed.mp4")}'
-    ffmpeg -y -i '{recording_path}' -t "$new_duration" -c copy "$temp_path" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        mv "$temp_path" '{recording_path}'
-        notify-send "Recording Saved" "Trimmed {trim_seconds:.1f}s from end"
-    else
-        rm -f "$temp_path"
-        notify-send "Recording Saved" "Could not trim, saved original"
-    fi
-else
-    notify-send "Recording Saved" "Too short to trim"
-fi
-"""
-    else:
-        trim_cmd = 'notify-send "Recording Saved" "Saved to Videos folder"'
-
-    script = f"""
-pkill -INT wf-recorder
-sleep 0.5
-{trim_cmd}
-"""
-    return script.strip()
+def build_stop_record_script() -> str:
+    """Build shell script for stopping recording."""
+    return (
+        'pkill -INT wf-recorder; notify-send "Recording Saved" "Saved to Videos folder"'
+    )
 
 
-def main():
-    input_data = json.load(sys.stdin)
-    step = input_data.get("step", "initial")
-    selected = input_data.get("selected", {})
+def get_results() -> list[dict]:
+    """Get results based on current recording state."""
+    results = []
+    recording = is_recording()
 
-    if step in ("initial", "search"):
-        results = []
-
-        if is_recording():
-            # Recording in progress - show stop option
-            results.append(
-                {
-                    "id": "stop",
-                    "name": "Stop Recording",
-                    "icon": "stop_circle",
-                    "description": "Stop and save current recording",
-                }
-            )
-        else:
-            # Show recording options
-            results.extend(
-                [
-                    {
-                        "id": "record_screen",
-                        "name": "Record Screen",
-                        "icon": "screen_record",
-                        "description": f"Record focused monitor (starts in {START_DELAY_SECONDS}s)",
-                    },
-                    {
-                        "id": "record_screen_audio",
-                        "name": "Record Screen with Audio",
-                        "icon": "mic",
-                        "description": f"Record with system audio (starts in {START_DELAY_SECONDS}s)",
-                    },
-                    {
-                        "id": "record_region",
-                        "name": "Record Region",
-                        "icon": "crop",
-                        "description": f"Select area to record (starts in {START_DELAY_SECONDS}s)",
-                    },
-                    {
-                        "id": "record_region_audio",
-                        "name": "Record Region with Audio",
-                        "icon": "settings_voice",
-                        "description": f"Select area with audio (starts in {START_DELAY_SECONDS}s)",
-                    },
-                ]
-            )
-
-        # Always show browse option
+    if recording:
         results.append(
             {
-                "id": "browse",
-                "name": "Open Recordings Folder",
-                "icon": "folder_open",
-                "description": str(VIDEOS_DIR),
+                "id": "stop",
+                "name": "Stop Recording",
+                "icon": "stop_circle",
+                "description": "Stop and save current recording",
             }
         )
+    else:
+        results.extend(
+            [
+                {
+                    "id": "record_screen",
+                    "name": "Record Screen",
+                    "icon": "screen_record",
+                    "description": f"Record focused monitor (starts in {START_DELAY_SECONDS}s)",
+                },
+                {
+                    "id": "record_screen_audio",
+                    "name": "Record Screen with Audio",
+                    "icon": "mic",
+                    "description": f"Record with system audio (starts in {START_DELAY_SECONDS}s)",
+                },
+                {
+                    "id": "record_region",
+                    "name": "Record Region",
+                    "icon": "crop",
+                    "description": f"Select area to record (starts in {START_DELAY_SECONDS}s)",
+                },
+                {
+                    "id": "record_region_audio",
+                    "name": "Record Region with Audio",
+                    "icon": "settings_voice",
+                    "description": f"Select area with audio (starts in {START_DELAY_SECONDS}s)",
+                },
+            ]
+        )
 
-        print(json.dumps({"type": "results", "results": results}))
-        return
+    results.append(
+        {
+            "id": "browse",
+            "name": "Open Recordings Folder",
+            "icon": "folder_open",
+            "description": str(VIDEOS_DIR),
+        }
+    )
 
-    if step == "action":
-        item_id = selected.get("id", "")
+    return results
 
-        if item_id == "stop":
-            # Calculate trim amount based on when hamr was opened
-            launch_time_ms = get_hamr_launch_time()
-            now_ms = int(time.time() * 1000)
-            time_since_launch_ms = now_ms - launch_time_ms
 
-            # Add buffer to ensure animation is fully trimmed
-            trim_ms = time_since_launch_ms + TRIM_BUFFER_MS
-            trim_seconds = trim_ms / 1000.0
+plugin = HamrPlugin(
+    id="screenrecord",
+    name="Screen Record",
+    description="Record screen or region with wf-recorder",
+    icon="screen_record",
+)
 
-            # Get recording path from state
-            state = load_recording_state()
-            recording_path = state.get("recording_path", "")
 
-            if recording_path and Path(recording_path).exists():
-                script = build_stop_record_script(recording_path, trim_seconds)
-            else:
-                # Fallback: just stop without trimming
-                script = """
-pkill -INT wf-recorder
-notify-send "Recording Stopped" "Saved to Videos folder"
-"""
+@plugin.on_initial
+async def handle_initial(params=None):
+    """Handle initial request when plugin is opened."""
+    if not has_wf_recorder():
+        return HamrPlugin.error(
+            "wf-recorder not found. Install it to use screen recording."
+        )
 
-            clear_recording_state()
-            subprocess.Popen(["bash", "-c", script])
+    return HamrPlugin.results(
+        get_results(),
+        placeholder="Select recording option...",
+    )
 
-            print(json.dumps({"type": "execute", "close": True}))
-            return
 
-        if item_id == "browse":
-            subprocess.Popen(["xdg-open", str(VIDEOS_DIR)])
-            print(json.dumps({"type": "execute", "close": True}))
-            return
+@plugin.on_search
+async def handle_search(query: str, context=None):
+    """Handle search request."""
+    results = get_results()
+    if query:
+        query_lower = query.lower()
+        results = [
+            r
+            for r in results
+            if query_lower in r["name"].lower()
+            or query_lower in r.get("description", "").lower()
+        ]
 
-        # Recording actions
-        output_path = get_output_path()
-        monitor = get_focused_monitor()
+    if not results:
+        results = [
+            {
+                "id": "__empty__",
+                "name": f"No options matching '{query}'",
+                "icon": "search_off",
+            }
+        ]
 
-        if item_id == "record_screen":
-            script = build_start_record_script(output_path, monitor=monitor)
-            # Save state for later trimming
-            start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
-            save_recording_state(output_path, start_time_ms)
+    return HamrPlugin.results(results, placeholder="Select recording option...")
 
-            subprocess.Popen(["bash", "-c", script])
-            print(json.dumps({"type": "execute", "close": True}))
-            return
 
-        if item_id == "record_screen_audio":
-            script = build_start_record_script(output_path, monitor=monitor, audio=True)
-            start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
-            save_recording_state(output_path, start_time_ms)
+@plugin.on_action
+async def handle_action(item_id: str, action=None, context=None):
+    """Handle action request."""
+    if item_id == "__empty__":
+        return HamrPlugin.close()
 
-            subprocess.Popen(["bash", "-c", script])
-            print(json.dumps({"type": "execute", "close": True}))
-            return
+    if item_id == "stop":
+        script = build_stop_record_script()
+        subprocess.Popen(["bash", "-c", script], start_new_session=True)
+        return HamrPlugin.close()
 
-        if item_id == "record_region":
-            script = build_start_record_script(output_path, region=True)
-            start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
-            save_recording_state(output_path, start_time_ms)
+    if item_id == "browse":
+        subprocess.Popen(["xdg-open", str(VIDEOS_DIR)], start_new_session=True)
+        return HamrPlugin.close()
 
-            subprocess.Popen(["bash", "-c", script])
-            print(json.dumps({"type": "execute", "close": True}))
-            return
+    output_path = get_output_path()
+    monitor = get_focused_monitor()
 
-        if item_id == "record_region_audio":
-            script = build_start_record_script(output_path, region=True, audio=True)
-            start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
-            save_recording_state(output_path, start_time_ms)
+    if item_id == "record_screen":
+        script = build_start_record_script(output_path, monitor=monitor)
+    elif item_id == "record_screen_audio":
+        script = build_start_record_script(output_path, monitor=monitor, audio=True)
+    elif item_id == "record_region":
+        script = build_start_record_script(output_path, region=True)
+    elif item_id == "record_region_audio":
+        script = build_start_record_script(output_path, region=True, audio=True)
+    else:
+        return HamrPlugin.error(f"Unknown action: {item_id}")
 
-            subprocess.Popen(["bash", "-c", script])
-            print(json.dumps({"type": "execute", "close": True}))
-            return
-
-    print(json.dumps({"type": "error", "message": f"Unknown action: {selected}"}))
+    subprocess.Popen(["bash", "-c", script], start_new_session=True)
+    return HamrPlugin.close()
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

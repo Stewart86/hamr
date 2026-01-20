@@ -1,0 +1,21 @@
+[package]
+name = "hamr-rpc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared JSON-RPC 2.0 protocol definitions for hamr-rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+hamr-types.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["net", "io-util", "sync"] }
+tokio-util = { workspace = true }
+bytes = { workspace = true }
+thiserror = { workspace = true }
+futures-util = { workspace = true }
+tracing = { workspace = true }

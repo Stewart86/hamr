@@ -1,6 +1,9 @@
 {
-    "name": "Wallpaper",
-    "description": "Browse and set wallpapers",
-    "icon": "wallpaper",
-    "supportedCompositors": ["*"]
+  "name": "Wallpaper",
+  "description": "Browse and set wallpapers",
+  "icon": "wallpaper",
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

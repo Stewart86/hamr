@@ -1,7 +1,13 @@
 {
-    "name": "Screenshots",
-    "description": "Browse and search screenshots with OCR text recognition",
-    "icon": "screenshot_monitor",
-    "supportedCompositors": ["*"],
-    "frecency": "none"
+  "name": "Screenshots",
+  "description": "Browse and search screenshots with OCR text recognition",
+  "icon": "screenshot_monitor",
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

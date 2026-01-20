@@ -2,7 +2,6 @@
   "name": "Shell",
   "description": "Run commands and search shell history",
   "icon": "terminal",
-  "supportedCompositors": ["*"],
   "frecency": "plugin",
   "daemon": {
     "enabled": true,
@@ -10,5 +9,9 @@
   },
   "index": {
     "enabled": true
-  }
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

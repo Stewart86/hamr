@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Dictionary workflow handler - looks up word definitions using Free Dictionary API
+Dictionary plugin - look up word definitions using Free Dictionary API
 """
 
 import json
@@ -159,13 +159,16 @@ def main():
                     content = format_definition(data)
                     import subprocess
 
-                    subprocess.run(["wl-copy", content], check=False)
+                    subprocess.run(["wl-copy"], input=content.encode(), check=False)
 
                     print(
                         json.dumps(
                             {
                                 "type": "execute",
-                                "notify": f"Definition of '{word}' copied",
+                                "action": {
+                                    "type": "notify",
+                                    "message": f"Definition of '{word}' copied",
+                                },
                                 "close": True,
                             }
                         )

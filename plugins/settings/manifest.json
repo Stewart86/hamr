@@ -1,7 +1,18 @@
 {
+  "id": "settings",
   "name": "Settings",
   "description": "Configure Hamr launcher options",
   "icon": "settings",
-  "supportedCompositors": ["*"],
-  "frecency": "plugin"
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
+  "daemon": {
+    "enabled": true,
+    "background": true
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

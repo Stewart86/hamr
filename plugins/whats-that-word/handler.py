@@ -25,10 +25,10 @@ Your task is to respond with a JSON array of the most likely words, ordered by r
 IMPORTANT: Respond ONLY with a valid JSON array of strings. No explanations, no markdown, no other text.
 
 Examples:
-- Input: "fear of heights" → ["acrophobia", "vertigo", "altophobia"]
-- Input: "definately" → ["definitely", "defiantly", "definite"]
-- Input: "word for when you postpone things" → ["procrastinate", "defer", "delay", "postpone"]
-- Input: "feeling of already experienced something" → ["déjà vu", "familiarity", "recognition"]
+- Input: "fear of heights" -> ["acrophobia", "vertigo", "altophobia"]
+- Input: "definately" -> ["definitely", "defiantly", "definite"]
+- Input: "word for when you postpone things" -> ["procrastinate", "defer", "delay", "postpone"]
+- Input: "feeling of already experienced something" -> ["deja vu", "familiarity", "recognition"]
 
 Return 3-8 words maximum, most likely first."""
 
@@ -49,7 +49,6 @@ def query_ai(user_input: str) -> list[str]:
 
         output = result.stdout.strip()
 
-        # Try to extract JSON array from output
         start_idx = output.find("[")
         end_idx = output.rfind("]")
 
@@ -61,12 +60,41 @@ def query_ai(user_input: str) -> list[str]:
 
         return []
 
-    except (
-        subprocess.TimeoutExpired,
-        subprocess.SubprocessError,
-        json.JSONDecodeError,
-    ):
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError):
         return []
+
+
+def build_word_results(words: list[str], query: str) -> dict:
+    """Build results response for word list"""
+    results = [
+        {
+            "id": "__retry__",
+            "name": "Try again",
+            "description": "Get different suggestions",
+            "icon": "refresh",
+        }
+    ]
+    for i, word in enumerate(words):
+        results.append(
+            {
+                "id": f"word:{word}",
+                "name": word,
+                "description": "Best match" if i == 0 else "",
+                "icon": "star" if i == 0 else "label",
+                "verb": "Copy",
+                "actions": [
+                    {"id": "copy", "name": "Copy", "icon": "content_copy"},
+                ],
+            }
+        )
+
+    return {
+        "type": "results",
+        "results": results,
+        "placeholder": "Or try a different description...",
+        "inputMode": "submit",
+        "context": query,
+    }
 
 
 def main():
@@ -77,31 +105,29 @@ def main():
     action = input_data.get("action", "")
     context = input_data.get("context", "")
 
-    # Check opencode availability
-    if not OPENCODE_AVAILABLE:
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": [
-                        {
-                            "id": "__error__",
-                            "name": "OpenCode CLI required",
-                            "description": "Install from https://opencode.ai",
-                            "icon": "error",
-                        }
-                    ],
-                }
-            )
-        )
-        return
-
     if step == "initial":
+        if not OPENCODE_AVAILABLE:
+            print(
+                json.dumps(
+                    {
+                        "type": "results",
+                        "results": [
+                            {
+                                "id": "__error__",
+                                "name": "OpenCode CLI required",
+                                "description": "Install from https://opencode.ai",
+                                "icon": "error",
+                            }
+                        ],
+                    }
+                )
+            )
+            return
+
         print(
             json.dumps(
                 {
                     "type": "results",
-                    "inputMode": "submit",
                     "results": [
                         {
                             "id": "__help__",
@@ -111,26 +137,30 @@ def main():
                         }
                     ],
                     "placeholder": "e.g., 'fear of heights' or 'definately'",
+                    "inputMode": "submit",
                 }
             )
         )
         return
 
     if step == "search":
+        if not OPENCODE_AVAILABLE:
+            print(json.dumps({"type": "results", "results": []}))
+            return
+
         if not query:
             print(
                 json.dumps(
                     {
                         "type": "results",
-                        "inputMode": "submit",
                         "results": [],
                         "placeholder": "Describe the word or type misspelling...",
+                        "inputMode": "submit",
                     }
                 )
             )
             return
 
-        # Query AI for word suggestions
         words = query_ai(query)
 
         if not words:
@@ -138,8 +168,6 @@ def main():
                 json.dumps(
                     {
                         "type": "results",
-                        "inputMode": "submit",
-                        "context": query,
                         "results": [
                             {
                                 "id": "__not_found__",
@@ -155,130 +183,59 @@ def main():
                             },
                         ],
                         "placeholder": "Try a different description...",
+                        "inputMode": "submit",
+                        "context": query,
                     }
                 )
             )
             return
 
-        # Build results list with copy action
-        results = [
-            {
-                "id": "__retry__",
-                "name": "Try again",
-                "description": "Get different suggestions",
-                "icon": "refresh",
-            }
-        ]
-        for i, word in enumerate(words):
-            results.append(
-                {
-                    "id": f"word:{word}",
-                    "name": word,
-                    "description": "Best match" if i == 0 else "",
-                    "icon": "star" if i == 0 else "label",
-                    "verb": "Copy",
-                    "actions": [
-                        {"id": "copy", "name": "Copy", "icon": "content_copy"},
-                    ],
-                }
-            )
-
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "inputMode": "submit",
-                    "context": query,
-                    "results": results,
-                    "placeholder": "Or try a different description...",
-                }
-            )
-        )
+        print(json.dumps(build_word_results(words, query)))
         return
 
     if step == "action":
-        selected_id = selected.get("id", "")
+        item_id = selected.get("id", "")
 
-        # Help item - not actionable
-        if selected_id == "__help__":
+        if item_id in ("__help__", "__not_found__", "__error__"):
+            print(json.dumps({}))
             return
 
-        # Not found - not actionable
-        if selected_id == "__not_found__":
-            return
-
-        # Retry with same query
-        if selected_id == "__retry__":
-            if context:
-                words = query_ai(context)
+        if item_id == "__retry__":
+            retry_query = context if context else query
+            if retry_query:
+                words = query_ai(retry_query)
                 if words:
-                    results = [
-                        {
-                            "id": "__retry__",
-                            "name": "Try again",
-                            "description": "Get different suggestions",
-                            "icon": "refresh",
-                        }
-                    ]
-                    for i, word in enumerate(words):
-                        results.append(
-                            {
-                                "id": f"word:{word}",
-                                "name": word,
-                                "description": "Best match" if i == 0 else "",
-                                "icon": "star" if i == 0 else "label",
-                                "verb": "Copy",
-                                "actions": [
-                                    {
-                                        "id": "copy",
-                                        "name": "Copy",
-                                        "icon": "content_copy",
-                                    },
-                                ],
-                            }
-                        )
-                    print(
-                        json.dumps(
-                            {
-                                "type": "results",
-                                "inputMode": "submit",
-                                "context": context,
-                                "results": results,
-                                "placeholder": "Or try a different description...",
-                            }
-                        )
-                    )
+                    print(json.dumps(build_word_results(words, retry_query)))
                     return
 
-            # No context or failed - show empty
             print(
                 json.dumps(
                     {
                         "type": "results",
-                        "inputMode": "submit",
                         "results": [],
                         "clearInput": True,
                         "placeholder": "Describe the word or type misspelling...",
+                        "inputMode": "submit",
                     }
                 )
             )
             return
 
-         # Word selection - copy to clipboard
-         if selected_id.startswith("word:"):
-             word = selected_id[5:]  # Remove "word:" prefix
+        if item_id.startswith("word:"):
+            word = item_id[5:]
+            subprocess.run(["wl-copy", word], check=False)
+            print(
+                json.dumps(
+                    {
+                        "type": "execute",
+                        "notify": f"Copied: {word}",
+                        "close": True,
+                    }
+                )
+            )
+            return
 
-             subprocess.run(["wl-copy", word], check=False)
-             print(
-                 json.dumps(
-                     {
-                         "type": "execute",
-                         "notify": f"Copied: {word}",
-                         "close": True,
-                     }
-                 )
-             )
-             return
+        print(json.dumps({}))
 
 
 if __name__ == "__main__":

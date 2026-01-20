@@ -15,10 +15,14 @@ import select
 import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 
-# Hyprland events that trigger reindex
-WATCH_EVENTS = {"openwindow", "closewindow", "movewindow", "windowtitle"}
+# Add parent directory to path to import SDK
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
+
+INDEX_DEBOUNCE_INTERVAL = 2.0
 
 
 def get_hyprland_socket_path() -> Path | None:
@@ -58,6 +62,23 @@ def read_hyprland_events(sock: socket.socket) -> list[str]:
     except (OSError, socket.error, BlockingIOError):
         pass
     return events
+
+
+def read_hyprctl_event(proc: subprocess.Popen) -> str | None:
+    """Read a single event from hyprctl event stream (blocking). Returns event type or None."""
+    try:
+        if proc.stdout is None:
+            return None
+
+        line = proc.stdout.readline()
+        if not line:
+            return None
+        if ">>" in line:
+            event_name = line.split(">>")[0]
+            return event_name
+    except (OSError, IOError):
+        return None
+    return None
 
 
 HYPR_DISPATCHERS = [
@@ -550,33 +571,6 @@ def shortcut_to_result(shortcut: dict) -> dict:
     }
 
 
-def shortcut_to_index_item(shortcut: dict) -> dict:
-    """Convert global shortcut to index item format"""
-    shortcut_id = shortcut["id"]
-    description = shortcut["description"]
-    app_name = shortcut_id.split(":")[0] if ":" in shortcut_id else shortcut_id
-    item_id = f"shortcut:{shortcut_id}"
-
-    return {
-        "id": item_id,
-        "name": description,
-        "description": f"{app_name} shortcut",
-        "icon": "keyboard",
-        "verb": "Run",
-        "keywords": [
-            shortcut_id.lower(),
-            description.lower(),
-            app_name.lower(),
-            "shortcut",
-            "global",
-        ],
-        "entryPoint": {
-            "step": "action",
-            "selected": {"id": item_id},
-        },
-    }
-
-
 def get_windows() -> list[dict]:
     """Get all open windows from Hyprland"""
     try:
@@ -608,37 +602,6 @@ def get_workspaces() -> list[dict]:
         return workspaces
     except (subprocess.CalledProcessError, FileNotFoundError, json.JSONDecodeError):
         return []
-
-
-def window_to_index_item(window: dict) -> dict | None:
-    """Convert window to index item format. Returns None for invalid windows."""
-    address = window.get("address", "")
-    title = window.get("title", "")
-    window_class = window.get("class", "")
-    workspace = window.get("workspace", {})
-    workspace_name = workspace.get("name", str(workspace.get("id", "")))
-
-    name = title or window_class
-    if not name:
-        return None
-
-    description = window_class
-    if workspace_name:
-        description = f"{window_class} (workspace {workspace_name})"
-
-    item_id = f"window:{address}"
-    return {
-        "id": item_id,
-        "name": name,
-        "description": description,
-        "icon": window_class or "window",
-        "iconType": "system",
-        "verb": "Focus",
-        "entryPoint": {
-            "step": "action",
-            "selected": {"id": item_id},
-        },
-    }
 
 
 def window_to_result(window: dict, workspaces: list[dict] | None = None) -> dict | None:
@@ -784,35 +747,6 @@ def dispatcher_to_result(dispatcher: dict, extracted_param: str | None = None) -
     }
 
 
-def dispatcher_to_index_item(dispatcher: dict) -> dict:
-    """Convert dispatcher to index item format"""
-    name = dispatcher.get("name", "")
-    icon = dispatcher.get("icon", "terminal")
-    item_id = f"dispatch:{dispatcher['id']}"
-
-    item = {
-        "id": item_id,
-        "name": name,
-        "description": dispatcher.get("description", ""),
-        "icon": icon,
-        "verb": "Run",
-        "keywords": [
-            dispatcher.get("id", ""),
-            dispatcher.get("dispatcher", ""),
-            name.lower(),
-        ],
-    }
-
-    # Add entryPoint for dispatchers with static params (can be executed directly)
-    if dispatcher.get("param_type") != "workspace":
-        item["entryPoint"] = {
-            "step": "action",
-            "selected": {"id": item_id},
-        }
-
-    return item
-
-
 def get_common_commands() -> list[dict]:
     """Get commonly used commands for initial view"""
     commands = []
@@ -876,141 +810,6 @@ def get_common_commands() -> list[dict]:
     return commands
 
 
-def generate_workspace_index_items() -> list[dict]:
-    """Generate index items for workspace 1-10 shortcuts plus special workspaces"""
-    items = []
-    number_icons = {
-        1: "looks_one",
-        2: "looks_two",
-        3: "looks_3",
-        4: "looks_4",
-        5: "looks_5",
-        6: "looks_6",
-    }
-
-    for ws in range(1, 11):
-        icon = number_icons.get(ws, "space_dashboard")
-        goto_id = f"dispatch:goto-workspace:{ws}"
-        move_id = f"dispatch:move-to-workspace:{ws}"
-        goto_name = f"Go to Workspace {ws}"
-        move_name = f"Move to Workspace {ws}"
-        items.append(
-            {
-                "id": goto_id,
-                "name": goto_name,
-                "description": f"Switch to workspace {ws}",
-                "icon": icon,
-                "verb": "Run",
-                "keywords": [
-                    f"workspace {ws}",
-                    f"ws {ws}",
-                    f"go to {ws}",
-                    f"switch to {ws}",
-                ],
-                "entryPoint": {
-                    "step": "action",
-                    "selected": {"id": goto_id},
-                },
-            }
-        )
-        items.append(
-            {
-                "id": move_id,
-                "name": move_name,
-                "description": f"Move active window to workspace {ws}",
-                "icon": icon,
-                "verb": "Run",
-                "keywords": [f"move to {ws}", f"send to {ws}", f"move workspace {ws}"],
-                "entryPoint": {
-                    "step": "action",
-                    "selected": {"id": move_id},
-                },
-            }
-        )
-
-    # Special workspace (scratchpad)
-    items.append(
-        {
-            "id": "dispatch:goto-special",
-            "name": "Toggle Scratchpad",
-            "description": "Toggle the special workspace (scratchpad)",
-            "icon": "visibility",
-            "verb": "Run",
-            "keywords": ["scratchpad", "special", "toggle special", "scratch"],
-            "entryPoint": {
-                "step": "action",
-                "selected": {"id": "dispatch:goto-special"},
-            },
-        }
-    )
-    items.append(
-        {
-            "id": "dispatch:move-to-special",
-            "name": "Move to Scratchpad",
-            "description": "Move active window to special workspace",
-            "icon": "visibility_off",
-            "verb": "Run",
-            "keywords": ["move to scratchpad", "send to special", "move special"],
-            "entryPoint": {
-                "step": "action",
-                "selected": {"id": "dispatch:move-to-special"},
-            },
-        }
-    )
-
-    # Relative workspace navigation
-    items.append(
-        {
-            "id": "dispatch:workspace-next",
-            "name": "Next Workspace",
-            "description": "Go to next workspace",
-            "icon": "arrow_forward",
-            "verb": "Run",
-            "keywords": ["next workspace", "workspace next", "ws next"],
-            "entryPoint": {
-                "step": "action",
-                "selected": {"id": "dispatch:workspace-next"},
-            },
-        }
-    )
-    items.append(
-        {
-            "id": "dispatch:workspace-prev",
-            "name": "Previous Workspace",
-            "description": "Go to previous workspace",
-            "icon": "arrow_back",
-            "verb": "Run",
-            "keywords": [
-                "previous workspace",
-                "prev workspace",
-                "workspace prev",
-                "ws prev",
-                "back workspace",
-            ],
-            "entryPoint": {
-                "step": "action",
-                "selected": {"id": "dispatch:workspace-prev"},
-            },
-        }
-    )
-    items.append(
-        {
-            "id": "dispatch:workspace-empty",
-            "name": "Go to Empty Workspace",
-            "description": "Switch to first empty workspace",
-            "icon": "add_box",
-            "verb": "Run",
-            "keywords": ["empty workspace", "new workspace", "blank workspace"],
-            "entryPoint": {
-                "step": "action",
-                "selected": {"id": "dispatch:workspace-empty"},
-            },
-        }
-    )
-
-    return items
-
-
 def execute_dispatcher(dispatcher: dict, param: str | None = None) -> tuple[bool, str]:
     """Execute a Hyprland dispatcher"""
     dispatcher_name = dispatcher.get("dispatcher", "")
@@ -1026,393 +825,300 @@ def execute_dispatcher(dispatcher: dict, param: str | None = None) -> tuple[bool
         return False, f"Failed to execute {dispatcher_name}: {e}"
 
 
-def get_index_items() -> list[dict]:
-    """Generate full index items (windows + dispatchers + shortcuts)."""
-    windows = get_windows()
-    items = [item for w in windows if (item := window_to_index_item(w)) is not None]
-    for d in HYPR_DISPATCHERS:
-        if d.get("param_type") != "workspace":
-            items.append(dispatcher_to_index_item(d))
-    items.extend(generate_workspace_index_items())
-    shortcuts = get_global_shortcuts()
-    items.extend([shortcut_to_index_item(s) for s in shortcuts])
-    return items
+# Create plugin instance
+plugin = HamrPlugin(
+    id="hyprland",
+    name="Hyprland",
+    description="Window management and Hyprland dispatchers",
+    icon="desktop_windows",
+)
+
+# Plugin state
+state = {
+    "current_query": "",
+}
 
 
-def handle_request(input_data: dict):
-    """Handle a single request from stdin."""
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "").strip()
-    selected = input_data.get("selected", {})
-    action = input_data.get("action", "")
-
+@plugin.on_initial
+async def handle_initial(params=None):
+    """Handle initial request when plugin is opened."""
     windows = get_windows()
     workspaces = get_workspaces()
+    results = [r for w in windows if (r := window_to_result(w, workspaces)) is not None]
+    results.extend(get_common_commands())
+    shortcuts = get_global_shortcuts()
+    results.extend([shortcut_to_result(s) for s in shortcuts])
+    return HamrPlugin.results(
+        results,
+        placeholder="Filter windows or type a command...",
+        input_mode="realtime",
+    )
 
-    if step == "index":
-        items = get_index_items()
-        print(json.dumps({"type": "index", "items": items}))
-        return
 
-    if step == "initial":
+@plugin.on_search
+async def handle_search(query: str, context=None):
+    """Handle search request."""
+    state["current_query"] = query
+    query_lower = query.lower()
+    results = []
+
+    matched_dispatcher, extracted_param = match_dispatcher(query)
+    if matched_dispatcher:
+        results.append(dispatcher_to_result(matched_dispatcher, extracted_param))
+
+    filtered_dispatchers = filter_dispatchers(query)
+    for d in filtered_dispatchers:
+        if not matched_dispatcher or d["id"] != matched_dispatcher["id"]:
+            results.append(dispatcher_to_result(d))
+
+    windows = get_windows()
+    filtered_windows = [
+        w
+        for w in windows
+        if query_lower in w.get("title", "").lower()
+        or query_lower in w.get("class", "").lower()
+    ]
+
+    # Filter global shortcuts
+    shortcuts = get_global_shortcuts()
+    filtered_shortcuts = [
+        s
+        for s in shortcuts
+        if query_lower in s["id"].lower() or query_lower in s["description"].lower()
+    ]
+    results.extend([shortcut_to_result(s) for s in filtered_shortcuts])
+
+    workspaces = get_workspaces()
+    results.extend(
+        [
+            r
+            for w in filtered_windows
+            if (r := window_to_result(w, workspaces)) is not None
+        ]
+    )
+
+    if not results:
         results = [
-            r for w in windows if (r := window_to_result(w, workspaces)) is not None
+            {
+                "id": "__empty__",
+                "name": f"No matches for '{query}'",
+                "icon": "search_off",
+                "description": "Try 'move to 2', 'toggle floating', 'fullscreen'...",
+            }
         ]
-        results.extend(get_common_commands())
+    return HamrPlugin.results(
+        results,
+        input_mode="realtime",
+    )
+
+
+@plugin.on_action
+async def handle_action(
+    item_id: str, action: str | None = None, context: str | None = None
+):
+    """Handle action request."""
+    if item_id == "__empty__":
+        return {"type": "execute", "close": True}
+
+    if item_id.startswith("shortcut:"):
+        shortcut_id = item_id.replace("shortcut:", "")
+        cmd = ["hyprctl", "dispatch", "global", shortcut_id]
+
+        # Find the shortcut description for the notification
         shortcuts = get_global_shortcuts()
-        results.extend([shortcut_to_result(s) for s in shortcuts])
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "placeholder": "Filter windows or type a command...",
-                    "inputMode": "realtime",
-                }
-            )
-        )
-        return
+        shortcut = next((s for s in shortcuts if s["id"] == shortcut_id), None)
+        name = shortcut["description"] if shortcut else shortcut_id
 
-    if step == "search":
-        query_lower = query.lower()
-        results = []
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+            return {"type": "execute", "close": True, "notify": f"{name} executed"}
+        except subprocess.CalledProcessError as e:
+            return {"type": "error", "message": f"Failed: {e}"}
 
-        matched_dispatcher, extracted_param = match_dispatcher(query)
-        if matched_dispatcher:
-            results.append(dispatcher_to_result(matched_dispatcher, extracted_param))
+    if item_id.startswith("dispatch:"):
+        dispatcher_id_full = item_id.replace("dispatch:", "")
 
-        filtered_dispatchers = filter_dispatchers(query)
-        for d in filtered_dispatchers:
-            if not matched_dispatcher or d["id"] != matched_dispatcher["id"]:
-                results.append(dispatcher_to_result(d))
+        # Handle generated workspace commands (workspace-next, goto-special, etc.)
+        static_commands = {
+            "workspace-next": (
+                ["hyprctl", "dispatch", "workspace", "+1"],
+                "Next Workspace",
+            ),
+            "workspace-prev": (
+                ["hyprctl", "dispatch", "workspace", "-1"],
+                "Previous Workspace",
+            ),
+            "workspace-empty": (
+                ["hyprctl", "dispatch", "workspace", "empty"],
+                "Go to Empty Workspace",
+            ),
+            "goto-special": (
+                ["hyprctl", "dispatch", "togglespecialworkspace"],
+                "Toggle Scratchpad",
+            ),
+            "move-to-special": (
+                ["hyprctl", "dispatch", "movetoworkspacesilent", "special"],
+                "Move to Scratchpad",
+            ),
+        }
 
-        filtered_windows = [
-            w
-            for w in windows
-            if query_lower in w.get("title", "").lower()
-            or query_lower in w.get("class", "").lower()
-        ]
-
-        # Filter global shortcuts
-        shortcuts = get_global_shortcuts()
-        filtered_shortcuts = [
-            s
-            for s in shortcuts
-            if query_lower in s["id"].lower() or query_lower in s["description"].lower()
-        ]
-        results.extend([shortcut_to_result(s) for s in filtered_shortcuts])
-        results.extend(
-            [
-                r
-                for w in filtered_windows
-                if (r := window_to_result(w, workspaces)) is not None
-            ]
-        )
-
-        if not results:
-            results = [
-                {
-                    "id": "__empty__",
-                    "name": f"No matches for '{query}'",
-                    "icon": "search_off",
-                    "description": "Try 'move to 2', 'toggle floating', 'fullscreen'...",
-                }
-            ]
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                }
-            )
-        )
-        return
-
-    if step == "action":
-        item_id = selected.get("id", "")
-
-        if item_id == "__empty__":
-            print(json.dumps({"type": "execute", "close": True}))
-            return
-
-        if item_id.startswith("shortcut:"):
-            shortcut_id = item_id.replace("shortcut:", "")
-            cmd = ["hyprctl", "dispatch", "global", shortcut_id]
-
-            # Find the shortcut description for the notification
-            shortcuts = get_global_shortcuts()
-            shortcut = next((s for s in shortcuts if s["id"] == shortcut_id), None)
-            name = shortcut["description"] if shortcut else shortcut_id
-
+        if dispatcher_id_full in static_commands:
+            cmd, name = static_commands[dispatcher_id_full]
             try:
                 subprocess.run(cmd, check=True, capture_output=True)
-                print(
-                    json.dumps(
-                        {
-                            "type": "execute",
-                            "close": True,
-                            "notify": f"{name} executed",
-                        }
-                    )
-                )
+                return {"type": "execute", "close": True, "notify": f"{name} executed"}
             except subprocess.CalledProcessError as e:
-                print(json.dumps({"type": "error", "message": f"Failed: {e}"}))
-            return
+                return {"type": "error", "message": f"Failed: {e}"}
 
-        if item_id.startswith("dispatch:"):
-            dispatcher_id_full = item_id.replace("dispatch:", "")
+        # Handle goto-workspace:N and move-to-workspace:N
+        if dispatcher_id_full.startswith("goto-workspace:"):
+            ws = dispatcher_id_full.split(":")[1]
+            cmd = ["hyprctl", "dispatch", "workspace", ws]
+            name = f"Go to Workspace {ws}"
+            try:
+                subprocess.run(cmd, check=True, capture_output=True)
+                return {"type": "execute", "close": True, "notify": f"{name} executed"}
+            except subprocess.CalledProcessError as e:
+                return {"type": "error", "message": f"Failed: {e}"}
 
-            # Handle generated workspace commands (workspace-next, goto-special, etc.)
-            static_commands = {
-                "workspace-next": (
-                    ["hyprctl", "dispatch", "workspace", "+1"],
-                    "Next Workspace",
-                ),
-                "workspace-prev": (
-                    ["hyprctl", "dispatch", "workspace", "-1"],
-                    "Previous Workspace",
-                ),
-                "workspace-empty": (
-                    ["hyprctl", "dispatch", "workspace", "empty"],
-                    "Go to Empty Workspace",
-                ),
-                "goto-special": (
-                    ["hyprctl", "dispatch", "togglespecialworkspace"],
-                    "Toggle Scratchpad",
-                ),
-                "move-to-special": (
-                    ["hyprctl", "dispatch", "movetoworkspacesilent", "special"],
-                    "Move to Scratchpad",
-                ),
+        if dispatcher_id_full.startswith("move-to-workspace:"):
+            ws = dispatcher_id_full.split(":")[1]
+            cmd = ["hyprctl", "dispatch", "movetoworkspace", ws]
+            name = f"Move to Workspace {ws}"
+            try:
+                subprocess.run(cmd, check=True, capture_output=True)
+                return {"type": "execute", "close": True, "notify": f"{name} executed"}
+            except subprocess.CalledProcessError as e:
+                return {"type": "error", "message": f"Failed: {e}"}
+
+        # Handle HYPR_DISPATCHERS
+        extracted_param = None
+        if ":" in dispatcher_id_full:
+            dispatcher_id, extracted_param = dispatcher_id_full.split(":", 1)
+        else:
+            dispatcher_id = dispatcher_id_full
+
+        dispatcher = next(
+            (d for d in HYPR_DISPATCHERS if d["id"] == dispatcher_id), None
+        )
+        if not dispatcher:
+            return {
+                "type": "error",
+                "message": f"Unknown dispatcher: {dispatcher_id}",
             }
 
-            if dispatcher_id_full in static_commands:
-                cmd, name = static_commands[dispatcher_id_full]
-                try:
-                    subprocess.run(cmd, check=True, capture_output=True)
-                    print(
-                        json.dumps(
-                            {
-                                "type": "execute",
-                                "close": True,
-                                "notify": f"{name} executed",
-                            }
-                        )
-                    )
-                except subprocess.CalledProcessError as e:
-                    print(json.dumps({"type": "error", "message": f"Failed: {e}"}))
-                return
+        param = extracted_param or dispatcher.get("param", "")
 
-            # Handle goto-workspace:N and move-to-workspace:N
-            if dispatcher_id_full.startswith("goto-workspace:"):
-                ws = dispatcher_id_full.split(":")[1]
-                cmd = ["hyprctl", "dispatch", "workspace", ws]
-                name = f"Go to Workspace {ws}"
-                try:
-                    subprocess.run(cmd, check=True, capture_output=True)
-                    print(
-                        json.dumps(
-                            {
-                                "type": "execute",
-                                "close": True,
-                                "notify": f"{name} executed",
-                            }
-                        )
-                    )
-                except subprocess.CalledProcessError as e:
-                    print(json.dumps({"type": "error", "message": f"Failed: {e}"}))
-                return
+        success, message = execute_dispatcher(dispatcher, param)
+        if success:
+            return {"type": "execute", "close": True, "notify": message}
+        else:
+            return {"type": "error", "message": message}
 
-            if dispatcher_id_full.startswith("move-to-workspace:"):
-                ws = dispatcher_id_full.split(":")[1]
-                cmd = ["hyprctl", "dispatch", "movetoworkspace", ws]
-                name = f"Move to Workspace {ws}"
-                try:
-                    subprocess.run(cmd, check=True, capture_output=True)
-                    print(
-                        json.dumps(
-                            {
-                                "type": "execute",
-                                "close": True,
-                                "notify": f"{name} executed",
-                            }
-                        )
-                    )
-                except subprocess.CalledProcessError as e:
-                    print(json.dumps({"type": "error", "message": f"Failed: {e}"}))
-                return
+    if item_id.startswith("window:"):
+        address = item_id.replace("window:", "")
 
-            # Handle HYPR_DISPATCHERS
-            extracted_param = None
-            if ":" in dispatcher_id_full:
-                dispatcher_id, extracted_param = dispatcher_id_full.split(":", 1)
-            else:
-                dispatcher_id = dispatcher_id_full
-
-            dispatcher = next(
-                (d for d in HYPR_DISPATCHERS if d["id"] == dispatcher_id), None
-            )
-            if not dispatcher:
-                print(
-                    json.dumps(
-                        {
-                            "type": "error",
-                            "message": f"Unknown dispatcher: {dispatcher_id}",
-                        }
-                    )
-                )
-                return
-
-            param = extracted_param or dispatcher.get("param", "")
-
-            success, message = execute_dispatcher(dispatcher, param)
-            if success:
-                print(
-                    json.dumps(
-                        {
-                            "type": "execute",
-                            "close": True,
-                            "notify": message,
-                        }
-                    )
-                )
-            else:
-                print(json.dumps({"type": "error", "message": message}))
-            return
-
-        if item_id.startswith("window:"):
-            address = item_id.replace("window:", "")
-
-            if action == "close":
-                success, message = close_window(address)
-                windows = get_windows()
-                workspaces = get_workspaces()
+        if action == "close":
+            success, message = close_window(address)
+            windows = get_windows()
+            workspaces = get_workspaces()
+            results = [
+                r for w in windows if (r := window_to_result(w, workspaces)) is not None
+            ]
+            if not results:
                 results = [
-                    r
-                    for w in windows
-                    if (r := window_to_result(w, workspaces)) is not None
+                    {
+                        "id": "__empty__",
+                        "name": "No windows open",
+                        "icon": "info",
+                    }
                 ]
-                if not results:
-                    results = [
-                        {
-                            "id": "__empty__",
-                            "name": "No windows open",
-                            "icon": "info",
-                        }
-                    ]
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": results,
-                            "notify": message if success else None,
-                        }
-                    )
-                )
-                return
-
-            if action.startswith("move:"):
-                workspace_id = int(action.replace("move:", ""))
-                success, message = move_window_to_workspace(address, workspace_id)
-                windows = get_windows()
-                workspaces = get_workspaces()
-                results = [
-                    r
-                    for w in windows
-                    if (r := window_to_result(w, workspaces)) is not None
-                ]
-                if not results:
-                    results = [
-                        {
-                            "id": "__empty__",
-                            "name": "No windows open",
-                            "icon": "info",
-                        }
-                    ]
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": results,
-                            "notify": message if success else None,
-                        }
-                    )
-                )
-                return
-
-            success, message = focus_window(address)
+            response = HamrPlugin.results(results)
             if success:
-                print(json.dumps({"type": "execute", "close": True}))
-            else:
-                print(json.dumps({"type": "error", "message": message}))
-            return
+                response["status"] = {"notify": message}
+            return response
 
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}))
+        if action and action.startswith("move:"):
+            workspace_id = int(action.replace("move:", ""))
+            success, message = move_window_to_workspace(address, workspace_id)
+            windows = get_windows()
+            workspaces = get_workspaces()
+            results = [
+                r for w in windows if (r := window_to_result(w, workspaces)) is not None
+            ]
+            if not results:
+                results = [
+                    {
+                        "id": "__empty__",
+                        "name": "No windows open",
+                        "icon": "info",
+                    }
+                ]
+            response = HamrPlugin.results(results)
+            if success:
+                response["status"] = {"notify": message}
+            return response
+
+        success, message = focus_window(address)
+        if success:
+            return {"type": "execute", "close": True}
+        else:
+            return {"type": "error", "message": message}
+
+    return {"type": "error", "message": f"Unknown item: {item_id}"}
 
 
-def main():
-    """Daemon main loop with Hyprland IPC socket watching."""
-    # Emit full index on startup
-    items = get_index_items()
-    print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
+@plugin.add_background_task
+async def watch_hyprland_events(p: HamrPlugin):
+    """Background task that watches Hyprland IPC events and sends index updates."""
+    import asyncio
 
-    # Try to connect to Hyprland's event socket
+    WATCH_EVENTS = {"openwindow", "closewindow", "movewindow", "windowtitle"}
+
     hypr_socket = connect_hyprland_socket()
+    last_index_time = 0.0
+    pending_index = False
 
-    if hypr_socket is not None:
-        # Daemon mode with Hyprland IPC socket
-        while True:
-            try:
-                readable, _, _ = select.select([sys.stdin, hypr_socket], [], [], 1.0)
-            except (ValueError, OSError):
-                # Socket closed, try to reconnect
-                hypr_socket = connect_hyprland_socket()
-                if hypr_socket is None:
-                    break
-                continue
+    if hypr_socket is None:
+        return
 
-            for r in readable:
-                if r == sys.stdin:
-                    try:
-                        line = sys.stdin.readline()
-                        if not line:
-                            return
-                        input_data = json.loads(line)
-                        handle_request(input_data)
-                        sys.stdout.flush()
-                    except json.JSONDecodeError:
-                        continue
+    while True:
+        now = time.time()
+        if pending_index and now - last_index_time >= INDEX_DEBOUNCE_INTERVAL:
+            windows = get_windows()
+            workspaces = get_workspaces()
+            results = [
+                r for w in windows if (r := window_to_result(w, workspaces)) is not None
+            ]
+            results.extend(get_common_commands())
+            shortcuts = get_global_shortcuts()
+            results.extend([shortcut_to_result(s) for s in shortcuts])
 
-                elif r == hypr_socket:
-                    events = read_hyprland_events(hypr_socket)
-                    if any(ev in WATCH_EVENTS for ev in events):
-                        items = get_index_items()
-                        print(
-                            json.dumps(
-                                {"type": "index", "mode": "full", "items": items}
-                            )
-                        )
-                        sys.stdout.flush()
-    else:
-        # Fallback: no socket, just handle stdin requests (polling mode)
-        while True:
-            try:
-                readable, _, _ = select.select([sys.stdin], [], [], 2.0)
-            except (ValueError, OSError):
-                break
+            await p.send_results(
+                results,
+                placeholder="Filter windows or type a command...",
+                input_mode="realtime",
+            )
+            last_index_time = now
+            pending_index = False
 
+        # Non-blocking check for events using select with short timeout
+        try:
+            readable, _, _ = select.select([hypr_socket], [], [], 0.1)
             if readable:
-                try:
-                    line = sys.stdin.readline()
-                    if not line:
-                        return
-                    input_data = json.loads(line)
-                    handle_request(input_data)
-                    sys.stdout.flush()
-                except json.JSONDecodeError:
-                    continue
+                events = read_hyprland_events(hypr_socket)
+                if any(ev in WATCH_EVENTS for ev in events):
+                    pending_index = True
+        except (ValueError, OSError):
+            # Socket closed, try to reconnect
+            hypr_socket = connect_hyprland_socket()
+            if hypr_socket is None:
+                break
+            continue
+
+        # Yield control to other async tasks - this is critical!
+        await asyncio.sleep(0.1)
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

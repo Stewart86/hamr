@@ -1,0 +1,21 @@
+[package]
+name = "hamr-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Control CLI for Hamr launcher daemon"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "hamr"
+path = "src/main.rs"
+
+[dependencies]
+hamr-rpc = { path = "../hamr-rpc" }
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+serde_json = "1"
+anyhow = "1"
+dirs = "6"

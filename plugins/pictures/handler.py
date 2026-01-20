@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Pictures workflow handler - searches for images in XDG Pictures directory
-Demonstrates multi-turn workflow: browse -> select -> actions
+Pictures workflow handler - searches for images in XDG Pictures directory.
 """
 
 import json
@@ -16,7 +15,7 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"}
 
 
 def get_image_dimensions(path: str) -> tuple[int, int] | None:
-    """Get image dimensions using PIL if available, else return None"""
+    """Get image dimensions using PIL if available"""
     try:
         from PIL import Image
 
@@ -30,6 +29,15 @@ def format_date(timestamp: float) -> str:
     """Format timestamp to human readable date"""
     dt = datetime.fromtimestamp(timestamp)
     return dt.strftime("%Y-%m-%d %H:%M")
+
+
+def format_size(size: float) -> str:
+    """Format file size in human readable format"""
+    for unit in ["B", "KB", "MB", "GB"]:
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
 
 
 def find_images(query: str = "") -> list[dict]:
@@ -52,42 +60,28 @@ def find_images(query: str = "") -> list[dict]:
                     }
                 )
 
-    # Sort by modification time (newest first)
     images.sort(key=lambda x: x["mtime"], reverse=True)
-    return images[:50]  # Limit to 50 results
-
-
-def format_size(size: float) -> str:
-    """Format file size in human readable format"""
-    for unit in ["B", "KB", "MB", "GB"]:
-        if size < 1024:
-            return f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{size:.1f} TB"
+    return images[:50]
 
 
 def get_image_list_results(images: list[dict]) -> list[dict]:
     """Convert images to result format for browsing"""
     results = []
     for img in images:
-        # Build metadata with dimensions if available
         metadata = [
             {"label": "Size", "value": format_size(img["size"])},
         ]
 
-        # Try to get image dimensions
         dims = get_image_dimensions(img["path"])
         if dims:
             metadata.append({"label": "Dimensions", "value": f"{dims[0]} x {dims[1]}"})
 
-        # Add modification date
         metadata.append({"label": "Modified", "value": format_date(img["mtime"])})
         metadata.append({"label": "Path", "value": img["path"]})
 
-        # Build description with dimensions if available
         description = format_size(img["size"])
         if dims:
-            description = f"{dims[0]}x{dims[1]} · {description}"
+            description = f"{dims[0]}x{dims[1]} - {description}"
 
         results.append(
             {
@@ -96,9 +90,9 @@ def get_image_list_results(images: list[dict]) -> list[dict]:
                 "description": description,
                 "icon": "image",
                 "thumbnail": img["path"],
+                "verb": "Open",
                 "preview": {
-                    "type": "image",
-                    "content": img["path"],
+                    "image": img["path"],
                     "title": img["name"],
                     "metadata": metadata,
                     "actions": [
@@ -110,7 +104,6 @@ def get_image_list_results(images: list[dict]) -> list[dict]:
                         },
                         {"id": "copy-image", "name": "Copy Image", "icon": "image"},
                     ],
-                    "detachable": True,
                 },
                 "actions": [
                     {"id": "open", "name": "Open", "icon": "open_in_new"},
@@ -119,33 +112,6 @@ def get_image_list_results(images: list[dict]) -> list[dict]:
             }
         )
     return results
-
-
-def get_image_detail_results(image_path: str) -> list[dict]:
-    """Show detail view for a selected image"""
-    return [
-        {
-            "id": f"open:{image_path}",
-            "name": "Open in viewer",
-            "icon": "open_in_new",
-            "verb": "Open",
-        },
-        {
-            "id": f"copy-path:{image_path}",
-            "name": "Copy file path",
-            "icon": "content_copy",
-        },
-        {
-            "id": f"copy-image:{image_path}",
-            "name": "Copy image to clipboard",
-            "icon": "image",
-        },
-        {
-            "id": f"delete:{image_path}",
-            "name": "Move to trash",
-            "icon": "delete",
-        },
-    ]
 
 
 def main():
@@ -159,7 +125,13 @@ def main():
         images = find_images()
         results = get_image_list_results(images)
         print(
-            json.dumps({"type": "results", "results": results, "inputMode": "realtime"})
+            json.dumps(
+                {
+                    "type": "results",
+                    "results": results,
+                    "inputMode": "realtime",
+                }
+            )
         )
         return
 
@@ -167,30 +139,19 @@ def main():
         images = find_images(query)
         results = get_image_list_results(images)
         print(
-            json.dumps({"type": "results", "results": results, "inputMode": "realtime"})
+            json.dumps(
+                {
+                    "type": "results",
+                    "results": results,
+                    "inputMode": "realtime",
+                }
+            )
         )
         return
 
-    # Action: handle item click or action button
     if step == "action":
         item_id = selected.get("id", "")
 
-        # Back button - return to list
-        if item_id == "__back__":
-            images = find_images()
-            results = get_image_list_results(images)
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": results,
-                        "navigateBack": True,  # Going back to list
-                    }
-                )
-            )
-            return
-
-        # Action button clicks (open, copy-path from list view)
         if action == "open":
             print(
                 json.dumps(
@@ -216,37 +177,8 @@ def main():
             )
             return
 
-        # Detail view actions (from clicking items in detail view)
-        if item_id.startswith("open:"):
-            path = item_id.split(":", 1)[1]
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "open": path,
-                        "close": True,
-                    }
-                )
-            )
-            return
-
-        if item_id.startswith("copy-path:"):
-            path = item_id.split(":", 1)[1]
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "copy": path,
-                        "notify": f"Copied: {path}",
-                        "close": True,
-                    }
-                )
-            )
-            return
-
-        if item_id.startswith("copy-image:"):
-            path = item_id.split(":", 1)[1]
-            subprocess.Popen(["wl-copy", "-t", "image/png", path])
+        if action == "copy-image":
+            subprocess.Popen(["wl-copy", "-t", "image/png", item_id])
             print(
                 json.dumps(
                     {
@@ -258,38 +190,20 @@ def main():
             )
             return
 
-        if item_id.startswith("delete:"):
-            path = item_id.split(":", 1)[1]
-            filename = Path(path).name
-            subprocess.Popen(["gio", "trash", path])
+        # Default action (Enter key) - open the image
+        if Path(item_id).exists():
             print(
                 json.dumps(
                     {
                         "type": "execute",
-                        "notify": f"Moved to trash: {filename}",
+                        "open": item_id,
                         "close": True,
                     }
                 )
             )
             return
 
-        # Default click on image - show detail view (multi-turn!)
-        if Path(item_id).exists():
-            results = get_image_detail_results(item_id)
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": results,
-                        "inputMode": "realtime",
-                        "navigateForward": True,  # Drilling into image detail
-                    }
-                )
-            )
-            return
-
-        # Unknown action
-        print(json.dumps({"type": "error", "message": f"Unknown action: {item_id}"}))
+        print(json.dumps({"type": "error", "message": f"File not found: {item_id}"}))
 
 
 if __name__ == "__main__":

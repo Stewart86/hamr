@@ -1,27 +1,59 @@
+# Build artifacts
+/target/
+
+# Cargo lock for libraries (optional - keep for binaries)
+# Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug
+*.pdb
+
+# Environment
+.env
+.env.local
+
+# Python runtime artifacts
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
 .pytest_cache/
-.ruff_cache/
-.venv/
+crates/hamr-types/proptest-regressions/
+uv.lock
 site/
 
-# QML Language Server config (managed by Quickshell at runtime)
-.qmlls.ini
-CODE_COMPLEXITY.md
+# Rust specific
+**/*.rs.bk
+.cargo/
+vendor/
+*.profraw
+perf.data*
 
-# Future project spec (not part of current hamr)
-RUSTY_HAMR.md
+# Fuzzing artifacts
+crates/hamr-types/fuzz/artifacts/
+crates/hamr-types/fuzz/corpus/
+crates/hamr-types/fuzz/target/
 
-# AUR package repo (separate git repo, at root level only)
-/aur/
+# Development logs
+*.log
 
-# makepkg build artifacts
-*.pkg.tar.zst
-src/
-pkg/
-hamr/
-plugins/ENHANCEMENTS.md
-plugins/test-widgets/
-specs/
+# Python virtual environments (if any)
+venv/
+.venv/
 
-#nix-flake
-result/
+# Temporary files
+*.tmp
+*.bak
+*.orig
+.ruff_cache/
+
+.opencode/

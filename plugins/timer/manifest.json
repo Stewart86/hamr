@@ -1,11 +1,22 @@
 {
-    "name": "Timer",
-    "description": "Countdown timers and stopwatch",
-    "icon": "timer",
-    "supportedCompositors": ["*"],
-    "frecency": "plugin",
-    "daemon": {
-        "enabled": true,
-        "background": true
-    }
+  "name": "Timer",
+  "description": "Countdown timers and stopwatch",
+  "icon": "timer",
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
+  "daemon": {
+    "enabled": true,
+    "background": true,
+    "restartOnCrash": true,
+    "maxRestarts": 5
+  },
+  "frecency": "plugin",
+  "supportedPlatforms": [
+    "niri",
+    "hyprland",
+    "macos",
+    "windows"
+  ]
 }

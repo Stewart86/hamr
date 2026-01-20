@@ -1,0 +1,64 @@
+# Maintainer: Stewart <stewart@anomaly.co>
+# AUR package for hamr-rs - builds from source
+
+pkgname=hamr-git
+pkgver=1.0.0-alpha
+pkgrel=1
+pkgdesc="A fast, extensible desktop launcher for Linux"
+arch=('x86_64' 'aarch64')
+url="https://github.com/Stewart86/hamr"
+license=('MIT')
+depends=(
+    'gtk4'
+    'gtk4-layer-shell'
+    'python'
+)
+makedepends=(
+    'rust'
+    'cargo'
+    'pkgconf'
+)
+optdepends=(
+    'python-dbus: system dbus integration for plugins'
+    'python-gobject: GObject introspection for plugins'
+)
+provides=('hamr')
+conflicts=('hamr')
+source=("${pkgname}::git+${url}.git")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd "$pkgname"
+    git describe --tags --long 2>/dev/null | sed 's/^v//;s/-/.r/;s/-/./' || \
+    printf "0.1.0.r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+    cd "$pkgname"
+    export CARGO_TARGET_DIR=target
+    cargo build --release --locked
+}
+
+package() {
+    cd "$pkgname"
+
+    # Install binaries
+    install -Dm755 target/release/hamr "$pkgdir/usr/bin/hamr"
+    install -Dm755 target/release/hamr-daemon "$pkgdir/usr/bin/hamr-daemon"
+    install -Dm755 target/release/hamr-gtk "$pkgdir/usr/bin/hamr-gtk"
+    install -Dm755 target/release/hamr-tui "$pkgdir/usr/bin/hamr-tui"
+
+    # Install plugins to system location
+    install -dm755 "$pkgdir/usr/share/hamr/plugins"
+    cp -r plugins/* "$pkgdir/usr/share/hamr/plugins/"
+
+    # Fix permissions on plugin files
+    find "$pkgdir/usr/share/hamr/plugins" -type f -name "*.py" -exec chmod 755 {} \;
+    find "$pkgdir/usr/share/hamr/plugins" -type f -name "*.json" -exec chmod 644 {} \;
+
+    # Install license
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+
+    # Install documentation
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

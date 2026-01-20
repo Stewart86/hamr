@@ -1,0 +1,33 @@
+[package]
+name = "hamr-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Core library for the Hamr launcher"
+
+[lints]
+workspace = true
+
+[dependencies]
+hamr-types.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+nucleo.workspace = true
+nucleo-matcher.workspace = true
+notify.workspace = true
+notify-debouncer-mini.workspace = true
+directories.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+regex.workspace = true
+
+[dev-dependencies]
+tempfile = "3.24.0"
+tokio = { workspace = true, features = ["test-util"] }
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "search"
+harness = false

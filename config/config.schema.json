@@ -1,0 +1,309 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hamr.dev/schemas/config.schema.json",
+  "title": "Hamr Configuration",
+  "description": "Configuration schema for Hamr launcher. Place in ~/.config/hamr/config.json",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference for IDE support"
+    },
+    "search": {
+      "type": "object",
+      "description": "Search behavior settings (used by hamr-core)",
+      "additionalProperties": true,
+      "properties": {
+        "maxDisplayedResults": {
+          "type": "integer",
+          "default": 16,
+          "minimum": 1,
+          "description": "Maximum number of results shown in the launcher"
+        },
+        "maxRecentItems": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 0,
+          "description": "Number of recent items shown when search is empty"
+        },
+        "maxResultsPerPlugin": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "description": "Hard limit per plugin (0 = no limit, uses diversity decay instead)"
+        },
+        "pluginDebounceMs": {
+          "type": "integer",
+          "default": 150,
+          "minimum": 0,
+          "description": "Milliseconds to wait after typing before sending search to plugins"
+        },
+        "diversityDecay": {
+          "type": "number",
+          "default": 0.7,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Score decay for consecutive results from same plugin. Lower values = more diverse results from different plugins"
+        },
+        "engineBaseUrl": {
+          "type": "string",
+          "default": "https://www.google.com/search?q=",
+          "format": "uri",
+          "description": "Base URL for web search fallback. Query is appended to this URL"
+        },
+        "excludedSites": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "description": "Sites to exclude from web search suggestions (e.g., ['facebook.com', 'twitter.com'])"
+        },
+        "prefix": {
+          "type": "object",
+          "description": "Prefix characters that trigger special search modes",
+          "additionalProperties": true,
+          "properties": {
+            "plugins": {
+              "type": "string",
+              "default": "/",
+              "description": "Prefix to search and select plugins by name"
+            },
+            "app": {
+              "type": "string",
+              "default": "@",
+              "description": "Prefix for app-only search (excludes other results)"
+            },
+            "emojis": {
+              "type": "string",
+              "default": ":",
+              "description": "Prefix for emoji search"
+            },
+            "math": {
+              "type": "string",
+              "default": "=",
+              "description": "Prefix for calculator mode"
+            },
+            "shellCommand": {
+              "type": "string",
+              "default": "!",
+              "description": "Prefix for shell command execution"
+            },
+            "webSearch": {
+              "type": "string",
+              "default": "?",
+              "description": "Prefix for web search (uses engineBaseUrl)"
+            }
+          }
+        },
+        "actionBarHints": {
+          "type": "array",
+          "description": "Action bar shortcuts shown below the search input",
+          "items": {
+            "$ref": "#/$defs/actionBarHint"
+          }
+        },
+        "pluginRankingBonus": {
+          "type": "object",
+          "description": "Bonus points to add to specific plugin scores. Higher values = higher ranking",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "examples": [
+            {
+              "apps": 200,
+              "settings": 150
+            }
+          ]
+        }
+      }
+    },
+    "apps": {
+      "type": "object",
+      "description": "Override default applications (auto-detected if not set)",
+      "additionalProperties": true,
+      "properties": {
+        "terminal": {
+          "type": "string",
+          "description": "Terminal emulator command for shell execution (e.g., 'alacritty', 'kitty', 'wezterm')"
+        },
+        "fileManager": {
+          "type": "string",
+          "description": "File manager for opening directories (e.g., 'nautilus', 'dolphin', 'thunar')"
+        },
+        "browser": {
+          "type": "string",
+          "description": "Web browser for opening URLs (e.g., 'firefox', 'chromium')"
+        }
+      }
+    },
+    "appearance": {
+      "type": "object",
+      "description": "Visual appearance settings (GTK UI only)",
+      "additionalProperties": true,
+      "properties": {
+        "backgroundTransparency": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Background transparency (0 = opaque, 1 = fully transparent)"
+        },
+        "contentTransparency": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Content area transparency (0 = opaque, 1 = fully transparent)"
+        },
+        "launcherXRatio": {
+          "type": "number",
+          "default": 0.5,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Horizontal position (0 = left edge, 0.5 = center, 1 = right edge)"
+        },
+        "launcherYRatio": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Vertical position (0 = top edge, 0.5 = center, 1 = bottom edge)"
+        },
+        "fontScale": {
+          "type": "number",
+          "default": 1.0,
+          "minimum": 0.1,
+          "description": "Font size multiplier (1.0 = normal, 1.5 = 50% larger)"
+        },
+        "uiScale": {
+          "type": "number",
+          "default": 1.0,
+          "minimum": 0.1,
+          "description": "UI element scaling for spacing, padding, margins, and icons"
+        },
+        "defaultResultView": {
+          "type": "string",
+          "enum": ["list", "grid"],
+          "default": "list",
+          "description": "Default view mode for search results"
+        },
+        "grid": {
+          "type": "object",
+          "description": "Grid layout settings when using grid view",
+          "additionalProperties": true,
+          "properties": {
+            "columns": {
+              "type": "integer",
+              "default": 5,
+              "minimum": 1,
+              "description": "Number of columns in grid view"
+            },
+            "itemWidth": {
+              "type": "integer",
+              "default": 110,
+              "minimum": 50,
+              "description": "Width of each grid item in pixels"
+            },
+            "spacing": {
+              "type": "integer",
+              "default": 2,
+              "minimum": 0,
+              "description": "Spacing between grid items in pixels"
+            }
+          }
+        }
+      }
+    },
+    "sizes": {
+      "type": "object",
+      "description": "Size constraints (GTK UI only)",
+      "additionalProperties": true,
+      "properties": {
+        "searchWidth": {
+          "type": "integer",
+          "default": 640,
+          "minimum": 200,
+          "description": "Width of the search bar in pixels"
+        },
+        "maxResultsHeight": {
+          "type": "integer",
+          "default": 600,
+          "minimum": 100,
+          "description": "Maximum height of the results container in pixels"
+        }
+      }
+    },
+    "fonts": {
+      "type": "object",
+      "description": "Font configuration (GTK UI only)",
+      "additionalProperties": true,
+      "properties": {
+        "main": {
+          "type": "string",
+          "default": "Google Sans Flex",
+          "description": "Main UI font family"
+        },
+        "monospace": {
+          "type": "string",
+          "default": "JetBrains Mono NF",
+          "description": "Monospace font for code and terminal output"
+        },
+        "icon": {
+          "type": "string",
+          "default": "Material Symbols Rounded",
+          "description": "Icon font (should support Material Symbols)"
+        }
+      }
+    },
+    "behavior": {
+      "type": "object",
+      "description": "Behavioral settings (GTK UI only)",
+      "additionalProperties": true,
+      "properties": {
+        "clickOutsideAction": {
+          "type": "string",
+          "enum": ["intuitive", "close", "minimize"],
+          "default": "intuitive",
+          "description": "What happens when clicking outside the launcher. 'intuitive' = minimize if user has used Ctrl+M, otherwise close"
+        },
+        "stateRestoreWindowMs": {
+          "type": "integer",
+          "default": 30000,
+          "minimum": 0,
+          "description": "Milliseconds to preserve search state after soft close (0 = always reset)"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "actionBarHint": {
+      "type": "object",
+      "required": ["prefix", "plugin"],
+      "additionalProperties": true,
+      "properties": {
+        "prefix": {
+          "type": "string",
+          "description": "Trigger character (e.g., '~', ';', ':')"
+        },
+        "plugin": {
+          "type": "string",
+          "description": "Plugin ID to launch when prefix is typed"
+        },
+        "label": {
+          "type": "string",
+          "description": "Display label in the action bar"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Material Symbol icon name (see fonts.google.com/icons)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description shown in tooltip"
+        }
+      }
+    }
+  }
+}

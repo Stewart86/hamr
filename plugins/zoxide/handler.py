@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """
-Zoxide plugin handler - index frequently used directories from zoxide.
+Zoxide plugin - index frequently used directories from zoxide.
+Socket-based daemon version for hamr-rs.
 """
 
-import json
+import asyncio
 import os
-import select
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+# Add parent directory to path to import SDK
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
+
 IS_NIRI = bool(os.environ.get("NIRI_SOCKET"))
 
 MAX_ITEMS = 50
-POLL_INTERVAL_SECONDS = 60
-
 ZOXIDE_DB = Path.home() / ".local/share/zoxide/db.zo"
 
 
@@ -137,10 +139,6 @@ def dir_to_index_item(dir_info: dict) -> dict:
         "icon": "folder_special",
         "keywords": path_parts,
         "verb": "Open",
-        "entryPoint": {
-            "step": "action",
-            "selected": {"id": item_id},
-        },
         "preview": {
             "type": "text",
             "content": preview_content,
@@ -164,126 +162,85 @@ def dir_to_index_item(dir_info: dict) -> dict:
     }
 
 
-def handle_request(input_data: dict) -> None:
-    """Handle a single request."""
-    step = input_data.get("step", "initial")
+# Create plugin instance
+plugin = HamrPlugin(
+    id="zoxide",
+    name="Zoxide",
+    description="Jump to frequently used directories",
+    icon="folder_special",
+)
 
-    if step == "index":
-        mode = input_data.get("mode", "full")
-        indexed_ids = set(input_data.get("indexedIds", []))
 
+@plugin.on_action
+async def handle_action(item_id: str, action=None, context=None):
+    """Handle action request."""
+    if not item_id.startswith("zoxide:"):
+        return {"error": "Invalid item ID"}
+
+    path = item_id[7:]
+
+    if not path:
+        return {"error": "Missing path"}
+
+    if action == "files":
+        try:
+            subprocess.Popen(["xdg-open", path])
+            return HamrPlugin.close()
+        except Exception as e:
+            return HamrPlugin.error(str(e))
+
+    if action == "copy":
+        try:
+            subprocess.run(
+                ["wl-copy"],
+                input=path.encode(),
+                timeout=5,
+            )
+            return HamrPlugin.close()
+        except Exception as e:
+            return HamrPlugin.error(str(e))
+
+    # Default action: open terminal at directory
+    try:
+        cmd = make_terminal_cmd(path)
+        subprocess.Popen(cmd)
+        return HamrPlugin.close()
+    except Exception as e:
+        return HamrPlugin.error(str(e))
+
+
+@plugin.add_background_task
+async def emit_index(p: HamrPlugin):
+    """Background task to emit full index on startup and watch for changes."""
+    last_mtime = ZOXIDE_DB.stat().st_mtime if ZOXIDE_DB.exists() else 0
+    last_dirs = None
+
+    # Emit initial full index
+    dirs = get_zoxide_dirs()
+    items = [dir_to_index_item(d) for d in dirs]
+    await p.send_index(items)
+    last_dirs = dirs
+
+    # Watch for changes - check mtime first (cheap), then compare actual data
+    while True:
+        await asyncio.sleep(5)
+
+        if not ZOXIDE_DB.exists():
+            continue
+
+        current_mtime = ZOXIDE_DB.stat().st_mtime
+        if current_mtime == last_mtime:
+            continue  # No file change, skip expensive query
+
+        last_mtime = current_mtime
         dirs = get_zoxide_dirs()
 
-        current_ids = {f"zoxide:{d['path']}" for d in dirs}
-
-        if mode == "incremental":
-            new_ids = current_ids - indexed_ids
-            items = [
-                dir_to_index_item(d) for d in dirs if f"zoxide:{d['path']}" in new_ids
-            ]
-            removed_ids = list(indexed_ids - current_ids)
-
-            print(
-                json.dumps(
-                    {
-                        "type": "index",
-                        "mode": "incremental",
-                        "items": items,
-                        "remove": removed_ids,
-                    }
-                )
-            )
-        else:
+        # Only send if directory list actually changed
+        if dirs != last_dirs:
             items = [dir_to_index_item(d) for d in dirs]
-            print(json.dumps({"type": "index", "items": items}))
-        return
-
-    if step == "action":
-        action_id = input_data.get("action")
-        selected = input_data.get("selected", {})
-        item_id = selected.get("id", "")
-
-        if not item_id.startswith("zoxide:"):
-            print(json.dumps({"type": "error", "message": "Invalid item ID"}))
-            return
-        path = item_id[7:]
-
-        if not path:
-            print(json.dumps({"type": "error", "message": "Missing path"}))
-            return
-
-        if action_id == "files":
-            try:
-                subprocess.Popen(["xdg-open", path])
-                print(json.dumps({"type": "execute", "close": True}))
-            except Exception as e:
-                print(json.dumps({"type": "error", "message": str(e)}))
-            return
-
-        if action_id == "copy":
-            try:
-                subprocess.run(
-                    ["wl-copy"],
-                    input=path.encode(),
-                    timeout=5,
-                )
-                print(json.dumps({"type": "execute", "close": True}))
-            except Exception as e:
-                print(json.dumps({"type": "error", "message": str(e)}))
-            return
-
-        try:
-            cmd = make_terminal_cmd(path)
-            subprocess.Popen(cmd)
-            print(json.dumps({"type": "execute", "close": True}))
-        except Exception as e:
-            print(json.dumps({"type": "error", "message": str(e)}))
-        return
-
-    print(json.dumps({"type": "error", "message": "Invalid request"}))
-
-
-def emit_full_index() -> None:
-    """Emit full index of zoxide directories."""
-    dirs = get_zoxide_dirs()
-
-    items = [dir_to_index_item(d) for d in dirs]
-    print(
-        json.dumps({"type": "index", "mode": "full", "items": items}),
-        flush=True,
-    )
-
-
-def main():
-    import signal
-
-    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
-    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
-
-    emit_full_index()
-
-    last_mtime = ZOXIDE_DB.stat().st_mtime if ZOXIDE_DB.exists() else 0
-
-    while True:
-        readable, _, _ = select.select([sys.stdin], [], [], POLL_INTERVAL_SECONDS)
-
-        if readable:
-            try:
-                line = sys.stdin.readline()
-                if not line:
-                    return
-                input_data = json.loads(line)
-                handle_request(input_data)
-                sys.stdout.flush()
-            except json.JSONDecodeError:
-                continue
-
-        if ZOXIDE_DB.exists():
-            current = ZOXIDE_DB.stat().st_mtime
-            if current != last_mtime:
-                last_mtime = current
-                emit_full_index()
+            await p.send_index(items)
+            last_dirs = dirs
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

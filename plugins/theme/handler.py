@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
-Theme plugin handler - switch between light and dark mode.
+Theme plugin for hamr - Switch between light and dark mode.
+
+Socket-based daemon plugin that provides theme switching capabilities.
 """
 
-import json
-import os
-import select
-import signal
+import asyncio
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
 
 SCRIPT_PATHS = [
     Path.home() / ".config/hamr/scripts/colors/switchwall.sh",
@@ -37,28 +39,15 @@ ACTIONS = [
 
 
 def find_script() -> str | None:
+    """Find the color switching script."""
     for path in SCRIPT_PATHS:
-        if path.is_file() and os.access(path, os.X_OK):
+        if path.is_file() and path.stat().st_mode & 0o111:
             return str(path)
     return None
 
 
-def action_to_index_item(action: dict) -> dict:
-    return {
-        "id": action["id"],
-        "name": action["name"],
-        "description": action["description"],
-        "icon": action["icon"],
-        "verb": "Switch",
-        "keywords": [action["id"], "theme", "mode"],
-        "entryPoint": {
-            "step": "action",
-            "selected": {"id": action["id"]},
-        },
-    }
-
-
 def action_to_result(action: dict) -> dict:
+    """Convert action to result format."""
     return {
         "id": action["id"],
         "name": action["name"],
@@ -68,135 +57,87 @@ def action_to_result(action: dict) -> dict:
     }
 
 
-def get_index_items() -> list[dict]:
-    return [action_to_index_item(a) for a in ACTIONS]
+plugin = HamrPlugin(
+    id="theme",
+    name="Theme",
+    description="Switch between light and dark mode",
+    icon="contrast",
+)
 
 
-def handle_request(request: dict) -> None:
-    step = request.get("step", "initial")
-    query = request.get("query", "").strip().lower()
-    selected = request.get("selected", {})
+@plugin.on_initial
+def handle_initial(params=None):
+    """Handle initial request."""
+    results = [action_to_result(a) for a in ACTIONS]
+    return HamrPlugin.results(results, placeholder="Search theme...")
 
-    if step == "index":
-        items = get_index_items()
-        print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
-        return
 
-    if step == "initial":
-        results = [action_to_result(a) for a in ACTIONS]
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "placeholder": "Search theme...",
-                    "inputMode": "realtime",
-                }
-            ),
-            flush=True,
-        )
-        return
+@plugin.on_search
+def handle_search(query: str, context: str | None):
+    """Handle search request."""
+    query_lower = query.lower()
+    filtered = [
+        a
+        for a in ACTIONS
+        if query_lower in a["id"]
+        or query_lower in a["name"].lower()
+        or query_lower in a["description"].lower()
+    ]
+    results = [action_to_result(a) for a in filtered]
 
-    if step == "search":
-        filtered = [
-            a
-            for a in ACTIONS
-            if query in a["id"]
-            or query in a["name"].lower()
-            or query in a["description"].lower()
+    if not results:
+        results = [
+            {
+                "id": "__empty__",
+                "name": f"No themes matching '{query}'",
+                "icon": "search_off",
+            }
         ]
-        results = [action_to_result(a) for a in filtered]
-        if not results:
-            results = [
-                {
-                    "id": "__empty__",
-                    "name": f"No themes matching '{query}'",
-                    "icon": "search_off",
-                }
-            ]
-        print(
-            json.dumps(
-                {"type": "results", "results": results, "inputMode": "realtime"}
-            ),
-            flush=True,
+
+    return HamrPlugin.results(results)
+
+
+@plugin.on_action
+async def handle_action(item_id: str, action: str | None, context: str | None):
+    """Handle action request."""
+    if item_id == "__empty__":
+        return HamrPlugin.close()
+
+    selected_action = next((a for a in ACTIONS if a["id"] == item_id), None)
+    if not selected_action:
+        return HamrPlugin.error(f"Unknown action: {item_id}")
+
+    # Try to use script if available
+    script = find_script()
+    if script:
+        await asyncio.to_thread(
+            subprocess.Popen,
+            [script, "--mode", selected_action["mode"], "--noswitch"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
         )
-        return
-
-    if step == "action":
-        selected_id = selected.get("id", "")
-
-        if selected_id == "__empty__":
-            print(json.dumps({"type": "execute", "close": True}), flush=True)
-            return
-
-        action = next((a for a in ACTIONS if a["id"] == selected_id), None)
-        if not action:
-            print(
-                json.dumps(
-                    {"type": "error", "message": f"Unknown action: {selected_id}"}
-                ),
-                flush=True,
-            )
-            return
-
-        script = find_script()
-        if script:
-            subprocess.Popen(
-                [script, "--mode", action["mode"], "--noswitch"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-        else:
-            color_scheme = (
-                "prefer-light" if action["mode"] == "light" else "prefer-dark"
-            )
-            subprocess.Popen(
-                [
-                    "gsettings",
-                    "set",
-                    "org.gnome.desktop.interface",
-                    "color-scheme",
-                    color_scheme,
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-
-        print(
-            json.dumps(
-                {
-                    "type": "execute",
-                    "name": action["name"],
-                    "icon": action["icon"],
-                    "notify": action["notify"],
-                    "close": True,
-                }
-            ),
-            flush=True,
+    else:
+        # Fallback to gsettings
+        color_scheme = (
+            "prefer-light" if selected_action["mode"] == "light" else "prefer-dark"
         )
-        return
+        await asyncio.to_thread(
+            subprocess.Popen,
+            [
+                "gsettings",
+                "set",
+                "org.gnome.desktop.interface",
+                "color-scheme",
+                color_scheme,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
 
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}), flush=True)
-
-
-def main():
-    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
-    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
-
-    items = get_index_items()
-    print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
-
-    while True:
-        readable, _, _ = select.select([sys.stdin], [], [], 1.0)
-        if readable:
-            line = sys.stdin.readline()
-            if not line:
-                break
-            request = json.loads(line.strip())
-            handle_request(request)
+    return HamrPlugin.execute(close=True)
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

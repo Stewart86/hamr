@@ -2,9 +2,12 @@
   "name": "Apps",
   "description": "Browse and launch applications",
   "icon": "apps",
-  "supportedCompositors": ["*"],
   "daemon": {
     "enabled": true,
     "background": true
-  }
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

@@ -1,0 +1,33 @@
+[package]
+name = "hamr-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TUI client for Hamr launcher"
+
+[lints]
+workspace = true
+
+[lib]
+name = "hamr_tui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hamr-tui"
+path = "src/main.rs"
+
+[dependencies]
+hamr-rpc = { path = "../hamr-rpc" }
+hamr-core = { path = "../hamr-core" }
+tokio.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-appender = "0.2"
+chrono = "0.4"
+anyhow.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
+futures-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
