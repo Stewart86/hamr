@@ -42,12 +42,15 @@ sudo dnf install gtk4-devel gtk4-layer-shell-devel python3
 # Install dependencies (Ubuntu/Debian)
 sudo apt install libgtk-4-dev gtk4-layer-shell-dev python3
 
-# Build
-git clone https://github.com/stewart86/hamr
+# Clone this Rust branch (main branch contains QML implementation)
+git clone -b rusty-hamr-v1.0.0-alpha https://github.com/stewart86/hamr
 cd hamr
-cargo build --release
 
-# Install
+# Build and install using install.sh
+./install.sh
+
+# Or build manually
+cargo build --release
 mkdir -p ~/.local/bin
 cp target/release/{hamr,hamr-daemon,hamr-gtk,hamr-tui} ~/.local/bin/
 hamr install
@@ -111,6 +114,17 @@ binds {
     Mod+Space { spawn "hamr" "toggle"; }
     Mod+V { spawn "hamr" "plugin" "clipboard"; }
 }
+```
+
+**Systemd** (manual setup):
+
+```bash
+# The 'hamr install' command enables the systemd service
+# You only need to start it manually:
+systemctl --user start hamr-daemon.service
+
+# Or start the launcher manually (auto-starts daemon)
+hamr
 ```
 
 ## Built-in Plugins
