@@ -1,9 +1,14 @@
 [
   {
-    "version": "v1.0.0-alpha",
-    "title": "v1.0.0-alpha",
+    "version": "qml-latest",
+    "title": "qml-latest",
     "aliases": [
       "latest"
     ]
+  },
+  {
+    "version": "v1.0.0-alpha",
+    "title": "v1.0.0-alpha",
+    "aliases": []
   }
 ]
