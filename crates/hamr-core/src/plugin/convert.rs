@@ -161,6 +161,23 @@ fn handle_results_response(
         );
     }
 
+    // Check if first item has immediate execute action (openUrl/copy)
+    if let Some(first_item) = items.first() {
+        if let Some(ref url) = first_item.open_url {
+            updates.push(CoreUpdate::Execute {
+                action: ExecuteAction::OpenUrl { url: url.clone() },
+            });
+            return;
+        }
+
+        if let Some(ref text) = first_item.copy {
+            updates.push(CoreUpdate::Execute {
+                action: ExecuteAction::Copy { text: text.clone() },
+            });
+            return;
+        }
+    }
+
     let results = convert_plugin_results(plugin_id, items);
     updates.push(CoreUpdate::Results {
         results,

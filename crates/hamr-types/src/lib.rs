@@ -424,6 +424,22 @@ pub struct ResultItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub widget: Option<WidgetData>,
 
+    /// Immediate URL to open when this result is selected (for match responses)
+    #[serde(default, rename = "openUrl", skip_serializing_if = "Option::is_none")]
+    pub open_url: Option<String>,
+
+    /// Immediate text to copy when this result is selected (for match responses)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub copy: Option<String>,
+
+    /// Notification message to show when this result is selected (for match responses)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notify: Option<String>,
+
+    /// Whether to close the launcher after executing this result (for match responses)
+    #[serde(default, rename = "close", skip_serializing_if = "Option::is_none")]
+    pub should_close: Option<bool>,
+
     /// Composite score for ranking (not serialized over RPC)
     #[serde(skip)]
     pub composite_score: f64,
@@ -461,6 +477,10 @@ impl Default for ResultItem {
             has_ocr: false,
             display_hint: None,
             widget: None,
+            open_url: None,
+            copy: None,
+            notify: None,
+            should_close: None,
             composite_score: 0.0,
         }
     }
@@ -601,6 +621,14 @@ struct ResultItemRaw {
     display_hint: Option<DisplayHint>,
     #[serde(default)]
     widget: Option<WidgetData>,
+    #[serde(default, rename = "openUrl")]
+    open_url: Option<String>,
+    #[serde(default)]
+    copy: Option<String>,
+    #[serde(default)]
+    notify: Option<String>,
+    #[serde(default, rename = "close")]
+    should_close: Option<bool>,
 }
 
 /// Parsed slider/switch value data tuple.
@@ -712,6 +740,10 @@ impl TryFrom<ResultItemRaw> for ResultItem {
             has_ocr: raw.has_ocr,
             display_hint: raw.display_hint,
             widget,
+            open_url: raw.open_url,
+            copy: raw.copy,
+            notify: raw.notify,
+            should_close: raw.should_close,
             composite_score: 0.0,
         })
     }

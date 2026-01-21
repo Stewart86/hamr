@@ -74,6 +74,8 @@ def main():
                             "description": "Open in browser",
                             "icon": "open_in_browser",
                             "verb": "Open",
+                            "openUrl": url,
+                            "close": True,
                             "actions": [
                                 {
                                     "id": "copy",

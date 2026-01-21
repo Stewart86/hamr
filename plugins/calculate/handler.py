@@ -452,6 +452,7 @@ def main():
                                 "verb": "Copy",
                                 "copy": result,
                                 "notify": f"Copied: {result}",
+                                "close": True,
                             }
                         ],
                         "inputMode": "realtime",
