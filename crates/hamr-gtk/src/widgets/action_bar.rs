@@ -12,8 +12,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use gtk4::Orientation;
 use gtk4::prelude::*;
+use gtk4::Orientation;
 use hamr_rpc::PluginAction;
 
 /// Callback type for simple button events (home, back, help)
@@ -402,10 +402,7 @@ impl ActionBar {
         let previously_had_items = !self.state.borrow().ambient_items.is_empty();
         let has_items = !items.is_empty();
 
-        self.state
-            .borrow_mut()
-            .ambient_items
-            .clone_from_slice(items);
+        self.state.borrow_mut().ambient_items = items.to_vec();
         self.update_ambient_items_diff(items);
 
         if previously_had_items != has_items {

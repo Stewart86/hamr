@@ -3278,8 +3278,17 @@ impl LauncherWindow {
                     state_mut.ambient_items.insert(plugin_id, items);
                 }
 
+                // Check if there are any ambient items across all plugins
+                let has_ambient = !state_mut.ambient_items.is_empty();
+                drop(state_mut);
+
+                // Auto-show FAB if there are active ambient items
+                let visibility_state = state_manager.visibility_state();
+                visibility_state.set_has_ambient_items(has_ambient);
+
                 // Convert to flat list with plugin IDs for both action bar and FAB
-                let ambient_list: Vec<AmbientItemWithPlugin> = state_mut
+                let ambient_list: Vec<AmbientItemWithPlugin> = state
+                    .borrow()
                     .ambient_items
                     .iter()
                     .flat_map(|(pid, items)| {
@@ -3290,7 +3299,6 @@ impl LauncherWindow {
                     })
                     .collect();
 
-                drop(state_mut);
                 action_bar.set_ambient_items(&ambient_list);
                 fab_window.set_ambient_items(&ambient_list);
             }

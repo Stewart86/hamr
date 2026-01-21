@@ -193,6 +193,8 @@ pub struct VisibilityState {
     fab_overrides: RefCell<HashMap<String, FabOverride>>,
     /// Resolved active FAB override (highest priority wins)
     active_fab_override: RefCell<Option<FabOverride>>,
+    /// Whether visibility was auto-switched to Minimized due to ambient items
+    ambient_triggered_minimize: Cell<bool>,
 }
 
 impl Default for VisibilityState {
@@ -210,6 +212,7 @@ impl VisibilityState {
             saved_session: RefCell::new(None),
             fab_overrides: RefCell::new(HashMap::new()),
             active_fab_override: RefCell::new(None),
+            ambient_triggered_minimize: Cell::new(false),
         }
     }
 
@@ -325,6 +328,27 @@ impl VisibilityState {
             best.as_ref().map(|b| (b.chips.len(), b.badges.len()))
         );
         *self.active_fab_override.borrow_mut() = best;
+    }
+
+    /// Called when ambient items change - auto-show FAB if there are active ambient items
+    pub fn set_has_ambient_items(&self, has_ambient: bool) {
+        let current_visibility = self.visibility.get();
+
+        if has_ambient {
+            // If launcher is closed and not already minimized by user, show FAB
+            if current_visibility == LauncherVisibility::Closed && !self.has_used_minimize.get() {
+                self.visibility.set(LauncherVisibility::Minimized);
+                self.ambient_triggered_minimize.set(true);
+                debug!("Auto-showing FAB due to active ambient items");
+            }
+        } else {
+            // If ambient items are cleared and we auto-triggered minimize, switch back to closed
+            if self.ambient_triggered_minimize.get() && current_visibility == LauncherVisibility::Minimized {
+                self.visibility.set(LauncherVisibility::Closed);
+                self.ambient_triggered_minimize.set(false);
+                debug!("Auto-hiding FAB (no more ambient items)");
+            }
+        }
     }
 }
 
