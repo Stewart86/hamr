@@ -230,7 +230,7 @@ impl ResultGrid {
     pub fn set_max_height(&self, height: i32) {
         *self.max_height.borrow_mut() = height;
         self.scrolled.set_max_content_height(height);
-        self.scrolled.set_min_content_height(height);
+        // min_content_height is dynamically calculated in set_results() based on actual content
     }
 
     pub fn set_columns(&self, columns: u32) {
@@ -301,6 +301,19 @@ impl ResultGrid {
 
         let max_height = *self.max_height.borrow();
         self.scrolled.set_max_content_height(max_height);
+
+        // Measure actual content height and set min_content_height
+        // This is needed because GtkFixed container doesn't respect natural height
+        // Without min_content_height, content collapses to minimum size (tiny bar)
+        // With min_content_height, ScrolledWindow enforces the size properly
+        if results.is_empty() {
+            self.scrolled.set_min_content_height(0);
+        } else {
+            let (_, natural_height, _, _) =
+                self.grid_view.measure(gtk4::Orientation::Vertical, -1);
+            let min_height = natural_height.min(max_height);
+            self.scrolled.set_min_content_height(min_height);
+        }
 
         // Notify about initial selection
         self.notify_selection_change();

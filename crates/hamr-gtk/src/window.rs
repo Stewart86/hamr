@@ -2573,6 +2573,10 @@ impl LauncherWindow {
                 preview_revealer.set_reveal_child(false);
                 preview_window.set_visible(false);
                 result_card.set_card_with_context(&card, context.as_deref());
+                // Apply card-specific max height if specified
+                if let Some(max_height) = card.max_height {
+                    result_card.set_max_height(max_height.cast_signed());
+                }
                 result_card.widget().set_visible(true);
             }
             CoreUpdate::Form { form } => {

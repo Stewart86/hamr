@@ -157,10 +157,7 @@ impl ResultList {
     pub fn set_max_height(&self, height: i32) {
         *self.max_height.borrow_mut() = height;
         self.scrolled.set_max_content_height(height);
-        // When the launcher is positioned inside a fullscreen `GtkFixed`, GTK tends to allocate
-        // children close to their minimum size. Treat the configured max height as the intended
-        // visible height for the results area.
-        self.scrolled.set_min_content_height(height);
+        // min_content_height is dynamically calculated in set_results() based on actual content
     }
 
     /// Set the callback for item selection (Enter pressed)
@@ -292,6 +289,19 @@ impl ResultList {
 
         let max_height = *self.max_height.borrow();
         self.scrolled.set_max_content_height(max_height);
+
+        // Measure actual content height and set min_content_height
+        // This is needed because GtkFixed container doesn't respect natural height
+        // Without min_content_height, content collapses to minimum size (tiny bar)
+        // With min_content_height, ScrolledWindow enforces the size properly
+        if results.is_empty() {
+            self.scrolled.set_min_content_height(0);
+        } else {
+            let (_, natural_height, _, _) =
+                self.list_box.measure(gtk4::Orientation::Vertical, -1);
+            let min_height = natural_height.min(max_height);
+            self.scrolled.set_min_content_height(min_height);
+        }
 
         // Notify about initial selection
         drop(items);

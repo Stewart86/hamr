@@ -130,9 +130,7 @@ impl ResultCard {
 
         // Set max height if specified
         if let Some(max_height) = card.max_height {
-            self.markdown_view
-                .widget()
-                .set_max_content_height(max_height as i32);
+            self.markdown_view.set_max_content_height(max_height as i32);
         }
 
         // Render actions
@@ -156,7 +154,7 @@ impl ResultCard {
     /// Set the maximum height for the card's scrollable content area.
     pub fn set_max_height(&self, height: i32) {
         tracing::debug!("ResultCard::set_max_height({})", height);
-        self.markdown_view.widget().set_max_content_height(height);
+        self.markdown_view.set_max_content_height(height);
     }
 
     /// Clear the card content.

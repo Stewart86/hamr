@@ -25,6 +25,7 @@ pub struct MarkdownView {
     scrolled_window: ScrolledWindow,
     text_view: TextView,
     buffer: TextBuffer,
+    max_height: std::cell::Cell<i32>,
 }
 
 impl MarkdownView {
@@ -69,6 +70,7 @@ impl MarkdownView {
             scrolled_window,
             text_view,
             buffer,
+            max_height: std::cell::Cell::new(i32::MAX),
         }
     }
 
@@ -137,11 +139,25 @@ impl MarkdownView {
             &markdown[..markdown.len().min(100)]
         );
         renderer::render_markdown(markdown, &self.buffer, &self.text_view);
+
+        // Measure actual content height and set min_content_height
+        // This is needed because GtkFixed container doesn't respect natural height
+        // Without min_content_height, content collapses to minimum size (tiny bar)
+        if markdown.is_empty() {
+            self.scrolled_window.set_min_content_height(0);
+        } else {
+            let (_, natural_height, _, _) =
+                self.text_view.measure(gtk4::Orientation::Vertical, -1);
+            let max_h = self.max_height.get();
+            let min_height = natural_height.min(max_h);
+            self.scrolled_window.set_min_content_height(min_height);
+        }
     }
 
     /// Clear all content.
     pub fn clear(&self) {
         self.buffer.set_text("");
+        self.scrolled_window.set_min_content_height(0);
     }
 
     /// Get the root widget for embedding in containers.
@@ -161,18 +177,20 @@ impl MarkdownView {
         &self.buffer
     }
 
-    /// Set a fixed width for the markdown view.
+/// Set a fixed width for the markdown view.
     /// This constrains both the scrolled window and text view.
     pub fn set_width(&self, width: i32) {
         // Set scrolled window constraints
         self.scrolled_window.set_size_request(width, -1);
         self.scrolled_window.set_max_content_width(width);
         self.scrolled_window.set_min_content_width(width);
+    }
 
-        // For TextView with word wrap, setting width_request forces it to wrap at that width
-        // Subtract margins: left_margin(16) + right_margin(16) = 32
-        let tv_width = width - 32;
-        self.text_view.set_size_request(tv_width, -1);
+    /// Set the maximum height for markdown content.
+    pub fn set_max_content_height(&self, height: i32) {
+        self.max_height.set(height);
+        self.scrolled_window.set_max_content_height(height);
+        // min_content_height will be computed dynamically in set_content()
     }
 }
 
