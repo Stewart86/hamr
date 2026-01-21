@@ -289,11 +289,12 @@ main() {
                     handler_cmd=$(grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" | sed 's/.*"\([^"]*\)"$/\1/' | tail -1)
                     if [[ -n "$handler_cmd" ]]; then
                         handler_file=$(echo "$handler_cmd" | awk '{print $NF}')
-                        if [[ -f "$bin_dir/../plugins/$(dirname "$manifest")/$handler_file" ]]; then
-                            chmod +x "$bin_dir/../plugins/$(dirname "$manifest")/$handler_file"
+                        plugin_dir=$(basename "$(dirname "$manifest")")
+                        if [[ -f "$bin_dir/../plugins/$plugin_dir/$handler_file" ]]; then
+                            chmod +x "$bin_dir/../plugins/$plugin_dir/$handler_file"
                         fi
-                        if [[ -f "$HOME/.config/hamr/plugins/$(dirname "$manifest")/$handler_file" ]]; then
-                            chmod +x "$HOME/.config/hamr/plugins/$(dirname "$manifest")/$handler_file"
+                        if [[ -f "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file" ]]; then
+                            chmod +x "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file"
                         fi
                     fi
                 fi
@@ -436,11 +437,12 @@ main() {
                 handler_cmd=$(grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" | sed 's/.*"\([^"]*\)"$/\1/' | tail -1)
                 if [[ -n "$handler_cmd" ]]; then
                     handler_file=$(echo "$handler_cmd" | awk '{print $NF}')
-                    if [[ -f "$bin_dir/../plugins/$(dirname "$manifest")/$handler_file" ]]; then
-                        chmod +x "$bin_dir/../plugins/$(dirname "$manifest")/$handler_file"
+                    plugin_dir=$(basename "$(dirname "$manifest")")
+                    if [[ -f "$bin_dir/../plugins/$plugin_dir/$handler_file" ]]; then
+                        chmod +x "$bin_dir/../plugins/$plugin_dir/$handler_file"
                     fi
-                    if [[ -f "$HOME/.config/hamr/plugins/$(dirname "$manifest")/$handler_file" ]]; then
-                        chmod +x "$HOME/.config/hamr/plugins/$(dirname "$manifest")/$handler_file"
+                    if [[ -f "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file" ]]; then
+                        chmod +x "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file"
                     fi
                 fi
             fi
