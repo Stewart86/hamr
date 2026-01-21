@@ -103,7 +103,7 @@ def main():
                 json.dumps(
                     {
                         "type": "execute",
-                        "action": {"type": "copy", "text": url},
+                        "copy": url,
                         "notify": f"Copied: {url}",
                         "close": True,
                     }
@@ -116,7 +116,7 @@ def main():
             json.dumps(
                 {
                     "type": "execute",
-                    "action": {"type": "open-url", "url": url},
+                    "openUrl": url,
                     "close": True,
                 }
             )

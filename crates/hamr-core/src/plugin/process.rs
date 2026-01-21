@@ -114,10 +114,14 @@ impl PluginProcess {
                         }
                     }
                     Err(e) => {
-                        warn!(
-                            "[{}] Failed to parse response: {} - line: {}",
-                            plugin_id_clone, e, line
-                        );
+                        let error_msg = format!("Plugin '{}' returned invalid JSON: {}", plugin_id_clone, e);
+                        warn!("{} - Raw: {}", error_msg, line);
+                        if response_tx.send(PluginResponse::Error {
+                            message: error_msg,
+                            details: Some(line),
+                        }).await.is_err() {
+                            break;
+                        }
                     }
                 }
             }

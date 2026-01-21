@@ -22,7 +22,7 @@ Example usage:
     @plugin.on_action
     def handle_action(item_id: str, action: str | None, context: str | None, source: str | None) -> dict | None:
         # source is "ambient" for ambient bar actions, None for regular actions
-        return {"type": "execute", "action": {"type": "copy", "text": "Hello"}}
+        return {"type": "execute", "copy": "Hello", "close": True}
 
     plugin.run()
 """

@@ -165,10 +165,7 @@ def main():
                         json.dumps(
                             {
                                 "type": "execute",
-                                "action": {
-                                    "type": "notify",
-                                    "message": f"Definition of '{word}' copied",
-                                },
+                                "notify": f"Definition of '{word}' copied",
                                 "close": True,
                             }
                         )

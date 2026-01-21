@@ -771,17 +771,28 @@ async fn forward_plugin_result(
             }
         }
         Err(e) => {
+            let error_msg = format!("Plugin '{plugin_id}' returned invalid response: {e}");
             warn!(
-                "[{}] Failed to deserialize plugin response: {}. Raw: {}",
+                "[{}] {}. Raw: {}",
                 plugin_id,
-                e,
+                error_msg,
                 serde_json::to_string(result).unwrap_or_default()
             );
-            let update = CoreUpdate::Error {
-                message: format!("Plugin '{plugin_id}' returned invalid response: {e}"),
+            let error_response = PluginResponse::Error {
+                message: error_msg,
+                details: None,
             };
-            let notification = core_update_to_notification(&update);
-            let _ = tx.send(Message::Notification(notification));
+            let updates = plugin_response_to_updates(plugin_id, error_response);
+            for update in &updates {
+                if matches!(update, CoreUpdate::Close) {
+                    let mut state_guard = state.write().await;
+                    state_guard.core.set_open(false);
+                }
+            }
+            for update in updates {
+                let notification = core_update_to_notification(&update);
+                let _ = tx.send(Message::Notification(notification));
+            }
         }
     }
 }
