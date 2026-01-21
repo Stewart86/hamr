@@ -11,6 +11,8 @@ workspace = true
 [dependencies]
 # GTK4 (no Adwaita - we use custom styling)
 gtk4 = { version = "0.10", features = ["v4_20"] }
+gio = { version = "0.21", features = ["v2_58"] }
+libc = "0.2"
 
 # Wayland Layer Shell
 gtk4-layer-shell = "0.7"

@@ -3417,6 +3417,7 @@ impl LauncherWindow {
     }
 
     /// Launch a desktop file using native GIO API with proper startup notification
+    /// and process detachment to survive hamr restarts
     fn launch_desktop_file(desktop_file: &str, display: Option<&gdk::Display>) {
         // Try to get DesktopAppInfo from the desktop file path/name
         let app_info = if desktop_file.contains('/') {
@@ -3431,12 +3432,28 @@ impl LauncherWindow {
             Some(app_info) => {
                 // Get launch context from display for proper startup notification
                 let display = display.cloned().or_else(gdk::Display::default);
-
                 let context = display.map(|d| d.app_launch_context());
 
-                // Launch the app with empty file list and the launch context
-                let files: &[gio::File] = &[];
-                if let Err(e) = app_info.launch(files, context.as_ref()) {
+                // Call setsid in the child to detach from hamr's session
+                // This makes the spawned app immune to SIGHUP when hamr restarts
+                let user_setup: Option<Box<dyn FnOnce() + 'static>> = Some(Box::new(move || {
+                    unsafe {
+                        libc::setsid();
+                    }
+                }));
+
+                let mut pid_callback = |_info: &gio::DesktopAppInfo, _pid: glib::Pid| {};
+
+                if let Err(e) = app_info.launch_uris_as_manager_with_fds(
+                    &[],
+                    context.as_ref(),
+                    glib::SpawnFlags::empty(),
+                    user_setup,
+                    Some(&mut pid_callback),
+                    None::<std::os::fd::OwnedFd>,
+                    None::<std::os::fd::OwnedFd>,
+                    None::<std::os::fd::OwnedFd>,
+                ) {
                     warn!("Failed to launch {} via GIO: {}", desktop_file, e);
                 }
             }
