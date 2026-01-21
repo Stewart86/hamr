@@ -2,6 +2,10 @@
   "name": "Wallpaper",
   "description": "Browse and set wallpapers",
   "icon": "wallpaper",
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
+  },
   "supportedPlatforms": [
     "niri",
     "hyprland"

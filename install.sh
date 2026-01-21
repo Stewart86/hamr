@@ -283,6 +283,21 @@ main() {
             # Also copy all plugins to config directory for user access
             mkdir -p "$HOME/.config/hamr/plugins"
             cp -r "plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
+            # Make handler scripts executable based on manifest
+            for manifest in "$bin_dir/../plugins"/*/manifest.json; do
+                if [[ -f "$manifest" ]]; then
+                    handler_cmd=$(grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" | sed 's/.*"\([^"]*\)"$/\1/' | tail -1)
+                    if [[ -n "$handler_cmd" ]]; then
+                        handler_file=$(echo "$handler_cmd" | awk '{print $NF}')
+                        if [[ -f "$bin_dir/../plugins/$(dirname "$manifest")/$handler_file" ]]; then
+                            chmod +x "$bin_dir/../plugins/$(dirname "$manifest")/$handler_file"
+                        fi
+                        if [[ -f "$HOME/.config/hamr/plugins/$(dirname "$manifest")/$handler_file" ]]; then
+                            chmod +x "$HOME/.config/hamr/plugins/$(dirname "$manifest")/$handler_file"
+                        fi
+                    fi
+                fi
+            done
         fi
 
         success "Binaries installed from local build to $bin_dir"
@@ -415,6 +430,21 @@ main() {
         # Also copy all plugins to config directory for user access
         mkdir -p "$HOME/.config/hamr/plugins"
         cp -r "$extract_dir/plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
+        # Make handler scripts executable based on manifest
+        for manifest in "$bin_dir/../plugins"/*/manifest.json; do
+            if [[ -f "$manifest" ]]; then
+                handler_cmd=$(grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" | sed 's/.*"\([^"]*\)"$/\1/' | tail -1)
+                if [[ -n "$handler_cmd" ]]; then
+                    handler_file=$(echo "$handler_cmd" | awk '{print $NF}')
+                    if [[ -f "$bin_dir/../plugins/$(dirname "$manifest")/$handler_file" ]]; then
+                        chmod +x "$bin_dir/../plugins/$(dirname "$manifest")/$handler_file"
+                    fi
+                    if [[ -f "$HOME/.config/hamr/plugins/$(dirname "$manifest")/$handler_file" ]]; then
+                        chmod +x "$HOME/.config/hamr/plugins/$(dirname "$manifest")/$handler_file"
+                    fi
+                fi
+            fi
+        done
     fi
 
     success "Binaries installed to $bin_dir"

@@ -3,6 +3,10 @@
   "description": "Calculator with currency, units, and temperature conversion",
   "icon": "calculate",
   "frecency": "plugin",
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
+  },
   "match": {
     "patterns": [
       "^=",

@@ -2,6 +2,10 @@
   "name": "Pictures",
   "description": "Search pictures in Pictures folder",
   "icon": "image",
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
+  },
   "supportedPlatforms": [
     "niri",
     "hyprland"
