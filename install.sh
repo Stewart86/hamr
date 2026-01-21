@@ -198,6 +198,17 @@ stop_services() {
     fi
 }
 
+# Kill running hamr processes to prevent "Text file busy" errors during install
+kill_hamr_processes() {
+    local processes
+    processes=$(pgrep -f "hamr-(daemon|gtk|tui)" || true)
+    if [[ -n "$processes" ]]; then
+        info "Stopping running hamr processes..."
+        killall hamr hamr-daemon hamr-gtk hamr-tui 2>/dev/null || true
+        sleep 1
+    fi
+}
+
 # Start systemd services after installation
 start_services() {
     local service_type="$1"
@@ -241,6 +252,9 @@ main() {
             stop_services "$running_services"
         fi
 
+        # Kill running processes to prevent "Text file busy" errors
+        kill_hamr_processes
+
         # Create installation directories
         local bin_dir="$INSTALL_DIR/bin"
         mkdir -p "$bin_dir"
@@ -262,6 +276,9 @@ main() {
         # Install plugins directory if it exists
         if [[ -d "plugins" ]]; then
             info "Installing plugins..."
+            # Remove old plugins first to ensure clean update
+            rm -rf "$bin_dir/../plugins"
+            rm -rf "$HOME/.config/hamr/plugins"
             cp -r "plugins" "$bin_dir/../"
             # Also copy all plugins to config directory for user access
             mkdir -p "$HOME/.config/hamr/plugins"
@@ -367,6 +384,9 @@ main() {
         stop_services "$running_services"
     fi
 
+    # Kill running processes to prevent "Text file busy" errors
+    kill_hamr_processes
+
     # Create installation directories
     local bin_dir="$INSTALL_DIR/bin"
     mkdir -p "$bin_dir"
@@ -388,6 +408,9 @@ main() {
     # Install plugins directory next to binaries (for plugin discovery)
     if [[ -d "$extract_dir/plugins" ]]; then
         info "Installing plugins..."
+        # Remove old plugins first to ensure clean update
+        rm -rf "$bin_dir/../plugins"
+        rm -rf "$HOME/.config/hamr/plugins"
         cp -r "$extract_dir/plugins" "$bin_dir/../"
         # Also copy all plugins to config directory for user access
         mkdir -p "$HOME/.config/hamr/plugins"

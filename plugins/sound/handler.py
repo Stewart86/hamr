@@ -132,12 +132,7 @@ def get_results() -> list[dict[str, Any]]:
             else "Mute system audio output",
             "icon": "volume_off" if vol_info["muted"] else "volume_up",
             "resultType": "switch",
-            "value": {
-                "value": 1 if vol_info["muted"] else 0,
-                "min": 0,
-                "max": 1,
-                "step": 1,
-            },
+            "value": vol_info["muted"],
         },
         {
             "id": "mic",
@@ -165,12 +160,7 @@ def get_results() -> list[dict[str, Any]]:
             else "Mute microphone input",
             "icon": "mic_off" if mic_info["muted"] else "mic",
             "resultType": "switch",
-            "value": {
-                "value": 1 if mic_info["muted"] else 0,
-                "min": 0,
-                "max": 1,
-                "step": 1,
-            },
+            "value": mic_info["muted"],
         },
     ]
 
@@ -191,21 +181,21 @@ state: dict[str, Any] = {
 
 
 @plugin.on_initial
-async def handle_initial(params=None) -> None:
+async def handle_initial(params=None) -> dict:
     """Handle initial plugin open."""
     state["last_vol"] = get_volume_info()
     state["last_mic"] = get_mic_info()
-    await plugin.send_results(get_results())
+    return HamrPlugin.results(get_results())
 
 
 @plugin.on_search
-async def handle_search(query: str, context: Optional[str]) -> None:
+async def handle_search(query: str, context: Optional[str]) -> dict:
     """Handle search - just return current state."""
-    await plugin.send_results(get_results())
+    return HamrPlugin.results(get_results())
 
 
 @plugin.on_slider_changed
-async def handle_slider(slider_id: str, value: float) -> None:
+async def handle_slider(slider_id: str, value: float) -> dict:
     """Handle slider value changes."""
     int_value = int(value)
 
@@ -233,16 +223,18 @@ async def handle_slider(slider_id: str, value: float) -> None:
         ]
     )
 
+    return {"type": "noop"}
+
 
 @plugin.on_switch_toggled
-async def handle_switch(switch_id: str, value: bool) -> None:
+async def handle_switch(switch_id: str, value: bool) -> dict:
     """Handle switch toggle."""
     if switch_id == "volume-mute":
         set_mute("@DEFAULT_AUDIO_SINK@", value)
         state["last_vol"] = get_volume_info()
     elif switch_id == "mic-mute":
         set_mute("@DEFAULT_AUDIO_SOURCE@", value)
-        state["last_mic"] = get_mic_info()
+        state["last_mic"] = get_volume_info()
 
     # Send updated switch state
     vol_info = get_volume_info() if switch_id == "volume-mute" else None
@@ -253,12 +245,7 @@ async def handle_switch(switch_id: str, value: bool) -> None:
             [
                 {
                     "id": "volume-mute",
-                    "value": {
-                        "value": 1 if vol_info["muted"] else 0,
-                        "min": 0,
-                        "max": 1,
-                        "step": 1,
-                    },
+                    "value": vol_info["muted"],
                     "name": "Unmute Volume" if vol_info["muted"] else "Mute Volume",
                     "description": "Volume is muted"
                     if vol_info["muted"]
@@ -272,12 +259,7 @@ async def handle_switch(switch_id: str, value: bool) -> None:
             [
                 {
                     "id": "mic-mute",
-                    "value": {
-                        "value": 1 if mic_info["muted"] else 0,
-                        "min": 0,
-                        "max": 1,
-                        "step": 1,
-                    },
+                    "value": mic_info["muted"],
                     "name": "Unmute Microphone"
                     if mic_info["muted"]
                     else "Mute Microphone",
@@ -288,6 +270,8 @@ async def handle_switch(switch_id: str, value: bool) -> None:
                 }
             ]
         )
+
+    return {"type": "noop"}
 
 
 @plugin.add_background_task
@@ -331,12 +315,7 @@ async def monitor_changes(p: HamrPlugin) -> None:
                     if current_vol["muted"]
                     else "Mute system audio output",
                     "icon": "volume_off" if current_vol["muted"] else "volume_up",
-                    "value": {
-                        "value": 1 if current_vol["muted"] else 0,
-                        "min": 0,
-                        "max": 1,
-                        "step": 1,
-                    },
+                    "value": current_vol["muted"],
                 }
             )
             state["last_vol"] = current_vol
@@ -371,12 +350,7 @@ async def monitor_changes(p: HamrPlugin) -> None:
                     if current_mic["muted"]
                     else "Mute microphone input",
                     "icon": "mic_off" if current_mic["muted"] else "mic",
-                    "value": {
-                        "value": 1 if current_mic["muted"] else 0,
-                        "min": 0,
-                        "max": 1,
-                        "step": 1,
-                    },
+                    "value": current_mic["muted"],
                 }
             )
             state["last_mic"] = current_mic
