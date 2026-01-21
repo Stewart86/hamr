@@ -102,6 +102,10 @@ pub struct LauncherState {
 
     /// Whether we're in plugin management mode (showing only plugins via "/" prefix)
     pub plugin_management: bool,
+
+    /// Pending initial query to send to plugin after it opens
+    /// Used to handle the race between ClearInput and the next query_changed
+    pub pending_initial_query: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -336,10 +340,22 @@ impl HamrCore {
 
         self.state.query.clone_from(&query);
 
+        // Handle pending initial query from pattern match
+        // This prevents the empty query (from ClearInput) from overwriting the actual query
         if self.state.active_plugin.is_some() {
+            let query_to_use = if query.is_empty() && self.state.pending_initial_query.is_some() {
+                let pending = self.state.pending_initial_query.take();
+                debug!("Using pending initial query: {:?}", pending);
+                pending.unwrap_or_default()
+            } else {
+                query
+            };
+
+            self.state.query.clone_from(&query_to_use);
+
             // Active plugin - send search to plugin
             if self.state.input_mode == InputMode::Realtime {
-                self.send_plugin_search(&query).await;
+                self.send_plugin_search(&query_to_use).await;
             }
         } else if self.state.plugin_management {
             // In plugin list mode - search within plugins or exit on empty
@@ -910,18 +926,11 @@ impl HamrCore {
 
     /// Open a plugin and immediately send a search query
     async fn handle_open_plugin_with_query(&mut self, id: String, initial_query: String) {
+        self.state.pending_initial_query = Some(initial_query.clone());
         self.handle_open_plugin(id).await;
 
-        // Clear the input (removes the prefix from UI)
-        self.send_update(CoreUpdate::ClearInput);
-
-        // If plugin opened successfully and has a query, send it
-        if self.state.active_plugin.is_some() && !initial_query.is_empty() {
-            // Set the query in state and send to plugin
-            self.state.query.clone_from(&initial_query);
-            if self.state.input_mode == InputMode::Realtime {
-                self.send_plugin_search(&initial_query).await;
-            }
+        if self.state.input_mode == InputMode::Realtime && !initial_query.is_empty() {
+            self.send_plugin_search(&initial_query).await;
         }
     }
 
