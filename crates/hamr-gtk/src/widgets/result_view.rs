@@ -5,6 +5,7 @@
 
 use super::result_grid::ResultGrid;
 use super::result_list::ResultList;
+use crate::config::Theme;
 use crate::window::ResultViewMode;
 use gtk4::prelude::*;
 use hamr_rpc::SearchResult;
@@ -34,13 +35,17 @@ pub struct ResultView {
     max_height: i32,
     grid_columns: u32,
     grid_spacing: u32,
+    /// Cached theme for creating new views when switching modes
+    theme: Rc<RefCell<Theme>>,
 }
 
 impl ResultView {
-    pub fn new(mode: ResultViewMode) -> Self {
+    pub fn new(mode: ResultViewMode, theme: &Theme) -> Self {
         let container = gtk4::Box::builder()
             .orientation(gtk4::Orientation::Vertical)
             .build();
+
+        let theme = Rc::new(RefCell::new(theme.clone()));
 
         let mut view = Self {
             mode,
@@ -55,6 +60,7 @@ impl ResultView {
             max_height: 400,
             grid_columns: 4,
             grid_spacing: 8,
+            theme,
         };
 
         view.create_view(mode);
@@ -62,6 +68,7 @@ impl ResultView {
     }
 
     fn create_view(&mut self, mode: ResultViewMode) {
+        let theme = self.theme.borrow();
         match mode {
             ResultViewMode::List => {
                 let list = Rc::new(ResultList::new());
@@ -71,7 +78,7 @@ impl ResultView {
                 self.list = Some(list);
             }
             ResultViewMode::Grid => {
-                let grid = Rc::new(ResultGrid::new());
+                let grid = Rc::new(ResultGrid::new(&theme));
                 grid.set_max_height(self.max_height);
                 grid.set_columns(self.grid_columns);
                 grid.set_spacing(self.grid_spacing);
@@ -183,7 +190,8 @@ impl ResultView {
 
         // Restore results
         if !results.is_empty() {
-            self.set_results(&results);
+            let theme = self.theme.borrow();
+            self.set_results(&results, &theme);
             self.widget().set_visible(true);
         }
     }
@@ -303,12 +311,12 @@ impl ResultView {
     }
 
     // Data methods - delegate to current view
-    pub fn set_results(&self, results: &[SearchResult]) {
+    pub fn set_results(&self, results: &[SearchResult], theme: &Theme) {
         let has_results = !results.is_empty();
         match self.mode {
             ResultViewMode::List => {
                 if let Some(ref list) = self.list {
-                    list.set_results(results);
+                    list.set_results(results, theme);
                     list.widget().set_visible(has_results);
                 }
             }
@@ -321,12 +329,12 @@ impl ResultView {
         }
     }
 
-    pub fn update_results_diff(&self, results: &[SearchResult]) {
+    pub fn update_results_diff(&self, results: &[SearchResult], theme: &Theme) {
         let has_results = !results.is_empty();
         match self.mode {
             ResultViewMode::List => {
                 if let Some(ref list) = self.list {
-                    list.update_results_diff(results);
+                    list.update_results_diff(results, theme);
                     list.widget().set_visible(has_results);
                 }
             }

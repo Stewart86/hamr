@@ -6,6 +6,7 @@
 use super::design;
 use super::grid_item::GridItem;
 use super::result_object::ResultObject;
+use crate::config::Theme;
 use gtk4::gio;
 use gtk4::glib;
 use gtk4::glib::SourceId;
@@ -52,11 +53,12 @@ pub struct ResultGrid {
 }
 
 impl ResultGrid {
-    pub fn new() -> Self {
-        Self::with_columns(DEFAULT_COLUMNS)
+    pub fn new(theme: &Theme) -> Self {
+        Self::with_columns(DEFAULT_COLUMNS, theme)
     }
 
-    pub fn with_columns(columns: u32) -> Self {
+    pub fn with_columns(columns: u32, theme: &Theme) -> Self {
+        let theme = Rc::new(RefCell::new(theme.clone()));
         let container = gtk4::Box::builder()
             .orientation(Orientation::Vertical)
             .css_classes(["result-grid-container"])
@@ -78,6 +80,7 @@ impl ResultGrid {
             &grid_items,
             selection_model.clone(),
             on_select.clone(),
+            theme.clone(),
         );
 
         let grid_view = gtk4::GridView::builder()
@@ -149,6 +152,7 @@ impl ResultGrid {
         grid_items: &Rc<RefCell<HashMap<u32, Rc<GridItem>>>>,
         selection_model: gtk4::SingleSelection,
         on_select: Rc<RefCell<Option<SelectCallback>>>,
+        theme: Rc<RefCell<Theme>>,
     ) -> SignalListItemFactory {
         let factory = SignalListItemFactory::new();
 
@@ -167,6 +171,7 @@ impl ResultGrid {
 
         let on_action_bind = Rc::clone(on_action);
         let grid_items_bind = Rc::clone(grid_items);
+        let theme_bind = theme.clone();
         factory.connect_bind(move |_, list_item| {
             let list_item = list_item
                 .downcast_ref::<gtk4::ListItem>()
@@ -182,7 +187,8 @@ impl ResultGrid {
 
             let position = list_item.position();
 
-            let grid_item = Rc::new(GridItem::new(&result, list_item.is_selected()));
+            let theme = theme_bind.borrow();
+            let grid_item = Rc::new(GridItem::new(&result, list_item.is_selected(), &theme));
             let item_id = result.id.clone();
             let on_action_local = on_action_bind.clone();
             let action_cb: SharedActionCallback = Rc::new(move |item_id, action_id| {
@@ -462,12 +468,6 @@ impl ResultGrid {
         if let Some(grid_item) = grid_items.get(&selected) {
             grid_item.set_focused_action(action_index);
         }
-    }
-}
-
-impl Default for ResultGrid {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

@@ -6,6 +6,7 @@
 use super::ResultItem;
 use super::design;
 use crate::compositor::Compositor;
+use crate::config::Theme;
 use gtk4::glib;
 use gtk4::glib::SourceId;
 use gtk4::prelude::*;
@@ -197,7 +198,7 @@ impl ResultList {
     }
 
     /// Update the list with new results (full rebuild)
-    pub fn set_results(&self, results: &[SearchResult]) {
+    pub fn set_results(&self, results: &[SearchResult], theme: &Theme) {
         let _span = debug_span!("ResultList::set_results", count = results.len()).entered();
         debug!(count = results.len(), "full rebuild");
         while let Some(child) = self.list_box.first_child() {
@@ -231,7 +232,7 @@ impl ResultList {
             let show_suggestion = true;
             let running = self.is_app_running(result.app_id.as_deref());
 
-            let item = ResultItem::new(result, selected, show_suggestion, running);
+            let item = ResultItem::new(result, selected, show_suggestion, running, theme);
 
             let on_action = on_action.clone();
             item.connect_action_clicked(move |item_id, action_id| {
@@ -311,7 +312,7 @@ impl ResultList {
 
     /// Update results using diffing - only update changed items, preserving widget state
     /// Returns true if a full rebuild was performed, false if incremental update was done
-    pub fn update_results_diff(&self, results: &[SearchResult]) -> bool {
+    pub fn update_results_diff(&self, results: &[SearchResult], theme: &Theme) -> bool {
         let _span = debug_span!("ResultList::update_results_diff", count = results.len()).entered();
 
         let items = self.items.borrow();
@@ -322,7 +323,7 @@ impl ResultList {
             debug!(reason = "empty", "falling back to full rebuild");
             drop(items);
             drop(items_by_id);
-            self.set_results(results);
+            self.set_results(results, theme);
             return true;
         }
 
@@ -338,7 +339,7 @@ impl ResultList {
             debug!(reason = "ids_changed", "falling back to full rebuild");
             drop(items);
             drop(items_by_id);
-            self.set_results(results);
+            self.set_results(results, theme);
             return true;
         }
 
@@ -348,7 +349,7 @@ impl ResultList {
             if let Some(&idx) = items_by_id.get(&result.id)
                 && idx < items.len()
             {
-                items[idx].update(result);
+                items[idx].update(result, &theme.colors);
             }
         }
 

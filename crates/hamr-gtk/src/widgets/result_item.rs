@@ -33,6 +33,7 @@
 //! ```
 
 use crate::colors::Colors;
+use crate::config::Theme;
 use tracing::{debug_span, trace};
 
 use super::design;
@@ -131,6 +132,7 @@ impl ResultItem {
         selected: bool,
         show_suggestion: bool,
         running: bool,
+        theme: &Theme,
     ) -> Self {
         let _span = debug_span!("ResultItem::new", id = %result.id).entered();
         let is_slider = result.is_slider();
@@ -146,7 +148,7 @@ impl ResultItem {
             .build();
 
         let running_indicator = if running {
-            let indicator = Self::create_running_indicator();
+            let indicator = Self::create_running_indicator(&theme.colors);
             overlay.add_overlay(&indicator);
             Some(indicator)
         } else {
@@ -170,7 +172,7 @@ impl ResultItem {
             .hexpand(true)
             .build();
 
-        let visual = ResultVisual::new(result, VisualSize::Small);
+        let visual = ResultVisual::new(result, VisualSize::Small, theme);
         main_row.append(visual.widget());
 
         let content_column = gtk4::Box::builder()
@@ -306,9 +308,7 @@ impl ResultItem {
 
     /// Create the LED glow running indicator using Cairo drawing
     /// Positioned as overlay so it doesn't affect layout
-    fn create_running_indicator() -> gtk4::DrawingArea {
-        let colors = Colors::load();
-
+    fn create_running_indicator(colors: &Colors) -> gtk4::DrawingArea {
         let drawing_area = gtk4::DrawingArea::builder()
             .width_request(design::running_indicator::GLOW_WIDTH)
             .vexpand(true)
@@ -844,7 +844,7 @@ impl ResultItem {
 
     // Widget update - sequential field updates with diff checking for performance
     #[allow(clippy::too_many_lines)]
-    pub fn update(&self, result: &SearchResult) {
+    pub fn update(&self, result: &SearchResult, colors: &Colors) {
         let _span = debug_span!("ResultItem::update", id = %result.id).entered();
         if self.name_label.text() != result.name {
             trace!(old = %self.name_label.text(), new = %result.name, "name changed");
@@ -962,7 +962,6 @@ impl ResultItem {
         }) = &result.widget
             && let Some(gauge_widget) = self.visual.borrow().gauge()
         {
-            let colors = Colors::load();
             let gauge_data = hamr_types::GaugeData {
                 value: *value,
                 min: *min,
@@ -970,19 +969,18 @@ impl ResultItem {
                 label: label.clone(),
                 color: color.clone(),
             };
-            gauge_widget.set_data(&gauge_data, &colors);
+            gauge_widget.set_data(&gauge_data, colors);
         }
 
         if let Some(WidgetData::Graph { data, min, max }) = &result.widget
             && let Some(graph_widget) = self.visual.borrow().graph()
         {
-            let colors = Colors::load();
             let graph_data = hamr_types::GraphData {
                 data: data.clone(),
                 min: *min,
                 max: *max,
             };
-            graph_widget.set_data(&graph_data, &colors);
+            graph_widget.set_data(&graph_data, colors);
         }
     }
 }

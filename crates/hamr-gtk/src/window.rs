@@ -726,7 +726,7 @@ impl LauncherWindow {
 
         // Create unified result view (starts in List mode by default)
         let view_mode = state.borrow().view_mode;
-        let result_view = ResultView::new(view_mode);
+        let result_view = ResultView::new(view_mode, _theme);
 
         container.append(result_view.widget());
 
@@ -1502,7 +1502,7 @@ impl LauncherWindow {
                     state_mut.results.clone_from(&session.results);
                     state_mut.active_plugin = session.active_plugin;
                 }
-                result_view.borrow().set_results(&session.results);
+                result_view.borrow().set_results(&session.results, &theme);
 
                 if let Some(tx) = &rpc_sender
                     && let Err(e) = tx.send_blocking(CoreEvent::QueryChanged {
@@ -1605,6 +1605,7 @@ impl LauncherWindow {
         let window = self.window.clone();
         let search_entry = self.search_entry.clone();
         let result_view = self.result_view.clone();
+        let config_watcher = self.config_watcher.clone();
         self.result_view
             .borrow()
             .connect_action(move |item_id, action_id| {
@@ -1641,12 +1642,14 @@ impl LauncherWindow {
                             )
                         };
                         if !windows.is_empty() {
+                            let theme = config_watcher.theme();
                             Self::show_window_picker_view(
                                 &state,
                                 &compositor,
                                 &window,
                                 &result_view,
                                 &app_name,
+                                &theme,
                             );
                         }
                     }
@@ -2432,12 +2435,15 @@ impl LauncherWindow {
                 // Refresh running apps from compositor
                 result_view.borrow().refresh_running_apps(compositor);
 
+                // Get theme for passing to result view
+                let theme = config_watcher.theme();
+
                 // Update results
                 let in_plugin = state.borrow().active_plugin.is_some();
                 if in_plugin {
-                    result_view.borrow().update_results_diff(&merged_results);
+                    result_view.borrow().update_results_diff(&merged_results, &theme);
                 } else {
-                    result_view.borrow().set_results(&merged_results);
+                    result_view.borrow().set_results(&merged_results, &theme);
                 }
 
                 // GtkFixed doesn't always relayout immediately when a positioned child changes its
@@ -2574,7 +2580,8 @@ impl LauncherWindow {
                         .borrow()
                         .widget()
                         .set_visible(!should_hide_results);
-                    result_view.borrow().update_results_diff(&merged_results);
+                    let theme = config_watcher.theme();
+                    result_view.borrow().update_results_diff(&merged_results, &theme);
                 }
             }
             CoreUpdate::Card { card, context } => {
@@ -3264,13 +3271,14 @@ impl LauncherWindow {
                         .collect();
                     drop(state_mut);
                     // Use reactive update
-                    result_view.borrow().update_results_diff(&merged_results);
+                    let theme = config_watcher.theme();
+                    result_view.borrow().update_results_diff(&merged_results, &theme);
                 }
             }
             CoreUpdate::Execute { action } => {
                 info!("Execute action: {:?}", action);
                 let should_close =
-                    Self::execute_action_view(&action, state, compositor, window, result_view);
+                    Self::execute_action_view(&action, state, compositor, window, result_view, config_watcher);
 
                 if should_close {
                     window.set_visible(false);
@@ -3499,6 +3507,7 @@ impl LauncherWindow {
         compositor: &Rc<Compositor>,
         window: &gtk4::Window,
         result_view: &Rc<RefCell<ResultView>>,
+        config_watcher: &ConfigWatcher,
     ) -> bool {
         use hamr_rpc::ExecuteAction;
         match action {
@@ -3592,12 +3601,14 @@ impl LauncherWindow {
                                 .or(pending_app_id_fallback)
                                 .unwrap_or_else(|| "App".to_string())
                         });
+                        let theme = config_watcher.theme();
                         Self::show_window_picker_view(
                             state,
                             compositor,
                             window,
                             result_view,
                             &app_name,
+                            &theme,
                         );
                         return false; // Don't close - show window picker instead
                     }
@@ -3935,6 +3946,7 @@ impl LauncherWindow {
         _window: &gtk4::Window,
         result_view: &Rc<RefCell<ResultView>>,
         app_name: &str,
+        theme: &Theme,
     ) {
         // Convert windows to search results for display in the result list
         let (windows, app_icon) = {
@@ -3994,7 +4006,7 @@ impl LauncherWindow {
         }
 
         // Display in result view
-        result_view.borrow().set_results(&results);
+        result_view.borrow().set_results(&results, theme);
     }
 
     /// Handle window picker selection

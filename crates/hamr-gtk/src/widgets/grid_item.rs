@@ -19,6 +19,7 @@
 use super::design;
 use super::result_visual::{ResultVisual, VisualSize};
 use super::ripple_button::RippleButton;
+use crate::config::Theme;
 use gtk4::prelude::*;
 use gtk4::{Align, Orientation, Overlay};
 use hamr_rpc::SearchResult;
@@ -126,7 +127,7 @@ pub struct GridItem {
 }
 
 impl GridItem {
-    pub fn new(result: &SearchResult, selected: bool) -> Self {
+    pub fn new(result: &SearchResult, selected: bool, theme: &Theme) -> Self {
         let container = gtk4::Box::builder()
             .orientation(Orientation::Vertical)
             .css_classes(["grid-item-container"])
@@ -141,7 +142,7 @@ impl GridItem {
             .valign(Align::Fill)
             .build();
 
-        let visual = ResultVisual::new(result, visual_size_for_result(result));
+        let visual = ResultVisual::new(result, visual_size_for_result(result), theme);
         highlight_content.append(visual.widget());
 
         let highlight_area = Overlay::new();

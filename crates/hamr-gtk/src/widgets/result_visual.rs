@@ -123,9 +123,8 @@ pub struct ResultVisual {
 
 impl ResultVisual {
     /// Create a new visual for the given search result
-    pub fn new(result: &SearchResult, size: VisualSize) -> Self {
-        let theme = Theme::load();
-        let container_size = size.container_size(&theme);
+    pub fn new(result: &SearchResult, size: VisualSize, theme: &Theme) -> Self {
+        let container_size = size.container_size(theme);
         // CenterBox properly centers its child widget
         // Use Fill alignment so overlays position correctly relative to full size
         let container = CenterBox::builder()
@@ -141,7 +140,7 @@ impl ResultVisual {
             gauge: None,
             graph: None,
             material_icon_label: None,
-            theme,
+            theme: theme.clone(),
         };
 
         visual.set_content(result, size);
