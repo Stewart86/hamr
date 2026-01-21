@@ -1,4 +1,5 @@
 //! Launcher window with layer-shell support
+#![allow(clippy::cast_possible_truncation)]
 
 use crate::click_catcher::ClickCatcher;
 use crate::compositor::{Compositor, Window as CompositorWindow};
@@ -318,8 +319,8 @@ impl LauncherWindow {
         // x_ratio is center-based, so offset by half the expected launcher width.
         let launcher_width = theme.config.sizes.search_width;
         let left_margin =
-            ((x_ratio * f64::from(screen_width)) - (f64::from(launcher_width) / 2.0)) as i32;
-        let top_margin = (y_ratio * f64::from(screen_height)) as i32;
+            ((x_ratio * f64::from(screen_width)) - (f64::from(launcher_width) / 2.0)).floor() as i32;
+        let top_margin = (y_ratio * f64::from(screen_height)).floor() as i32;
 
         // Clamp to keep drag handle accessible (same logic as before).
         let min_left = -(launcher_width - 60);
@@ -2629,11 +2630,9 @@ impl LauncherWindow {
                 // Reset selection when entering a plugin
                 result_view.borrow().reset_selection();
 
-                // Update action bar to plugin mode and show it
                 action_bar.set_mode(ActionBarMode::Plugin);
                 action_bar.set_navigation_depth(0);
-                action_bar.set_actions_visible(true);
-                *action_bar_visible.borrow_mut() = true;
+                action_bar.set_actions_visible(*action_bar_visible.borrow());
 
                 // Update icon to plugin icon (or fallback to "extension")
                 let plugin_icon = icon.unwrap_or_else(|| "extension".to_string());

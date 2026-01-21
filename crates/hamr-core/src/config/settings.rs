@@ -64,30 +64,128 @@ fn default_action_bar_hints() -> Vec<ActionBarHint> {
     ]
 }
 
-/// Deserialize `action_bar_hints` from either an array or a stringified JSON (legacy QML format)
-/// Returns default hints if field is missing, preserves explicit empty array
-fn deserialize_action_bar_hints<'de, D>(
-    deserializer: D,
-) -> std::result::Result<Vec<ActionBarHint>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    use serde::de::Error;
+/// Custom deserializer for `SearchConfig` that migrates old prefix format to `action_bar_hints`
+impl<'de> Deserialize<'de> for SearchConfig {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
 
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum ActionBarHintsRaw {
-        Array(Vec<ActionBarHint>),
-        StringifiedJson(String),
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct SearchConfigRaw {
+            #[serde(default)]
+            pub prefix: SearchPrefixes,
+
+            #[serde(default = "default_max_results")]
+            pub max_displayed_results: usize,
+
+            #[serde(default = "default_max_recent")]
+            pub max_recent_items: usize,
+
+            #[serde(default = "default_max_per_plugin")]
+            pub max_results_per_plugin: usize,
+
+            #[serde(default = "default_debounce")]
+            pub plugin_debounce_ms: u64,
+
+            #[serde(default = "default_diversity_decay")]
+            pub diversity_decay: f64,
+
+            #[serde(default = "default_engine_url")]
+            pub engine_base_url: String,
+
+            #[serde(default)]
+            pub excluded_sites: Vec<String>,
+
+            #[serde(default)]
+            pub action_bar_hints: Option<Vec<ActionBarHint>>,
+
+            #[serde(default)]
+            pub action_bar_hints_json: Option<String>,
+
+            #[serde(default)]
+            pub plugin_ranking_bonus: HashMap<String, f64>,
+        }
+
+        let raw: SearchConfigRaw = SearchConfigRaw::deserialize(deserializer)?;
+
+        let action_bar_hints = match &raw.action_bar_hints {
+            Some(hints) if !hints.is_empty() => hints.clone(),
+            _ => {
+                if let Some(json_str) = &raw.action_bar_hints_json {
+                    serde_json::from_str(json_str).map_err(|e| {
+                        D::Error::custom(format!("Failed to parse actionBarHintsJson: {e}"))
+                    })?
+                } else {
+                    migrate_old_prefix_to_hints(&raw.prefix)
+                }
+            }
+        };
+
+        Ok(Self {
+            prefix: raw.prefix,
+            max_displayed_results: raw.max_displayed_results,
+            max_recent_items: raw.max_recent_items,
+            max_results_per_plugin: raw.max_results_per_plugin,
+            plugin_debounce_ms: raw.plugin_debounce_ms,
+            diversity_decay: raw.diversity_decay,
+            engine_base_url: raw.engine_base_url,
+            excluded_sites: raw.excluded_sites,
+            action_bar_hints,
+            plugin_ranking_bonus: raw.plugin_ranking_bonus,
+        })
+    }
+}
+
+/// Migrate old prefix format (file, clipboard, `shell_history`) to `action_bar_hints`
+fn migrate_old_prefix_to_hints(prefixes: &SearchPrefixes) -> Vec<ActionBarHint> {
+    let mut hints = Vec::new();
+
+    if let Some(ref file_prefix) = prefixes.file {
+        hints.push(ActionBarHint {
+            prefix: file_prefix.clone(),
+            plugin: "files".to_string(),
+            label: Some("Files".to_string()),
+            icon: Some("folder_open".to_string()),
+            description: None,
+        });
     }
 
-    let raw: Option<ActionBarHintsRaw> = Option::deserialize(deserializer)?;
+    if let Some(ref clipboard_prefix) = prefixes.clipboard {
+        hints.push(ActionBarHint {
+            prefix: clipboard_prefix.clone(),
+            plugin: "clipboard".to_string(),
+            label: Some("Clipboard".to_string()),
+            icon: Some("content_paste".to_string()),
+            description: None,
+        });
+    }
 
-    match raw {
-        Some(ActionBarHintsRaw::Array(arr)) => Ok(arr),
-        Some(ActionBarHintsRaw::StringifiedJson(s)) => serde_json::from_str(&s)
-            .map_err(|e| D::Error::custom(format!("Failed to parse actionBarHintsJson: {e}"))),
-        None => Ok(default_action_bar_hints()),
+    if let Some(ref shell_history_prefix) = prefixes.shell_history {
+        hints.push(ActionBarHint {
+            prefix: shell_history_prefix.clone(),
+            plugin: "shell".to_string(),
+            label: Some("Shell".to_string()),
+            icon: Some("terminal".to_string()),
+            description: None,
+        });
+    }
+
+    if hints.is_empty() {
+        default_action_bar_hints()
+    } else {
+        let used_prefixes: std::collections::HashSet<String> =
+            hints.iter().map(|h| h.prefix.clone()).collect();
+
+        let defaults = default_action_bar_hints();
+        for hint in defaults {
+            if !used_prefixes.contains(&hint.prefix) {
+                hints.push(hint);
+            }
+        }
+        hints
     }
 }
 
@@ -120,7 +218,7 @@ impl Config {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchConfig {
     #[serde(default)]
@@ -148,11 +246,7 @@ pub struct SearchConfig {
     pub excluded_sites: Vec<String>,
 
     /// Action bar hints - supports both array format and legacy stringified JSON
-    #[serde(
-        default,
-        alias = "actionBarHintsJson",
-        deserialize_with = "deserialize_action_bar_hints"
-    )]
+    #[serde(default, alias = "actionBarHintsJson")]
     pub action_bar_hints: Vec<ActionBarHint>,
 
     /// Per-plugin ranking bonus - allows users to boost specific plugins
@@ -218,6 +312,15 @@ pub struct SearchPrefixes {
 
     #[serde(default = "default_web_prefix")]
     pub web_search: String,
+
+    #[serde(default)]
+    pub file: Option<String>,
+
+    #[serde(default)]
+    pub clipboard: Option<String>,
+
+    #[serde(default)]
+    pub shell_history: Option<String>,
 }
 
 fn default_plugins_prefix() -> String {
@@ -248,6 +351,9 @@ impl Default for SearchPrefixes {
             math: default_math_prefix(),
             shell_command: default_shell_prefix(),
             web_search: default_web_prefix(),
+            file: None,
+            clipboard: None,
+            shell_history: None,
         }
     }
 }
@@ -505,12 +611,10 @@ mod tests {
         }"#;
         let config: Config = serde_json::from_str(json).unwrap();
         assert_eq!(config.search.excluded_sites.len(), 2);
-        assert!(
-            config
-                .search
-                .excluded_sites
-                .contains(&"facebook.com".to_string())
-        );
+        assert!(config
+            .search
+            .excluded_sites
+            .contains(&"facebook.com".to_string()));
     }
 
     #[test]

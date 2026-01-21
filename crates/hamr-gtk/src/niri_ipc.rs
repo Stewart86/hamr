@@ -140,42 +140,39 @@ impl NiriIpc {
                 None
             }
             Err(e) => {
-                match serde_json::from_str::<serde_json::Value>(&response) {
-                    Ok(value) => {
-                        if let Some(err) = value.get("Err").and_then(|err| err.as_str()) {
-                            warn!("Niri IPC error: {}", err);
-                            return None;
-                        }
-
-                        let ok_payload = value.get("Ok").and_then(|ok| match ok {
-                            serde_json::Value::Object(map) => match request {
-                                NiriRequest::Simple(name) => {
-                                    map.get(name).or_else(|| map.values().next())
-                                }
-                                _ => map.values().next(),
-                            },
-                            _ => Some(ok),
-                        });
-
-                        if let Some(payload) = ok_payload {
-                            return serde_json::from_value::<T>(payload.clone()).ok();
-                        }
-
-                        warn!(
-                            "Failed to parse Niri response: {} (response: {})",
-                            e,
-                            response.trim()
-                        );
-                        None
+                if let Ok(value) = serde_json::from_str::<serde_json::Value>(&response) {
+                    if let Some(err) = value.get("Err").and_then(|err| err.as_str()) {
+                        warn!("Niri IPC error: {}", err);
+                        return None;
                     }
-                    Err(_) => {
-                        warn!(
-                            "Failed to parse Niri response: {} (response: {})",
-                            e,
-                            response.trim()
-                        );
-                        None
+
+                    let ok_payload = value.get("Ok").and_then(|ok| match ok {
+                        serde_json::Value::Object(map) => match request {
+                            NiriRequest::Simple(name) => {
+                                map.get(name).or_else(|| map.values().next())
+                            }
+                            NiriRequest::Action { .. } => map.values().next(),
+                        },
+                        _ => Some(ok),
+                    });
+
+                    if let Some(payload) = ok_payload {
+                        return serde_json::from_value::<T>(payload.clone()).ok();
                     }
+
+                    warn!(
+                        "Failed to parse Niri response: {} (response: {})",
+                        e,
+                        response.trim()
+                    );
+                    None
+                } else {
+                    warn!(
+                        "Failed to parse Niri response: {} (response: {})",
+                        e,
+                        response.trim()
+                    );
+                    None
                 }
             }
         }
