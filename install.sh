@@ -169,6 +169,47 @@ is_local_clone() {
     [[ -d ".git" ]] && [[ -f "Cargo.toml" ]] && command -v cargo &>/dev/null
 }
 
+# Check if systemd services are running
+check_systemd_services() {
+    local services_running=""
+
+    # Check user services
+    if systemctl --user is-active --quiet hamr-daemon 2>/dev/null; then
+        services_running="user"
+    fi
+
+    # Check system services (less common)
+    if systemctl is-active --quiet hamr-daemon 2>/dev/null; then
+        services_running="system"
+    fi
+
+    echo "$services_running"
+}
+
+# Stop systemd services before installation
+stop_services() {
+    local service_type="$1"
+    if [[ "$service_type" == "system" ]]; then
+        info "Stopping system hamr-daemon service..."
+        sudo systemctl stop hamr-daemon
+    elif [[ "$service_type" == "user" ]]; then
+        info "Stopping user hamr-daemon service..."
+        systemctl --user stop hamr-daemon
+    fi
+}
+
+# Start systemd services after installation
+start_services() {
+    local service_type="$1"
+    if [[ "$service_type" == "system" ]]; then
+        info "Starting system hamr-daemon service..."
+        sudo systemctl start hamr-daemon
+    elif [[ "$service_type" == "user" ]]; then
+        info "Starting user hamr-daemon service..."
+        systemctl --user start hamr-daemon
+    fi
+}
+
 main() {
     echo ""
     info "Installing Hamr Launcher"
@@ -191,6 +232,15 @@ main() {
             error "Build directory not found: $local_build_dir"
         fi
 
+        # Check for running services
+        local running_services
+        running_services=$(check_systemd_services)
+
+        # Stop services if running
+        if [[ -n "$running_services" ]]; then
+            stop_services "$running_services"
+        fi
+
         # Create installation directories
         local bin_dir="$INSTALL_DIR/bin"
         mkdir -p "$bin_dir"
@@ -204,10 +254,18 @@ main() {
             fi
         done
 
+        # Restart services if they were running
+        if [[ -n "$running_services" ]]; then
+            start_services "$running_services"
+        fi
+
         # Install plugins directory if it exists
         if [[ -d "plugins" ]]; then
             info "Installing plugins..."
             cp -r "plugins" "$bin_dir/../"
+            # Also copy all plugins to config directory for user access
+            mkdir -p "$HOME/.config/hamr/plugins"
+            cp -r "plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
         fi
 
         success "Binaries installed from local build to $bin_dir"
@@ -300,6 +358,15 @@ main() {
         error "Could not find extracted directory"
     fi
 
+    # Check for running services
+    local running_services
+    running_services=$(check_systemd_services)
+
+    # Stop services if running
+    if [[ -n "$running_services" ]]; then
+        stop_services "$running_services"
+    fi
+
     # Create installation directories
     local bin_dir="$INSTALL_DIR/bin"
     mkdir -p "$bin_dir"
@@ -313,10 +380,18 @@ main() {
         fi
     done
 
+    # Restart services if they were running
+    if [[ -n "$running_services" ]]; then
+        start_services "$running_services"
+    fi
+
     # Install plugins directory next to binaries (for plugin discovery)
     if [[ -d "$extract_dir/plugins" ]]; then
         info "Installing plugins..."
         cp -r "$extract_dir/plugins" "$bin_dir/../"
+        # Also copy all plugins to config directory for user access
+        mkdir -p "$HOME/.config/hamr/plugins"
+        cp -r "$extract_dir/plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
     fi
 
     success "Binaries installed to $bin_dir"
