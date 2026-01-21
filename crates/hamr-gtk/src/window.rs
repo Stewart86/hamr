@@ -33,6 +33,33 @@ use crate::widgets::design::search_bar as design;
 
 const DEFAULT_PLACEHOLDER: &str = "It's hamr time!";
 
+/// Get the desktop file ID of the default browser
+fn get_default_browser_desktop_id() -> Option<String> {
+    let default_app = gio::AppInfo::default_for_type("x-scheme-handler/https", false)
+        .or_else(|| gio::AppInfo::default_for_type("x-scheme-handler/http", false))
+        .or_else(|| gio::AppInfo::default_for_type("text/html", false))?;
+
+    let id = default_app.id()?;
+    let id_str = id.to_string();
+
+    // Normalize: some IDs come as "firefox.desktop", others as "firefox"
+    Some(id_str)
+}
+
+/// Check if a window belongs to the default browser by matching `app_id` or WM_CLASS
+fn window_is_default_browser(window: &CompositorWindow, browser_desktop_id: &str) -> bool {
+    let window_class = window.app_id.to_lowercase();
+    let browser_name = browser_desktop_id
+        .strip_suffix(".desktop")
+        .unwrap_or(browser_desktop_id)
+        .to_lowercase();
+
+    // Direct match on app_id/WM_CLASS
+    window_class == browser_name
+        || window_class.contains(&browser_name)
+        || browser_name.contains(&window_class)
+}
+
 /// View mode for result display
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ResultViewMode {
@@ -3583,6 +3610,34 @@ impl LauncherWindow {
             }
             ExecuteAction::OpenUrl { url } => {
                 info!("Opening URL: {}", url);
+
+                // Get the default browser's desktop file ID
+                let Some(browser_desktop_id) = get_default_browser_desktop_id() else {
+                    // No default browser, use xdg-open
+                    let launcher = gtk4::UriLauncher::new(url);
+                    launcher.launch(Some(window), gio::Cancellable::NONE, |result| {
+                        if let Err(e) = result {
+                            error!("Failed to open URL: {}", e);
+                        }
+                    });
+                    return true;
+                };
+
+                // Check if any open window belongs to the default browser
+                let browser_windows: Vec<CompositorWindow> = compositor
+                    .list_windows()
+                    .into_iter()
+                    .filter(|w| window_is_default_browser(w, &browser_desktop_id))
+                    .collect();
+
+                if !browser_windows.is_empty() {
+                    // Found default browser window - focus it, then use UriLauncher
+                    // UriLauncher will open URL in the already-focused window/tab
+                    info!("Focusing existing {} window and opening URL", browser_desktop_id);
+                    compositor.focus_window(&browser_windows[0].id);
+                }
+
+                // Always use UriLauncher to open the URL
                 let launcher = gtk4::UriLauncher::new(url);
                 launcher.launch(Some(window), gio::Cancellable::NONE, |result| {
                     if let Err(e) = result {
