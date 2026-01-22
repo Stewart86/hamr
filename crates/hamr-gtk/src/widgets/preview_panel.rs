@@ -780,7 +780,7 @@ pub fn preview_panel_css(theme: &crate::config::Theme) -> String {
         }}
 
         .preview-content-box {{
-            background: linear-gradient(to bottom, rgba(149, 144, 136, 0.08), 10%, {surface});
+            background: linear-gradient(to bottom, rgba(149, 144, 136, 0.08), {surface});
             background-color: {surface};
             border: {content_border}px solid alpha({outline}, 0.28);
             border-radius: {content_radius}px;

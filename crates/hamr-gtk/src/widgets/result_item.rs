@@ -1026,20 +1026,20 @@ pub fn result_item_css(theme: &crate::config::Theme) -> String {
         }}
 
         overlay.result-item.selected {{
-            background: linear-gradient(to bottom, rgba(149, 144, 136, 0.08), 10%, {surface_dark});
+            background: linear-gradient(to bottom, rgba(149, 144, 136, 0.08), {surface_dark});
             background-color: {surface_dark};
             border: {border}px solid alpha({outline}, 0.28);
         }}
 
         overlay.result-item.selected:hover {{
-            background: linear-gradient(to bottom, rgba(149, 144, 136, 0.08), 10%, {surface_dark});
+            background: linear-gradient(to bottom, rgba(149, 144, 136, 0.08), {surface_dark});
             background-color: {surface_high};
             border: {border}px solid alpha({outline}, 0.28);
         }}
 
         /* Keep selected style during scroll, just no hover enhancement */
         box.scrolling overlay.result-item.selected:hover {{
-            background: linear-gradient(to bottom, rgba(149, 144, 136, 0.08), 10%, {surface_dark});
+            background: linear-gradient(to bottom, rgba(149, 144, 136, 0.08), {surface_dark});
             background-color: {surface_dark};
             border: {border}px solid alpha({outline}, 0.28);
         }}

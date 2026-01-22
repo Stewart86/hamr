@@ -283,14 +283,14 @@ pub fn grid_item_css(theme: &crate::config::Theme) -> String {
         }}
 
         .grid-item.selected {{
-            background: linear-gradient(to bottom, rgba(149, 144, 136, 0.08), 10%, {surface_dark});
+            background: linear-gradient(to bottom, rgba(149, 144, 136, 0.08), {surface_dark});
             background-color: {surface_dark};
             border-color: alpha({outline}, 0.28);
         }}
 
         .grid-item.selected:hover,
         .grid-item-container:hover .grid-item.selected {{
-            background: linear-gradient(to bottom, rgba(149, 144, 136, 0.08), 10%, {surface_dark});
+            background: linear-gradient(to bottom, rgba(149, 144, 136, 0.08), {surface_dark});
             background-color: {surface_high};
         }}
 
