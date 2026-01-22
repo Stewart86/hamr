@@ -8,10 +8,10 @@ use crate::config::Theme;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use gtk4::Orientation;
 use gtk4::gdk;
 use gtk4::glib;
 use gtk4::prelude::*;
+use gtk4::Orientation;
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 
 use super::design::{font, radius, spacing};
@@ -234,6 +234,20 @@ impl ErrorDialog {
 
     /// Show the error dialog with a message, centered on the same monitor as launcher
     pub fn show(&self, title: &str, message: &str, launcher_window: &gtk4::Window) {
+        self.show_with_mode(title, message, launcher_window, true);
+    }
+
+    pub fn show_non_blocking(&self, title: &str, message: &str, launcher_window: &gtk4::Window) {
+        self.show_with_mode(title, message, launcher_window, false);
+    }
+
+    fn show_with_mode(
+        &self,
+        title: &str,
+        message: &str,
+        launcher_window: &gtk4::Window,
+        grab_focus: bool,
+    ) {
         // Ensure we're on the same monitor as the launcher
         if let Some(surface) = launcher_window.surface() {
             let display = surface.display();
@@ -249,8 +263,16 @@ impl ErrorDialog {
             source_id.remove();
         }
 
+        if grab_focus {
+            self.window.set_keyboard_mode(KeyboardMode::Exclusive);
+        } else {
+            self.window.set_keyboard_mode(KeyboardMode::None);
+        }
+
         self.window.set_visible(true);
-        self.window.grab_focus();
+        if grab_focus {
+            self.window.grab_focus();
+        }
 
         let window = self.window.clone();
         let auto_dismiss_source = self.auto_dismiss_source.clone();

@@ -33,6 +33,12 @@ use crate::widgets::design::search_bar as design;
 
 const DEFAULT_PLACEHOLDER: &str = "It's hamr time!";
 
+fn is_daemon_disconnect_error(message: &str) -> bool {
+    message.starts_with("Failed to connect to daemon")
+        || message.starts_with("Failed to register")
+        || message.starts_with("Daemon disconnected")
+}
+
 /// Get the desktop file ID of the default browser
 fn get_default_browser_desktop_id() -> Option<String> {
     let default_app = gio::AppInfo::default_for_type("x-scheme-handler/https", false)
@@ -2261,6 +2267,79 @@ impl LauncherWindow {
         });
     }
 
+    fn reset_state_after_daemon_disconnect(ctx: &UpdateContext) {
+        let UpdateContext {
+            state,
+            result_view,
+            result_card,
+            preview_window,
+            preview_revealer,
+            preview_panel,
+            action_bar,
+            form_container,
+            search_entry,
+            icon_container,
+            icon_label,
+            depth_indicator,
+            action_bar_visible,
+            config_watcher,
+            state_manager,
+            ..
+        } = ctx;
+
+        let default_mode =
+            if config_watcher.theme().config.appearance.default_result_view == "grid" {
+                ResultViewMode::Grid
+            } else {
+                ResultViewMode::List
+            };
+
+        let visibility_state = state_manager.visibility_state();
+        visibility_state.hard_close();
+        let _ = visibility_state.take_session_if_restorable(0);
+
+        search_entry.set_text("");
+        {
+            let mut state_mut = state.borrow_mut();
+            state_mut.results.clear();
+            state_mut.active_plugin = None;
+            state_mut.input_mode = "realtime".to_string();
+            state_mut.navigation_depth = 0;
+            state_mut.pending_back = false;
+            state_mut.plugin_actions.clear();
+            state_mut.selected_action_index = -1;
+            state_mut.placeholder = DEFAULT_PLACEHOLDER.to_string();
+            state_mut.current_card = None;
+            state_mut.plugin_display_hint = None;
+            state_mut.form_context = None;
+            state_mut.form_data.clear();
+            state_mut.form_config = None;
+            state_mut.form_view = None;
+            state_mut.view_mode = default_mode;
+            state_mut.plugin_management = false;
+        }
+
+        action_bar.set_mode(ActionBarMode::Hints);
+        action_bar.set_navigation_depth(0);
+        action_bar.set_actions(Vec::new());
+        action_bar.set_actions_visible(*action_bar_visible.borrow());
+        Self::update_depth_indicator(depth_indicator, 0, config_watcher);
+
+        icon_label.set_label("gavel");
+        icon_container.remove_css_class("plugin-active");
+
+        form_container.set_visible(false);
+        result_card.clear();
+        result_card.widget().set_visible(false);
+        preview_revealer.set_reveal_child(false);
+        preview_window.set_visible(false);
+        preview_panel.clear();
+
+        result_view.borrow().clear();
+        result_view.borrow_mut().set_mode(default_mode);
+        result_view.borrow().widget().set_visible(true);
+    }
+
     // GTK margins require i32, screen positions bounded by display dimensions
     // 1:1 CoreUpdate variant mapping - each arm updates specific UI components
     #[allow(
@@ -3219,7 +3298,12 @@ impl LauncherWindow {
             }
             CoreUpdate::Error { message } => {
                 error!("Error from daemon: {}", message);
-                error_dialog.show_error(&message, window);
+                if is_daemon_disconnect_error(&message) {
+                    Self::reset_state_after_daemon_disconnect(ctx);
+                    error_dialog.show_non_blocking("Daemon disconnected", &message, window);
+                } else {
+                    error_dialog.show_error(&message, window);
+                }
             }
             CoreUpdate::PluginStatusUpdate { plugin_id, status } => {
                 debug!("Plugin status update for {}: {:?}", plugin_id, status);

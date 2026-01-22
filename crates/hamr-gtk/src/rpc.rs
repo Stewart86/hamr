@@ -5,6 +5,7 @@
 use hamr_rpc::{
     ClientRole, CoreEvent, CoreUpdate, Message, RpcClient, notification_to_update, send_event,
 };
+use std::time::Duration;
 use tracing::{error, info, warn};
 
 /// RPC connection handle for GTK.
@@ -61,48 +62,107 @@ async fn rpc_task(
     event_rx: async_channel::Receiver<CoreEvent>,
     update_tx: async_channel::Sender<CoreUpdate>,
 ) -> anyhow::Result<()> {
-    let mut client = match RpcClient::connect().await {
-        Ok(c) => c,
-        Err(e) => {
-            error!("Failed to connect to hamr daemon: {}", e);
-            error!("Make sure hamr-daemon is running: hamr-daemon &");
-            let _ = update_tx
-                .send(CoreUpdate::Error {
-                    message: format!("Failed to connect to daemon: {e}"),
-                })
-                .await;
-            return Err(e.into());
-        }
-    };
+    let mut daemon_error_sent = false;
+    loop {
+        let mut client = match RpcClient::connect().await {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Failed to connect to hamr daemon: {}", e);
+                error!("Make sure hamr-daemon is running: hamr-daemon &");
+                if !daemon_error_sent {
+                    let _ = update_tx
+                        .send(CoreUpdate::Error {
+                            message: format!("Failed to connect to daemon: {e}"),
+                        })
+                        .await;
+                    daemon_error_sent = true;
+                }
+                if !wait_before_reconnect(&event_rx).await {
+                    break;
+                }
+                continue;
+            }
+        };
 
-    info!("Connected to hamr daemon");
+        info!("Connected to hamr daemon");
 
-    if let Err(e) = client
-        .register(ClientRole::Ui {
-            name: "hamr-gtk".to_string(),
-        })
-        .await
-    {
-        error!("Failed to register with daemon: {}", e);
-        let _ = update_tx
-            .send(CoreUpdate::Error {
-                message: format!("Failed to register: {e}"),
+        if let Err(e) = client
+            .register(ClientRole::Ui {
+                name: "hamr-gtk".to_string(),
             })
-            .await;
-        return Err(e.into());
+            .await
+        {
+            error!("Failed to register with daemon: {}", e);
+            if !daemon_error_sent {
+                let _ = update_tx
+                    .send(CoreUpdate::Error {
+                        message: format!("Failed to register: {e}"),
+                    })
+                    .await;
+                daemon_error_sent = true;
+            }
+            if !wait_before_reconnect(&event_rx).await {
+                break;
+            }
+            continue;
+        }
+
+        info!("Registered with daemon as hamr-gtk");
+        daemon_error_sent = false;
+
+        match rpc_session(&mut client, &event_rx, &update_tx).await? {
+            SessionOutcome::Reconnect => {
+                if !daemon_error_sent {
+                    let _ = update_tx
+                        .send(CoreUpdate::Error {
+                            message: "Daemon disconnected. Restart hamr-daemon if needed.".to_string(),
+                        })
+                        .await;
+                    daemon_error_sent = true;
+                }
+                if !wait_before_reconnect(&event_rx).await {
+                    break;
+                }
+            }
+            SessionOutcome::Shutdown => break,
+        }
     }
 
-    info!("Registered with daemon as hamr-gtk");
+    Ok(())
+}
 
+enum SessionOutcome {
+    Reconnect,
+    Shutdown,
+}
+
+async fn rpc_session(
+    client: &mut RpcClient,
+    event_rx: &async_channel::Receiver<CoreEvent>,
+    update_tx: &async_channel::Sender<CoreUpdate>,
+) -> anyhow::Result<SessionOutcome> {
     loop {
         tokio::select! {
-            Ok(event) = event_rx.recv() => {
-                if let Err(e) = send_event(&client, event).await {
-                    error!("Failed to send event: {}", e);
+            event = event_rx.recv() => {
+                match event {
+                    Ok(event) => {
+                        if let Err(e) = send_event(client, event).await {
+                            error!("Failed to send event: {}", e);
+                        }
+                    }
+                    Err(_) => {
+                        info!("Event channel closed, shutting down RPC task");
+                        return Ok(SessionOutcome::Shutdown);
+                    }
                 }
             }
 
-            Some(msg) = client.recv() => {
+            msg = client.recv() => {
+                let Some(msg) = msg else {
+                    info!("Daemon connection closed");
+                    return Ok(SessionOutcome::Reconnect);
+                };
+
                 let (method, params) = match &msg {
                     Message::Notification(notif) => (notif.method.as_str(), notif.params.clone()),
                     Message::Request(req) if req.id.is_none() => (req.method.as_str(), req.params.clone()),
@@ -112,21 +172,34 @@ async fn rpc_task(
                 if let Some(update) = notification_to_update(method, params) {
                     if update_tx.send(update).await.is_err() {
                         info!("Update channel closed, shutting down RPC task");
-                        break;
+                        return Ok(SessionOutcome::Shutdown);
                     }
                 } else {
                     warn!("Failed to parse notification: method={}", method);
                 }
             }
+        }
+    }
+}
 
-            else => {
-                info!("Daemon connection closed or event channel closed");
-                break;
+async fn wait_before_reconnect(event_rx: &async_channel::Receiver<CoreEvent>) -> bool {
+    let sleep = tokio::time::sleep(Duration::from_secs(1));
+    tokio::pin!(sleep);
+
+    loop {
+        tokio::select! {
+            _ = &mut sleep => {
+                return true;
+            }
+
+            event = event_rx.recv() => {
+                if event.is_err() {
+                    info!("Event channel closed while waiting to reconnect");
+                    return false;
+                }
             }
         }
     }
-
-    Ok(())
 }
 
 #[cfg(test)]

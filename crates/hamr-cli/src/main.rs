@@ -610,7 +610,6 @@ fn generate_daemon_service() -> Result<String> {
 Description=Hamr Launcher Daemon
 Documentation=https://hamr.run
 PartOf=graphical-session.target
-After=graphical-session.target
 
 [Service]
 Type=simple
@@ -634,7 +633,7 @@ Description=Hamr Launcher GTK UI
 Documentation=https://hamr.run
 PartOf=graphical-session.target
 After=hamr-daemon.service
-Requires=hamr-daemon.service
+Wants=hamr-daemon.service
 
 [Service]
 Type=simple
@@ -642,7 +641,7 @@ ExecStart={}
 Restart=always
 RestartSec=3
 # Wait for display to be available
-ExecStartPre=/bin/sh -c 'while ! [ -e "/run/user/$(id -u)/${{WAYLAND_DISPLAY:-wayland-0}}" ]; do sleep 0.1; done'
+ExecStartPre=/bin/sh -c 'runtime="$XDG_RUNTIME_DIR"; if [ -z "$runtime" ]; then runtime="/run/user/$(id -u)"; fi; socket=""; if [ -n "$WAYLAND_DISPLAY" ]; then socket="$runtime/$WAYLAND_DISPLAY"; else for candidate in "$runtime"/wayland-*; do if [ -e "$candidate" ]; then socket="$candidate"; break; fi; done; fi; while [ -z "$socket" ] || ! [ -e "$socket" ]; do sleep 0.1; if [ -n "$WAYLAND_DISPLAY" ]; then socket="$runtime/$WAYLAND_DISPLAY"; else socket=""; for candidate in "$runtime"/wayland-*; do if [ -e "$candidate" ]; then socket="$candidate"; break; fi; done; fi; done'
 
 [Install]
 WantedBy=graphical-session.target

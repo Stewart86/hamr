@@ -221,6 +221,18 @@ start_services() {
     fi
 }
 
+reload_user_systemd() {
+    if command -v systemctl &>/dev/null; then
+        info "Reloading systemd user daemon..."
+        if systemctl --user daemon-reload; then
+            info "Restarting hamr user services..."
+            systemctl --user restart hamr-daemon hamr-gtk || warn "Failed to restart hamr services"
+        else
+            warn "Failed to reload systemd user daemon"
+        fi
+    fi
+}
+
 main() {
     echo ""
     info "Installing Hamr Launcher"
@@ -319,6 +331,8 @@ main() {
 
             if ! "$bin_dir/hamr" install; then
                 warn "'hamr install' encountered issues. You may need to run it manually."
+            else
+                reload_user_systemd
             fi
         else
             echo ""
@@ -467,6 +481,8 @@ main() {
 
         if ! "$bin_dir/hamr" install; then
             warn "'hamr install' encountered issues. You may need to run it manually."
+        else
+            reload_user_systemd
         fi
     else
         echo ""
