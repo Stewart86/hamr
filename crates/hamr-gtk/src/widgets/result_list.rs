@@ -154,6 +154,17 @@ impl ResultList {
         })
     }
 
+    /// Check if a result is running (checks both app_id and app_id_fallback)
+    fn result_is_running(&self, result: &SearchResult) -> bool {
+        if let Some(true) = result.app_id.as_deref().map(|id| self.is_app_running(Some(id))) {
+            return true;
+        }
+        if let Some(true) = result.app_id_fallback.as_deref().map(|id| self.is_app_running(Some(id))) {
+            return true;
+        }
+        false
+    }
+
     /// Set the maximum height for the results list (from config)
     pub fn set_max_height(&self, height: i32) {
         *self.max_height.borrow_mut() = height;
@@ -230,7 +241,7 @@ impl ResultList {
         for (i, result) in results.iter().enumerate() {
             let selected = i == new_selection;
             let show_suggestion = true;
-            let running = self.is_app_running(result.app_id.as_deref());
+            let running = self.result_is_running(result);
 
             let item = ResultItem::new(result, selected, show_suggestion, running, theme);
 
@@ -349,6 +360,8 @@ impl ResultList {
             if let Some(&idx) = items_by_id.get(&result.id)
                 && idx < items.len()
             {
+                let running = self.result_is_running(result);
+                items[idx].set_running(running, &theme.colors);
                 items[idx].update(result, &theme.colors);
             }
         }

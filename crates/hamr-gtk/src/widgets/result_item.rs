@@ -120,8 +120,7 @@ pub struct ResultItem {
     verb_label: Option<gtk4::Label>,
     current_icon: RefCell<String>,
     action_buttons_row: Option<gtk4::Box>,
-    #[allow(dead_code)] // Stored to keep widget alive in GTK hierarchy
-    running_indicator: Option<gtk4::DrawingArea>,
+    running_indicator: RefCell<Option<gtk4::DrawingArea>>,
 }
 
 impl ResultItem {
@@ -302,7 +301,26 @@ impl ResultItem {
             verb_label,
             current_icon: RefCell::new(result.icon_or_default().to_string()),
             action_buttons_row,
-            running_indicator,
+            running_indicator: RefCell::new(running_indicator),
+        }
+    }
+
+    pub fn set_running(&self, running: bool, colors: &Colors) {
+        let current = self.running_indicator.borrow();
+        match (running, current.is_some()) {
+            (true, false) => {
+                drop(current);
+                let indicator = Self::create_running_indicator(colors);
+                self.container.add_overlay(&indicator);
+                *self.running_indicator.borrow_mut() = Some(indicator);
+            }
+            (false, true) => {
+                drop(current);
+                if let Some(indicator) = self.running_indicator.borrow_mut().take() {
+                    self.container.remove_overlay(&indicator);
+                }
+            }
+            _ => {}
         }
     }
 
