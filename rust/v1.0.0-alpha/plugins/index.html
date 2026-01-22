@@ -1624,23 +1624,30 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.config/hamr/plugins/hello
 </span></code></pre></div>
 <h3 id="step-2-create-the-manifest">Step 2: Create the Manifest<a class="headerlink" href="#step-2-create-the-manifest" title="Permanent link">&para;</a></h3>
-<p>The manifest tells Hamr about your plugin. <strong>Important:</strong> You must specify <code>supportedCompositors</code> or your plugin won't appear.</p>
+<p>The manifest tells Hamr about your plugin. <strong>Important:</strong> You must specify <code>supportedPlatforms</code> or your plugin won't appear.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cat<span class="w"> </span>&gt;<span class="w"> </span>~/.config/hamr/plugins/hello/manifest.json<span class="w"> </span><span class="s">&lt;&lt; &#39;EOF&#39;</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="s">{</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="s">  &quot;name&quot;: &quot;Hello&quot;,</span>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="s">  &quot;description&quot;: &quot;My first Hamr plugin&quot;,</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="s">  &quot;icon&quot;: &quot;waving_hand&quot;,</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="s">  &quot;supportedCompositors&quot;: [&quot;*&quot;]</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="s">}</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="s">EOF</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="s">  &quot;supportedPlatforms&quot;: [&quot;niri&quot;, &quot;hyprland&quot;],</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="s">  &quot;handler&quot;: {</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="s">    &quot;type&quot;: &quot;stdio&quot;,</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="s">    &quot;path&quot;: &quot;handler.py&quot;</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="s">  }</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="s">}</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="s">EOF</span>
 </span></code></pre></div>
 <blockquote>
-<p><strong>Note:</strong> <code>supportedCompositors</code> defines which Wayland compositors your plugin works with:</p>
+<p><strong>Note:</strong> <code>supportedPlatforms</code> defines which platforms/compositors your plugin works with:</p>
 <ul>
-<li><code>["*"]</code> - Works on all compositors (use this for most plugins)</li>
+<li><code>["niri", "hyprland"]</code> - Linux Wayland compositors</li>
 <li><code>["hyprland"]</code> - Hyprland only (if you use <code>hyprctl</code>)</li>
 <li><code>["niri"]</code> - Niri only (if you use <code>niri msg</code>)</li>
+<li><code>["macos"]</code> - macOS</li>
+<li><code>["windows"]</code> - Windows</li>
 </ul>
+<p>List all platforms your plugin supports explicitly. There is no wildcard.</p>
 </blockquote>
 <h3 id="step-3-create-the-handler">Step 3: Create the Handler<a class="headerlink" href="#step-3-create-the-handler" title="Permanent link">&para;</a></h3>
 <p>The handler is your plugin's logic. Create <code>~/.config/hamr/plugins/hello/handler.py</code>:</p>
@@ -1719,7 +1726,7 @@
 <p>Open Hamr and search for "hello" to see your plugin in action.</p>
 <p><strong>Tip:</strong> If your plugin doesn't appear, check:</p>
 <ol>
-<li><code>supportedCompositors</code> is set in manifest.json</li>
+<li><code>supportedPlatforms</code> is set in manifest.json</li>
 <li>The handler is executable (<code>chmod +x</code>)</li>
 <li>Check logs: <code>journalctl --user -u hamr -f</code></li>
 </ol>
@@ -1781,14 +1788,14 @@
     B --&gt; D[~/.config/hamr/plugins/]
     C --&gt; E{Valid manifest.json?}
     D --&gt; E
-    E --&gt;|Yes| F{supportedCompositors&lt;br/&gt;matches current?}
+    E --&gt;|Yes| F{supportedPlatforms&lt;br/&gt;matches current?}
     E --&gt;|No| G[Skip]
     F --&gt;|Yes| H[Load Plugin]
     F --&gt;|No| G</code></pre>
 <p><strong>Key points:</strong></p>
 <ul>
 <li>Each plugin must have a <code>manifest.json</code></li>
-<li><code>supportedCompositors</code> must include the current compositor (or <code>"*"</code>)</li>
+<li><code>supportedPlatforms</code> must include the current platform</li>
 <li>Handler must be executable with a valid shebang</li>
 </ul>
 <h3 id="directory-structure">Directory Structure<a class="headerlink" href="#directory-structure" title="Permanent link">&para;</a></h3>
@@ -1805,8 +1812,12 @@
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;My Plugin&quot;</span><span class="p">,</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;What it does&quot;</span><span class="p">,</span>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">&quot;icon&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;star&quot;</span><span class="p">,</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">&quot;supportedCompositors&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">]</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="p">}</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">&quot;supportedPlatforms&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;niri&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;hyprland&quot;</span><span class="p">],</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">&quot;handler&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;stdio&quot;</span><span class="p">,</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;handler.py&quot;</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="p">}</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -1833,14 +1844,14 @@
 <td>Material icon name</td>
 </tr>
 <tr>
-<td><code>supportedCompositors</code></td>
+<td><code>supportedPlatforms</code></td>
 <td>Yes</td>
-<td><code>["*"]</code>, <code>["hyprland"]</code>, <code>["niri"]</code>, or combination</td>
+<td><code>["niri", "hyprland"]</code>, <code>["macos"]</code>, etc. (list all explicitly)</td>
 </tr>
 <tr>
 <td><code>handler</code></td>
 <td>No</td>
-<td>Handler filename (default: <code>handler.py</code>)</td>
+<td>Handler config: <code>{type, command}</code> (default: stdio handler.py)</td>
 </tr>
 <tr>
 <td><code>frecency</code></td>
@@ -2077,9 +2088,9 @@
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="plugin-doesnt-appear-in-hamr">Plugin doesn't appear in Hamr<a class="headerlink" href="#plugin-doesnt-appear-in-hamr" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong>Check <code>supportedCompositors</code></strong> - Must be set in manifest.json</li>
+<li><strong>Check <code>supportedPlatforms</code></strong> - Must be set in manifest.json</li>
 </ol>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">&quot;supportedCompositors&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">]</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">&quot;supportedPlatforms&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;niri&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;hyprland&quot;</span><span class="p">]</span>
 </span></code></pre></div>
 <ol>
 <li><strong>Check file permissions</strong> - Handler must be executable</li>

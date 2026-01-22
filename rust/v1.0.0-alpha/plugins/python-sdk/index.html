@@ -890,6 +890,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#when-to-use-the-sdk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to Use the SDK
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1504,6 +1515,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#when-to-use-the-sdk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to Use the SDK
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1883,7 +1905,7 @@
 </span><span id="__span-20-51"><a id="__codelineno-20-51" name="__codelineno-20-51" href="#__codelineno-20-51"></a><span class="n">plugin</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
 </span></code></pre></div>
 <h2 id="manifest-configuration">Manifest Configuration<a class="headerlink" href="#manifest-configuration" title="Permanent link">&para;</a></h2>
-<p>For socket-based daemon plugins, use this manifest structure:</p>
+<p>For socket-based daemon plugins using the SDK, use this manifest structure:</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="p">{</span>
 </span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;My Plugin&quot;</span><span class="p">,</span>
 </span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Plugin description&quot;</span><span class="p">,</span>
@@ -1898,10 +1920,54 @@
 </span><span id="__span-21-12"><a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a><span class="w">    </span><span class="nt">&quot;restartOnCrash&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
 </span><span id="__span-21-13"><a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a><span class="w">    </span><span class="nt">&quot;maxRestarts&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span>
 </span><span id="__span-21-14"><a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="w">  </span><span class="p">},</span>
-</span><span id="__span-21-15"><a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a><span class="w">  </span><span class="nt">&quot;supportedPlatforms&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;niri&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;hyprland&quot;</span><span class="p">]</span>
-</span><span id="__span-21-16"><a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a><span class="p">}</span>
+</span><span id="__span-21-15"><a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a><span class="w">  </span><span class="nt">&quot;frecency&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;plugin&quot;</span><span class="p">,</span>
+</span><span id="__span-21-16"><a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a><span class="w">  </span><span class="nt">&quot;supportedPlatforms&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;niri&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;hyprland&quot;</span><span class="p">]</span>
+</span><span id="__span-21-17"><a id="__codelineno-21-17" name="__codelineno-21-17" href="#__codelineno-21-17"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>See <a href="../">Plugin Index</a> for full manifest documentation.</p>
+<p><strong>Important:</strong> The SDK is for <code>socket</code> type handlers only. For simple <code>stdio</code> plugins, you don't need the SDK - just read JSON from stdin and print JSON to stdout.</p>
+<p>See <a href="../api-reference/">API Reference</a> for full manifest documentation.</p>
+<h2 id="when-to-use-the-sdk">When to Use the SDK<a class="headerlink" href="#when-to-use-the-sdk" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Use Case</th>
+<th>SDK?</th>
+<th>Handler Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Simple stateless operations</td>
+<td>No</td>
+<td><code>stdio</code></td>
+</tr>
+<tr>
+<td>Pattern matching (calculator)</td>
+<td>No</td>
+<td><code>stdio</code></td>
+</tr>
+<tr>
+<td>Real-time updates (timers)</td>
+<td>Yes</td>
+<td><code>socket</code></td>
+</tr>
+<tr>
+<td>Background monitoring (sound)</td>
+<td>Yes</td>
+<td><code>socket</code></td>
+</tr>
+<tr>
+<td>Ambient items &amp; FAB override</td>
+<td>Yes</td>
+<td><code>socket</code></td>
+</tr>
+<tr>
+<td>Live sliders/switches</td>
+<td>Yes</td>
+<td><code>socket</code></td>
+</tr>
+</tbody>
+</table>
 
 
 

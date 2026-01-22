@@ -1820,7 +1820,7 @@
 <tr>
 <td><code>iconType</code></td>
 <td>string</td>
-<td><code>"material"</code> (default) or <code>"system"</code> (desktop app icons)</td>
+<td><code>"material"</code> (default), <code>"system"</code>, <code>"text"</code>, or <code>"path"</code></td>
 </tr>
 <tr>
 <td><code>thumbnail</code></td>
@@ -1866,6 +1866,31 @@
 <td><code>preview</code></td>
 <td>object</td>
 <td>Side panel preview content</td>
+</tr>
+<tr>
+<td><code>keepOpen</code></td>
+<td>bool</td>
+<td>Keep launcher open after selection (default: <code>false</code>)</td>
+</tr>
+<tr>
+<td><code>displayHint</code></td>
+<td>string</td>
+<td>View hint: <code>"auto"</code>, <code>"list"</code>, <code>"grid"</code>, <code>"large_grid"</code></td>
+</tr>
+<tr>
+<td><code>isSuggestion</code></td>
+<td>bool</td>
+<td>Mark as smart suggestion (shows reason badge)</td>
+</tr>
+<tr>
+<td><code>suggestionReason</code></td>
+<td>string</td>
+<td>Why this was suggested (e.g., "Often used around 9am")</td>
+</tr>
+<tr>
+<td><code>hasOcr</code></td>
+<td>bool</td>
+<td>Item has OCR-searchable text (for images/screenshots)</td>
 </tr>
 </tbody>
 </table>
@@ -1923,6 +1948,11 @@
 <td><code>navigationDepth</code></td>
 <td>int</td>
 <td>Set exact navigation depth</td>
+</tr>
+<tr>
+<td><code>displayHint</code></td>
+<td>string</td>
+<td>View hint: <code>"auto"</code>, <code>"list"</code>, <code>"grid"</code>, <code>"large_grid"</code></td>
 </tr>
 </tbody>
 </table>
