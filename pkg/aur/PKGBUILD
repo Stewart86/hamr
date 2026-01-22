@@ -12,6 +12,10 @@ depends=(
     'gtk4'
     'gtk4-layer-shell'
     'python'
+
+    # Fonts required for UI
+    'ttf-material-symbols-variable'
+    'ttf-jetbrains-mono-nerd'
 )
 makedepends=(
     'rust'
@@ -21,6 +25,28 @@ makedepends=(
 optdepends=(
     'python-dbus: system dbus integration for plugins'
     'python-gobject: GObject introspection for plugins'
+
+    # Desktop integration tools for plugins
+    'wl-clipboard: clipboard operations in plugins'
+    'xdg-utils: desktop integration (xdg-open)'
+    'glib2: file operations (gio trash)'
+
+    # Screenshot plugins
+    'grim: screenshot capture'
+    'slurp: screen region selection'
+
+    # Screen recording
+    'wf-recorder: screen recording'
+
+    # Wallpaper
+    'swww: animated wallpapers (wallpaper plugin)'
+    'awww: wallpaper management'
+
+    # Media player control
+    'playerctl: media player control (player plugin)'
+
+    # Bitwarden integration
+    'bitwarden-cli: Bitwarden password manager integration'
 )
 provides=('hamr')
 conflicts=('hamr')

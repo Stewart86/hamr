@@ -58,6 +58,10 @@
         runtimeDeps = with pkgs; [
           python3
           paplay  # For sound notifications (part of pulseaudio)
+
+          # Fonts required for UI
+          material-symbols-variable
+          jetbrains-mono-nf
         ];
 
         # Common arguments for all crane derivations
