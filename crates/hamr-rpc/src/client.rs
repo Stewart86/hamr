@@ -19,14 +19,47 @@ use crate::protocol::{
 };
 use crate::transport::{CodecError, JsonRpcCodec};
 
+fn runtime_dir() -> PathBuf {
+    std::env::var("XDG_RUNTIME_DIR").map_or_else(|_| std::env::temp_dir(), PathBuf::from)
+}
+
+fn is_dev_socket() -> bool {
+    let Ok(exe) = std::env::current_exe() else {
+        return false;
+    };
+
+    let Some(parent) = exe.parent() else {
+        return false;
+    };
+
+    if !parent.ends_with("target/debug") {
+        return false;
+    }
+
+    let Some(name) = exe.file_name().and_then(|file| file.to_str()) else {
+        return false;
+    };
+
+    matches!(name, "hamr" | "hamr-daemon" | "hamr-gtk" | "hamr-tui")
+}
+
+/// Get the socket path for the hamr daemon in dev mode.
+pub fn dev_socket_path() -> PathBuf {
+    runtime_dir().join("hamr-dev.sock")
+}
+
 /// Get the socket path for the hamr daemon.
 ///
 /// On Linux, prefers `$XDG_RUNTIME_DIR` for proper runtime file handling.
 /// Falls back to the system temp directory for cross-platform compatibility.
 pub fn socket_path() -> PathBuf {
-    std::env::var("XDG_RUNTIME_DIR")
-        .map_or_else(|_| std::env::temp_dir(), PathBuf::from)
-        .join("hamr.sock")
+    let socket_name = if is_dev_socket() {
+        "hamr-dev.sock"
+    } else {
+        "hamr.sock"
+    };
+
+    runtime_dir().join(socket_name)
 }
 
 /// Errors that can occur with the RPC client

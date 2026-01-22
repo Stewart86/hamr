@@ -27,6 +27,14 @@ use crate::compositor::Compositor;
 use crate::window::LauncherWindow;
 
 const APP_ID: &str = "org.hamr.Launcher";
+const DEV_APP_ID: &str = "org.hamr.Launcher.Dev";
+
+fn is_dev_mode() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.ends_with("target/debug")))
+        .unwrap_or(false)
+}
 
 fn setup_logging() {
     #[cfg(debug_assertions)]
@@ -78,7 +86,8 @@ fn main() -> glib::ExitCode {
         return glib::ExitCode::FAILURE;
     }
 
-    let app = gtk4::Application::builder().application_id(APP_ID).build();
+    let app_id = if is_dev_mode() { DEV_APP_ID } else { APP_ID };
+    let app = gtk4::Application::builder().application_id(app_id).build();
 
     app.connect_activate(move |app| {
         debug!("Application activated");

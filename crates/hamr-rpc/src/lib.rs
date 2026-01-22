@@ -39,7 +39,7 @@ pub mod protocol;
 pub mod transport;
 
 // Re-export main client types
-pub use client::{ClientError, RpcClient, socket_path};
+pub use client::{ClientError, RpcClient, dev_socket_path, socket_path};
 
 // Re-export helper functions
 pub use helpers::{notification_to_update, send_event};

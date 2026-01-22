@@ -7,7 +7,7 @@
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use hamr_rpc::{
-    client::{RpcClient, socket_path},
+    client::{RpcClient, dev_socket_path, socket_path},
     protocol::ClientRole,
 };
 use std::path::PathBuf;
@@ -326,9 +326,7 @@ fn run_daemon() -> Result<()> {
     Ok(())
 }
 
-async fn connect_and_register() -> Result<RpcClient> {
-    let socket = socket_path();
-
+async fn connect_and_register_at(socket: PathBuf) -> Result<RpcClient> {
     if !socket.exists() {
         bail!(
             "Daemon not running (socket not found at {}).\nStart with: hamr daemon",
@@ -336,7 +334,7 @@ async fn connect_and_register() -> Result<RpcClient> {
         );
     }
 
-    let mut client = RpcClient::connect()
+    let mut client = RpcClient::connect_to(socket)
         .await
         .context("Failed to connect to daemon. Is it running?")?;
 
@@ -348,8 +346,31 @@ async fn connect_and_register() -> Result<RpcClient> {
     Ok(client)
 }
 
+async fn connect_and_register() -> Result<RpcClient> {
+    connect_and_register_at(socket_path()).await
+}
+
+async fn try_connect_dev_daemon() -> Result<Option<RpcClient>> {
+    if is_dev_mode() {
+        return Ok(None);
+    }
+
+    let socket = dev_socket_path();
+    if !socket.exists() {
+        return Ok(None);
+    }
+
+    match connect_and_register_at(socket).await {
+        Ok(client) => Ok(Some(client)),
+        Err(_) => Ok(None),
+    }
+}
+
 async fn run_toggle() -> Result<()> {
-    let client = connect_and_register().await?;
+    let client = match try_connect_dev_daemon().await? {
+        Some(client) => client,
+        None => connect_and_register().await?,
+    };
 
     let result: serde_json::Value = client
         .request("toggle", None)

@@ -70,6 +70,13 @@ Use `./dev --no-restore` to not restart production after exiting.
 
 Hamr auto-reloads on file changes. Logs appear directly in your terminal.
 
+Dev builds use a separate socket at `$XDG_RUNTIME_DIR/hamr-dev.sock`. The release
+`hamr toggle` command will attempt the dev socket first so your compositor binding
+still works while you run `cargo run -p hamr-daemon` and `cargo run -p hamr-gtk`.
+
+The GTK dev build uses a separate application ID (`org.hamr.Launcher.Dev`) so it
+can run alongside the production launcher during development.
+
 **Note:** You can have the AUR version installed alongside development. The dev script temporarily takes over, then restores production on exit.
 
 ## Testing Plugins
