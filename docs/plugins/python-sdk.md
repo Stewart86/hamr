@@ -413,7 +413,7 @@ plugin.run()
 
 ## Manifest Configuration
 
-For socket-based daemon plugins, use this manifest structure:
+For socket-based daemon plugins using the SDK, use this manifest structure:
 
 ```json
 {
@@ -430,8 +430,22 @@ For socket-based daemon plugins, use this manifest structure:
     "restartOnCrash": true,
     "maxRestarts": 5
   },
+  "frecency": "plugin",
   "supportedPlatforms": ["niri", "hyprland"]
 }
 ```
 
-See [Plugin Index](index.md) for full manifest documentation.
+**Important:** The SDK is for `socket` type handlers only. For simple `stdio` plugins, you don't need the SDK - just read JSON from stdin and print JSON to stdout.
+
+See [API Reference](api-reference.md) for full manifest documentation.
+
+## When to Use the SDK
+
+| Use Case                        | SDK? | Handler Type |
+| ------------------------------- | ---- | ------------ |
+| Simple stateless operations     | No   | `stdio`      |
+| Pattern matching (calculator)   | No   | `stdio`      |
+| Real-time updates (timers)      | Yes  | `socket`     |
+| Background monitoring (sound)   | Yes  | `socket`     |
+| Ambient items & FAB override    | Yes  | `socket`     |
+| Live sliders/switches           | Yes  | `socket`     |

@@ -31,7 +31,7 @@ mkdir -p ~/.config/hamr/plugins/hello
 
 ### Step 2: Create the Manifest
 
-The manifest tells Hamr about your plugin. **Important:** You must specify `supportedCompositors` or your plugin won't appear.
+The manifest tells Hamr about your plugin. **Important:** You must specify `supportedPlatforms` or your plugin won't appear.
 
 ```bash
 cat > ~/.config/hamr/plugins/hello/manifest.json << 'EOF'
@@ -39,16 +39,24 @@ cat > ~/.config/hamr/plugins/hello/manifest.json << 'EOF'
   "name": "Hello",
   "description": "My first Hamr plugin",
   "icon": "waving_hand",
-  "supportedCompositors": ["*"]
+  "supportedPlatforms": ["niri", "hyprland"],
+  "handler": {
+    "type": "stdio",
+    "path": "handler.py"
+  }
 }
 EOF
 ```
 
-> **Note:** `supportedCompositors` defines which Wayland compositors your plugin works with:
+> **Note:** `supportedPlatforms` defines which platforms/compositors your plugin works with:
 >
-> - `["*"]` - Works on all compositors (use this for most plugins)
+> - `["niri", "hyprland"]` - Linux Wayland compositors
 > - `["hyprland"]` - Hyprland only (if you use `hyprctl`)
 > - `["niri"]` - Niri only (if you use `niri msg`)
+> - `["macos"]` - macOS
+> - `["windows"]` - Windows
+>
+> List all platforms your plugin supports explicitly. There is no wildcard.
 
 ### Step 3: Create the Handler
 
@@ -136,7 +144,7 @@ Open Hamr and search for "hello" to see your plugin in action.
 
 **Tip:** If your plugin doesn't appear, check:
 
-1. `supportedCompositors` is set in manifest.json
+1. `supportedPlatforms` is set in manifest.json
 2. The handler is executable (`chmod +x`)
 3. Check logs: `journalctl --user -u hamr -f`
 
@@ -189,7 +197,7 @@ flowchart LR
     B --> D[~/.config/hamr/plugins/]
     C --> E{Valid manifest.json?}
     D --> E
-    E -->|Yes| F{supportedCompositors<br/>matches current?}
+    E -->|Yes| F{supportedPlatforms<br/>matches current?}
     E -->|No| G[Skip]
     F -->|Yes| H[Load Plugin]
     F -->|No| G
@@ -198,7 +206,7 @@ flowchart LR
 **Key points:**
 
 - Each plugin must have a `manifest.json`
-- `supportedCompositors` must include the current compositor (or `"*"`)
+- `supportedPlatforms` must include the current platform
 - Handler must be executable with a valid shebang
 
 ### Directory Structure
@@ -223,18 +231,22 @@ Every plugin needs a `manifest.json`:
   "name": "My Plugin",
   "description": "What it does",
   "icon": "star",
-  "supportedCompositors": ["*"]
+  "supportedPlatforms": ["niri", "hyprland"],
+  "handler": {
+    "type": "stdio",
+    "path": "handler.py"
+  }
 }
 ```
 
-| Field                  | Required | Description                                           |
-| ---------------------- | -------- | ----------------------------------------------------- |
-| `name`                 | Yes      | Display name                                          |
-| `description`          | Yes      | Short description                                     |
-| `icon`                 | Yes      | Material icon name                                    |
-| `supportedCompositors` | Yes      | `["*"]`, `["hyprland"]`, `["niri"]`, or combination   |
-| `handler`              | No       | Handler filename (default: `handler.py`)              |
-| `frecency`             | No       | `"item"`, `"plugin"`, or `"none"` (default: `"item"`) |
+| Field                | Required | Description                                                  |
+| -------------------- | -------- | ------------------------------------------------------------ |
+| `name`               | Yes      | Display name                                                 |
+| `description`        | Yes      | Short description                                            |
+| `icon`               | Yes      | Material icon name                                           |
+| `supportedPlatforms` | Yes      | `["niri", "hyprland"]`, `["macos"]`, etc. (list all explicitly) |
+| `handler`            | No       | Handler config: `{type, command}` (default: stdio handler.py)|
+| `frecency`           | No       | `"item"`, `"plugin"`, or `"none"` (default: `"item"`)        |
 
 ### Input (What You Receive)
 
@@ -396,10 +408,10 @@ See [Testing Plugins](testing.md) for more details.
 
 ### Plugin doesn't appear in Hamr
 
-1. **Check `supportedCompositors`** - Must be set in manifest.json
+1. **Check `supportedPlatforms`** - Must be set in manifest.json
 
    ```json
-   "supportedCompositors": ["*"]
+   "supportedPlatforms": ["niri", "hyprland"]
    ```
 
 2. **Check file permissions** - Handler must be executable
