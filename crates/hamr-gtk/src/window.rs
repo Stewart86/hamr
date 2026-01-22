@@ -3553,11 +3553,34 @@ impl LauncherWindow {
                 let display = display.cloned().or_else(gdk::Display::default);
                 let context = display.map(|d| d.app_launch_context());
 
-                // Call setsid in the child to detach from hamr's session
-                // This makes the spawned app immune to SIGHUP when hamr restarts
+                // Enhanced detachment to ensure apps survive hamr restarts
+                // The issue with some apps (like Opencode) is that they may re-attach
+                // to the parent session or have their own process management
                 let user_setup: Option<Box<dyn FnOnce() + 'static>> = Some(Box::new(move || {
                     unsafe {
+                        // Create new session and process group
                         libc::setsid();
+
+                        // Also detach from process group to prevent SIGHUP propagation
+                        // This is especially important for GUI apps that might spawn
+                        // background processes
+                        libc::setpgid(0, 0);
+
+                        // Close standard file descriptors to prevent hanging
+                        if libc::close(0) == -1 || libc::close(1) == -1 || libc::close(2) == -1 {
+                            // Ignore errors - file descriptors might already be closed
+                        }
+
+                        // Redirect to /dev/null to prevent issues with broken pipes
+                        let devnull = libc::open(b"/dev/null\0".as_ptr() as *const libc::c_char, libc::O_RDWR);
+                        if devnull != -1 {
+                            libc::dup2(devnull, 0);
+                            libc::dup2(devnull, 1);
+                            libc::dup2(devnull, 2);
+                            if devnull > 2 {
+                                libc::close(devnull);
+                            }
+                        }
                     }
                 }));
 

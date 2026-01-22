@@ -637,6 +637,7 @@ Type=simple
 ExecStart=/bin/sh -c 'runtime="${{XDG_RUNTIME_DIR:-/run/user/$(id -u)}}"; if [ -z "${{NIRI_SOCKET:-}}" ] && [ -S "$runtime/niri-ipc" ]; then export NIRI_SOCKET="$runtime/niri-ipc"; fi; if [ -z "${{HYPRLAND_INSTANCE_SIGNATURE:-}}" ]; then for candidate in /tmp/hypr/*/.socket.sock /tmp/hypr/*/.socket2.sock; do if [ -S "$candidate" ]; then export HYPRLAND_INSTANCE_SIGNATURE="$(basename "$(dirname "$candidate")")"; break; fi; done; fi; exec "{daemon_path}"'
 Restart=on-failure
 RestartSec=3
+KillMode=process
 
 [Install]
 WantedBy=graphical-session.target
@@ -661,6 +662,7 @@ Type=simple
 ExecStart={}
 Restart=always
 RestartSec=3
+KillMode=process
 # Wait for display to be available
 ExecStartPre=/bin/sh -c 'runtime="$XDG_RUNTIME_DIR"; if [ -z "$runtime" ]; then runtime="/run/user/$(id -u)"; fi; socket=""; if [ -n "$WAYLAND_DISPLAY" ]; then socket="$runtime/$WAYLAND_DISPLAY"; else for candidate in "$runtime"/wayland-*; do if [ -e "$candidate" ]; then socket="$candidate"; break; fi; done; fi; while [ -z "$socket" ] || ! [ -e "$socket" ]; do sleep 0.1; if [ -n "$WAYLAND_DISPLAY" ]; then socket="$runtime/$WAYLAND_DISPLAY"; else socket=""; for candidate in "$runtime"/wayland-*; do if [ -e "$candidate" ]; then socket="$candidate"; break; fi; done; fi; done'
 
