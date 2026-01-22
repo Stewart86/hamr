@@ -627,20 +627,20 @@ fn generate_daemon_service() -> Result<String> {
     let daemon_path = which_daemon()?;
 
     Ok(format!(
-        r"[Unit]
+        r#"[Unit]
 Description=Hamr Launcher Daemon
 Documentation=https://hamr.run
 PartOf=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart={daemon_path}
+ExecStart=/bin/sh -c 'runtime="${{XDG_RUNTIME_DIR:-/run/user/$(id -u)}}"; if [ -z "${{NIRI_SOCKET:-}}" ] && [ -S "$runtime/niri-ipc" ]; then export NIRI_SOCKET="$runtime/niri-ipc"; fi; if [ -z "${{HYPRLAND_INSTANCE_SIGNATURE:-}}" ]; then for candidate in /tmp/hypr/*/.socket.sock /tmp/hypr/*/.socket2.sock; do if [ -S "$candidate" ]; then export HYPRLAND_INSTANCE_SIGNATURE="$(basename "$(dirname "$candidate")")"; break; fi; done; fi; exec "{daemon_path}"'
 Restart=on-failure
 RestartSec=3
 
 [Install]
 WantedBy=graphical-session.target
-",
+"#,
         daemon_path = daemon_path.display()
     ))
 }

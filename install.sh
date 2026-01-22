@@ -216,13 +216,30 @@ start_services() {
         info "Starting system hamr-daemon service..."
         sudo systemctl start hamr-daemon
     elif [[ "$service_type" == "user" ]]; then
+        import_user_environment
         info "Starting user hamr-daemon service..."
         systemctl --user start hamr-daemon
     fi
 }
 
+import_user_environment() {
+    if command -v systemctl &>/dev/null; then
+        systemctl --user import-environment \
+            NIRI_SOCKET \
+            HYPRLAND_INSTANCE_SIGNATURE \
+            SWAYSOCK \
+            WAYLAND_DISPLAY \
+            XDG_CURRENT_DESKTOP \
+            XDG_SESSION_DESKTOP \
+            DISPLAY \
+            XDG_RUNTIME_DIR \
+            || warn "Failed to import session environment"
+    fi
+}
+
 reload_user_systemd() {
     if command -v systemctl &>/dev/null; then
+        import_user_environment
         info "Reloading systemd user daemon..."
         if systemctl --user daemon-reload; then
             info "Restarting hamr user services..."
