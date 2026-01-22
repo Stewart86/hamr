@@ -52,7 +52,27 @@ fn get_default_browser_desktop_id() -> Option<String> {
     Some(id_str)
 }
 
-/// Check if a window belongs to the default browser by matching `app_id` or WM_CLASS
+fn get_startup_wm_class(desktop_id: &str) -> Option<String> {
+    let desktop_file = desktop_id.strip_suffix(".desktop").unwrap_or(desktop_id);
+
+    let search_paths = [
+        format!("/var/lib/flatpak/exports/share/applications/{}.desktop", desktop_file),
+        format!("/usr/share/applications/{}.desktop", desktop_file),
+        format!("/home/siwei/.local/share/applications/{}.desktop", desktop_file),
+    ];
+
+    for path in search_paths {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            for line in content.lines() {
+                if let Some(wm_class) = line.strip_prefix("StartupWMClass=") {
+                    return Some(wm_class.to_lowercase());
+                }
+            }
+        }
+    }
+    None
+}
+
 fn window_is_default_browser(window: &CompositorWindow, browser_desktop_id: &str) -> bool {
     let window_class = window.app_id.to_lowercase();
     let browser_name = browser_desktop_id
@@ -60,10 +80,20 @@ fn window_is_default_browser(window: &CompositorWindow, browser_desktop_id: &str
         .unwrap_or(browser_desktop_id)
         .to_lowercase();
 
-    // Direct match on app_id/WM_CLASS
-    window_class == browser_name
+    if window_class == browser_name
         || window_class.contains(&browser_name)
         || browser_name.contains(&window_class)
+    {
+        return true;
+    }
+
+    if let Some(wm_class) = get_startup_wm_class(browser_desktop_id) {
+        if window_class == wm_class || window_class.contains(&wm_class) || wm_class.contains(&window_class) {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// View mode for result display
