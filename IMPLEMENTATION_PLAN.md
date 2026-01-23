@@ -72,7 +72,7 @@
   - Files: CONTRIBUTING.md, .github/workflows/release.yml
 
 ## Logging & Telemetry Docs
-- [ ] Create `docs/getting-started/logging.md`
+- [x] Create `docs/getting-started/logging.md`
   - Acceptance: Documents log paths, env vars (`RUST_LOG`, `HAMR_PLUGIN_DEBUG`), privacy statement
   - Reference: AGENTS.md "Debugging" section for log path patterns
   - Files: docs/getting-started/logging.md

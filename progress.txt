@@ -127,3 +127,9 @@
 - Files: CONTRIBUTING.md, .github/workflows/release.yml
 - Learned: Pre-existing test race condition in hamr-rpc test_socket_path_with_xdg due to parallel env var manipulation; passes with --test-threads=1
 ---
+
+## [docs-logging-md] - DONE
+- What: Created comprehensive logging documentation with log paths table, RUST_LOG/HAMR_PLUGIN_DEBUG env vars, privacy statement, and log management commands
+- Files: docs/getting-started/logging.md (new)
+- Learned: Specs in specs/logging-telemetry.md provide detailed acceptance criteria; troubleshooting.md already has logging info but new file provides deeper coverage including tmpfs implications and archive commands
+---
