@@ -30,6 +30,14 @@ This downloads the latest release binaries, installs to `~/.local/bin`, copies e
 
 **Dependencies:** GTK4 4.20+, gtk4-layer-shell, Python 3.9+
 
+**Installer Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--check` | Dry-run mode: show what would be installed without making changes |
+| `--yes` | Assume yes for all prompts (non-interactive mode) |
+| `--reset-user-data` | Reset user configuration and plugins (backup created) |
+
 ### Build from Source
 
 Requires Rust 1.85+, GTK4 4.20+, gtk4-layer-shell.

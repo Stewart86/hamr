@@ -1,21 +1,32 @@
 # Plugin SDK Guidance Refresh
 
 ## Responsibility
-Document how the Python SDK aligns with the Rust release and give plugin authors clear manual testing steps with hamr-daemon/hamr-gtk.
+Document how the Python SDK aligns with the Rust release and give plugin authors clear manual testing steps.
 
 ## Requirements
-- [ ] Update `plugins/sdk/README.md` and docs/plugins to describe how to launch hamr-daemon + hamr-gtk for manual plugin testing, including useful environment variables and logging tips.
-- [ ] Document the release process for SDK/protocol changes: when protocol fields change, update README changelog + migration notes and ensure bundled plugins are updated accordingly.
-- [ ] Adjust `pyproject.toml` to require Python 3.9+ and include minimal dev dependencies needed for docs/tests referencing the SDK.
-- [ ] Add a manual plugin testing checklist (CONTRIBUTING or docs) outlining steps authors should follow (start daemon, observe logs, validate UI results, handle errors/headless `hamr-tui`).
+- [ ] Update `plugins/sdk/README.md` with:
+  - Quick start: create plugin dir, copy manifest template, implement handler.py
+  - Testing workflow: `cargo run -p hamr-daemon` in terminal 1, test plugin in terminal 2
+  - Environment variables: `HAMR_PLUGIN_DEBUG=1` for verbose SDK logging
+  - Example manifest.json with all required fields
+- [ ] Verify `pyproject.toml` requires Python 3.9+ (check `requires-python` field)
+- [ ] Create manual testing checklist in CONTRIBUTING.md:
+  1. Start daemon: `cargo run -p hamr-daemon`
+  2. Tail logs: `tail -f /tmp/hamr-daemon.log`
+  3. Start GTK or TUI: `cargo run -p hamr-gtk` or `cargo run -p hamr-tui`
+  4. Type query that triggers your plugin
+  5. Verify results appear and actions work
+  6. Check logs for errors
+- [ ] Document headless testing with TUI for environments without GTK
 
 ## Acceptance Criteria
-- [ ] Docs clearly describe the recommended manual testing workflow and link to relevant commands.
-- [ ] `pyproject.toml` installation succeeds on Python 3.9+ and supports docs builds.
-- [ ] Release instructions remind maintainers to update SDK docs whenever the protocol changes.
+- [ ] `plugins/sdk/README.md` has working quick start that new developer can follow
+- [ ] `pip install -e plugins/sdk/` succeeds on Python 3.9+
+- [ ] CONTRIBUTING.md has "Plugin Testing" section with checklist
+- [ ] `python -m compileall plugins` succeeds with no syntax errors
 
 ## Edge Cases
-- Include guidance for environments without GTK (use `hamr-tui` or CLI to validate plugin responses).
+- Plugins that need external dependencies (PIL, dbus) - document optional deps pattern
 
 ## Dependencies
-- Docs refresh (plugins section updated).
+- None (standalone docs task)

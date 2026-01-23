@@ -5,62 +5,87 @@
   - Acceptance: All docs and examples use `hamr` binary for user-facing CLI commands; no `hamr-daemon query`, `hamr-cli`, etc.
   - Files: docs/getting-started/configuration.md, README.md, any other affected docs
 
-## Docs Refresh
-- [x] Update installation guide and README quick start for Rust/GTK (Wayland deps, curl script, AUR, manual build, keybindings).
-  - Acceptance: `mkdocs build` clean; instructions verified on at least one distro; README matches guide.
-  - Files: docs/getting-started/installation.md, README.md, mkdocs.yml (nav)
-- [x] Refresh configuration guide with current schema/settings plugin details and remove QML references.
-  - Acceptance: lists real config paths/options; screenshots/text updated; mkdocs links resolved.
-  - Files: docs/getting-started/configuration.md
-- [x] Rewrite landing page + migration note; hide stale MkDocs sections.
-  - Acceptance: docs/index.md + mkdocs nav only reference GTK content; migration section links to old branch/tag.
-  - Files: docs/index.md, mkdocs.yml
+## Docs Refresh (COMPLETE)
+- [x] Update installation guide and README quick start for Rust/GTK
+- [x] Refresh configuration guide with current schema/settings plugin details
+- [x] Rewrite landing page + migration note; hide stale MkDocs sections
 
 ## Installer Hardening
-- [x] Preserve user config/plugins by default and add `--reset-user-data` override.
-   - Acceptance: repeated installs leave `~/.config/hamr` untouched unless flag set.
-   - Files: install.sh
-- [ ] Add dry-run (`--check`) + verbose summary, plus prompts for overwrites with `--yes` bypass.
-  - Acceptance: `install.sh --check` makes no changes; interactive run shows prompts.
-  - Files: install.sh
-- [ ] Improve running-process detection and messaging (`--force` for overrides); update docs for new flags.
-  - Acceptance: installer logs instructions instead of blindly killing; README/docs describe flags.
-  - Files: install.sh, README.md, docs/getting-started/installation.md
+- [x] Preserve user config/plugins by default (`--reset-user-data` override) - DONE in install.sh
+- [x] Dry-run (`--check`) + verbose summary + overwrite prompts (`--yes` bypass) - DONE in install.sh
+- [x] Running-process detection and safe stop/restart - DONE in install.sh
+- [x] Document installer flags in README and docs
+  - Acceptance: README has table of flags (`--check`, `--yes`, `--reset-user-data`) with descriptions
+  - Files: README.md, docs/getting-started/installation.md
 
 ## Platform Support Clarity
-- [ ] Document supported compositors/requirements and troubleshooting table.
-  - Acceptance: README + docs share same support matrix and troubleshooting guidance.
-  - Files: README.md, docs/index.md, docs/getting-started/installation.md (or new troubleshooting page)
+- [ ] Add compositor support matrix table
+  - Acceptance: Table with columns (Compositor | Status | Notes) in README and docs
+  - Content: Hyprland/Niri/Sway (supported), KDE Wayland (supported), GNOME/X11 (not supported)
+  - Files: README.md, docs/getting-started/installation.md
+- [ ] Add troubleshooting table
+  - Acceptance: Table with columns (Symptom | Cause | Solution) with 5+ common issues
+  - Files: README.md or new docs/getting-started/troubleshooting.md
+- [ ] Document layer-shell package names per distro
+  - Acceptance: Arch/Fedora/Ubuntu package names listed
+  - Files: docs/getting-started/installation.md
 
 ## Plugin Security Enhancements
-- [ ] Generate plugin checksum manifest during packaging and ship with releases.
-  - Acceptance: manifest produced by script, included in release artifacts, and referenced by installer/daemon.
-  - Files: scripts/*, release workflow, pkg assets
-- [ ] Verify checksums at runtime + installer warnings; add CLI audit command and doc updates.
-  - Acceptance: daemon logs mismatches; `hamr plugins audit` reports status; docs/security updated.
-  - Files: crates/hamr-core or hamr-daemon, crates/hamr-cli, install.sh, SECURITY.md, docs/security section
+- [ ] Create `scripts/generate-plugin-checksums.sh`
+  - Acceptance: Script outputs `plugins/checksums.json` with SHA256 per plugin file
+  - Files: scripts/generate-plugin-checksums.sh
+- [ ] Add checksum generation to release workflow
+  - Acceptance: `checksums.json` included in release artifacts
+  - Files: .github/workflows/release.yml
+- [ ] Add runtime checksum verification in daemon
+  - Acceptance: Daemon logs warning on plugin checksum mismatch
+  - Files: crates/hamr-daemon/src/... or crates/hamr-core/src/plugin/...
+- [ ] Add `hamr plugins audit` CLI command
+  - Acceptance: Command lists plugins with verified/modified/unknown status
+  - Files: crates/hamr-cli/src/main.rs
+- [ ] Update SECURITY.md with plugin trust model
+  - Acceptance: Documents checksum system and audit command
+  - Files: SECURITY.md
 
 ## Plugin SDK Guidance
-- [ ] Refresh SDK README/docs with manual testing workflow + env vars/logging tips.
-  - Acceptance: docs/plugins and SDK README align; manual steps clearly outlined.
-  - Files: plugins/sdk/README.md, docs/plugins/*, CONTRIBUTING.md
-- [ ] Update `pyproject.toml` Python requirement and ensure docs/tests referencing SDK install cleanly.
-  - Acceptance: `pip install -e .` works on Python 3.9+; optional `python -m compileall plugins` succeeds.
-  - Files: pyproject.toml, docs build instructions
-- [ ] Add manual plugin testing checklist (docs/CONTRIBUTING) referenced from README.
-  - Acceptance: checklist exists and is linked.
-  - Files: docs/plugins or docs/contributing, README.md
+- [ ] Update `plugins/sdk/README.md` with quick start and testing workflow
+  - Acceptance: README has: manifest template, handler example, testing steps with `cargo run -p hamr-daemon`
+  - Reference: existing `plugins/sdk/hamr_sdk.py` docstring for example usage
+  - Files: plugins/sdk/README.md
+- [ ] Verify `pyproject.toml` Python 3.9+ requirement
+  - Acceptance: Check `requires-python` field in pyproject.toml
+  - Files: pyproject.toml (if exists) or plugins/sdk/pyproject.toml
+- [ ] Add plugin testing checklist to CONTRIBUTING.md
+  - Acceptance: Numbered steps documenting how to manually test plugins (for human developers to follow)
+  - Reference: AGENTS.md "Debugging" section for log tail commands
+  - Files: CONTRIBUTING.md
 
 ## Release Readiness Checklist
-- [ ] Create release checklist doc and helper script (`scripts/release-check.sh`).
-  - Acceptance: checklist published under docs/releases; script runs fmt/clippy/test/mkdocs and is referenced in docs and release workflow.
-  - Files: docs/releases/checklist.md, scripts/release-check.sh, CONTRIBUTING.md, .github/workflows/release.yml
+- [ ] Create `scripts/release-check.sh`
+  - Acceptance: Script runs fmt/clippy/test/build/mkdocs and exits non-zero on failure
+  - Files: scripts/release-check.sh
+- [ ] Create `docs/releases/checklist.md`
+  - Acceptance: Numbered manual steps for smoke testing before release
+  - Files: docs/releases/checklist.md
+- [ ] Link checklist from CONTRIBUTING.md and release workflow
+  - Acceptance: Links added to both files
+  - Files: CONTRIBUTING.md, .github/workflows/release.yml
 
 ## Logging & Telemetry Docs
-- [ ] Add logging guide covering log paths, env vars, privacy statements; link from README/troubleshooting/installer docs.
-  - Acceptance: logging page exists, mkdocs build passes, references added where needed.
-  - Files: docs/getting-started/logging.md (or similar), README.md, docs/getting-started/installation.md
+- [ ] Create `docs/getting-started/logging.md`
+  - Acceptance: Documents log paths, env vars (`RUST_LOG`, `HAMR_PLUGIN_DEBUG`), privacy statement
+  - Reference: AGENTS.md "Debugging" section for log path patterns
+  - Files: docs/getting-started/logging.md
+- [ ] Add logging guide to mkdocs nav
+  - Acceptance: Page appears in docs navigation
+  - Files: mkdocs.yml
+- [ ] Link logging guide from README and installation docs
+  - Acceptance: Links added to troubleshooting sections
+  - Files: README.md, docs/getting-started/installation.md
 
 ## Cleanup Tasks
-- [ ] Run `mkdocs build` and spell/markdown checks after all doc updates; ensure nav coherent.
-- [ ] Run `cargo fmt`, `cargo clippy --all-targets`, `cargo test --all`, and `python -m compileall plugins` (optional) before final release checklist commit.
+- [ ] Run `mkdocs build` - verify no broken links
+- [ ] Run `cargo fmt --all -- --check`
+- [ ] Run `cargo clippy --all-targets`
+- [ ] Run `cargo test --all`
+- [ ] Run `python -m compileall plugins` (optional)

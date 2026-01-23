@@ -4,18 +4,31 @@
 Document the exact environments the Rust/GTK launcher supports today and give guidance for unsupported setups.
 
 ## Requirements
-- [ ] Update README and docs to list supported compositors (e.g., Hyprland, Niri, Sway, KDE w/ layer-shell) with explicit Wayland + wlr-layer-shell requirement.
-- [ ] Introduce a dedicated Platform Support section noting that macOS/Windows are future work and linking to their tracking issue/roadmap.
-- [ ] Describe the runtime error produced when `hamr-gtk` detects missing layer-shell support and outline remediation steps (install packages, switch compositor).
-- [ ] Provide a troubleshooting table covering keybinding setup, service startup, and compositor-specific quirks.
+- [ ] Create support matrix table in README and docs with columns: Compositor | Status | Notes
+  - Hyprland: Supported
+  - Niri: Supported  
+  - Sway: Supported
+  - KDE Plasma (Wayland): Supported (requires layer-shell)
+  - GNOME: Not supported (no wlr-layer-shell)
+  - X11: Not supported
+  - macOS/Windows: Future work
+- [ ] Add troubleshooting table with columns: Symptom | Cause | Solution
+  - "Layer shell not supported" error -> Compositor lacks wlr-layer-shell -> Switch compositor or use TUI
+  - Launcher doesn't appear -> Keybinding not set -> Add to compositor config
+  - Daemon not running -> Service not started -> `systemctl --user start hamr-daemon`
+- [ ] Document layer-shell package names per distro:
+  - Arch: `gtk4-layer-shell`
+  - Fedora: `gtk4-layer-shell`
+  - Ubuntu/Debian: `libgtk-4-layer-shell-dev` (or build from source)
+- [ ] Link to GitHub issue for macOS/Windows tracking
 
 ## Acceptance Criteria
-- [ ] README, docs home, installer output, and troubleshooting sections use the same support matrix language.
-- [ ] Users encountering unsupported compositors can follow documented steps to resolve or understand limitations.
-- [ ] Roadmap links (issues or docs) exist for planned platforms outside Wayland.
+- [ ] Same support matrix appears in README and docs/getting-started/installation.md
+- [ ] Troubleshooting table has at least 5 common issues with solutions
+- [ ] Users on unsupported compositors get clear "not supported" message with alternatives
 
 ## Edge Cases
-- Package names differ per distro; include distro-specific dependency names or link to upstream documentation.
+- Some compositors have partial layer-shell support - document known limitations
 
 ## Dependencies
-- Docs refresh for shared pages.
+- None (can be done independently)

@@ -85,6 +85,14 @@ The install script will:
 - Create default configuration
 - Show compositor-specific setup instructions
 
+**Installer Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--check` | Dry-run mode: show what would be installed without making changes |
+| `--yes` | Assume yes for all prompts (non-interactive mode) |
+| `--reset-user-data` | Reset user configuration and plugins (backup created) |
+
 ### Manual Dependencies
 
 **Arch Linux:**

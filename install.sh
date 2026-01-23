@@ -8,6 +8,8 @@
 #
 # Options:
 #   --reset-user-data        Reset user configuration and plugins (backup created)
+#   --check                  Dry-run mode: show what would be installed without making changes
+#   --yes                    Assume yes for all prompts (non-interactive mode)
 #
 # Environment variables:
 #   HAMR_VERSION=v0.1.0    Install specific version (default: latest)
@@ -35,11 +37,86 @@ INSTALL_DIR="${HAMR_DIR:-$HOME/.local}"
 NO_MODIFY_PATH="${HAMR_NO_MODIFY_PATH:-}"
 SKIP_INSTALL="${HAMR_SKIP_INSTALL:-}"
 RESET_USER_DATA=""
+DRY_RUN=""
+ASSUME_YES=""
 
 info() { printf "${BLUE}==>${NC} %s\n" "$*"; }
 success() { printf "${GREEN}==>${NC} %s\n" "$*"; }
 warn() { printf "${YELLOW}Warning:${NC} %s\n" "$*"; }
 error() { printf "${RED}Error:${NC} %s\n" "$*" >&2; exit 1; }
+
+# Prompt for user confirmation
+prompt_yes_no() {
+    local prompt="$1"
+    local default="${2:-n}"
+    
+    if [[ -n "$ASSUME_YES" ]]; then
+        return 0
+    fi
+    
+    while true; do
+        if [[ "$default" == "y" ]]; then
+            printf "${BLUE}==>${NC} %s [Y/n] " "$prompt"
+        else
+            printf "${BLUE}==>${NC} %s [y/N] " "$prompt"
+        fi
+        
+        if [[ -n "$DRY_RUN" ]]; then
+            echo "(dry-run: would prompt)"
+            return 0
+        fi
+        
+        read -r response
+        case "$response" in
+            [yY]|[yY][eE][sS]) return 0 ;;
+            [nN]|[nN][oO]) return 1 ;;
+            "") [[ "$default" == "y" ]] && return 0 || return 1 ;;
+            *) echo "Please answer yes or no." ;;
+        esac
+    done
+}
+
+# Print dry-run summary
+print_summary() {
+    local title="$1"
+    local content="$2"
+    local indent="    "
+    
+    if [[ -n "$DRY_RUN" ]]; then
+        printf "${BLUE}==>${NC} %s:\n" "$title"
+        echo "$content" | sed "s/^/$indent/"
+        echo ""
+    fi
+}
+
+# Check for file conflicts and prompt for overwrite
+check_file_conflicts() {
+    local bin_dir="$1"
+    local conflicts=()
+    
+    # Check for existing binaries
+    for binary in hamr hamr-daemon hamr-gtk hamr-tui; do
+        if [[ -f "$bin_dir/$binary" ]]; then
+            conflicts+=("$bin_dir/$binary")
+        fi
+    done
+    
+    # Check for existing plugins
+    if [[ -d "$bin_dir/../plugins" ]]; then
+        conflicts+=("$bin_dir/../plugins")
+    fi
+    
+    if [[ ${#conflicts[@]} -gt 0 ]]; then
+        warn "The following files/directories already exist:"
+        for conflict in "${conflicts[@]}"; do
+            echo "  - $conflict"
+        done
+        
+        if ! prompt_yes_no "Overwrite existing files?" "n"; then
+            error "Installation cancelled by user"
+        fi
+    fi
+}
 
 # Parse command line arguments
 parse_args() {
@@ -47,6 +124,14 @@ parse_args() {
         case $1 in
             --reset-user-data)
                 RESET_USER_DATA=1
+                shift
+                ;;
+            --check)
+                DRY_RUN=1
+                shift
+                ;;
+            --yes)
+                ASSUME_YES=1
                 shift
                 ;;
             *)
@@ -283,6 +368,21 @@ main() {
     # Check if local clone
     if is_local_clone; then
         info "Detected local repository clone, building from source..."
+        
+        # Dry-run summary for local build
+        if [[ -n "$DRY_RUN" ]]; then
+            local summary="Platform: $(detect_os)-$(detect_arch)
+Installation directory: $INSTALL_DIR/bin
+Build from source: yes (local repository)
+Reset user data: $([ -n "$RESET_USER_DATA" ] && echo "yes" || echo "no")
+Skip hamr install: $([ -n "$SKIP_INSTALL" ] && echo "yes" || echo "no")
+Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
+            print_summary "Installation Summary" "$summary"
+            
+            info "Dry-run mode: would build from source and install to $INSTALL_DIR/bin"
+            return 0
+        fi
+        
         # Build from local source
         if ! cargo build --release; then
             error "Failed to build from local source"
@@ -298,29 +398,40 @@ main() {
         local running_services
         running_services=$(check_systemd_services)
 
-        # Stop services if running
-        if [[ -n "$running_services" ]]; then
+        # Check for file conflicts
+        local bin_dir="$INSTALL_DIR/bin"
+        check_file_conflicts "$bin_dir"
+
+        # Stop services if running (only if not dry-run)
+        if [[ -n "$running_services" ]] && [[ -z "$DRY_RUN" ]]; then
             stop_services "$running_services"
         fi
 
-        # Kill running processes to prevent "Text file busy" errors
-        kill_hamr_processes
+        # Kill running processes to prevent "Text file busy" errors (only if not dry-run)
+        if [[ -z "$DRY_RUN" ]]; then
+            kill_hamr_processes
+        fi
 
-        # Create installation directories
-        local bin_dir="$INSTALL_DIR/bin"
-        mkdir -p "$bin_dir"
+        # Create installation directories (only if not dry-run)
+        if [[ -z "$DRY_RUN" ]]; then
+            mkdir -p "$bin_dir"
+        fi
 
         # Install binaries from local build
         info "Installing binaries from local build to $bin_dir..."
         for binary in hamr hamr-daemon hamr-gtk hamr-tui; do
             if [[ -f "$local_build_dir/$binary" ]]; then
-                cp "$local_build_dir/$binary" "$bin_dir/"
-                chmod +x "$bin_dir/$binary"
+                if [[ -n "$DRY_RUN" ]]; then
+                    print_summary "Would install" "$binary to $bin_dir/"
+                else
+                    cp "$local_build_dir/$binary" "$bin_dir/"
+                    chmod +x "$bin_dir/$binary"
+                fi
             fi
         done
 
-        # Restart services if they were running
-        if [[ -n "$running_services" ]]; then
+        # Restart services if they were running (only if not dry-run)
+        if [[ -n "$running_services" ]] && [[ -z "$DRY_RUN" ]]; then
             start_services "$running_services"
         fi
 
@@ -328,8 +439,8 @@ main() {
         if [[ -d "plugins" ]]; then
             info "Installing plugins..."
             
-            # Backup user data if --reset-user-data is set
-            if [[ -n "$RESET_USER_DATA" ]]; then
+            # Backup user data if --reset-user-data is set (only if not dry-run)
+            if [[ -n "$RESET_USER_DATA" ]] && [[ -z "$DRY_RUN" ]]; then
                 if [[ -d "$HOME/.config/hamr" ]]; then
                     local backup_dir="$HOME/.config/hamr.backup.$(date +%Y%m%d_%H%M%S)"
                     info "Backing up existing user config to $backup_dir..."
@@ -343,42 +454,61 @@ main() {
                 info "Preserving existing user configuration and plugins..."
             fi
             
-            # Install system plugins (always update these)
-            cp -r "plugins" "$bin_dir/../"
-            
-            # Only copy plugins to user config if they don't exist or if --reset-user-data
-            if [[ -n "$RESET_USER_DATA" ]] || [[ ! -d "$HOME/.config/hamr/plugins" ]]; then
-                mkdir -p "$HOME/.config/hamr/plugins"
-                cp -r "plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
+            if [[ -n "$DRY_RUN" ]]; then
+                # Dry-run plugin installation summary
+                local plugin_summary=""
+                for plugin_dir in plugins/*/; do
+                    if [[ -d "$plugin_dir" ]]; then
+                        local plugin_name=$(basename "$plugin_dir")
+                        plugin_summary="${plugin_summary}System plugin: $plugin_name\n"
+                    fi
+                done
+                if [[ -n "$RESET_USER_DATA" ]] || [[ ! -d "$HOME/.config/hamr/plugins" ]]; then
+                    plugin_summary="${plugin_summary}User plugins: would copy to ~/.config/hamr/plugins/"
+                fi
+                print_summary "Plugin Installation" "$plugin_summary"
+            else
+                # Install system plugins (always update these)
+                cp -r "plugins" "$bin_dir/../"
+                
+                # Only copy plugins to user config if they don't exist or if --reset-user-data
+                if [[ -n "$RESET_USER_DATA" ]] || [[ ! -d "$HOME/.config/hamr/plugins" ]]; then
+                    mkdir -p "$HOME/.config/hamr/plugins"
+                    cp -r "plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
+                fi
             fi
             
-            # Make handler scripts executable based on manifest
-            for manifest in "$bin_dir/../plugins"/*/manifest.json; do
-                if [[ -f "$manifest" ]]; then
-                    handler_cmd=$(grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" | sed 's/.*"\([^"]*\)"$/\1/' | tail -1)
-                    if [[ -n "$handler_cmd" ]]; then
-                        handler_file=$(echo "$handler_cmd" | awk '{print $NF}')
-                        plugin_dir=$(basename "$(dirname "$manifest")")
-                        if [[ -f "$bin_dir/../plugins/$plugin_dir/$handler_file" ]]; then
-                            chmod +x "$bin_dir/../plugins/$plugin_dir/$handler_file"
-                        fi
-                        if [[ -f "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file" ]]; then
-                            chmod +x "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file"
+            # Make handler scripts executable based on manifest (only if not dry-run)
+            if [[ -z "$DRY_RUN" ]]; then
+                for manifest in "$bin_dir/../plugins"/*/manifest.json; do
+                    if [[ -f "$manifest" ]]; then
+                        handler_cmd=$(grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" | sed 's/.*"\([^"]*\)"$/\1/' | tail -1)
+                        if [[ -n "$handler_cmd" ]]; then
+                            handler_file=$(echo "$handler_cmd" | awk '{print $NF}')
+                            plugin_dir=$(basename "$(dirname "$manifest")")
+                            if [[ -f "$bin_dir/../plugins/$plugin_dir/$handler_file" ]]; then
+                                chmod +x "$bin_dir/../plugins/$plugin_dir/$handler_file"
+                            fi
+                            if [[ -f "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file" ]]; then
+                                chmod +x "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file"
+                            fi
                         fi
                     fi
-                fi
-            done
+                done
+            fi
         fi
 
         success "Binaries installed from local build to $bin_dir"
 
-        # Add to PATH if needed
-        if [[ -z "$NO_MODIFY_PATH" ]]; then
+        # Add to PATH if needed (only if not dry-run)
+        if [[ -z "$NO_MODIFY_PATH" ]] && [[ -z "$DRY_RUN" ]]; then
             add_to_path "$bin_dir"
+        elif [[ -n "$DRY_RUN" ]] && [[ -z "$NO_MODIFY_PATH" ]]; then
+            print_summary "PATH Update" "Would add $bin_dir to PATH in shell rc file"
         fi
 
-        # Run hamr install to set up config and systemd
-        if [[ -z "$SKIP_INSTALL" ]]; then
+        # Run hamr install to set up config and systemd (only if not dry-run)
+        if [[ -z "$SKIP_INSTALL" ]] && [[ -z "$DRY_RUN" ]]; then
             echo ""
             info "Running 'hamr install' to set up config and services..."
             echo ""
@@ -391,7 +521,9 @@ main() {
             else
                 reload_user_systemd
             fi
-        else
+        elif [[ -n "$DRY_RUN" ]] && [[ -z "$SKIP_INSTALL" ]]; then
+            print_summary "Post-Install" "Would run 'hamr install' to set up config and systemd services"
+        elif [[ -n "$SKIP_INSTALL" ]]; then
             echo ""
             info "Skipping 'hamr install' (HAMR_SKIP_INSTALL=1)"
             info "Run 'hamr install' manually to set up config and systemd services"
@@ -425,6 +557,21 @@ main() {
         VERSION=$(get_latest_version)
     fi
     info "Version: $VERSION"
+
+    # Dry-run summary for remote install
+    if [[ -n "$DRY_RUN" ]]; then
+        local summary="Platform: $os-$arch
+Version: $VERSION
+Installation directory: $INSTALL_DIR/bin
+Download from: GitHub releases
+Reset user data: $([ -n "$RESET_USER_DATA" ] && echo "yes" || echo "no")
+Skip hamr install: $([ -n "$SKIP_INSTALL" ] && echo "yes" || echo "no")
+Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
+        print_summary "Installation Summary" "$summary"
+        
+        info "Dry-run mode: would download and install from GitHub releases"
+        return 0
+    fi
 
     # Construct download URLs
     local archive_name="hamr-${os}-${arch}.tar.gz"
@@ -462,6 +609,10 @@ main() {
         error "Could not find extracted directory"
     fi
 
+    # Check for file conflicts
+    local bin_dir="$INSTALL_DIR/bin"
+    check_file_conflicts "$bin_dir"
+
     # Check for running services
     local running_services
     running_services=$(check_systemd_services)
@@ -475,7 +626,6 @@ main() {
     kill_hamr_processes
 
     # Create installation directories
-    local bin_dir="$INSTALL_DIR/bin"
     mkdir -p "$bin_dir"
 
     # Install binaries

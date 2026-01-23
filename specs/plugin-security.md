@@ -4,22 +4,50 @@
 Detect tampering with bundled plugins and document the trust model so users understand the risks of user-installed plugins.
 
 ## Requirements
-- [ ] Generate a checksum manifest for bundled plugins during release packaging; include it in artifacts for installer/daemon use.
-- [ ] Verify the manifest at runtime (daemon/core) and log warnings when built-in plugin files no longer match expected checksums; provide an opt-in fail-fast flag for strict mode.
-- [ ] Update installer to compare destination plugin files against the manifest, warning users when local modifications exist while still preserving their data.
-- [ ] Extend `SECURITY.md` and docs with explanations of plugin discovery directories, checksum behavior, and recommended audit steps before running third-party plugins.
-- [ ] Add a CLI command (e.g., `hamr plugins audit`) that lists plugins, their source directories, and checksum status so users can quickly inspect their installation.
+
+### Phase 1: Checksum Generation (build-time)
+- [ ] Create `scripts/generate-plugin-checksums.sh` that:
+  - Iterates all `plugins/*/` directories
+  - Computes SHA256 for each `manifest.json` and `handler.py`
+  - Outputs `plugins/checksums.json` with format: `{"plugin-id": {"manifest.json": "sha256...", "handler.py": "sha256..."}}`
+- [ ] Add checksum generation to `.github/workflows/release.yml` before packaging
+- [ ] Include `checksums.json` in release artifacts
+
+### Phase 2: Runtime Verification (daemon)
+- [ ] Add checksum verification in `hamr-core` or `hamr-daemon` plugin loading:
+  - Load `checksums.json` from install directory
+  - Compare against actual plugin files
+  - Log warning if mismatch: `WARN plugin "foo" checksum mismatch - may be modified`
+- [ ] Add `--strict-plugins` flag to daemon that exits on checksum mismatch
+
+### Phase 3: CLI Audit Command
+- [ ] Add `hamr plugins audit` command in `hamr-cli` that:
+  - Lists all discovered plugins with columns: ID | Path | Status (verified/modified/unknown)
+  - Exits 0 if all verified, 1 if any modified/unknown
+  - Example output:
+    ```
+    apps        ~/.local/share/hamr/plugins/apps      verified
+    clipboard   ~/.local/share/hamr/plugins/clipboard modified
+    my-plugin   ~/.config/hamr/plugins/my-plugin      unknown (user plugin)
+    ```
+
+### Phase 4: Documentation
+- [ ] Update SECURITY.md with:
+  - Plugin trust model explanation
+  - How checksums work
+  - How to audit plugins
+- [ ] Add security section to docs
 
 ## Acceptance Criteria
-- [ ] Startup logs include checksum validation success or actionable warnings when mismatches occur.
-- [ ] Installer outputs warnings when shipping plugins differ from on-disk versions but leaves user files intact.
-- [ ] CLI audit command reports each plugin with trust status and exits non-zero if mismatches are found (optional flag).
-- [ ] Security documentation references the checksum system and audit command.
+- [ ] `scripts/generate-plugin-checksums.sh` produces valid JSON
+- [ ] Daemon logs checksum warnings on startup when plugins modified
+- [ ] `hamr plugins audit` works and shows clear status per plugin
+- [ ] SECURITY.md documents the checksum system
 
 ## Edge Cases
-- Manifest must cover all shipped files (scripts + manifests) and degrade gracefully if missing (log info instead of panic).
-- Audit command must work headless (no GTK dependency) and handle installations without manifest on first release.
+- Missing checksums.json: log info "checksums not available", skip verification
+- User plugins in ~/.config/hamr/plugins: always show as "unknown (user plugin)" - expected
+- Partial mismatch (manifest ok, handler modified): report as modified
 
 ## Dependencies
-- Installer hardening (shares warning surface).
-- Docs refresh (security section references new behavior).
+- None (can be implemented incrementally)
