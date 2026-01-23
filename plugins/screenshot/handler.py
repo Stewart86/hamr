@@ -40,7 +40,7 @@ def load_ocr_cache() -> dict:
             return json.loads(CACHE_FILE.read_text())
         except (json.JSONDecodeError, IOError):
             pass
-    return {}
+    return HamrPlugin.noop()
 
 
 def save_ocr_cache(cache: dict) -> None:
@@ -306,12 +306,12 @@ async def handle_action(item_id: str, action=None, context=None):
                 pluginActions=get_plugin_actions(),
                 placeholder="Search screenshots...",
             )
-            return {}
-        return {}
+            return HamrPlugin.noop()
+        return HamrPlugin.noop()
 
     # Skip empty items
     if item_id == "__empty__":
-        return {}
+        return HamrPlugin.noop()
 
     filepath = Path(item_id)
     if not filepath.exists():
@@ -354,7 +354,7 @@ async def handle_action(item_id: str, action=None, context=None):
             await plugin.send_execute(
                 {"type": "notify", "message": "No text found in image"}
             )
-            return {}
+            return HamrPlugin.noop()
 
         try:
             process = subprocess.Popen(["wl-copy"], stdin=subprocess.PIPE, text=True)
@@ -385,11 +385,11 @@ async def handle_action(item_id: str, action=None, context=None):
             await plugin.send_execute(
                 {"type": "notify", "message": f"Deleted: {filename}"}
             )
-            return {}
+            return HamrPlugin.noop()
         except (subprocess.CalledProcessError, FileNotFoundError):
             return HamrPlugin.error("Failed to delete file")
 
-    return {}
+    return HamrPlugin.noop()
 
 
 @plugin.add_background_task

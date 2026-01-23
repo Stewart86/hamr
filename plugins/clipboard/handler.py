@@ -546,7 +546,7 @@ async def handle_action(item_id: str, action=None, context=None):
                 status=get_status(),
                 placeholder="Search clipboard...",
             )
-            return {}
+            return HamrPlugin.noop()
 
         if action == "filter_text":
             new_filter = "" if current_filter == "text" else "text"
@@ -560,7 +560,7 @@ async def handle_action(item_id: str, action=None, context=None):
                 status=get_status(),
                 placeholder="Search clipboard...",
             )
-            return {}
+            return HamrPlugin.noop()
 
         if action == "wipe":
             wipe_clipboard()
@@ -571,7 +571,7 @@ async def handle_action(item_id: str, action=None, context=None):
                 }
             )
             return HamrPlugin.close()
-        return {}
+        return HamrPlugin.noop()
 
     # Handle gridBrowser selection or regular item
     if item_id == "gridBrowser":
@@ -586,7 +586,7 @@ async def handle_action(item_id: str, action=None, context=None):
             entry = item_id
 
     if not entry:
-        return {}
+        return HamrPlugin.noop()
 
     # Clipboard entry actions
     if action == "delete":
@@ -600,7 +600,7 @@ async def handle_action(item_id: str, action=None, context=None):
             status=get_status(),
             placeholder="Search clipboard...",
         )
-        return {}
+        return HamrPlugin.noop()
 
     if action == "pin":
         pin_entry(entry)
@@ -613,7 +613,7 @@ async def handle_action(item_id: str, action=None, context=None):
             status=get_status(),
             placeholder="Search clipboard...",
         )
-        return {}
+        return HamrPlugin.noop()
 
     if action == "unpin":
         unpin_entry(entry)
@@ -626,7 +626,7 @@ async def handle_action(item_id: str, action=None, context=None):
             status=get_status(),
             placeholder="Search clipboard...",
         )
-        return {}
+        return HamrPlugin.noop()
 
     # Default action (click) or explicit copy
     if action == "copy" or not action:
@@ -639,7 +639,7 @@ async def handle_action(item_id: str, action=None, context=None):
         )
         return HamrPlugin.close()
 
-    return {}
+    return HamrPlugin.noop()
 
 
 @plugin.add_background_task

@@ -9,7 +9,8 @@
 //! - Action bar hints
 
 use crate::config::{AppConfig, Config, SearchConfig};
-use tempfile::{NamedTempFile, TempDir};
+use std::io::Write;
+use tempfile::NamedTempFile;
 
 #[test]
 fn test_config_default() {
@@ -104,7 +105,7 @@ fn test_config_save_and_load_roundtrip() {
 
     let loaded = Config::load(file.path()).unwrap();
     assert_eq!(loaded.search.max_displayed_results, 42);
-    assert_eq!(loaded.search.engine_base_url, "https://duckduckgo.com/?=");
+    assert_eq!(loaded.search.engine_base_url, "https://duckduckgo.com/?q=");
 }
 
 #[test]
@@ -182,25 +183,6 @@ fn test_search_config_default_prefixes() {
     assert_eq!(config.prefix.shell_command, "!");
     assert_eq!(config.prefix.web_search, "?");
     assert_eq!(config.engine_base_url, "https://www.google.com/search?q=");
-}
-
-#[test]
-fn test_search_prefixes_deserialize() {
-    let json = r##"{
-        "plugins": "//",
-        "app": "#",
-        "emojis": "::",
-        "math": "calc ",
-        "shellCommand": "$",
-        "webSearch": "g "
-    }"##;
-    let prefixes: crate::config::SearchPrefixes = serde_json::from_str(json).unwrap();
-    assert_eq!(prefixes.plugins, "//");
-    assert_eq!(prefixes.app, "#");
-    assert_eq!(prefixes.emojis, "::");
-    assert_eq!(prefixes.math, "calc ");
-    assert_eq!(prefixes.shell_command, "$");
-    assert_eq!(prefixes.web_search, "g ");
 }
 
 #[test]

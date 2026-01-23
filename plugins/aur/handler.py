@@ -310,7 +310,7 @@ async def handle_search(query: str, context: str | None):
 async def handle_action(item_id: str, action: str | None, context: str | None):
     """Handle action request."""
     if item_id in ("__prompt__", "__empty__"):
-        return {}
+        return HamrPlugin.noop()
 
     aur_helper = detect_aur_helper()
     pkg_name = item_id

@@ -383,7 +383,7 @@ async def handle_action(item_id: str, action: str | None, context: str | None):
         except Exception:
             return HamrPlugin.error("Failed to launch app")
 
-    return {}
+    return HamrPlugin.noop()
 
 
 @plugin.on_form_submitted
@@ -492,7 +492,7 @@ async def handle_form_submitted(form_data: dict, context: str | None):
         else:
             return HamrPlugin.error("Failed to save web app")
 
-    return {}
+    return HamrPlugin.noop()
 
 
 if __name__ == "__main__":

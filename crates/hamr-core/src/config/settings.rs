@@ -112,8 +112,8 @@ impl<'de> Deserialize<'de> for SearchConfig {
         let raw: SearchConfigRaw = SearchConfigRaw::deserialize(deserializer)?;
 
         let action_bar_hints = match &raw.action_bar_hints {
-            Some(hints) if !hints.is_empty() => hints.clone(),
-            _ => {
+            Some(hints) => hints.clone(),
+            None => {
                 if let Some(json_str) = &raw.action_bar_hints_json {
                     serde_json::from_str(json_str).map_err(|e| {
                         D::Error::custom(format!("Failed to parse actionBarHintsJson: {e}"))

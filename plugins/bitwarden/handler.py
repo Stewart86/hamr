@@ -612,11 +612,11 @@ async def handle_search(query: str, context: str | None):
 async def handle_action(item_id: str, action: str | None, context: str | None):
     """Handle action request."""
     if not BW_PATH:
-        return {}
+        return HamrPlugin.noop()
 
     session = get_session()
     if not session:
-        return {}
+        return HamrPlugin.noop()
 
     # Plugin-level actions
     if item_id == "__plugin__":
@@ -646,7 +646,7 @@ async def handle_action(item_id: str, action: str | None, context: str | None):
             return HamrPlugin.card("Error", content=f"Failed: {message}")
 
     if item_id == "__no_results__":
-        return {}
+        return HamrPlugin.noop()
 
     # Item actions
     item = None
@@ -700,7 +700,7 @@ async def handle_action(item_id: str, action: str | None, context: str | None):
         subprocess.run(["wl-copy", username], check=False)
         return HamrPlugin.copy_and_close(username)
 
-    return {}
+    return HamrPlugin.noop()
 
 
 @plugin.on_form_submitted
@@ -774,7 +774,7 @@ async def handle_form_submitted(form_data: dict, context: str | None):
             markdown=True,
         )
 
-    return {}
+    return HamrPlugin.noop()
 
 
 if __name__ == "__main__":

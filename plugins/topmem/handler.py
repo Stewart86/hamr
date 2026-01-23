@@ -202,7 +202,7 @@ async def handle_action(item_id: str, action: Optional[str], context: Optional[s
             response["status"] = {"notify": message}
         return response
 
-    return {}
+    return HamrPlugin.noop()
 
 
 @plugin.add_background_task

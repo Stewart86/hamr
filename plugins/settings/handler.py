@@ -321,12 +321,12 @@ RESERVED_PREFIXES = ["/"]
 def load_config() -> dict:
     """Load configuration from file."""
     if not CONFIG_PATH.exists():
-        return {}
+        return HamrPlugin.noop()
     try:
         with open(CONFIG_PATH) as f:
             return json.load(f)
     except Exception:
-        return {}
+        return HamrPlugin.noop()
 
 
 def save_config(config: dict) -> bool:
@@ -1091,7 +1091,7 @@ def handle_action(item_id: str, action: str | None, context: str | None):
         current = get_current_value(config, category, key)
         return show_edit_form(category, key, schema, current)
 
-    return {}
+    return HamrPlugin.noop()
 
 
 @plugin.on_slider_changed

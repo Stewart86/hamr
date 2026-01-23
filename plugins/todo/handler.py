@@ -70,7 +70,7 @@ def get_status(todos: list[dict]) -> dict:
     if pending > 0:
         label = "task" if pending == 1 else "tasks"
         return {"chips": [{"text": f"{pending} {label}", "icon": "task_alt"}]}
-    return {}
+    return HamrPlugin.noop()
 
 
 def get_plugin_actions(todos: list[dict]) -> list[dict]:
@@ -292,7 +292,7 @@ async def handle_action(
 
     # Empty state
     if item_id == "__empty__":
-        return {}
+        return HamrPlugin.noop()
 
     # Add quick item
     if item_id.startswith("__add__:"):
@@ -316,14 +316,14 @@ async def handle_action(
                 placeholder="Search tasks...",
                 plugin_actions=get_plugin_actions(todos),
             )
-        return {}
+        return HamrPlugin.noop()
 
     # Todo item actions
     if item_id.startswith("todo:"):
         try:
             todo_idx = int(item_id.split(":")[1])
         except (ValueError, IndexError):
-            return {}
+            return HamrPlugin.noop()
 
         if action == "toggle" or not action:
             if 0 <= todo_idx < len(todos):
@@ -365,14 +365,14 @@ async def handle_action(
                     plugin_actions=get_plugin_actions(todos),
                 )
 
-    return {}
+    return HamrPlugin.noop()
 
 
 @plugin.on_form_submitted
 async def handle_form_submitted(form_data: dict, context: str | None):
     """Handle form submission."""
     # This plugin uses search mode for input instead of forms
-    return {}
+    return HamrPlugin.noop()
 
 
 @plugin.add_background_task

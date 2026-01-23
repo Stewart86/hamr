@@ -381,7 +381,7 @@ async def handle_search(query: str, context: str | None):
 async def handle_action(item_id: str, action: str | None, context: str | None):
     """Handle action request."""
     if item_id in ("__prompt__", "__empty__"):
-        return {}
+        return HamrPlugin.noop()
 
     # Plugin-level action: Install New
     if item_id == "__plugin__" and action == "search_new":
@@ -464,8 +464,8 @@ async def handle_action(item_id: str, action: str | None, context: str | None):
                 stderr=subprocess.DEVNULL,
             )
             return HamrPlugin.close()
-        except Exception as e:
-            return {}
+        except Exception:
+            return HamrPlugin.noop()
 
     # Open on Flathub website
     if action == "open_web":
@@ -484,8 +484,8 @@ async def handle_action(item_id: str, action: str | None, context: str | None):
                 stderr=subprocess.DEVNULL,
             )
             return HamrPlugin.close()
-        except Exception as e:
-            return {}
+        except Exception:
+            return HamrPlugin.noop()
 
     # Default action: Install or Open
     if is_installed:
@@ -498,7 +498,7 @@ async def handle_action(item_id: str, action: str | None, context: str | None):
             )
             return HamrPlugin.close()
         except Exception:
-            return {}
+            return HamrPlugin.noop()
     else:
         # Install the app
         try:
@@ -513,7 +513,7 @@ async def handle_action(item_id: str, action: str | None, context: str | None):
             )
             return HamrPlugin.close()
         except Exception:
-            return {}
+            return HamrPlugin.noop()
 
 
 if __name__ == "__main__":

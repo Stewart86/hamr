@@ -4007,6 +4007,10 @@ mod proptest_roundtrip_tests {
                 has_ocr,
                 display_hint,
                 widget,
+                open_url: None,
+                copy: None,
+                notify: None,
+                should_close: None,
                 composite_score: 0.0,
             }
         }

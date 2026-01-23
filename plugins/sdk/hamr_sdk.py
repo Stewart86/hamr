@@ -272,32 +272,41 @@ class HamrPlugin:
         markdown: Optional[str] = None,
         actions: Optional[list[dict]] = None,
         status: Optional[dict] = None,
+        context: Optional[str] = None,
         kind: Optional[str] = None,
         blocks: Optional[list[dict]] = None,
         max_height: Optional[int] = None,
         show_details: Optional[bool] = None,
         allow_toggle_details: Optional[bool] = None,
     ) -> dict:
-        """Build a card response."""
-        response: dict[str, Any] = {"type": "card", "title": title}
+        """Build a card response.
+
+        Card data is nested under a 'card' key to match Rust's expected structure:
+        {"type": "card", "card": {...}, "status": ..., "context": ...}
+        """
+        card_data: dict[str, Any] = {"title": title}
         if content:
-            response["content"] = content
+            card_data["content"] = content
         if markdown:
-            response["markdown"] = markdown
+            card_data["markdown"] = markdown
         if actions:
-            response["actions"] = actions
+            card_data["actions"] = actions
+        if kind:
+            card_data["kind"] = kind
+        if blocks:
+            card_data["blocks"] = blocks
+        if max_height:
+            card_data["maxHeight"] = max_height
+        if show_details is not None:
+            card_data["showDetails"] = show_details
+        if allow_toggle_details is not None:
+            card_data["allowToggleDetails"] = allow_toggle_details
+
+        response: dict[str, Any] = {"type": "card", "card": card_data}
         if status:
             response["status"] = status
-        if kind:
-            response["kind"] = kind
-        if blocks:
-            response["blocks"] = blocks
-        if max_height:
-            response["maxHeight"] = max_height
-        if show_details is not None:
-            response["showDetails"] = show_details
-        if allow_toggle_details is not None:
-            response["allowToggleDetails"] = allow_toggle_details
+        if context:
+            response["context"] = context
         return response
 
     @staticmethod
@@ -332,6 +341,11 @@ class HamrPlugin:
         if play_sound:
             response["sound"] = play_sound
         return response
+
+    @staticmethod
+    def noop() -> dict:
+        """Build a no-op response (execute with no actions)."""
+        return {"type": "execute"}
 
     @staticmethod
     def close() -> dict:

@@ -363,7 +363,7 @@ async def handle_action(item_id: str, action: Optional[str], context: Optional[s
                 return {"type": "execute", "close": False}
 
     if item_id in ("__no_players__", "__no_match__"):
-        return {}
+        return HamrPlugin.noop()
 
     if item_id == "__back__":
         state["context"] = ""
@@ -415,7 +415,7 @@ async def handle_action(item_id: str, action: Optional[str], context: Optional[s
                 run_player_command(player_name, control["cmd"])
                 return {"type": "execute", "close": False}
 
-    return {}
+    return HamrPlugin.noop()
 
 
 def get_control_actions(player_name: str) -> list[dict]:

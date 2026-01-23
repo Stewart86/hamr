@@ -270,7 +270,7 @@ def handle_action(item_id: str, action: str | None, context: str | None):
         )
 
     if item_id in ("__info__", "__current__", "__empty__"):
-        return {}
+        return HamrPlugin.noop()
 
     if item_id == "__back__" or action == "back":
         return HamrPlugin.results(
@@ -332,7 +332,7 @@ def handle_action(item_id: str, action: str | None, context: str | None):
             )
         return HamrPlugin.error("Failed to delete note")
 
-    return {}
+    return HamrPlugin.noop()
 
 
 @plugin.on_form_submitted

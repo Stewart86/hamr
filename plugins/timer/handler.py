@@ -440,13 +440,13 @@ async def handle_ambient_action(
     which would open the plugin view.
     """
     if not item_id.startswith("timer:"):
-        return {}
+        return HamrPlugin.noop()
 
     timer_id = item_id.replace("timer:", "")
     timer = next((t for t in timers if t.id == timer_id), None)
 
     if not timer:
-        return {}
+        return HamrPlugin.noop()
 
     if action == "pause":
         timer.pause()
@@ -471,7 +471,7 @@ async def handle_ambient_action(
     await plugin.send_status(status)
 
     # Return empty dict - don't return results which would open the plugin view
-    return {}
+    return HamrPlugin.noop()
 
 
 @plugin.on_action
