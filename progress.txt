@@ -97,3 +97,9 @@
 - Files: plugins/sdk/README.md (new)
 - Learned: Plugin SDK supports both stdio (stateless JSON stdin/stdout) and socket (HamrPlugin class with decorators) communication models. Testing workflow uses `cargo run -p hamr-daemon` with log tailing at `/tmp/hamr-daemon.log`. SDK provides response builders like `plugin.results()`, `plugin.copy_and_close()`, etc. Skipped `python -m compileall plugins` since only markdown was added.
 ---
+
+## [pyproject-python-version] - DONE
+- What: Updated pyproject.toml requires-python from >=3.13 to >=3.10 (minimum based on SDK's use of union type syntax `str | None`); also fixed placeholder description
+- Files: pyproject.toml
+- Learned: SDK uses `str | None` union syntax which requires Python 3.10+, not 3.9 as originally specified. Python 3.10 is available on Ubuntu 22.04 LTS and newer distros. Skipped `python -m compileall plugins` since only pyproject.toml was modified.
+---

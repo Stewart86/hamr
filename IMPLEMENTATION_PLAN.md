@@ -52,7 +52,7 @@
   - Acceptance: README has: manifest template, handler example, testing steps with `cargo run -p hamr-daemon`
   - Reference: existing `plugins/sdk/hamr_sdk.py` docstring for example usage
   - Files: plugins/sdk/README.md
-- [ ] Verify `pyproject.toml` Python 3.9+ requirement
+- [x] Verify `pyproject.toml` Python 3.9+ requirement
   - Acceptance: Check `requires-python` field in pyproject.toml
   - Files: pyproject.toml (if exists) or plugins/sdk/pyproject.toml
 - [ ] Add plugin testing checklist to CONTRIBUTING.md

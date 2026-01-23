@@ -1,8 +1,8 @@
 [project]
 name = "hamr"
 version = "0.1.0"
-description = "Add your description here"
-requires-python = ">=3.13"
+description = "Hamr - A fast desktop launcher for Wayland compositors"
+requires-python = ">=3.10"
 dependencies = []
 
 [dependency-groups]
