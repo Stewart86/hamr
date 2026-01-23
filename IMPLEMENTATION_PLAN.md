@@ -1,5 +1,10 @@
 # Implementation Plan
 
+## Fixes
+- [ ] [Fix]: Correct CLI command references to use `hamr` instead of `hamr-daemon`/`hamr-gtk`/`hamr-cli`
+  - Acceptance: All docs and examples use `hamr` binary for user-facing CLI commands; no `hamr-daemon query`, `hamr-cli`, etc.
+  - Files: docs/getting-started/configuration.md, README.md, any other affected docs
+
 ## Docs Refresh
 - [x] Update installation guide and README quick start for Rust/GTK (Wayland deps, curl script, AUR, manual build, keybindings).
   - Acceptance: `mkdocs build` clean; instructions verified on at least one distro; README matches guide.
@@ -7,7 +12,7 @@
 - [x] Refresh configuration guide with current schema/settings plugin details and remove QML references.
   - Acceptance: lists real config paths/options; screenshots/text updated; mkdocs links resolved.
   - Files: docs/getting-started/configuration.md
-- [ ] Rewrite landing page + migration note; hide stale MkDocs sections.
+- [x] Rewrite landing page + migration note; hide stale MkDocs sections.
   - Acceptance: docs/index.md + mkdocs nav only reference GTK content; migration section links to old branch/tag.
   - Files: docs/index.md, mkdocs.yml
 

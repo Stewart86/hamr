@@ -17,4 +17,11 @@
 - What: Refreshed configuration guide to match current Rust/GTK schema, removing QML references and updating all config options
 - Files: docs/getting-started/configuration.md
 - Learned: Current config uses camelCase JSON with search prefixes, action bar hints, app config for terminal/fileManager/browser, and comprehensive plugin ranking system
+- **FIX NEEDED**: Used wrong binary names (`hamr-daemon`, `hamr-cli`) instead of just `hamr` for CLI commands
+---
+
+## [docs-landing-migration] - DONE
+- What: Updated landing page with migration notice for Rust/GTK4 rewrite and cleaned up stale MkDocs navigation sections
+- Files: docs/index.md, mkdocs.yml
+- Learned: Added migration notice linking to legacy-qml branch, fixed CLI command references from hamr-gtk/hamr-cli to hamr, removed stale plugin documentation sections from navigation
 ---

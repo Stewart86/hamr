@@ -2,6 +2,8 @@
 
 A standalone search bar / launcher built with Rust and GTK4.
 
+> **Migration Notice**: This documentation covers the Rust/GTK4 rewrite of Hamr. For the legacy QML/Quickshell version, see the [legacy-qml branch](https://github.com/stewart86/hamr/tree/legacy-qml).
+
 ## Features
 
 - Fast fuzzy search across apps, files, and plugins
@@ -27,7 +29,7 @@ Or use the quick install script:
 curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
 ```
 
-Toggle the launcher with `hamr-gtk toggle` (bind this to a key in your compositor).
+Toggle the launcher with `hamr toggle` (bind this to a key in your compositor).
 
 ### Basic Usage
 
@@ -72,10 +74,10 @@ Toggle the launcher with `hamr-gtk toggle` (bind this to a key in your composito
 ## CLI Commands
 
 ```bash
-hamr-gtk toggle          # Toggle launcher visibility
-hamr-gtk plugin <name> # Open specific plugin
-hamr-cli status          # Check if daemon is running
-hamr-cli test <plugin>   # Test a plugin
+hamr toggle          # Toggle launcher visibility
+hamr plugin <name>   # Open specific plugin
+hamr status          # Check if daemon is running
+hamr test <plugin>   # Test a plugin
 ```
 
 ## Links
