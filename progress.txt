@@ -43,3 +43,8 @@
 - Files: README.md (lines 33-38), docs/getting-started/installation.md (lines 88-93)
 - Learned: The installer script supports dry-run mode (--check), non-interactive mode (--yes), and user data reset (--reset-user-data) with automatic backup
 ---
+
+## [compositor-matrix] - DONE
+- What: Added compositor support matrix table and layer-shell package names to README and installation docs
+- Files: README.md, docs/getting-started/installation.md
+- Learned: Created comprehensive support matrix showing Hyprland/Niri/Sway/KDE Wayland as supported, GNOME/X11 as not supported, plus distro-specific package names for layer-shell dependencies

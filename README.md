@@ -30,6 +30,17 @@ This downloads the latest release binaries, installs to `~/.local/bin`, copies e
 
 **Dependencies:** GTK4 4.20+, gtk4-layer-shell, Python 3.9+
 
+### Compositor Support
+
+| Compositor | Status | Notes |
+|------------|--------|-------|
+| **Hyprland** | ✅ Supported | Full functionality with layer-shell |
+| **Niri** | ✅ Supported | Full functionality with layer-shell |
+| **Sway** | ✅ Supported | Works with layer-shell protocol |
+| **KDE Wayland** | ✅ Supported | Requires layer-shell support |
+| **GNOME Wayland** | ❌ Not Supported | No layer-shell protocol support |
+| **X11** | ❌ Not Supported | Wayland-only application |
+
 **Installer Flags:**
 
 | Flag | Description |

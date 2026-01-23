@@ -19,7 +19,7 @@
   - Files: README.md, docs/getting-started/installation.md
 
 ## Platform Support Clarity
-- [ ] Add compositor support matrix table
+- [x] Add compositor support matrix table
   - Acceptance: Table with columns (Compositor | Status | Notes) in README and docs
   - Content: Hyprland/Niri/Sway (supported), KDE Wayland (supported), GNOME/X11 (not supported)
   - Files: README.md, docs/getting-started/installation.md

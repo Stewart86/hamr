@@ -18,6 +18,17 @@ The daemon runs continuously and communicates with the UI clients via JSON-RPC.
 - Python 3.9+ (for plugins)
 - Rust 1.85+ (for building from source)
 
+### Compositor Support Matrix
+
+| Compositor | Status | Notes |
+|------------|--------|-------|
+| **Hyprland** | ✅ Supported | Full functionality with layer-shell |
+| **Niri** | ✅ Supported | Full functionality with layer-shell |
+| **Sway** | ✅ Supported | Works with layer-shell protocol |
+| **KDE Wayland** | ✅ Supported | Requires layer-shell support |
+| **GNOME Wayland** | ❌ Not Supported | No layer-shell protocol support |
+| **X11** | ❌ Not Supported | Wayland-only application |
+
 ## Arch Linux (AUR)
 
 ```bash
@@ -109,6 +120,16 @@ sudo dnf install gtk4-devel gtk4-layer-shell-devel python3
 ```bash
 sudo apt install libgtk-4-dev gtk4-layer-shell-dev python3
 ```
+
+### Layer-shell Package Names by Distribution
+
+| Distribution | Package Name |
+|--------------|--------------|
+| **Arch Linux** | `gtk4-layer-shell` |
+| **Fedora** | `gtk4-layer-shell-devel` |
+| **Ubuntu/Debian** | `gtk4-layer-shell-dev` |
+| **openSUSE** | `gtk4-layer-shell-devel` |
+| **Gentoo** | `gui-libs/gtk4-layer-shell` |
 
 ## Keybinding
 
