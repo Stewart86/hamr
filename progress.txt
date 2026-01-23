@@ -103,3 +103,9 @@
 - Files: pyproject.toml
 - Learned: SDK uses `str | None` union syntax which requires Python 3.10+, not 3.9 as originally specified. Python 3.10 is available on Ubuntu 22.04 LTS and newer distros. Skipped `python -m compileall plugins` since only pyproject.toml was modified.
 ---
+
+## [contrib-plugin-testing] - DONE
+- What: Added comprehensive plugin testing checklist to CONTRIBUTING.md with pre-flight checks, manual testing workflow, and verification checklist
+- Files: CONTRIBUTING.md
+- Learned: Also updated outdated QML code style section to Rust, and fixed bug report log path references (was `qs -c hamr`, now `/tmp/hamr-daemon.log`). Skipped `python -m compileall plugins` since only markdown was modified.
+---

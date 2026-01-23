@@ -55,7 +55,7 @@
 - [x] Verify `pyproject.toml` Python 3.9+ requirement
   - Acceptance: Check `requires-python` field in pyproject.toml
   - Files: pyproject.toml (if exists) or plugins/sdk/pyproject.toml
-- [ ] Add plugin testing checklist to CONTRIBUTING.md
+- [x] Add plugin testing checklist to CONTRIBUTING.md
   - Acceptance: Numbered steps documenting how to manually test plugins (for human developers to follow)
   - Reference: AGENTS.md "Debugging" section for log tail commands
   - Files: CONTRIBUTING.md
