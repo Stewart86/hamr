@@ -92,10 +92,10 @@ paru -S hamr-git
 ## Quick Start
 
 ```bash
-hamr-daemon             # Start daemon (or use systemd)
-hamr-gtk                # Start launcher UI
-hamr-gtk toggle         # Toggle visibility
-hamr-gtk plugin clipboard # Open specific plugin
+hamr daemon             # Start daemon (or use systemd)
+hamr                    # Start launcher UI
+hamr toggle             # Toggle visibility
+hamr plugin clipboard   # Open specific plugin
 ```
 
 ### Compositor Setup
@@ -103,9 +103,9 @@ hamr-gtk plugin clipboard # Open specific plugin
 **Hyprland** (`~/.config/hypr/hyprland.conf`):
 
 ```conf
-exec-once = hamr-daemon
-bind = $mainMod, SPACE, exec, hamr-gtk toggle
-bind = $mainMod, V, exec, hamr-gtk plugin clipboard
+exec-once = hamr daemon
+bind = $mainMod, SPACE, exec, hamr toggle
+bind = $mainMod, V, exec, hamr plugin clipboard
 ```
 
 **Niri** (`~/.config/niri/config.kdl`):

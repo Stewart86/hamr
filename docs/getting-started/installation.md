@@ -109,11 +109,9 @@ Bind `hamr toggle` to a key in your compositor config.
 ### Hyprland
 
 ```conf
-# ~/.config/hypr/hyprland.conf
-exec-once = hamr-daemon
-
-bind = $mainMod, SPACE, exec, hamr-gtk toggle
-bind = $mainMod, V, exec, hamr-gtk plugin clipboard
+exec-once = hamr daemon
+bind = $mainMod, SPACE, exec, hamr toggle
+bind = $mainMod, V, exec, hamr plugin clipboard
 ```
 
 ### Niri
@@ -133,7 +131,7 @@ binds {
 Check if Hamr daemon is running:
 
 ```bash
-hamr-cli status
+hamr status
 ```
 
 View logs:

@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Fixes
-- [ ] [Fix]: Correct CLI command references to use `hamr` instead of `hamr-daemon`/`hamr-gtk`/`hamr-cli`
+- [x] [Fix]: Correct CLI command references to use `hamr` instead of `hamr-daemon`/`hamr-gtk`/`hamr-cli`
   - Acceptance: All docs and examples use `hamr` binary for user-facing CLI commands; no `hamr-daemon query`, `hamr-cli`, etc.
   - Files: docs/getting-started/configuration.md, README.md, any other affected docs
 
