@@ -13,10 +13,6 @@
         <link rel="canonical" href="https://hamr.run/v1.0.0-alpha/plugins/api-reference/">
       
       
-        <link rel="prev" href="../advanced-features/">
-      
-      
-        <link rel="next" href="../testing/">
       
       
         
@@ -426,6 +422,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../getting-started/logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../getting-started/theming/" class="md-nav__link">
         
   
@@ -434,6 +458,34 @@
     
   
     Theming
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
   
 
     
@@ -458,8 +510,6 @@
       
   
   
-    
-  
   
   
     
@@ -472,11 +522,13 @@
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
         
           
           <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
@@ -497,7 +549,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -571,841 +623,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../advanced-features/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Advanced Features
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-    
-  
-  
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    API Reference
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    API Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#manifest-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Manifest Schema
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Manifest Schema">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#required-fields" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Required Fields
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#optional-fields" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Optional Fields
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#handler-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Handler Configuration
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#daemon-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Daemon Configuration
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#index-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Index Configuration
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pattern-matching-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Pattern Matching Configuration
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#static-index-configuration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Static Index Configuration
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#complete-manifest-example" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Complete Manifest Example
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#request-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Request Schema
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Request Schema">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#common-fields" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Common Fields
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#step-types" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step Types
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#request-examples" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Request Examples
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#response-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Response Schema
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Response Schema">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#response-types" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Response Types
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#results-response" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Results Response
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Results Response">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#result-item-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Result Item Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#slider-item-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Slider Item Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#switch-item-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Switch Item Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#action-button-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Action Button Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#plugin-action-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Plugin Action Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#badge-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Badge Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#chip-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Chip Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#graph-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Graph Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#gauge-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Gauge Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#progress-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Progress Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#preview-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Preview Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#execute-response" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Execute Response
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Execute Response">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#sound-names" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Sound Names
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#match-response" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Match Response
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Match Response">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#match-result-fields" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Match Result Fields
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#card-response" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Card Response
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Card Response">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#card-object-fields" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Card Object Fields
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#form-response" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Form Response
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Form Response">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#form-object-fields" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Form Object Fields
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#form-field-types" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Form Field Types
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Form Field Types">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#text-field" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Text Field
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#textarea-field" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Textarea Field
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#email-field" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Email Field
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#password-field" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Password Field
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#hidden-field" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Hidden Field
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#select-field" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Select Field
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#checkbox-field" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Checkbox Field
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#switch-field" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Switch Field
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#slider-field" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Slider Field
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#form-field-common-properties" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Form Field Common Properties
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#image-browser-response" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Image Browser Response
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#grid-browser-response" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Grid Browser Response
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Grid Browser Response">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#grid-item-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Grid Item Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#index-response" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Index Response
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Index Response">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#index-item-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Index Item Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#entry-point-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Entry Point Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#status-response" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Status Response
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Status Response">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#fab-override-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        FAB Override Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ambient-item-schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Ambient Item Schema
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#update-response" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Update Response
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#error-response" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Error Response
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#noop-response" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Noop Response
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#prompt-response" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Prompt Response
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#special-ids" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Special IDs
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../testing/" class="md-nav__link">
         
   
@@ -1442,62 +659,6 @@
     
   
     Cheat Sheet
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../visual-elements/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Visual Elements
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../response-types/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Response Types
   
 
     
@@ -1614,6 +775,95 @@
     
   
     Plugin Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Releases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../releases/checklist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Checklist
   
 
     

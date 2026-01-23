@@ -554,6 +554,34 @@
   
   
     <li class="md-nav__item">
+      <a href="getting-started/logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="getting-started/theming/" class="md-nav__link">
         
   
@@ -562,6 +590,34 @@
     
   
     Theming
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="getting-started/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
   
 
     
@@ -699,62 +755,6 @@
   
   
     <li class="md-nav__item">
-      <a href="plugins/advanced-features/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Advanced Features
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="plugins/api-reference/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    API Reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="plugins/testing/" class="md-nav__link">
         
   
@@ -791,62 +791,6 @@
     
   
     Cheat Sheet
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="plugins/visual-elements/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Visual Elements
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="plugins/response-types/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Response Types
   
 
     
@@ -963,6 +907,95 @@
     
   
     Plugin Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Releases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="releases/checklist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Checklist
   
 
     
@@ -1113,22 +1146,26 @@
 
 
 <h1 id="hamr">Hamr<a class="headerlink" href="#hamr" title="Permanent link">&para;</a></h1>
-<p>A standalone search bar / launcher for <a href="https://quickshell.outfoxxed.me/">Quickshell</a>.</p>
+<p>A standalone search bar / launcher built with Rust and GTK4.</p>
+<blockquote>
+<p><strong>Migration Notice</strong>: This documentation covers the Rust/GTK4 rewrite of Hamr. For the legacy QML/Quickshell version, see the <a href="https://github.com/stewart86/hamr/tree/legacy-qml">legacy-qml branch</a>.</p>
+</blockquote>
 <h2 id="features">Features<a class="headerlink" href="#features" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Fast fuzzy search across apps, files, and plugins</li>
 <li>Plugin system with JSON-over-stdio protocol</li>
 <li>Frecency-based ranking (frequently used items rank higher)</li>
+<li>GTK4 native UI with layer shell support</li>
 <li>Support for Hyprland and Niri compositors</li>
 <li>Material Design 3 theming with dynamic color support</li>
 </ul>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <h3 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h3>
 <p>Install from AUR:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>paru<span class="w"> </span>-S<span class="w"> </span>hamr
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>paru<span class="w"> </span>-S<span class="w"> </span>hamr-git
 </span></code></pre></div>
-<p>Enable and start the service:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>systemctl<span class="w"> </span>--user<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>--now<span class="w"> </span>hamr
+<p>Or use the quick install script:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/stewart86/hamr/main/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
 </span></code></pre></div>
 <p>Toggle the launcher with <code>hamr toggle</code> (bind this to a key in your compositor).</p>
 <h3 id="basic-usage">Basic Usage<a class="headerlink" href="#basic-usage" title="Permanent link">&para;</a></h3>
@@ -1186,16 +1223,15 @@
 <!-- prettier-ignore-end -->
 
 <h2 id="cli-commands">CLI Commands<a class="headerlink" href="#cli-commands" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>hamr<span class="w"> </span>toggle<span class="w">              </span><span class="c1"># Toggle launcher visibility</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>hamr<span class="w"> </span>plugin<span class="w"> </span>&lt;name&gt;<span class="w">       </span><span class="c1"># Open specific plugin</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>hamr<span class="w"> </span>status<span class="w">              </span><span class="c1"># Check if Hamr is running</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>hamr<span class="w"> </span>audio<span class="w"> </span><span class="o">[</span>sink<span class="p">|</span>source<span class="o">]</span><span class="w"> </span><span class="c1"># Open audio controls</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>hamr<span class="w"> </span>toggle<span class="w">          </span><span class="c1"># Toggle launcher visibility</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>hamr<span class="w"> </span>plugin<span class="w"> </span>&lt;name&gt;<span class="w">   </span><span class="c1"># Open specific plugin</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>hamr<span class="w"> </span>status<span class="w">          </span><span class="c1"># Check if daemon is running</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>hamr<span class="w"> </span><span class="nb">test</span><span class="w"> </span>&lt;plugin&gt;<span class="w">   </span><span class="c1"># Test a plugin</span>
 </span></code></pre></div>
 <h2 id="links">Links<a class="headerlink" href="#links" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="https://github.com/stewart86/hamr">GitHub Repository</a></li>
-<li><a href="https://aur.archlinux.org/packages/hamr">AUR Package</a></li>
-<li><a href="https://quickshell.outfoxxed.me/">Quickshell Documentation</a></li>
+<li><a href="https://aur.archlinux.org/packages/hamr-git">AUR Package</a></li>
 </ul>
 
 

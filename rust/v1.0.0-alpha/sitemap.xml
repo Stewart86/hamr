@@ -2,66 +2,78 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/architecture/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/features/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/plugin-protocol/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/getting-started/configuration/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/getting-started/installation/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
+    </url>
+    <url>
+         <loc>https://hamr.run/v1.0.0-alpha/getting-started/logging/</loc>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/getting-started/theming/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
+    </url>
+    <url>
+         <loc>https://hamr.run/v1.0.0-alpha/getting-started/troubleshooting/</loc>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/plugins/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/plugins/advanced-features/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/plugins/api-reference/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/plugins/cheatsheet/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/plugins/python-sdk/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/plugins/raycast-conversion/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/plugins/response-types/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/plugins/testing/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
     </url>
     <url>
          <loc>https://hamr.run/v1.0.0-alpha/plugins/visual-elements/</loc>
-         <lastmod>2026-01-22</lastmod>
+         <lastmod>2026-01-23</lastmod>
+    </url>
+    <url>
+         <loc>https://hamr.run/v1.0.0-alpha/releases/checklist/</loc>
+         <lastmod>2026-01-23</lastmod>
     </url>
 </urlset>
