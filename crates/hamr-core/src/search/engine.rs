@@ -118,7 +118,7 @@ impl SearchEngine {
         let mut buf = Vec::new();
 
         let name_haystack = Utf32Str::new(&searchable.name, &mut buf);
-        let name_score = pattern.score(name_haystack, &mut self.matcher)?;
+        let name_score = pattern.score(name_haystack, &mut self.matcher).unwrap_or(0);
 
         let keyword_score = if searchable.keywords.is_empty() {
             0
@@ -131,6 +131,10 @@ impl SearchEngine {
 
         let combined_score = (f64::from(name_score) * self.config.name_weight)
             + (f64::from(keyword_score) * self.config.keyword_weight);
+
+        if combined_score <= 0.0 {
+            return None;
+        }
 
         Some(SearchMatch {
             searchable,
@@ -358,5 +362,33 @@ mod tests {
             .collect();
         let results = engine.search("app", &searchables);
         assert!(results.len() <= 5, "Should respect limit from config");
+    }
+
+    #[test]
+    fn test_keywords_search_without_name_match() {
+        let mut engine = SearchEngine::new();
+        let searchables = vec![
+            make_searchable("zapzap", "ZapZap", vec!["whatsapp", "chat", "messaging"]),
+            make_searchable("signal", "Signal", vec!["messenger"]),
+        ];
+
+        let results = engine.search("whatsapp", &searchables);
+        assert!(!results.is_empty());
+        assert_eq!(results[0].searchable.id, "zapzap");
+    }
+
+    #[test]
+    fn test_both_name_and_keywords_contribute_to_score() {
+        let mut engine = SearchEngine::new();
+        let searchables = vec![
+            make_searchable("zapzap", "ZapZap", vec![]),
+            make_searchable("whatsapp-app", "WhatsApp", vec![]),
+            make_searchable("zapzap-alt", "ZapZap", vec!["whatsapp"]),
+        ];
+
+        let results = engine.search("whatsapp", &searchables);
+        assert!(results.len() >= 2);
+        let ids: Vec<_> = results.iter().map(|r| r.searchable.id.as_str()).collect();
+        assert!(ids.contains(&"zapzap-alt"));
     }
 }
