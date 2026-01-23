@@ -139,3 +139,9 @@
 - Files: mkdocs.yml
 - Learned: Logging page placed after Configuration, before Theming for logical flow. Skipped `python -m compileall plugins` since only mkdocs.yml was modified.
 ---
+
+## [link-logging-from-docs] - DONE
+- What: Added links to logging and troubleshooting guides from README (Documentation section) and installation.md (Verify Installation section)
+- Files: README.md, docs/getting-started/installation.md
+- Learned: README documentation section now includes Logging and Troubleshooting links; installation.md has contextual links after the "View logs" section. Skipped `python -m compileall plugins` since only markdown was modified.
+---

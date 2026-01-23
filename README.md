@@ -175,7 +175,9 @@ Prefixes are configurable in `~/.config/hamr/config.json`.
 
 - [Installation](docs/getting-started/installation.md) - Full installation guide
 - [Configuration](docs/getting-started/configuration.md) - All config options
+- [Logging](docs/getting-started/logging.md) - Log paths, env vars, debugging
 - [Theming](docs/getting-started/theming.md) - Material Design 3 colors, matugen/pywal
+- [Troubleshooting](docs/getting-started/troubleshooting.md) - Common issues and solutions
 - [Plugin Development](docs/plugins/index.md) - Create your own plugins
 - [API Reference](docs/plugins/api-reference.md) - Plugin protocol specification
 - [Architecture](ARCHITECTURE.md) - System design and crate structure

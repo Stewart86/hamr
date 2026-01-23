@@ -173,6 +173,10 @@ tail -f /tmp/hamr-daemon.log
 journalctl --user -u hamr-daemon -f
 ```
 
+For detailed logging configuration, including `RUST_LOG` and `HAMR_PLUGIN_DEBUG` environment variables, see the [Logging Guide](logging.md).
+
+If you encounter issues, see the [Troubleshooting Guide](troubleshooting.md) for common problems and solutions.
+
 ## Updating
 
 Arch Linux (AUR):

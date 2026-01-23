@@ -79,7 +79,7 @@
 - [x] Add logging guide to mkdocs nav
   - Acceptance: Page appears in docs navigation
   - Files: mkdocs.yml
-- [ ] Link logging guide from README and installation docs
+- [x] Link logging guide from README and installation docs
   - Acceptance: Links added to troubleshooting sections
   - Files: README.md, docs/getting-started/installation.md
 
