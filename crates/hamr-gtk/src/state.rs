@@ -343,7 +343,9 @@ impl VisibilityState {
             }
         } else {
             // If ambient items are cleared and we auto-triggered minimize, switch back to closed
-            if self.ambient_triggered_minimize.get() && current_visibility == LauncherVisibility::Minimized {
+            if self.ambient_triggered_minimize.get()
+                && current_visibility == LauncherVisibility::Minimized
+            {
                 self.visibility.set(LauncherVisibility::Closed);
                 self.ambient_triggered_minimize.set(false);
                 debug!("Auto-hiding FAB (no more ambient items)");

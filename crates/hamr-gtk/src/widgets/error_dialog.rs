@@ -8,10 +8,10 @@ use crate::config::Theme;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use gtk4::Orientation;
 use gtk4::gdk;
 use gtk4::glib;
 use gtk4::prelude::*;
-use gtk4::Orientation;
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 
 use super::design::{font, radius, spacing};

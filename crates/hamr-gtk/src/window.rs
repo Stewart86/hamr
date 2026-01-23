@@ -56,9 +56,15 @@ fn get_startup_wm_class(desktop_id: &str) -> Option<String> {
     let desktop_file = desktop_id.strip_suffix(".desktop").unwrap_or(desktop_id);
 
     let search_paths = [
-        format!("/var/lib/flatpak/exports/share/applications/{}.desktop", desktop_file),
+        format!(
+            "/var/lib/flatpak/exports/share/applications/{}.desktop",
+            desktop_file
+        ),
         format!("/usr/share/applications/{}.desktop", desktop_file),
-        format!("/home/siwei/.local/share/applications/{}.desktop", desktop_file),
+        format!(
+            "/home/siwei/.local/share/applications/{}.desktop",
+            desktop_file
+        ),
     ];
 
     for path in search_paths {
@@ -88,7 +94,10 @@ fn window_is_default_browser(window: &CompositorWindow, browser_desktop_id: &str
     }
 
     if let Some(wm_class) = get_startup_wm_class(browser_desktop_id) {
-        if window_class == wm_class || window_class.contains(&wm_class) || wm_class.contains(&window_class) {
+        if window_class == wm_class
+            || window_class.contains(&wm_class)
+            || wm_class.contains(&window_class)
+        {
             return true;
         }
     }
@@ -381,8 +390,8 @@ impl LauncherWindow {
         // Calculate initial UI position from ratios.
         // x_ratio is center-based, so offset by half the expected launcher width.
         let launcher_width = theme.config.sizes.search_width;
-        let left_margin =
-            ((x_ratio * f64::from(screen_width)) - (f64::from(launcher_width) / 2.0)).floor() as i32;
+        let left_margin = ((x_ratio * f64::from(screen_width)) - (f64::from(launcher_width) / 2.0))
+            .floor() as i32;
         let top_margin = (y_ratio * f64::from(screen_height)).floor() as i32;
 
         // Clamp to keep drag handle accessible (same logic as before).
@@ -1140,7 +1149,10 @@ impl LauncherWindow {
             let current_pointer = *pointer_in_fixed_begin.borrow();
             *drag_start_pointer_begin.borrow_mut() = current_pointer;
             *drag_offset_begin.borrow_mut() = current_pointer.map(|(x, y)| {
-                (x - f64::from(state.start_left), y - f64::from(state.start_top))
+                (
+                    x - f64::from(state.start_left),
+                    y - f64::from(state.start_top),
+                )
             });
 
             if let Some(device) = &pointer_device_begin
@@ -1186,14 +1198,15 @@ impl LauncherWindow {
             };
             let start_surface_pointer = *start_pointer_in_surface_update.borrow();
 
-            let (movement_x, movement_y) =
-                if let (Some((cx, cy)), Some((sx, sy))) = (surface_pointer, start_surface_pointer) {
-                    (cx - sx, cy - sy)
-                } else if let (Some((cx, cy)), Some((sx, sy))) = (current_pointer, start_pointer) {
-                    (cx - sx, cy - sy)
-                } else {
-                    (offset_x, offset_y)
-                };
+            let (movement_x, movement_y) = if let (Some((cx, cy)), Some((sx, sy))) =
+                (surface_pointer, start_surface_pointer)
+            {
+                (cx - sx, cy - sy)
+            } else if let (Some((cx, cy)), Some((sx, sy))) = (current_pointer, start_pointer) {
+                (cx - sx, cy - sy)
+            } else {
+                (offset_x, offset_y)
+            };
 
             // Check if held long enough (300ms) and moved enough (5px) to start dragging
             let dominated_movement = movement_x.abs().max(movement_y.abs());
@@ -1214,16 +1227,20 @@ impl LauncherWindow {
                 return;
             }
 
-            let (new_left, new_top) =
-                if let (Some((cx, cy)), Some((ox, oy))) = (surface_pointer, *drag_offset_update.borrow()) {
-                    ((cx - ox) as i32, (cy - oy) as i32)
-                } else if let (Some((cx, cy)), Some((ox, oy))) =
-                    (current_pointer, *drag_offset_update.borrow())
-                {
-                    ((cx - ox) as i32, (cy - oy) as i32)
-                } else {
-                    (state.start_left + offset_x as i32, state.start_top + offset_y as i32)
-                };
+            let (new_left, new_top) = if let (Some((cx, cy)), Some((ox, oy))) =
+                (surface_pointer, *drag_offset_update.borrow())
+            {
+                ((cx - ox) as i32, (cy - oy) as i32)
+            } else if let (Some((cx, cy)), Some((ox, oy))) =
+                (current_pointer, *drag_offset_update.borrow())
+            {
+                ((cx - ox) as i32, (cy - oy) as i32)
+            } else {
+                (
+                    state.start_left + offset_x as i32,
+                    state.start_top + offset_y as i32,
+                )
+            };
 
             let launcher_width = state.launcher_width;
             let launcher_height = state.launcher_height;
@@ -1314,8 +1331,12 @@ impl LauncherWindow {
                 let min_top = 0;
                 let max_top = state.screen_height - launcher_height.min(60);
 
-                let final_left = (state.start_left + offset_x as i32).max(min_left).min(max_left);
-                let final_top = (state.start_top + offset_y as i32).max(min_top).min(max_top);
+                let final_left = (state.start_left + offset_x as i32)
+                    .max(min_left)
+                    .min(max_left);
+                let final_top = (state.start_top + offset_y as i32)
+                    .max(min_top)
+                    .min(max_top);
 
                 let surface_pointer = if let Some(device) = &pointer_device_end
                     && let Some(surface) = window_end.surface()
@@ -1325,22 +1346,23 @@ impl LauncherWindow {
                     None
                 };
 
-                let (final_left, final_top) =
-                    if let (Some((cx, cy)), Some((ox, oy))) = (surface_pointer, *drag_offset_end.borrow()) {
-                        (
-                            ((cx - ox) as i32).max(min_left).min(max_left),
-                            ((cy - oy) as i32).max(min_top).min(max_top),
-                        )
-                    } else if let (Some((cx, cy)), Some((ox, oy))) =
-                        (*pointer_in_fixed_end.borrow(), *drag_offset_end.borrow())
-                    {
-                        (
-                            ((cx - ox) as i32).max(min_left).min(max_left),
-                            ((cy - oy) as i32).max(min_top).min(max_top),
-                        )
-                    } else {
-                        (final_left, final_top)
-                    };
+                let (final_left, final_top) = if let (Some((cx, cy)), Some((ox, oy))) =
+                    (surface_pointer, *drag_offset_end.borrow())
+                {
+                    (
+                        ((cx - ox) as i32).max(min_left).min(max_left),
+                        ((cy - oy) as i32).max(min_top).min(max_top),
+                    )
+                } else if let (Some((cx, cy)), Some((ox, oy))) =
+                    (*pointer_in_fixed_end.borrow(), *drag_offset_end.borrow())
+                {
+                    (
+                        ((cx - ox) as i32).max(min_left).min(max_left),
+                        ((cy - oy) as i32).max(min_top).min(max_top),
+                    )
+                } else {
+                    (final_left, final_top)
+                };
 
                 state.current_left = final_left;
                 state.current_top = final_top;
@@ -1467,8 +1489,7 @@ impl LauncherWindow {
         let gesture = gtk4::GestureClick::new();
         gesture.set_propagation_phase(gtk4::PropagationPhase::Capture);
         gesture.connect_released(move |_, _, x, y| {
-            let Some(bounds) =
-                launcher_root_for_bounds.compute_bounds(&layout_fixed_for_bounds)
+            let Some(bounds) = launcher_root_for_bounds.compute_bounds(&layout_fixed_for_bounds)
             else {
                 return;
             };
@@ -2317,12 +2338,12 @@ impl LauncherWindow {
             ..
         } = ctx;
 
-        let default_mode =
-            if config_watcher.theme().config.appearance.default_result_view == "grid" {
-                ResultViewMode::Grid
-            } else {
-                ResultViewMode::List
-            };
+        let default_mode = if config_watcher.theme().config.appearance.default_result_view == "grid"
+        {
+            ResultViewMode::Grid
+        } else {
+            ResultViewMode::List
+        };
 
         let visibility_state = state_manager.visibility_state();
         visibility_state.hard_close();
@@ -2550,7 +2571,9 @@ impl LauncherWindow {
                 // Update results
                 let in_plugin = state.borrow().active_plugin.is_some();
                 if in_plugin {
-                    result_view.borrow().update_results_diff(&merged_results, &theme);
+                    result_view
+                        .borrow()
+                        .update_results_diff(&merged_results, &theme);
                 } else {
                     result_view.borrow().set_results(&merged_results, &theme);
                 }
@@ -2690,7 +2713,9 @@ impl LauncherWindow {
                         .widget()
                         .set_visible(!should_hide_results);
                     let theme = config_watcher.theme();
-                    result_view.borrow().update_results_diff(&merged_results, &theme);
+                    result_view
+                        .borrow()
+                        .update_results_diff(&merged_results, &theme);
                 }
             }
             CoreUpdate::Card { card, context } => {
@@ -3386,13 +3411,21 @@ impl LauncherWindow {
                     drop(state_mut);
                     // Use reactive update
                     let theme = config_watcher.theme();
-                    result_view.borrow().update_results_diff(&merged_results, &theme);
+                    result_view
+                        .borrow()
+                        .update_results_diff(&merged_results, &theme);
                 }
             }
             CoreUpdate::Execute { action } => {
                 info!("Execute action: {:?}", action);
-                let should_close =
-                    Self::execute_action_view(&action, state, compositor, window, result_view, config_watcher);
+                let should_close = Self::execute_action_view(
+                    &action,
+                    state,
+                    compositor,
+                    window,
+                    result_view,
+                    config_watcher,
+                );
 
                 if should_close {
                     window.set_visible(false);
@@ -3602,7 +3635,10 @@ impl LauncherWindow {
                         }
 
                         // Redirect to /dev/null to prevent issues with broken pipes
-                        let devnull = libc::open(b"/dev/null\0".as_ptr() as *const libc::c_char, libc::O_RDWR);
+                        let devnull = libc::open(
+                            b"/dev/null\0".as_ptr() as *const libc::c_char,
+                            libc::O_RDWR,
+                        );
                         if devnull != -1 {
                             libc::dup2(devnull, 0);
                             libc::dup2(devnull, 1);
@@ -3781,7 +3817,10 @@ impl LauncherWindow {
                 if !browser_windows.is_empty() {
                     // Found default browser window - focus it, then use UriLauncher
                     // UriLauncher will open URL in the already-focused window/tab
-                    info!("Focusing existing {} window and opening URL", browser_desktop_id);
+                    info!(
+                        "Focusing existing {} window and opening URL",
+                        browser_desktop_id
+                    );
                     compositor.focus_window(&browser_windows[0].id);
                 }
 

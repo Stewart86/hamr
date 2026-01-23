@@ -115,7 +115,8 @@ async fn rpc_task(
                 if !daemon_error_sent {
                     let _ = update_tx
                         .send(CoreUpdate::Error {
-                            message: "Daemon disconnected. Restart hamr-daemon if needed.".to_string(),
+                            message: "Daemon disconnected. Restart hamr-daemon if needed."
+                                .to_string(),
                         })
                         .await;
                     daemon_error_sent = true;

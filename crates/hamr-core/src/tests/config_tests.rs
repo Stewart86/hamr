@@ -294,11 +294,13 @@ fn test_old_prefix_format_migration() {
     }"#;
     let config: Config = serde_json::from_str(json).unwrap();
     assert_eq!(config.search.action_bar_hints.len(), 5);
-    assert!(config
-        .search
-        .action_bar_hints
-        .iter()
-        .any(|h| h.prefix == "~" && h.plugin == "files"));
+    assert!(
+        config
+            .search
+            .action_bar_hints
+            .iter()
+            .any(|h| h.prefix == "~" && h.plugin == "files")
+    );
 }
 
 #[test]
@@ -315,11 +317,13 @@ fn test_old_prefix_with_null_action_bar_hints() {
     }"#;
     let config: Config = serde_json::from_str(json).unwrap();
     assert_eq!(config.search.action_bar_hints.len(), 5);
-    assert!(config
-        .search
-        .action_bar_hints
-        .iter()
-        .any(|h| h.prefix == "~" && h.plugin == "files"));
+    assert!(
+        config
+            .search
+            .action_bar_hints
+            .iter()
+            .any(|h| h.prefix == "~" && h.plugin == "files")
+    );
 }
 
 #[test]

@@ -146,8 +146,7 @@ impl MarkdownView {
         if markdown.is_empty() {
             self.scrolled_window.set_min_content_height(0);
         } else {
-            let (_, natural_height, _, _) =
-                self.text_view.measure(gtk4::Orientation::Vertical, -1);
+            let (_, natural_height, _, _) = self.text_view.measure(gtk4::Orientation::Vertical, -1);
             let max_h = self.max_height.get();
             let min_height = natural_height.min(max_h);
             self.scrolled_window.set_min_content_height(min_height);
@@ -177,7 +176,7 @@ impl MarkdownView {
         &self.buffer
     }
 
-/// Set a fixed width for the markdown view.
+    /// Set a fixed width for the markdown view.
     /// This constrains both the scrolled window and text view.
     pub fn set_width(&self, width: i32) {
         // Set scrolled window constraints

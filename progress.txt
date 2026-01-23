@@ -1,0 +1,8 @@
+## Codebase Patterns
+- TUI/GTK/daemon write debug logs to `/tmp` with symlink to latest log.
+
+## [docs-install-refresh] - DONE
+- What: Updated installation guide and README for Rust/GTK implementation, removing QML/Quickshell references and adding GTK4 dependencies
+- Files: docs/getting-started/installation.md, README.md, docs/index.md
+- Learned: The project has transitioned from QML/Quickshell to Rust/GTK4, requiring updated dependency information and command examples
+---

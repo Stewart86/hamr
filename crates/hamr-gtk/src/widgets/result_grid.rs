@@ -315,8 +315,7 @@ impl ResultGrid {
         if results.is_empty() {
             self.scrolled.set_min_content_height(0);
         } else {
-            let (_, natural_height, _, _) =
-                self.grid_view.measure(gtk4::Orientation::Vertical, -1);
+            let (_, natural_height, _, _) = self.grid_view.measure(gtk4::Orientation::Vertical, -1);
             let min_height = natural_height.min(max_height);
             self.scrolled.set_min_content_height(min_height);
         }

@@ -26,7 +26,9 @@ Hamr learns from your usage patterns to surface what you need, when you need it.
 curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
 ```
 
-This downloads the latest release, installs to `~/.local/bin`, copies essential plugins, and sets up systemd services.
+This downloads the latest release binaries, installs to `~/.local/bin`, copies essential plugins, and sets up systemd services.
+
+**Dependencies:** GTK4 4.20+, gtk4-layer-shell, Python 3.9+
 
 ### Build from Source
 
@@ -90,9 +92,10 @@ paru -S hamr-git
 ## Quick Start
 
 ```bash
-hamr                    # Start launcher (auto-starts daemon)
-hamr toggle             # Toggle visibility
-hamr plugin clipboard   # Open specific plugin
+hamr-daemon             # Start daemon (or use systemd)
+hamr-gtk                # Start launcher UI
+hamr-gtk toggle         # Toggle visibility
+hamr-gtk plugin clipboard # Open specific plugin
 ```
 
 ### Compositor Setup
@@ -100,31 +103,31 @@ hamr plugin clipboard   # Open specific plugin
 **Hyprland** (`~/.config/hypr/hyprland.conf`):
 
 ```conf
-exec-once = hamr
-bind = $mainMod, SPACE, exec, hamr toggle
-bind = $mainMod, V, exec, hamr plugin clipboard
+exec-once = hamr-daemon
+bind = $mainMod, SPACE, exec, hamr-gtk toggle
+bind = $mainMod, V, exec, hamr-gtk plugin clipboard
 ```
 
 **Niri** (`~/.config/niri/config.kdl`):
 
 ```kdl
-spawn-at-startup "hamr"
+spawn-at-startup "hamr-daemon"
 
 binds {
-    Mod+Space { spawn "hamr" "toggle"; }
-    Mod+V { spawn "hamr" "plugin" "clipboard"; }
+    Mod+Space { spawn "hamr-gtk" "toggle"; }
+    Mod+V { spawn "hamr-gtk" "plugin" "clipboard"; }
 }
 ```
 
 **Systemd** (manual setup):
 
 ```bash
-# The 'hamr install' command enables the systemd service
+# The installer sets up the systemd service
 # You only need to start it manually:
 systemctl --user start hamr-daemon.service
 
-# Or start the launcher manually (auto-starts daemon)
-hamr
+# Or start the GTK launcher manually (auto-starts daemon)
+hamr-gtk
 ```
 
 ## Built-in Plugins

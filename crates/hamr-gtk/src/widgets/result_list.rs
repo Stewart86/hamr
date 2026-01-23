@@ -156,10 +156,18 @@ impl ResultList {
 
     /// Check if a result is running (checks both app_id and app_id_fallback)
     fn result_is_running(&self, result: &SearchResult) -> bool {
-        if let Some(true) = result.app_id.as_deref().map(|id| self.is_app_running(Some(id))) {
+        if let Some(true) = result
+            .app_id
+            .as_deref()
+            .map(|id| self.is_app_running(Some(id)))
+        {
             return true;
         }
-        if let Some(true) = result.app_id_fallback.as_deref().map(|id| self.is_app_running(Some(id))) {
+        if let Some(true) = result
+            .app_id_fallback
+            .as_deref()
+            .map(|id| self.is_app_running(Some(id)))
+        {
             return true;
         }
         false
@@ -309,8 +317,7 @@ impl ResultList {
         if results.is_empty() {
             self.scrolled.set_min_content_height(0);
         } else {
-            let (_, natural_height, _, _) =
-                self.list_box.measure(gtk4::Orientation::Vertical, -1);
+            let (_, natural_height, _, _) = self.list_box.measure(gtk4::Orientation::Vertical, -1);
             let min_height = natural_height.min(max_height);
             self.scrolled.set_min_content_height(min_height);
         }
