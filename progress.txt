@@ -31,3 +31,9 @@
 - Files: README.md (lines 94-98, 107-108), docs/getting-started/installation.md (lines 115-116, 136)
 - Learned: User-facing commands should always use `hamr` binary; internal component names are only appropriate for architecture docs and log paths
 ---
+
+## [installer-preserve-user-data] - DONE
+- What: Added `--reset-user-data` flag to install.sh to preserve user config/plugins by default, with automatic backup when reset is requested
+- Files: install.sh
+- Learned: The installer previously had destructive behavior that overwrote user plugins/config. Now it preserves user data by default and only resets when explicitly requested with a timestamped backup.
+---

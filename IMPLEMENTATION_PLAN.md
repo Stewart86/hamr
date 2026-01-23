@@ -17,9 +17,9 @@
   - Files: docs/index.md, mkdocs.yml
 
 ## Installer Hardening
-- [ ] Preserve user config/plugins by default and add `--reset-user-data` override.
-  - Acceptance: repeated installs leave `~/.config/hamr` untouched unless flag set.
-  - Files: install.sh
+- [x] Preserve user config/plugins by default and add `--reset-user-data` override.
+   - Acceptance: repeated installs leave `~/.config/hamr` untouched unless flag set.
+   - Files: install.sh
 - [ ] Add dry-run (`--check`) + verbose summary, plus prompts for overwrites with `--yes` bypass.
   - Acceptance: `install.sh --check` makes no changes; interactive run shows prompts.
   - Files: install.sh

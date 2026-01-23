@@ -6,7 +6,10 @@
 #   curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
 #   ./install.sh  # If running from cloned repository
 #
-# Options (via environment variables):
+# Options:
+#   --reset-user-data        Reset user configuration and plugins (backup created)
+#
+# Environment variables:
 #   HAMR_VERSION=v0.1.0    Install specific version (default: latest)
 #   HAMR_DIR=~/.local      Install directory (default: ~/.local)
 #   HAMR_NO_MODIFY_PATH=1  Don't add to PATH via shell rc
@@ -31,11 +34,27 @@ VERSION="${HAMR_VERSION:-}"
 INSTALL_DIR="${HAMR_DIR:-$HOME/.local}"
 NO_MODIFY_PATH="${HAMR_NO_MODIFY_PATH:-}"
 SKIP_INSTALL="${HAMR_SKIP_INSTALL:-}"
+RESET_USER_DATA=""
 
 info() { printf "${BLUE}==>${NC} %s\n" "$*"; }
 success() { printf "${GREEN}==>${NC} %s\n" "$*"; }
 warn() { printf "${YELLOW}Warning:${NC} %s\n" "$*"; }
 error() { printf "${RED}Error:${NC} %s\n" "$*" >&2; exit 1; }
+
+# Parse command line arguments
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --reset-user-data)
+                RESET_USER_DATA=1
+                shift
+                ;;
+            *)
+                error "Unknown option: $1"
+                ;;
+        esac
+    done
+}
 
 # Detect architecture
 detect_arch() {
@@ -255,6 +274,9 @@ main() {
     info "Installing Hamr Launcher"
     echo ""
 
+    # Parse command line arguments
+    parse_args "$@"
+
     # Check requirements
     check_requirements
 
@@ -305,13 +327,31 @@ main() {
         # Install plugins directory if it exists
         if [[ -d "plugins" ]]; then
             info "Installing plugins..."
-            # Remove old plugins first to ensure clean update
-            rm -rf "$bin_dir/../plugins"
-            rm -rf "$HOME/.config/hamr/plugins"
+            
+            # Backup user data if --reset-user-data is set
+            if [[ -n "$RESET_USER_DATA" ]]; then
+                if [[ -d "$HOME/.config/hamr" ]]; then
+                    local backup_dir="$HOME/.config/hamr.backup.$(date +%Y%m%d_%H%M%S)"
+                    info "Backing up existing user config to $backup_dir..."
+                    cp -r "$HOME/.config/hamr" "$backup_dir"
+                fi
+                # Remove old plugins to ensure clean update
+                rm -rf "$bin_dir/../plugins"
+                rm -rf "$HOME/.config/hamr/plugins"
+            else
+                # Preserve user config and plugins by default
+                info "Preserving existing user configuration and plugins..."
+            fi
+            
+            # Install system plugins (always update these)
             cp -r "plugins" "$bin_dir/../"
-            # Also copy all plugins to config directory for user access
-            mkdir -p "$HOME/.config/hamr/plugins"
-            cp -r "plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
+            
+            # Only copy plugins to user config if they don't exist or if --reset-user-data
+            if [[ -n "$RESET_USER_DATA" ]] || [[ ! -d "$HOME/.config/hamr/plugins" ]]; then
+                mkdir -p "$HOME/.config/hamr/plugins"
+                cp -r "plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
+            fi
+            
             # Make handler scripts executable based on manifest
             for manifest in "$bin_dir/../plugins"/*/manifest.json; do
                 if [[ -f "$manifest" ]]; then
@@ -455,13 +495,31 @@ main() {
     # Install plugins directory next to binaries (for plugin discovery)
     if [[ -d "$extract_dir/plugins" ]]; then
         info "Installing plugins..."
-        # Remove old plugins first to ensure clean update
-        rm -rf "$bin_dir/../plugins"
-        rm -rf "$HOME/.config/hamr/plugins"
+        
+        # Backup user data if --reset-user-data is set
+        if [[ -n "$RESET_USER_DATA" ]]; then
+            if [[ -d "$HOME/.config/hamr" ]]; then
+                local backup_dir="$HOME/.config/hamr.backup.$(date +%Y%m%d_%H%M%S)"
+                info "Backing up existing user config to $backup_dir..."
+                cp -r "$HOME/.config/hamr" "$backup_dir"
+            fi
+            # Remove old plugins to ensure clean update
+            rm -rf "$bin_dir/../plugins"
+            rm -rf "$HOME/.config/hamr/plugins"
+        else
+            # Preserve user config and plugins by default
+            info "Preserving existing user configuration and plugins..."
+        fi
+        
+        # Install system plugins (always update these)
         cp -r "$extract_dir/plugins" "$bin_dir/../"
-        # Also copy all plugins to config directory for user access
-        mkdir -p "$HOME/.config/hamr/plugins"
-        cp -r "$extract_dir/plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
+        
+        # Only copy plugins to user config if they don't exist or if --reset-user-data
+        if [[ -n "$RESET_USER_DATA" ]] || [[ ! -d "$HOME/.config/hamr/plugins" ]]; then
+            mkdir -p "$HOME/.config/hamr/plugins"
+            cp -r "$extract_dir/plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
+        fi
+        
         # Make handler scripts executable based on manifest
         for manifest in "$bin_dir/../plugins"/*/manifest.json; do
             if [[ -f "$manifest" ]]; then
