@@ -819,6 +819,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#multi-step-flows-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-step Flows (Optional)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1477,6 +1488,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#multi-step-flows-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-step Flows (Optional)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1663,13 +1685,9 @@
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="s">  &quot;name&quot;: &quot;Hello&quot;,</span>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="s">  &quot;description&quot;: &quot;My first Hamr plugin&quot;,</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="s">  &quot;icon&quot;: &quot;waving_hand&quot;,</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="s">  &quot;supportedPlatforms&quot;: [&quot;niri&quot;, &quot;hyprland&quot;],</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="s">  &quot;handler&quot;: {</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="s">    &quot;type&quot;: &quot;stdio&quot;,</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="s">    &quot;path&quot;: &quot;handler.py&quot;</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="s">  }</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="s">}</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="s">EOF</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="s">  &quot;supportedPlatforms&quot;: [&quot;niri&quot;, &quot;hyprland&quot;]</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="s">}</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="s">EOF</span>
 </span></code></pre></div>
 <blockquote>
 <p><strong>Note:</strong> <code>supportedPlatforms</code> defines which platforms/compositors your plugin works with:</p>
@@ -1681,6 +1699,7 @@
 <li><code>["windows"]</code> - Windows</li>
 </ul>
 <p>List all platforms your plugin supports explicitly. There is no wildcard.</p>
+<p><strong>Note:</strong> For stdio plugins, Hamr always runs <code>handler.py</code> in the plugin directory, so the <code>handler</code> field is optional. Use <code>handler.command</code> only for socket/daemon plugins.</p>
 </blockquote>
 <h3 id="step-3-create-the-handler">Step 3: Create the Handler<a class="headerlink" href="#step-3-create-the-handler" title="Permanent link">&para;</a></h3>
 <p>The handler is your plugin's logic. Create <code>~/.config/hamr/plugins/hello/handler.py</code>:</p>
@@ -1845,12 +1864,8 @@
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;My Plugin&quot;</span><span class="p">,</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;What it does&quot;</span><span class="p">,</span>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">&quot;icon&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;star&quot;</span><span class="p">,</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">&quot;supportedPlatforms&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;niri&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;hyprland&quot;</span><span class="p">],</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">&quot;handler&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;stdio&quot;</span><span class="p">,</span>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;handler.py&quot;</span>
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="p">}</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">&quot;supportedPlatforms&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;niri&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;hyprland&quot;</span><span class="p">]</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="p">}</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -1884,7 +1899,7 @@
 <tr>
 <td><code>handler</code></td>
 <td>No</td>
-<td>Handler config: <code>{type, command}</code> (default: stdio handler.py)</td>
+<td>Handler config. Stdio plugins run <code>handler.py</code> by default; socket plugins use <code>handler.command</code>.</td>
 </tr>
 <tr>
 <td><code>frecency</code></td>
@@ -1942,6 +1957,8 @@
 </tbody>
 </table>
 <p>See <a href="response-types/">Response Types</a> for complete documentation.</p>
+<h3 id="multi-step-flows-optional">Multi-step Flows (Optional)<a class="headerlink" href="#multi-step-flows-optional" title="Permanent link">&para;</a></h3>
+<p>For drill-down workflows (edit screens, pickers), store state in <code>context</code> and control the stack with <code>navigateForward</code> and <code>navigateBack</code>. Handle <code>selected.id == "__back__"</code> to return to the previous view. See <a href="response-types/">Response Types</a> for examples.</p>
 <hr />
 <h2 id="language-support">Language Support<a class="headerlink" href="#language-support" title="Permanent link">&para;</a></h2>
 <p>Plugins can be written in any language. The handler just needs to:</p>
@@ -2165,6 +2182,7 @@
 <li><strong>Keep results under 50</strong> - More items slow down the UI</li>
 <li><strong>Use placeholder text</strong> - Helps users know what to type</li>
 <li><strong>Handle empty states</strong> - Show helpful messages when no results match</li>
+<li><strong>Desktop files</strong> - If you read <code>.desktop</code> files, note that XDG defaults can point to <code>NoDisplay=true</code> entries</li>
 </ol>
 
 
