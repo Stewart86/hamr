@@ -6,6 +6,8 @@
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
+use hamr_core::config::Directories;
+use hamr_core::plugin::{ChecksumsData, Plugin, PluginVerifyStatus};
 use hamr_rpc::{
     client::{RpcClient, dev_socket_path, socket_path},
     protocol::ClientRole,
@@ -74,6 +76,7 @@ Examples:
   hamr toggle             Toggle launcher visibility
   hamr plugin clipboard   Open clipboard plugin
   hamr plugins list       List installed plugins
+  hamr plugins audit      Verify plugin checksums
   hamr status             Check daemon status
 
 Keybinding examples (Hyprland):
@@ -162,6 +165,9 @@ enum PluginsCommand {
         /// Plugin name to install
         name: String,
     },
+
+    /// Audit plugins for checksum verification status
+    Audit,
 }
 
 #[tokio::main]
@@ -546,6 +552,10 @@ async fn run_plugins_command(command: PluginsCommand) -> Result<()> {
     match command {
         PluginsCommand::List => run_plugins_list().await,
         PluginsCommand::Install { name } => run_plugins_install(&name),
+        PluginsCommand::Audit => {
+            run_plugins_audit();
+            Ok(())
+        }
     }
 }
 
@@ -621,6 +631,118 @@ fn run_plugins_install(name: &str) -> Result<()> {
          2. Ensure it has a manifest.json file\n\
          3. Run `hamr reload-plugins` to load it"
     );
+}
+
+fn run_plugins_audit() {
+    let dirs = Directories::new();
+    let checksums_path = dirs.builtin_plugins.join("checksums.json");
+
+    let Some(checksums) = ChecksumsData::load(&checksums_path) else {
+        println!("No checksums.json found at: {}", checksums_path.display());
+        println!("\nChecksum verification is only available for official releases.");
+        println!("To generate checksums, run: scripts/generate-plugin-checksums.sh");
+        return;
+    };
+
+    if !checksums.is_available() {
+        println!("checksums.json is empty - no plugins to verify.");
+        return;
+    }
+
+    println!("Plugin Audit Report\n");
+    println!("Checksums: {}", checksums_path.display());
+    println!("Plugins tracked: {}\n", checksums.plugin_count());
+
+    let mut verified = Vec::new();
+    let mut modified = Vec::new();
+    let mut unknown = Vec::new();
+
+    let plugin_dirs = [&dirs.builtin_plugins, &dirs.user_plugins];
+
+    for plugin_dir in &plugin_dirs {
+        if !plugin_dir.exists() {
+            continue;
+        }
+
+        let Ok(entries) = std::fs::read_dir(plugin_dir) else {
+            continue;
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+
+            let plugin_id = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            if plugin_id == "sdk" || plugin_id == "__pycache__" {
+                continue;
+            }
+
+            let Ok(plugin) = Plugin::load(path.clone()) else {
+                continue;
+            };
+
+            let status = checksums.verify_plugin(&plugin_id, &path);
+
+            match status {
+                PluginVerifyStatus::Verified => {
+                    verified.push((plugin_id, plugin.manifest.name));
+                }
+                PluginVerifyStatus::Modified(files) => {
+                    modified.push((plugin_id, plugin.manifest.name, files));
+                }
+                PluginVerifyStatus::Unknown => {
+                    unknown.push((plugin_id, plugin.manifest.name));
+                }
+            }
+        }
+    }
+
+    if !verified.is_empty() {
+        println!("VERIFIED ({}):", verified.len());
+        for (id, name) in &verified {
+            println!("  [OK] {id:<16} {name}");
+        }
+        println!();
+    }
+
+    if !modified.is_empty() {
+        println!("MODIFIED ({}):", modified.len());
+        for (id, name, files) in &modified {
+            println!("  [!!] {id:<16} {name}");
+            for file in files {
+                println!("       - {file}");
+            }
+        }
+        println!();
+    }
+
+    if !unknown.is_empty() {
+        println!("UNKNOWN ({}):", unknown.len());
+        for (id, name) in &unknown {
+            println!("  [??] {id:<16} {name}");
+        }
+        println!();
+    }
+
+    println!("---");
+    println!(
+        "Summary: {} verified, {} modified, {} unknown",
+        verified.len(),
+        modified.len(),
+        unknown.len()
+    );
+
+    if !modified.is_empty() {
+        println!("\nWARNING: Modified plugins may have been tampered with.");
+        println!("Review the modified files or reinstall from a trusted source.");
+    }
 }
 
 fn generate_daemon_service() -> Result<String> {

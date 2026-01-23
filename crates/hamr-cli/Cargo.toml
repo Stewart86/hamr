@@ -13,6 +13,7 @@ name = "hamr"
 path = "src/main.rs"
 
 [dependencies]
+hamr-core = { path = "../hamr-core" }
 hamr-rpc = { path = "../hamr-rpc" }
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }

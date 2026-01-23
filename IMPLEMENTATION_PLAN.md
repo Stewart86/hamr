@@ -40,7 +40,7 @@
 - [x] Add runtime checksum verification in daemon
   - Acceptance: Daemon logs warning on plugin checksum mismatch
   - Files: crates/hamr-daemon/src/... or crates/hamr-core/src/plugin/...
-- [ ] Add `hamr plugins audit` CLI command
+- [x] Add `hamr plugins audit` CLI command
   - Acceptance: Command lists plugins with verified/modified/unknown status
   - Files: crates/hamr-cli/src/main.rs
 - [ ] Update SECURITY.md with plugin trust model

@@ -79,3 +79,9 @@
 - Files: crates/hamr-core/src/plugin/checksum.rs (new), crates/hamr-core/src/plugin/mod.rs, crates/hamr-core/Cargo.toml (added sha2, hex deps), crates/hamr-daemon/src/server.rs
 - Learned: Checksum verification loads checksums.json from builtin_plugins dir at daemon startup. Each plugin's files are verified with SHA256 during discovery. Modified files trigger warnings, unknown plugins (user-installed) log debug messages, verified plugins log debug success. Added 8 unit tests for checksum module covering load/verify/hash scenarios.
 ---
+
+## [hamr-plugins-audit] - DONE
+- What: Added `hamr plugins audit` CLI command that lists plugins with verified/modified/unknown status
+- Files: crates/hamr-cli/Cargo.toml (added hamr-core dep), crates/hamr-cli/src/main.rs
+- Learned: Reused ChecksumsData and PluginVerifyStatus from hamr-core::plugin module (already exported). The command scans both builtin_plugins and user_plugins directories, skipping sdk and __pycache__ dirs. Shows summary with VERIFIED/MODIFIED/UNKNOWN counts and warnings for modified plugins.
+---
