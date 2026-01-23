@@ -67,3 +67,9 @@
 - Files: scripts/generate-plugin-checksums.sh (new), plugins/checksums.json (generated)
 - Learned: Plugin structure is consistent: each plugin has manifest.json and handler.py; some have additional data files (emojis.tsv, launch-webapp). Script supports --verify mode for verification.
 ---
+
+## [checksum-in-release-workflow] - DONE
+- What: Added plugin checksum generation step to release workflow for both x86_64 and aarch64 builds
+- Files: .github/workflows/release.yml
+- Learned: The checksum script runs after build and before archive creation, so checksums.json is included in the plugins directory within the release tarball. For aarch64, the script runs outside Docker since plugins are the same on all architectures.
+---

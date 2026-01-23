@@ -34,7 +34,7 @@
 - [x] Create `scripts/generate-plugin-checksums.sh`
   - Acceptance: Script outputs `plugins/checksums.json` with SHA256 per plugin file
   - Files: scripts/generate-plugin-checksums.sh
-- [ ] Add checksum generation to release workflow
+- [x] Add checksum generation to release workflow
   - Acceptance: `checksums.json` included in release artifacts
   - Files: .github/workflows/release.yml
 - [ ] Add runtime checksum verification in daemon

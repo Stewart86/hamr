@@ -38,6 +38,9 @@ jobs:
       - name: Build release binaries
         run: cargo build --release
 
+      - name: Generate plugin checksums
+        run: ./scripts/generate-plugin-checksums.sh
+
       - name: Create archive
         run: |
           mkdir -p dist/hamr-linux-x86_64
@@ -79,6 +82,9 @@ jobs:
             source $HOME/.cargo/env
             cargo build --release
           '
+
+      - name: Generate plugin checksums
+        run: ./scripts/generate-plugin-checksums.sh
 
       - name: Create archive
         run: |
