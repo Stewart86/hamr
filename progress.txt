@@ -91,3 +91,9 @@
 - Files: SECURITY.md
 - Learned: Updated outdated QML/Quickshell reference to Rust/GTK4. Added comprehensive Plugin Trust Model section with verification status table, `hamr plugins audit` example output, and guidance on regenerating checksums. Skipped `python -m compileall plugins` check since SDK/plugins were untouched.
 ---
+
+## [sdk-readme-quickstart] - DONE
+- What: Created plugins/sdk/README.md with comprehensive quick start guide, manifest template, handler examples (stdio and socket), response type documentation, and testing workflow
+- Files: plugins/sdk/README.md (new)
+- Learned: Plugin SDK supports both stdio (stateless JSON stdin/stdout) and socket (HamrPlugin class with decorators) communication models. Testing workflow uses `cargo run -p hamr-daemon` with log tailing at `/tmp/hamr-daemon.log`. SDK provides response builders like `plugin.results()`, `plugin.copy_and_close()`, etc. Skipped `python -m compileall plugins` since only markdown was added.
+---

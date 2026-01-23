@@ -48,7 +48,7 @@
   - Files: SECURITY.md
 
 ## Plugin SDK Guidance
-- [ ] Update `plugins/sdk/README.md` with quick start and testing workflow
+- [x] Update `plugins/sdk/README.md` with quick start and testing workflow
   - Acceptance: README has: manifest template, handler example, testing steps with `cargo run -p hamr-daemon`
   - Reference: existing `plugins/sdk/hamr_sdk.py` docstring for example usage
   - Files: plugins/sdk/README.md
