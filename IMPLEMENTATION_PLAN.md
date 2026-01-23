@@ -61,7 +61,7 @@
   - Files: CONTRIBUTING.md
 
 ## Release Readiness Checklist
-- [ ] Create `scripts/release-check.sh`
+- [x] Create `scripts/release-check.sh`
   - Acceptance: Script runs fmt/clippy/test/build/mkdocs and exits non-zero on failure
   - Files: scripts/release-check.sh
 - [ ] Create `docs/releases/checklist.md`

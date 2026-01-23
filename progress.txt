@@ -109,3 +109,9 @@
 - Files: CONTRIBUTING.md
 - Learned: Also updated outdated QML code style section to Rust, and fixed bug report log path references (was `qs -c hamr`, now `/tmp/hamr-daemon.log`). Skipped `python -m compileall plugins` since only markdown was modified.
 ---
+
+## [release-check-script] - DONE
+- What: Created scripts/release-check.sh that runs fmt/clippy/test/build/mkdocs and exits non-zero on failure
+- Files: scripts/release-check.sh (new)
+- Learned: Script follows existing pattern from generate-plugin-checksums.sh. Includes --quick mode to skip cargo test, verbose output on failure, summary with pass/fail counts. Also checks plugin checksums if checksums.json exists, and python syntax check if python3 is available.
+---
