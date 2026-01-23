@@ -145,6 +145,15 @@ See `plugins/sdk/README.md` for response types and SDK usage.
 - Ensure existing tests still pass
 - Add tests for new functionality
 
+## Release Process
+
+For maintainers preparing a release, see the [Release Checklist](docs/releases/checklist.md) which covers:
+
+- Automated pre-flight checks (`./scripts/release-check.sh`)
+- Manual smoke tests (daemon, TUI, plugins, GTK)
+- Version bump procedure
+- Post-release verification
+
 ## Questions?
 
 Open an issue or start a discussion. Happy to help!

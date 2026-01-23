@@ -1,3 +1,12 @@
+# Release Workflow
+#
+# Before triggering a release, complete the manual steps in:
+# docs/releases/checklist.md
+#
+# This workflow is triggered by:
+# - Pushing a tag matching 'v*' (e.g., v0.1.0)
+# - Manual dispatch with optional tag input
+
 name: Release
 
 on:

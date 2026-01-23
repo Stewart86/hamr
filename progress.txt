@@ -121,3 +121,9 @@
 - Files: docs/releases/checklist.md (new), mkdocs.yml (added nav entry)
 - Learned: Checklist covers 7 manual smoke tests (daemon startup, TUI search, plugin communication, index functionality, plugin audit, GTK UI, configuration loading) plus version bump checklist and rollback procedure.
 ---
+
+## [link-checklist-from-docs] - DONE
+- What: Added release checklist links to CONTRIBUTING.md (new "Release Process" section) and release.yml workflow (header comment)
+- Files: CONTRIBUTING.md, .github/workflows/release.yml
+- Learned: Pre-existing test race condition in hamr-rpc test_socket_path_with_xdg due to parallel env var manipulation; passes with --test-threads=1
+---

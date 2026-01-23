@@ -67,7 +67,7 @@
 - [x] Create `docs/releases/checklist.md`
   - Acceptance: Numbered manual steps for smoke testing before release
   - Files: docs/releases/checklist.md
-- [ ] Link checklist from CONTRIBUTING.md and release workflow
+- [x] Link checklist from CONTRIBUTING.md and release workflow
   - Acceptance: Links added to both files
   - Files: CONTRIBUTING.md, .github/workflows/release.yml
 
