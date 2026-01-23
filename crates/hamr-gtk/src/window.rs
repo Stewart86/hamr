@@ -56,15 +56,9 @@ fn get_startup_wm_class(desktop_id: &str) -> Option<String> {
     let desktop_file = desktop_id.strip_suffix(".desktop").unwrap_or(desktop_id);
 
     let search_paths = [
-        format!(
-            "/var/lib/flatpak/exports/share/applications/{}.desktop",
-            desktop_file
-        ),
-        format!("/usr/share/applications/{}.desktop", desktop_file),
-        format!(
-            "/home/siwei/.local/share/applications/{}.desktop",
-            desktop_file
-        ),
+        format!("/var/lib/flatpak/exports/share/applications/{desktop_file}.desktop"),
+        format!("/usr/share/applications/{desktop_file}.desktop"),
+        format!("/home/siwei/.local/share/applications/{desktop_file}.desktop"),
     ];
 
     for path in search_paths {
@@ -93,13 +87,12 @@ fn window_is_default_browser(window: &CompositorWindow, browser_desktop_id: &str
         return true;
     }
 
-    if let Some(wm_class) = get_startup_wm_class(browser_desktop_id) {
-        if window_class == wm_class
+    if let Some(wm_class) = get_startup_wm_class(browser_desktop_id)
+        && (window_class == wm_class
             || window_class.contains(&wm_class)
-            || wm_class.contains(&window_class)
-        {
-            return true;
-        }
+            || wm_class.contains(&window_class))
+    {
+        return true;
     }
 
     false
@@ -647,7 +640,7 @@ impl LauncherWindow {
     // Layout construction - sequential GTK widget creation with nested containers
     #[allow(clippy::type_complexity, clippy::too_many_lines)]
     fn build_content(
-        _theme: &Theme,
+        theme: &Theme,
         state: &Rc<RefCell<AppState>>,
     ) -> (
         gtk4::Overlay,
@@ -771,7 +764,7 @@ impl LauncherWindow {
 
         // Create unified result view (starts in List mode by default)
         let view_mode = state.borrow().view_mode;
-        let result_view = ResultView::new(view_mode, _theme);
+        let result_view = ResultView::new(view_mode, theme);
 
         container.append(result_view.widget());
 
@@ -3635,10 +3628,8 @@ impl LauncherWindow {
                         }
 
                         // Redirect to /dev/null to prevent issues with broken pipes
-                        let devnull = libc::open(
-                            b"/dev/null\0".as_ptr() as *const libc::c_char,
-                            libc::O_RDWR,
-                        );
+                        let devnull =
+                            libc::open(c"/dev/null".as_ptr().cast::<libc::c_char>(), libc::O_RDWR);
                         if devnull != -1 {
                             libc::dup2(devnull, 0);
                             libc::dup2(devnull, 1);

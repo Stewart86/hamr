@@ -25,7 +25,7 @@ pub enum PluginVerifyStatus {
 /// Checksums data loaded from checksums.json
 #[derive(Debug, Clone, Default)]
 pub struct ChecksumsData {
-    /// Map of plugin_id to (filename to sha256 hex string)
+    /// Map of `plugin_id` to (filename to sha256 hex string)
     plugins: HashMap<String, HashMap<String, String>>,
 }
 

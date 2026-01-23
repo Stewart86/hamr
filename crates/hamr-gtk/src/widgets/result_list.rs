@@ -154,7 +154,7 @@ impl ResultList {
         })
     }
 
-    /// Check if a result is running (checks both app_id and app_id_fallback)
+    /// Check if a result is running (checks both `app_id` and `app_id_fallback`)
     fn result_is_running(&self, result: &SearchResult) -> bool {
         if let Some(true) = result
             .app_id

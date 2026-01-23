@@ -145,16 +145,13 @@ async fn rpc_session(
     loop {
         tokio::select! {
             event = event_rx.recv() => {
-                match event {
-                    Ok(event) => {
-                        if let Err(e) = send_event(client, event).await {
-                            error!("Failed to send event: {}", e);
-                        }
+                if let Ok(event) = event {
+                    if let Err(e) = send_event(client, event).await {
+                        error!("Failed to send event: {}", e);
                     }
-                    Err(_) => {
-                        info!("Event channel closed, shutting down RPC task");
-                        return Ok(SessionOutcome::Shutdown);
-                    }
+                } else {
+                    info!("Event channel closed, shutting down RPC task");
+                    return Ok(SessionOutcome::Shutdown);
                 }
             }
 
@@ -189,7 +186,7 @@ async fn wait_before_reconnect(event_rx: &async_channel::Receiver<CoreEvent>) ->
 
     loop {
         tokio::select! {
-            _ = &mut sleep => {
+            () = &mut sleep => {
                 return true;
             }
 

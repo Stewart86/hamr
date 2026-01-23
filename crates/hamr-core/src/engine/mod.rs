@@ -104,7 +104,7 @@ pub struct LauncherState {
     pub plugin_management: bool,
 
     /// Pending initial query to send to plugin after it opens
-    /// Used to handle the race between ClearInput and the next query_changed
+    /// Used to handle the race between `ClearInput` and the next `query_changed`
     pub pending_initial_query: Option<String>,
 }
 

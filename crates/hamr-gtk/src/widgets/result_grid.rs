@@ -80,7 +80,7 @@ impl ResultGrid {
             &grid_items,
             selection_model.clone(),
             on_select.clone(),
-            theme.clone(),
+            &theme,
         );
 
         let grid_view = gtk4::GridView::builder()
@@ -152,7 +152,7 @@ impl ResultGrid {
         grid_items: &Rc<RefCell<HashMap<u32, Rc<GridItem>>>>,
         selection_model: gtk4::SingleSelection,
         on_select: Rc<RefCell<Option<SelectCallback>>>,
-        theme: Rc<RefCell<Theme>>,
+        theme: &Rc<RefCell<Theme>>,
     ) -> SignalListItemFactory {
         let factory = SignalListItemFactory::new();
 

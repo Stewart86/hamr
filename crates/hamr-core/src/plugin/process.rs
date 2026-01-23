@@ -37,6 +37,7 @@ impl PluginProcess {
     /// # Errors
     ///
     /// Returns an error if the process fails to spawn or I/O setup fails.
+    #[allow(clippy::too_many_lines)]
     pub fn spawn(plugin_id: &str, handler_path: &Path, working_dir: &Path) -> Result<Self> {
         let mut child = Command::new(handler_path)
             .current_dir(working_dir)
@@ -115,8 +116,8 @@ impl PluginProcess {
                     }
                     Err(e) => {
                         let error_msg =
-                            format!("Plugin '{}' returned invalid JSON: {}", plugin_id_clone, e);
-                        warn!("{} - Raw: {}", error_msg, line);
+                            format!("Plugin '{plugin_id_clone}' returned invalid JSON: {e}");
+                        warn!("{error_msg} - Raw: {line}");
                         if response_tx
                             .send(PluginResponse::Error {
                                 message: error_msg,

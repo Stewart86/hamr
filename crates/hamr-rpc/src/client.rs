@@ -44,6 +44,7 @@ fn is_dev_socket() -> bool {
 }
 
 /// Get the socket path for the hamr daemon in dev mode.
+#[must_use]
 pub fn dev_socket_path() -> PathBuf {
     runtime_dir().join("hamr-dev.sock")
 }
@@ -52,6 +53,7 @@ pub fn dev_socket_path() -> PathBuf {
 ///
 /// On Linux, prefers `$XDG_RUNTIME_DIR` for proper runtime file handling.
 /// Falls back to the system temp directory for cross-platform compatibility.
+#[must_use]
 pub fn socket_path() -> PathBuf {
     let socket_name = if is_dev_socket() {
         "hamr-dev.sock"

@@ -85,7 +85,7 @@
 
 ## Cleanup Tasks
 - [x] Run `mkdocs build` - verify no broken links
-- [ ] Run `cargo fmt --all -- --check`
-- [ ] Run `cargo clippy --all-targets`
-- [ ] Run `cargo test --all`
-- [ ] Run `python -m compileall plugins` (optional)
+- [x] Run `cargo fmt --all -- --check`
+- [x] Run `cargo clippy --all-targets`
+- [x] Run `cargo test --all`
+- [x] Run `python -m compileall plugins` (optional)

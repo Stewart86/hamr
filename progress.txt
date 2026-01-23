@@ -151,3 +151,9 @@
 - Files: docs/getting-started/configuration.md
 - Learned: mkdocs build INFO messages about pages not in nav (plugins/advanced-features.md, etc.) are expected - these are legacy plugin docs intentionally hidden from navigation. Skipped `python -m compileall plugins` since only markdown was modified.
 ---
+
+## [cleanup-clippy] - DONE
+- What: Fixed all clippy pedantic warnings across the codebase including must_use attributes, doc_markdown backticks, format string inlining, if-let collapsing, and C string literals
+- Files: crates/hamr-rpc/src/client.rs, crates/hamr-core/src/plugin/checksum.rs, crates/hamr-core/src/plugin/process.rs, crates/hamr-core/src/engine/mod.rs, crates/hamr-gtk/src/rpc.rs, crates/hamr-gtk/src/widgets/result_grid.rs, crates/hamr-gtk/src/widgets/result_list.rs, crates/hamr-gtk/src/window.rs
+- Learned: Clippy pedantic warnings require: `#[must_use]` on functions returning values, backticks around identifiers in doc comments, inlined format args (`{var}` not `{}`, var), `if let` instead of `match` for single-pattern else, `c"string"` C string literals instead of `b"string\0"`, proper reference passing to avoid needless clones
+---
