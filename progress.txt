@@ -48,3 +48,9 @@
 - What: Added compositor support matrix table and layer-shell package names to README and installation docs
 - Files: README.md, docs/getting-started/installation.md
 - Learned: Created comprehensive support matrix showing Hyprland/Niri/Sway/KDE Wayland as supported, GNOME/X11 as not supported, plus distro-specific package names for layer-shell dependencies
+---
+
+## [troubleshooting-table] - DONE
+- What: Created comprehensive troubleshooting guide with quick diagnosis table (8 issues) and detailed sections for daemon, plugin, display, and performance issues
+- Files: docs/getting-started/troubleshooting.md (new), mkdocs.yml (added nav entry)
+- Learned: mkdocs-material requires `pipx install mkdocs-material --include-deps && pipx inject mkdocs-material mike` for proper installation

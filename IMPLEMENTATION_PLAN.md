@@ -23,7 +23,7 @@
   - Acceptance: Table with columns (Compositor | Status | Notes) in README and docs
   - Content: Hyprland/Niri/Sway (supported), KDE Wayland (supported), GNOME/X11 (not supported)
   - Files: README.md, docs/getting-started/installation.md
-- [ ] Add troubleshooting table
+- [x] Add troubleshooting table
   - Acceptance: Table with columns (Symptom | Cause | Solution) with 5+ common issues
   - Files: README.md or new docs/getting-started/troubleshooting.md
 - [ ] Document layer-shell package names per distro
