@@ -1,0 +1,13 @@
+{
+  "name": "Default Apps",
+  "description": "Configure default apps via XDG",
+  "icon": "settings_applications",
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
+}
