@@ -286,12 +286,19 @@ impl ResultGrid {
     }
 
     pub fn set_results(&self, results: &[SearchResult]) {
+        self.set_results_impl(results, true);
+    }
+
+    pub fn set_results_with_selection(&self, results: &[SearchResult], reset_selection: bool) {
+        self.set_results_impl(results, reset_selection);
+    }
+
+    fn set_results_impl(&self, results: &[SearchResult], reset_selection: bool) {
         let _span = debug_span!("ResultGrid::set_results", count = results.len()).entered();
-        debug!(count = results.len(), "full rebuild");
+        debug!(count = results.len(), "full rebuild, reset_selection={}", reset_selection);
         self.model.remove_all();
         self.grid_items.borrow_mut().clear();
 
-        // Cache results for selection change callback
         *self.results.borrow_mut() = results.to_vec();
 
         for result in results {
@@ -299,19 +306,17 @@ impl ResultGrid {
             self.model.append(&obj);
         }
 
-        if !results.is_empty() {
-            self.selection_model.set_selected(0);
-        }
+        if !results.is_empty()
+            && reset_selection {
+                self.selection_model.set_selected(0);
+                self.scroll_to_selected();
+            }
 
         *self.selected_action.borrow_mut() = -1;
 
         let max_height = *self.max_height.borrow();
         self.scrolled.set_max_content_height(max_height);
 
-        // Measure actual content height and set min_content_height
-        // This is needed because GtkFixed container doesn't respect natural height
-        // Without min_content_height, content collapses to minimum size (tiny bar)
-        // With min_content_height, ScrolledWindow enforces the size properly
         if results.is_empty() {
             self.scrolled.set_min_content_height(0);
         } else {
@@ -324,13 +329,15 @@ impl ResultGrid {
         self.notify_selection_change();
     }
 
-    // Enumerate index is usize, GTK model item() takes u32
-    #[allow(clippy::cast_possible_truncation)]
-    pub fn update_results_diff(&self, results: &[SearchResult]) -> bool {
+    pub fn update_results_diff_with_selection(&self, results: &[SearchResult], reset_selection: bool) -> bool {
+        self.update_results_diff_impl(results, reset_selection)
+    }
+
+    fn update_results_diff_impl(&self, results: &[SearchResult], reset_selection: bool) -> bool {
         let _span = debug_span!("ResultGrid::update_results_diff", count = results.len()).entered();
         if self.model.n_items() == 0 || results.is_empty() {
             debug!(reason = "empty", "falling back to full rebuild");
-            self.set_results(results);
+            self.set_results_with_selection(results, reset_selection);
             return true;
         }
 
@@ -421,6 +428,7 @@ impl ResultGrid {
     pub fn reset_selection(&self) {
         if self.model.n_items() > 0 {
             self.selection_model.set_selected(0);
+            self.scroll_to_selected();
             self.notify_selection_change();
         }
     }

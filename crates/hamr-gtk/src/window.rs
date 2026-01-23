@@ -118,6 +118,8 @@ struct AppState {
     plugin_actions: Vec<PluginAction>,
     selected_action_index: i32,
     show_keybinding_map: bool,
+    /// Track last query to detect changes and reset selection
+    last_query: String,
     /// Plugin status updates (badges, chips) keyed by `plugin_id`
     plugin_statuses: HashMap<String, PluginStatus>,
     /// Ambient items keyed by `plugin_id`
@@ -189,6 +191,7 @@ impl Default for AppState {
             compact_mode: false,
             pending_type_text: None,
             plugin_management: false,
+            last_query: String::new(),
         }
     }
 }
@@ -2561,14 +2564,26 @@ impl LauncherWindow {
                 // Get theme for passing to result view
                 let theme = config_watcher.theme();
 
+                // Check if query changed to determine if we should reset selection
+                let current_query = search_entry.text().to_string();
+                let query_changed = {
+                    let state_borrow = state.borrow();
+                    state_borrow.last_query != current_query
+                };
+
+                // Update stored query first
+                {
+                    state.borrow_mut().last_query.clone_from(&current_query);
+                }
+
                 // Update results
                 let in_plugin = state.borrow().active_plugin.is_some();
                 if in_plugin {
                     result_view
                         .borrow()
-                        .update_results_diff(&merged_results, &theme);
+                        .update_results_diff_with_selection(&merged_results, &theme, query_changed);
                 } else {
-                    result_view.borrow().set_results(&merged_results, &theme);
+                    result_view.borrow().set_results_with_selection(&merged_results, &theme, query_changed);
                 }
 
                 // GtkFixed doesn't always relayout immediately when a positioned child changes its

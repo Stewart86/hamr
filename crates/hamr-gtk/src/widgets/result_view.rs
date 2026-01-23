@@ -310,19 +310,23 @@ impl ResultView {
         }
     }
 
-    // Data methods - delegate to current view
+// Data methods - delegate to current view
     pub fn set_results(&self, results: &[SearchResult], theme: &Theme) {
+        self.set_results_with_selection(results, theme, true);
+    }
+
+    pub fn set_results_with_selection(&self, results: &[SearchResult], theme: &Theme, reset_selection: bool) {
         let has_results = !results.is_empty();
         match self.mode {
             ResultViewMode::List => {
                 if let Some(ref list) = self.list {
-                    list.set_results(results, theme);
+                    list.set_results_with_selection(results, theme, reset_selection);
                     list.widget().set_visible(has_results);
                 }
             }
             ResultViewMode::Grid => {
                 if let Some(ref grid) = self.grid {
-                    grid.set_results(results);
+                    grid.set_results_with_selection(results, reset_selection);
                     grid.widget().set_visible(has_results);
                 }
             }
@@ -330,18 +334,19 @@ impl ResultView {
     }
 
     pub fn update_results_diff(&self, results: &[SearchResult], theme: &Theme) {
-        let has_results = !results.is_empty();
+        self.update_results_diff_with_selection(results, theme, true);
+    }
+
+    pub fn update_results_diff_with_selection(&self, results: &[SearchResult], theme: &Theme, reset_selection: bool) {
         match self.mode {
             ResultViewMode::List => {
                 if let Some(ref list) = self.list {
-                    list.update_results_diff(results, theme);
-                    list.widget().set_visible(has_results);
+                    list.update_results_diff_with_selection(results, theme, reset_selection);
                 }
             }
             ResultViewMode::Grid => {
                 if let Some(ref grid) = self.grid {
-                    grid.update_results_diff(results);
-                    grid.widget().set_visible(has_results);
+                    grid.update_results_diff_with_selection(results, reset_selection);
                 }
             }
         }
