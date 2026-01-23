@@ -145,3 +145,9 @@
 - Files: README.md, docs/getting-started/installation.md
 - Learned: README documentation section now includes Logging and Troubleshooting links; installation.md has contextual links after the "View logs" section. Skipped `python -m compileall plugins` since only markdown was modified.
 ---
+
+## [cleanup-mkdocs] - DONE
+- What: Fixed broken anchor link in features.md pointing to configuration.md#prefix-shortcuts by adding a dedicated "Prefix Shortcuts" section to configuration.md
+- Files: docs/getting-started/configuration.md
+- Learned: mkdocs build INFO messages about pages not in nav (plugins/advanced-features.md, etc.) are expected - these are legacy plugin docs intentionally hidden from navigation. Skipped `python -m compileall plugins` since only markdown was modified.
+---

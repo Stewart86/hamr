@@ -17,13 +17,35 @@ Hamr is configured via `~/.config/hamr/config.json`. Use the built-in settings p
 |                | `engineBaseUrl`          | `https://www.google.com/search?q=` | Default search engine URL                                   |
 |                | `excludedSites`          | `[]`                        | Sites to exclude from web search results                                   |
 |                | `pluginRankingBonus`     | `{}`                        | Per-plugin score boosts (e.g., `{"apps": 200}`)                            |
-| **Prefixes**   | `plugins`                | `/`                         | Plugin search prefix                                                       |
-|                | `app`                    | `@`                         | Application search prefix                                                  |
-|                | `emojis`                 | `:`                         | Emoji search prefix                                                        |
-|                | `math`                   | `=`                         | Calculator search prefix                                                   |
-|                | `shellCommand`           | `!`                         | Shell command prefix                                                       |
-|                | `webSearch`              | `?`                         | Web search prefix                                                          |
 | **Action Bar** | `actionBarHints`         | _see below_                 | Customizable action bar shortcuts                                          |
+
+## Prefix Shortcuts
+
+Search prefixes let you quickly jump to specific functionality by typing a character:
+
+| Prefix | Option         | Function                     |
+| ------ | -------------- | ---------------------------- |
+| `/`    | `plugins`      | Search plugins by name       |
+| `@`    | `app`          | Application search           |
+| `:`    | `emojis`       | Emoji search                 |
+| `=`    | `math`         | Calculator                   |
+| `!`    | `shellCommand` | Shell command                |
+| `?`    | `webSearch`    | Web search                   |
+
+Configure these in `config.json` under the `search` section:
+
+```json
+{
+  "search": {
+    "plugins": "/",
+    "app": "@",
+    "emojis": ":",
+    "math": "=",
+    "shellCommand": "!",
+    "webSearch": "?"
+  }
+}
+```
 
 ## Action Bar Hints
 

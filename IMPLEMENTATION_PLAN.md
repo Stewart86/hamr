@@ -84,7 +84,7 @@
   - Files: README.md, docs/getting-started/installation.md
 
 ## Cleanup Tasks
-- [ ] Run `mkdocs build` - verify no broken links
+- [x] Run `mkdocs build` - verify no broken links
 - [ ] Run `cargo fmt --all -- --check`
 - [ ] Run `cargo clippy --all-targets`
 - [ ] Run `cargo test --all`
