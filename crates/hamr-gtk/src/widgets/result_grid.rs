@@ -370,21 +370,46 @@ impl ResultGrid {
     }
 
     pub fn select_up(&self) {
-        let columns = *self.columns.borrow();
+        let columns = (*self.columns.borrow()).max(1);
         let current = self.selection_model.selected();
-        if current >= columns {
-            self.selection_model.set_selected(current - columns);
+        let n_items = self.model.n_items();
+        if n_items == 0 {
+            return;
+        }
+
+        let col = current % columns;
+        let target = if current >= columns {
+            current - columns
+        } else {
+            let last_row_start = ((n_items - 1) / columns) * columns;
+            let last_row_target = last_row_start + col;
+            last_row_target.min(n_items - 1)
+        };
+
+        if target != current {
+            self.selection_model.set_selected(target);
             self.scroll_to_selected();
             self.notify_selection_change();
         }
     }
 
     pub fn select_down(&self) {
-        let columns = *self.columns.borrow();
+        let columns = (*self.columns.borrow()).max(1);
         let current = self.selection_model.selected();
         let n_items = self.model.n_items();
-        if current + columns < n_items {
-            self.selection_model.set_selected(current + columns);
+        if n_items == 0 {
+            return;
+        }
+
+        let col = current % columns;
+        let target = if current + columns < n_items {
+            current + columns
+        } else {
+            col.min(n_items - 1)
+        };
+
+        if target != current {
+            self.selection_model.set_selected(target);
             self.scroll_to_selected();
             self.notify_selection_change();
         }
@@ -392,8 +417,22 @@ impl ResultGrid {
 
     pub fn select_left(&self) {
         let current = self.selection_model.selected();
-        if current > 0 {
-            self.selection_model.set_selected(current - 1);
+        let n_items = self.model.n_items();
+        if n_items == 0 {
+            return;
+        }
+
+        let columns = (*self.columns.borrow()).max(1);
+        let row_start = (current / columns) * columns;
+        let row_end = (row_start + columns - 1).min(n_items - 1);
+        let target = if current == row_start {
+            row_end
+        } else {
+            current - 1
+        };
+
+        if target != current {
+            self.selection_model.set_selected(target);
             self.scroll_to_selected();
             self.notify_selection_change();
         }
@@ -402,8 +441,21 @@ impl ResultGrid {
     pub fn select_right(&self) {
         let current = self.selection_model.selected();
         let n_items = self.model.n_items();
-        if current + 1 < n_items {
-            self.selection_model.set_selected(current + 1);
+        if n_items == 0 {
+            return;
+        }
+
+        let columns = (*self.columns.borrow()).max(1);
+        let row_start = (current / columns) * columns;
+        let row_end = (row_start + columns - 1).min(n_items - 1);
+        let target = if current == row_end {
+            row_start
+        } else {
+            (current + 1).min(n_items - 1)
+        };
+
+        if target != current {
+            self.selection_model.set_selected(target);
             self.scroll_to_selected();
             self.notify_selection_change();
         }

@@ -401,16 +401,18 @@ impl ResultList {
         }
 
         let mut selected = self.selected.borrow_mut();
-        if *selected > 0 {
-            items[*selected].set_selected(false);
+        items[*selected].set_selected(false);
+        if *selected == 0 {
+            *selected = items.len() - 1;
+        } else {
             *selected -= 1;
-            items[*selected].set_selected(true);
-            let idx = *selected;
-            drop(selected);
-            drop(items);
-            self.scroll_to_selected(idx);
-            self.notify_selection_change();
         }
+        items[*selected].set_selected(true);
+        let idx = *selected;
+        drop(selected);
+        drop(items);
+        self.scroll_to_selected(idx);
+        self.notify_selection_change();
     }
 
     /// Move selection down
@@ -421,16 +423,18 @@ impl ResultList {
         }
 
         let mut selected = self.selected.borrow_mut();
-        if *selected < items.len() - 1 {
-            items[*selected].set_selected(false);
+        items[*selected].set_selected(false);
+        if *selected + 1 >= items.len() {
+            *selected = 0;
+        } else {
             *selected += 1;
-            items[*selected].set_selected(true);
-            let idx = *selected;
-            drop(selected);
-            drop(items);
-            self.scroll_to_selected(idx);
-            self.notify_selection_change();
         }
+        items[*selected].set_selected(true);
+        let idx = *selected;
+        drop(selected);
+        drop(items);
+        self.scroll_to_selected(idx);
+        self.notify_selection_change();
     }
 
     /// Get the currently selected item ID
