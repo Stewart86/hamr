@@ -64,7 +64,7 @@
 - [x] Create `scripts/release-check.sh`
   - Acceptance: Script runs fmt/clippy/test/build/mkdocs and exits non-zero on failure
   - Files: scripts/release-check.sh
-- [ ] Create `docs/releases/checklist.md`
+- [x] Create `docs/releases/checklist.md`
   - Acceptance: Numbered manual steps for smoke testing before release
   - Files: docs/releases/checklist.md
 - [ ] Link checklist from CONTRIBUTING.md and release workflow

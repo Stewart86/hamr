@@ -50,6 +50,8 @@ nav:
   - Architecture: architecture.md
   - Development:
       - Plugin Protocol: plugin-protocol.md
+  - Releases:
+      - Checklist: releases/checklist.md
 
 markdown_extensions:
   - pymdownx.highlight:

@@ -115,3 +115,9 @@
 - Files: scripts/release-check.sh (new)
 - Learned: Script follows existing pattern from generate-plugin-checksums.sh. Includes --quick mode to skip cargo test, verbose output on failure, summary with pass/fail counts. Also checks plugin checksums if checksums.json exists, and python syntax check if python3 is available.
 ---
+
+## [docs-releases-checklist] - DONE
+- What: Created comprehensive release checklist with pre-flight checks, manual smoke tests, version bump steps, post-release verification, and troubleshooting
+- Files: docs/releases/checklist.md (new), mkdocs.yml (added nav entry)
+- Learned: Checklist covers 7 manual smoke tests (daemon startup, TUI search, plugin communication, index functionality, plugin audit, GTK UI, configuration loading) plus version bump checklist and rollback procedure.
+---
