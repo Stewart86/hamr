@@ -73,3 +73,9 @@
 - Files: .github/workflows/release.yml
 - Learned: The checksum script runs after build and before archive creation, so checksums.json is included in the plugins directory within the release tarball. For aarch64, the script runs outside Docker since plugins are the same on all architectures.
 ---
+
+## [runtime-checksum-verification] - DONE
+- What: Added runtime checksum verification in daemon that logs warnings when plugin files are modified
+- Files: crates/hamr-core/src/plugin/checksum.rs (new), crates/hamr-core/src/plugin/mod.rs, crates/hamr-core/Cargo.toml (added sha2, hex deps), crates/hamr-daemon/src/server.rs
+- Learned: Checksum verification loads checksums.json from builtin_plugins dir at daemon startup. Each plugin's files are verified with SHA256 during discovery. Modified files trigger warnings, unknown plugins (user-installed) log debug messages, verified plugins log debug success. Added 8 unit tests for checksum module covering load/verify/hash scenarios.
+---

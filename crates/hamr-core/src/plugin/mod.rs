@@ -1,8 +1,10 @@
+mod checksum;
 mod convert;
 mod manifest;
 mod process;
 mod protocol;
 
+pub use checksum::{ChecksumsData, PluginVerifyStatus};
 pub use convert::{plugin_response_to_updates, process_status_data};
 
 pub use manifest::{

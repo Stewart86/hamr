@@ -37,7 +37,7 @@
 - [x] Add checksum generation to release workflow
   - Acceptance: `checksums.json` included in release artifacts
   - Files: .github/workflows/release.yml
-- [ ] Add runtime checksum verification in daemon
+- [x] Add runtime checksum verification in daemon
   - Acceptance: Daemon logs warning on plugin checksum mismatch
   - Files: crates/hamr-daemon/src/... or crates/hamr-core/src/plugin/...
 - [ ] Add `hamr plugins audit` CLI command

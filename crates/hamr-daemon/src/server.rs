@@ -29,6 +29,8 @@ use crate::plugin_watcher::PluginWatcher;
 use crate::registry::{DiscoveredPlugin, PluginRegistry};
 use crate::session::{Session, SessionId};
 
+use hamr_core::plugin::{ChecksumsData, PluginVerifyStatus};
+
 pub struct DaemonState {
     pub core: HamrCore,
     pub clients: HashMap<SessionId, Session>,
@@ -88,7 +90,25 @@ impl DaemonState {
     }
 }
 
+// Sequential plugin discovery with checksum verification - splitting would fragment the logic
+#[allow(clippy::too_many_lines)]
 fn discover_plugins(builtin_dir: &Path, user_dir: &Path, registry: &mut PluginRegistry) {
+    let checksums_path = builtin_dir.join("checksums.json");
+    let checksums = ChecksumsData::load(&checksums_path);
+
+    if let Some(ref cs) = checksums {
+        info!(
+            "Loaded plugin checksums ({} plugins) from {:?}",
+            cs.plugin_count(),
+            checksums_path
+        );
+    } else {
+        debug!(
+            "No checksums.json found at {:?}, skipping verification",
+            checksums_path
+        );
+    }
+
     let plugin_dirs = [builtin_dir, user_dir];
 
     for plugin_base in plugin_dirs {
@@ -139,6 +159,26 @@ fn discover_plugins(builtin_dir: &Path, user_dir: &Path, registry: &mut PluginRe
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown")
                 .to_string();
+
+            if let Some(ref cs) = checksums {
+                match cs.verify_plugin(&plugin_id, &plugin_path) {
+                    PluginVerifyStatus::Verified => {
+                        debug!("[{}] Plugin checksum verified", plugin_id);
+                    }
+                    PluginVerifyStatus::Modified(files) => {
+                        warn!(
+                            "[{}] Plugin files modified (security warning): {:?}",
+                            plugin_id, files
+                        );
+                    }
+                    PluginVerifyStatus::Unknown => {
+                        debug!(
+                            "[{}] Plugin not in checksums (user-installed or new)",
+                            plugin_id
+                        );
+                    }
+                }
+            }
 
             let name = manifest["name"].as_str().unwrap_or(&plugin_id).to_string();
             let description = manifest["description"].as_str().map(String::from);
