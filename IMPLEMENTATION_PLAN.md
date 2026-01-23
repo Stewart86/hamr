@@ -31,7 +31,7 @@
   - Files: docs/getting-started/installation.md
 
 ## Plugin Security Enhancements
-- [ ] Create `scripts/generate-plugin-checksums.sh`
+- [x] Create `scripts/generate-plugin-checksums.sh`
   - Acceptance: Script outputs `plugins/checksums.json` with SHA256 per plugin file
   - Files: scripts/generate-plugin-checksums.sh
 - [ ] Add checksum generation to release workflow

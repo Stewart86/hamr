@@ -60,3 +60,10 @@
 - What: Verified layer-shell package names already documented - table exists in installation.md (lines 124-133) with Arch/Fedora/Ubuntu/openSUSE/Gentoo; README has install commands for all three required distros
 - Files: docs/getting-started/installation.md, README.md (no changes needed - already complete)
 - Learned: This task was already completed as part of [compositor-matrix]; the acceptance criteria (Arch/Fedora/Ubuntu package names) was satisfied in that earlier task
+---
+
+## [generate-plugin-checksums] - DONE
+- What: Created scripts/generate-plugin-checksums.sh that generates SHA256 checksums for all plugin files into plugins/checksums.json
+- Files: scripts/generate-plugin-checksums.sh (new), plugins/checksums.json (generated)
+- Learned: Plugin structure is consistent: each plugin has manifest.json and handler.py; some have additional data files (emojis.tsv, launch-webapp). Script supports --verify mode for verification.
+---
