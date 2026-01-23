@@ -26,7 +26,7 @@
 - [x] Add troubleshooting table
   - Acceptance: Table with columns (Symptom | Cause | Solution) with 5+ common issues
   - Files: README.md or new docs/getting-started/troubleshooting.md
-- [ ] Document layer-shell package names per distro
+- [x] Document layer-shell package names per distro
   - Acceptance: Arch/Fedora/Ubuntu package names listed
   - Files: docs/getting-started/installation.md
 

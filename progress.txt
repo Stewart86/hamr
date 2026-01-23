@@ -54,3 +54,9 @@
 - What: Created comprehensive troubleshooting guide with quick diagnosis table (8 issues) and detailed sections for daemon, plugin, display, and performance issues
 - Files: docs/getting-started/troubleshooting.md (new), mkdocs.yml (added nav entry)
 - Learned: mkdocs-material requires `pipx install mkdocs-material --include-deps && pipx inject mkdocs-material mike` for proper installation
+---
+
+## [layer-shell-distro-packages] - DONE
+- What: Verified layer-shell package names already documented - table exists in installation.md (lines 124-133) with Arch/Fedora/Ubuntu/openSUSE/Gentoo; README has install commands for all three required distros
+- Files: docs/getting-started/installation.md, README.md (no changes needed - already complete)
+- Learned: This task was already completed as part of [compositor-matrix]; the acceptance criteria (Arch/Fedora/Ubuntu package names) was satisfied in that earlier task
