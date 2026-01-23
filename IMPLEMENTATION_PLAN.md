@@ -43,7 +43,7 @@
 - [x] Add `hamr plugins audit` CLI command
   - Acceptance: Command lists plugins with verified/modified/unknown status
   - Files: crates/hamr-cli/src/main.rs
-- [ ] Update SECURITY.md with plugin trust model
+- [x] Update SECURITY.md with plugin trust model
   - Acceptance: Documents checksum system and audit command
   - Files: SECURITY.md
 

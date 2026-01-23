@@ -85,3 +85,9 @@
 - Files: crates/hamr-cli/Cargo.toml (added hamr-core dep), crates/hamr-cli/src/main.rs
 - Learned: Reused ChecksumsData and PluginVerifyStatus from hamr-core::plugin module (already exported). The command scans both builtin_plugins and user_plugins directories, skipping sdk and __pycache__ dirs. Shows summary with VERIFIED/MODIFIED/UNKNOWN counts and warnings for modified plugins.
 ---
+
+## [security-md-plugin-trust-model] - DONE
+- What: Updated SECURITY.md with plugin trust model documentation including checksum verification, audit command usage, and third-party plugin guidance
+- Files: SECURITY.md
+- Learned: Updated outdated QML/Quickshell reference to Rust/GTK4. Added comprehensive Plugin Trust Model section with verification status table, `hamr plugins audit` example output, and guidance on regenerating checksums. Skipped `python -m compileall plugins` check since SDK/plugins were untouched.
+---
