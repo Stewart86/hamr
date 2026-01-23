@@ -4,7 +4,7 @@
 - [x] Update installation guide and README quick start for Rust/GTK (Wayland deps, curl script, AUR, manual build, keybindings).
   - Acceptance: `mkdocs build` clean; instructions verified on at least one distro; README matches guide.
   - Files: docs/getting-started/installation.md, README.md, mkdocs.yml (nav)
-- [ ] Refresh configuration guide with current schema/settings plugin details and remove QML references.
+- [x] Refresh configuration guide with current schema/settings plugin details and remove QML references.
   - Acceptance: lists real config paths/options; screenshots/text updated; mkdocs links resolved.
   - Files: docs/getting-started/configuration.md
 - [ ] Rewrite landing page + migration note; hide stale MkDocs sections.

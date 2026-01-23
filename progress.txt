@@ -1,8 +1,20 @@
 ## Codebase Patterns
 - TUI/GTK/daemon write debug logs to `/tmp` with symlink to latest log.
+- **IMPORTANT**: CLI commands use `hamr` binary only, NOT `hamr-daemon`, `hamr-gtk`, `hamr-tui`, etc.
+  - Correct: `hamr query "text"`, `hamr index`, `hamr test shell "ls"`
+  - Wrong: `hamr-daemon query "text"`, `hamr-cli query "text"`
+  - The `hamr` binary is the user-facing CLI; other binaries are internal components
+- Configuration is JSON-based with camelCase field names and sensible defaults.
+- Action bar hints provide customizable plugin shortcuts with prefix/icon/label/plugin mapping.
 
 ## [docs-install-refresh] - DONE
 - What: Updated installation guide and README for Rust/GTK implementation, removing QML/Quickshell references and adding GTK4 dependencies
 - Files: docs/getting-started/installation.md, README.md, docs/index.md
 - Learned: The project has transitioned from QML/Quickshell to Rust/GTK4, requiring updated dependency information and command examples
+---
+
+## [docs-config-refresh] - DONE
+- What: Refreshed configuration guide to match current Rust/GTK schema, removing QML references and updating all config options
+- Files: docs/getting-started/configuration.md
+- Learned: Current config uses camelCase JSON with search prefixes, action bar hints, app config for terminal/fileManager/browser, and comprehensive plugin ranking system
 ---
