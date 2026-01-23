@@ -39,11 +39,7 @@ cat > ~/.config/hamr/plugins/hello/manifest.json << 'EOF'
   "name": "Hello",
   "description": "My first Hamr plugin",
   "icon": "waving_hand",
-  "supportedPlatforms": ["niri", "hyprland"],
-  "handler": {
-    "type": "stdio",
-    "path": "handler.py"
-  }
+  "supportedPlatforms": ["niri", "hyprland"]
 }
 EOF
 ```
@@ -57,6 +53,8 @@ EOF
 > - `["windows"]` - Windows
 >
 > List all platforms your plugin supports explicitly. There is no wildcard.
+>
+> **Note:** For stdio plugins, Hamr always runs `handler.py` in the plugin directory, so the `handler` field is optional. Use `handler.command` only for socket/daemon plugins.
 
 ### Step 3: Create the Handler
 
@@ -231,11 +229,7 @@ Every plugin needs a `manifest.json`:
   "name": "My Plugin",
   "description": "What it does",
   "icon": "star",
-  "supportedPlatforms": ["niri", "hyprland"],
-  "handler": {
-    "type": "stdio",
-    "path": "handler.py"
-  }
+  "supportedPlatforms": ["niri", "hyprland"]
 }
 ```
 
@@ -245,7 +239,7 @@ Every plugin needs a `manifest.json`:
 | `description`        | Yes      | Short description                                            |
 | `icon`               | Yes      | Material icon name                                           |
 | `supportedPlatforms` | Yes      | `["niri", "hyprland"]`, `["macos"]`, etc. (list all explicitly) |
-| `handler`            | No       | Handler config: `{type, command}` (default: stdio handler.py)|
+| `handler`            | No       | Handler config. Stdio plugins run `handler.py` by default; socket plugins use `handler.command`. |
 | `frecency`           | No       | `"item"`, `"plugin"`, or `"none"` (default: `"item"`)        |
 
 ### Input (What You Receive)
@@ -278,6 +272,10 @@ Return **one** JSON object. The `type` field determines what Hamr does:
 | `error`   | Show error        | Something went wrong                 |
 
 See [Response Types](response-types.md) for complete documentation.
+
+### Multi-step Flows (Optional)
+
+For drill-down workflows (edit screens, pickers), store state in `context` and control the stack with `navigateForward` and `navigateBack`. Handle `selected.id == "__back__"` to return to the previous view. See [Response Types](response-types.md) for examples.
 
 ---
 
@@ -459,3 +457,4 @@ See [Testing Plugins](testing.md) for more details.
 4. **Keep results under 50** - More items slow down the UI
 5. **Use placeholder text** - Helps users know what to type
 6. **Handle empty states** - Show helpful messages when no results match
+7. **Desktop files** - If you read `.desktop` files, note that XDG defaults can point to `NoDisplay=true` entries

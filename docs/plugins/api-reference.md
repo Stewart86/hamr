@@ -36,11 +36,12 @@ The `handler` field specifies how the plugin communicates with hamr:
 ```json
 {
   "handler": {
-    "type": "stdio",
-    "path": "handler.py"
+    "type": "stdio"
   }
 }
 ```
+
+For stdio plugins, Hamr runs `handler.py` in the plugin directory by default, so the `handler` field can be omitted entirely.
 
 **socket handler:**
 
@@ -56,7 +57,7 @@ The `handler` field specifies how the plugin communicates with hamr:
 | Field     | Type   | Default   | Description                               |
 | --------- | ------ | --------- | ----------------------------------------- |
 | `type`    | string | `"stdio"` | `"stdio"` or `"socket"`                   |
-| `path`    | string | -         | Handler script filename (for stdio)       |
+| `path`    | string | -         | Reserved for stdio handlers; Hamr runs `handler.py` by default |
 | `command` | string | -         | Command to run the handler (for socket)   |
 
 **Handler Types:**
