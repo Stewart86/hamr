@@ -133,3 +133,9 @@
 - Files: docs/getting-started/logging.md (new)
 - Learned: Specs in specs/logging-telemetry.md provide detailed acceptance criteria; troubleshooting.md already has logging info but new file provides deeper coverage including tmpfs implications and archive commands
 ---
+
+## [add-logging-nav] - DONE
+- What: Added logging guide to mkdocs navigation under Getting Started section
+- Files: mkdocs.yml
+- Learned: Logging page placed after Configuration, before Theming for logical flow. Skipped `python -m compileall plugins` since only mkdocs.yml was modified.
+---

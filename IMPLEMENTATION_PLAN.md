@@ -76,7 +76,7 @@
   - Acceptance: Documents log paths, env vars (`RUST_LOG`, `HAMR_PLUGIN_DEBUG`), privacy statement
   - Reference: AGENTS.md "Debugging" section for log path patterns
   - Files: docs/getting-started/logging.md
-- [ ] Add logging guide to mkdocs nav
+- [x] Add logging guide to mkdocs nav
   - Acceptance: Page appears in docs navigation
   - Files: mkdocs.yml
 - [ ] Link logging guide from README and installation docs
