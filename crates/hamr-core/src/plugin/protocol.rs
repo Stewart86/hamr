@@ -43,6 +43,7 @@ pub enum Step {
     Search,
     Action,
     Form,
+    Match,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

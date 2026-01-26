@@ -11,7 +11,7 @@ pub use manifest::{
     DaemonConfig, FrecencyMode, Handler, HandlerType, InputMode, Manifest, MatchConfig,
     StaticIndexItem,
 };
-pub use process::{PluginProcess, PluginReceiver, PluginSender};
+pub use process::{invoke_match, PluginProcess, PluginReceiver, PluginSender};
 pub use protocol::{
     AmbientItemData, CardBlockData, CardResponseData, ExecuteData, FabData, ImageBrowserInner,
     IndexItem, PluginInput, PluginResponse, SelectedItem, StatusData, Step, UpdateItem,

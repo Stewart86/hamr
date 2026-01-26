@@ -1,13 +1,14 @@
-use super::protocol::{PluginInput, PluginResponse};
+use super::protocol::{PluginInput, PluginResponse, Step};
 use crate::{Error, Result};
 use std::path::Path;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, trace, warn};
 
 /// A running plugin process with split send/receive
 pub struct PluginProcess {
@@ -263,5 +264,56 @@ impl PluginReceiver {
 impl Drop for PluginProcess {
     fn drop(&mut self) {
         debug!("[{}] Plugin process dropped", self.plugin_id);
+    }
+}
+
+/// Invoke a plugin with Step::Match and wait for a single response.
+///
+/// This is used for inline pattern match previews (e.g., calculator showing
+/// computed result while typing). Returns `None` on timeout or error.
+pub async fn invoke_match(
+    plugin_id: &str,
+    handler_path: &Path,
+    working_dir: &Path,
+    query: &str,
+    timeout_ms: u64,
+) -> Option<PluginResponse> {
+    let mut process = match PluginProcess::spawn(plugin_id, handler_path, working_dir) {
+        Ok(p) => p,
+        Err(e) => {
+            trace!("[{}] Failed to spawn for match: {}", plugin_id, e);
+            return None;
+        }
+    };
+
+    let input = PluginInput {
+        step: Step::Match,
+        query: Some(query.to_string()),
+        selected: None,
+        action: None,
+        session: None,
+        context: None,
+        value: None,
+        form_data: None,
+        source: None,
+    };
+
+    if let Err(e) = process.send_and_close(&input).await {
+        trace!("[{}] Failed to send match input: {}", plugin_id, e);
+        return None;
+    }
+
+    let mut receiver = process.take_receiver()?;
+
+    match tokio::time::timeout(Duration::from_millis(timeout_ms), receiver.recv()).await {
+        Ok(Some(response)) => Some(response),
+        Ok(None) => {
+            trace!("[{}] Plugin closed without response", plugin_id);
+            None
+        }
+        Err(_) => {
+            trace!("[{}] Match timeout after {}ms", plugin_id, timeout_ms);
+            None
+        }
     }
 }

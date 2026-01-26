@@ -7,8 +7,10 @@ use crate::config::{Config, Directories};
 use crate::frecency::{ExecutionContext, FrecencyScorer, MatchType};
 use crate::index::IndexStore;
 use crate::plugin::{
-    FrecencyMode, PluginInput, PluginManager, PluginProcess, PluginSender, SelectedItem, Step,
+    invoke_match, FrecencyMode, PluginInput, PluginManager, PluginProcess, PluginResponse,
+    PluginSender, SelectedItem, Step,
 };
+use std::path::Path;
 use crate::search::{SearchEngine, SearchMatch, Searchable, SearchableSource};
 use hamr_types::{Action, CoreEvent, CoreUpdate, ResultType, SearchResult};
 use std::collections::HashMap;
@@ -373,7 +375,7 @@ impl HamrCore {
                 });
             } else {
                 // Filter plugins by query
-                let results = self.perform_main_search(&query);
+                let results = self.perform_main_search(&query).await;
                 self.send_update_cached(CoreUpdate::Results {
                     results,
                     placeholder: Some("Search plugins...".to_string()),
@@ -388,7 +390,7 @@ impl HamrCore {
             // Reserved "/" prefix for plugin list mode (non-configurable)
             if query == "/" {
                 debug!("Entering plugin list mode via '/' prefix");
-                self.enter_plugin_management();
+                self.enter_plugin_management().await;
                 return;
             }
 
@@ -421,7 +423,7 @@ impl HamrCore {
             }
 
             // Main search
-            let results = self.perform_main_search(&query);
+            let results = self.perform_main_search(&query).await;
             debug!("handle_query_changed: produced {} results", results.len());
             self.send_update_cached(CoreUpdate::Results {
                 results,
@@ -446,14 +448,14 @@ impl HamrCore {
     }
 
     /// Enter plugin management mode (shows only plugins, triggered by "/" prefix)
-    fn enter_plugin_management(&mut self) {
+    async fn enter_plugin_management(&mut self) {
         self.state.plugin_management = true;
         self.state.query.clear();
         self.send_update(CoreUpdate::PluginManagementChanged { active: true });
         self.send_update(CoreUpdate::ClearInput);
 
         // Perform search filtered to plugins only
-        let results = self.perform_main_search("");
+        let results = self.perform_main_search("").await;
         self.send_update_cached(CoreUpdate::Results {
             results,
             placeholder: Some("Search plugins...".to_string()),
@@ -798,7 +800,7 @@ impl HamrCore {
         if self.state.plugin_management {
             self.exit_plugin_management();
             self.state.query.clear();
-            let results = self.perform_main_search("");
+            let results = self.perform_main_search("").await;
             self.send_update_cached(CoreUpdate::Results {
                 results,
                 placeholder: None,
@@ -953,7 +955,7 @@ impl HamrCore {
 
             self.state.query.clear();
             debug!("Restoring main search after plugin close");
-            let results = self.perform_main_search("");
+            let results = self.perform_main_search("").await;
             debug!("Got {} results for main search", results.len());
             self.send_update_cached(CoreUpdate::Results {
                 results,
@@ -1087,7 +1089,7 @@ impl HamrCore {
         self.send_to_plugin(&plugin_id, &input).await;
     }
 
-    fn perform_main_search(&mut self, query: &str) -> Vec<SearchResult> {
+    async fn perform_main_search(&mut self, query: &str) -> Vec<SearchResult> {
         // In plugin list mode with empty query, show all plugins sorted by frecency
         if query.is_empty() && self.state.plugin_management {
             return self.get_plugin_list();
@@ -1102,6 +1104,16 @@ impl HamrCore {
                 "Pattern match: plugin '{}' matches query '{}', remaining: '{}'",
                 plugin.id, query, remaining_query
             );
+
+            // Try to get inline preview from plugin (e.g., calculator result)
+            if let Some(result) = self
+                .try_pattern_match_preview(&plugin.id, &plugin.handler_path, &plugin.path, query)
+                .await
+            {
+                return vec![result];
+            }
+
+            // Fall back to generic PatternMatch entry
             return vec![Self::create_pattern_match_result(
                 plugin,
                 query,
@@ -1178,6 +1190,56 @@ impl HamrCore {
             .take(max_results)
             .map(|(m, score)| self.convert_search_match(m, score))
             .collect()
+    }
+
+    /// Try to get an inline preview result from a pattern-matched plugin.
+    ///
+    /// This invokes the plugin with `Step::Match` to get a computed result
+    /// (e.g., calculator showing `444` for `123+321`). Returns `None` on
+    /// timeout, error, or if the plugin doesn't support inline previews.
+    async fn try_pattern_match_preview(
+        &self,
+        plugin_id: &str,
+        handler_path: &Path,
+        working_dir: &Path,
+        query: &str,
+    ) -> Option<SearchResult> {
+        const MATCH_TIMEOUT_MS: u64 = 150;
+
+        let response =
+            invoke_match(plugin_id, handler_path, working_dir, query, MATCH_TIMEOUT_MS).await?;
+
+        match response {
+            PluginResponse::Match { result: Some(item) } => {
+                // Convert ResultItem to SearchResult with plugin context
+                let mut result = SearchResult {
+                    id: format!("__match_preview__:{}:{}", plugin_id, item.id),
+                    name: item.name,
+                    description: item.description,
+                    icon: item.icon,
+                    icon_type: item.icon_type,
+                    verb: item.verb,
+                    result_type: ResultType::Plugin,
+                    plugin_id: Some(plugin_id.to_string()),
+                    actions: item.actions,
+                    open_url: item.open_url,
+                    copy: item.copy,
+                    notify: item.notify,
+                    should_close: item.should_close,
+                    ..Default::default()
+                };
+
+                // Use plugin icon if item doesn't specify one
+                if result.icon.is_none() {
+                    if let Some(plugin) = self.plugins.get(plugin_id) {
+                        result.icon = plugin.manifest.icon.clone();
+                    }
+                }
+
+                Some(result)
+            }
+            _ => None,
+        }
     }
 
     /// Create a `SearchResult` for a plugin pattern match
