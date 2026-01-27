@@ -47,6 +47,61 @@ Configure these in `config.json` under the `search` section:
 }
 ```
 
+## Plugin Ranking Bonus
+
+Control which plugins appear higher in search results by assigning bonus points. This is useful when you want certain plugins (like apps) to consistently rank above others.
+
+### How It Works
+
+Hamr calculates a composite score for each result based on:
+- **Fuzzy match score** (0-1000+): How well the query matches the item name
+- **Frecency** (0-300): Usage frequency combined with recency
+- **History boost** (+200): When query exactly matches a previously used search term
+- **Plugin ranking bonus**: Your custom per-plugin boost
+
+Higher total scores appear first in results.
+
+### Configuration
+
+Add `pluginRankingBonus` to your `config.json`:
+
+```json
+{
+  "search": {
+    "pluginRankingBonus": {
+      "apps": 200,
+      "settings": 100,
+      "files": 50
+    }
+  }
+}
+```
+
+### Finding Plugin IDs
+
+To find the ID of a plugin:
+1. Type `/` in Hamr to open the plugin list
+2. The plugin ID is shown in the result subtitle (e.g., "apps", "clipboard", "emoji")
+
+Or check the `id` field in the plugin's `manifest.json`.
+
+### Recommended Values
+
+| Bonus Range | Effect |
+|-------------|--------|
+| 50-100 | Subtle boost, breaks ties in favor of this plugin |
+| 150-250 | Noticeable preference, plugin results appear higher |
+| 300+ | Strong preference, almost always appears first |
+
+**Example use cases:**
+- `"apps": 200` - Prioritize launching applications over other results
+- `"clipboard": 100` - Boost clipboard items when searching for copied text
+- `"quicklinks": 150` - Make your custom quicklinks more prominent
+
+### Interaction with Diversity Decay
+
+The `diversityDecay` setting (default: 0.7) penalizes consecutive results from the same plugin. Even with a high bonus, the 2nd result from a plugin scores 70% of the first, the 3rd scores 49%, etc. This prevents one plugin from dominating all results.
+
 ## Action Bar Hints
 
 The action bar shortcuts are fully customizable via `actionBarHints`. Default hints include:
