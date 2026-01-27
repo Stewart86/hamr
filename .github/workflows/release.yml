@@ -140,17 +140,16 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.version }}
           sed -i "s/^pkgver=.*/pkgver=$VERSION/" pkg/aur/PKGBUILD
-          # Update source line with new version
-          sed -i "s/hamr-[0-9.]*::git/hamr-$VERSION::git/" pkg/aur/PKGBUILD
-          sed -i "s/#tag=v[0-9.]*/#tag=v$VERSION/" pkg/aur/PKGBUILD
+          # Ensure source line uses ${pkgver} variable (not hardcoded version)
+          sed -i 's|source=.*|source=("$pkgname-$pkgver::git+${url}.git#tag=v${pkgver}")|' pkg/aur/PKGBUILD
           echo "Updated PKGBUILD pkgver to $VERSION"
 
       - name: Update .SRCINFO version
         run: |
           VERSION=${{ steps.version.outputs.version }}
           sed -i "s/^\tpkgver = .*/\tpkgver = $VERSION/" pkg/aur/.SRCINFO
-          sed -i "s/hamr-[0-9.]*::git/hamr-$VERSION::git/" pkg/aur/.SRCINFO
-          sed -i "s/#tag=v[0-9.]*/#tag=v$VERSION/" pkg/aur/.SRCINFO
+          # .SRCINFO needs the expanded values (not variables)
+          sed -i "s|source = hamr-.*::git.*|source = hamr-$VERSION::git+https://github.com/Stewart86/hamr.git#tag=v$VERSION|" pkg/aur/.SRCINFO
           echo "Updated .SRCINFO pkgver to $VERSION"
 
       - name: Update hamr-bin PKGBUILD version
