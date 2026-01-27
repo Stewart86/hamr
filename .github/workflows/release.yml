@@ -171,13 +171,15 @@ jobs:
           echo "Updated hamr-bin .SRCINFO pkgver to $VERSION"
 
       - name: Commit AUR package updates to repo
+        continue-on-error: true  # Don't block AUR publish if this fails
         run: |
           VERSION=${{ steps.version.outputs.version }}
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add pkg/aur/PKGBUILD pkg/aur/.SRCINFO pkg/aur-bin/PKGBUILD pkg/aur-bin/.SRCINFO
-          git commit -m "chore: update AUR packages to v$VERSION" || echo "No changes to commit"
-          git push
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore: update AUR packages to v$VERSION"
+          git push origin main
 
       - name: Install SSH key for AUR
         env:
@@ -199,21 +201,31 @@ jobs:
           VERSION=${{ steps.version.outputs.version }}
           git clone ssh://aur@aur.archlinux.org/hamr.git aur-repo
           cd aur-repo
+          # Ensure we're on master branch (AUR requirement)
+          git checkout master 2>/dev/null || git checkout -b master
           git config user.email "siwei.wong@gmail.com"
           git config user.name "Stewart Wong"
           cp ../pkg/aur/PKGBUILD ../pkg/aur/.SRCINFO ../pkg/aur/hamr.install .
           git add PKGBUILD .SRCINFO hamr.install
           git diff --cached --quiet || git commit -m "Update to v$VERSION"
-          git push || echo "AUR push failed - may need manual intervention"
+          git push origin master || echo "AUR push failed - may need manual intervention"
 
       - name: Publish hamr-bin to AUR
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          git clone ssh://aur@aur.archlinux.org/hamr-bin.git aur-bin-repo
+          git clone ssh://aur@aur.archlinux.org/hamr-bin.git aur-bin-repo || {
+            # If clone fails, init new repo
+            mkdir -p aur-bin-repo
+            cd aur-bin-repo
+            git init
+            git remote add origin ssh://aur@aur.archlinux.org/hamr-bin.git
+          }
           cd aur-bin-repo
+          # Ensure we're on master branch (AUR requirement)
+          git checkout master 2>/dev/null || git checkout -b master
           git config user.email "siwei.wong@gmail.com"
           git config user.name "Stewart Wong"
           cp ../pkg/aur-bin/PKGBUILD ../pkg/aur-bin/.SRCINFO ../pkg/aur-bin/hamr.install .
           git add PKGBUILD .SRCINFO hamr.install
           git diff --cached --quiet || git commit -m "Update to v$VERSION"
-          git push || echo "AUR hamr-bin push failed - may need manual intervention"
+          git push -u origin master || echo "AUR hamr-bin push failed - may need manual intervention"
