@@ -2,9 +2,13 @@
   "name": "Quicklinks",
   "description": "Search the web with quicklinks",
   "icon": "link",
-  "supportedCompositors": ["*"],
-  "daemon": {
-    "enabled": true,
-    "background": true
-  }
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
+  },
+  "frecency": "item",
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

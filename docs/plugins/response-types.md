@@ -54,36 +54,42 @@ Display a list of selectable items. This is the most common response type.
 
 ### Result Item Fields
 
-| Field         | Type   | Description                                              |
-| ------------- | ------ | -------------------------------------------------------- |
-| `id`          | string | **Required.** Unique identifier sent back on selection   |
-| `name`        | string | **Required.** Primary display text                       |
-| `description` | string | Secondary text below name                                |
-| `icon`        | string | Material icon name (e.g., `"star"`, `"folder"`)          |
-| `iconType`    | string | `"material"` (default) or `"system"` (desktop app icons) |
-| `thumbnail`   | string | Image file path (overrides icon)                         |
-| `verb`        | string | Action text shown on hover (e.g., "Open", "Copy")        |
-| `actions`     | array  | Secondary action buttons (up to 4)                       |
-| `badges`      | array  | Compact circular indicators (up to 5)                    |
-| `chips`       | array  | Pill-shaped tags                                         |
-| `graph`       | object | Line graph data (replaces icon)                          |
-| `gauge`       | object | Circular progress (replaces icon)                        |
-| `progress`    | object | Horizontal progress bar (replaces description)           |
-| `preview`     | object | Side panel preview content                               |
+| Field              | Type   | Description                                                     |
+| ------------------ | ------ | --------------------------------------------------------------- |
+| `id`               | string | **Required.** Unique identifier sent back on selection          |
+| `name`             | string | **Required.** Primary display text                              |
+| `description`      | string | Secondary text below name                                       |
+| `icon`             | string | Material icon name (e.g., `"star"`, `"folder"`)                 |
+| `iconType`         | string | `"material"` (default), `"system"`, `"text"`, or `"path"`       |
+| `thumbnail`        | string | Image file path (overrides icon)                                |
+| `verb`             | string | Action text shown on hover (e.g., "Open", "Copy")               |
+| `actions`          | array  | Secondary action buttons (up to 4)                              |
+| `badges`           | array  | Compact circular indicators (up to 5)                           |
+| `chips`            | array  | Pill-shaped tags                                                |
+| `graph`            | object | Line graph data (replaces icon)                                 |
+| `gauge`            | object | Circular progress (replaces icon)                               |
+| `progress`         | object | Horizontal progress bar (replaces description)                  |
+| `preview`          | object | Side panel preview content                                      |
+| `keepOpen`         | bool   | Keep launcher open after selection (default: `false`)           |
+| `displayHint`      | string | View hint: `"auto"`, `"list"`, `"grid"`, `"large_grid"`         |
+| `isSuggestion`     | bool   | Mark as smart suggestion (shows reason badge)                   |
+| `suggestionReason` | string | Why this was suggested (e.g., "Often used around 9am")          |
+| `hasOcr`           | bool   | Item has OCR-searchable text (for images/screenshots)           |
 
 ### Response-Level Fields
 
-| Field             | Type   | Description                                             |
-| ----------------- | ------ | ------------------------------------------------------- |
-| `placeholder`     | string | Search bar placeholder text                             |
-| `inputMode`       | string | `"realtime"` (every keystroke) or `"submit"` (on Enter) |
-| `clearInput`      | bool   | Clear the search bar                                    |
-| `context`         | string | Custom state persisted across search calls              |
-| `notify`          | string | Show notification toast                                 |
-| `pluginActions`   | array  | Toolbar buttons below search bar                        |
-| `navigateForward` | bool   | Increase navigation depth                               |
-| `navigateBack`    | bool   | Decrease navigation depth                               |
-| `navigationDepth` | int    | Set exact navigation depth                              |
+| Field             | Type   | Description                                              |
+| ----------------- | ------ | -------------------------------------------------------- |
+| `placeholder`     | string | Search bar placeholder text                              |
+| `inputMode`       | string | `"realtime"` (every keystroke) or `"submit"` (on Enter)  |
+| `clearInput`      | bool   | Clear the search bar                                     |
+| `context`         | string | Custom state persisted across search calls               |
+| `notify`          | string | Show notification toast                                  |
+| `pluginActions`   | array  | Toolbar buttons below search bar                         |
+| `navigateForward` | bool   | Increase navigation depth                                |
+| `navigateBack`    | bool   | Decrease navigation depth                                |
+| `navigationDepth` | int    | Set exact navigation depth                               |
+| `displayHint`     | string | View hint: `"auto"`, `"list"`, `"grid"`, `"large_grid"`  |
 
 ### Action Buttons
 

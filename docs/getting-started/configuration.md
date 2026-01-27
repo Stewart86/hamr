@@ -6,64 +6,115 @@ Hamr is configured via `~/.config/hamr/config.json`. Use the built-in settings p
 
 | Category       | Option                   | Default                     | Description                                                                |
 | -------------- | ------------------------ | --------------------------- | -------------------------------------------------------------------------- |
-| **Apps**       | `terminal`               | `ghostty`                   | Terminal emulator for shell commands                                       |
-|                | `terminalArgs`           | `--class=floating.terminal` | Arguments passed to terminal                                               |
-|                | `shell`                  | `zsh`                       | Shell for command execution (zsh, bash, fish)                              |
-| **Behavior**   | `stateRestoreWindowMs`   | `30000`                     | Time (ms) to preserve state after soft close (0 to disable)                |
-|                | `clickOutsideAction`     | `intuitive`                 | Click outside behavior: `intuitive`, `close`, or `minimize`                |
+| **Apps**       | `terminal`               | _(auto-detected)_           | Terminal emulator for shell commands                                       |
+|                | `fileManager`            | _(auto-detected)_           | File manager for file operations                                           |
+|                | `browser`                | _(auto-detected)_           | Web browser for URL opening                                                |
 | **Search**     | `maxDisplayedResults`    | `16`                        | Maximum results shown in launcher                                          |
 |                | `maxRecentItems`         | `20`                        | Recent history items on empty search                                       |
-|                | `debounceMs`             | `50`                        | Search input debounce (ms)                                                 |
-|                | `diversityDecay`         | `0.7`                       | Decay for consecutive results from same plugin (0-1, lower = more diverse) |
 |                | `maxResultsPerPlugin`    | `0`                         | Hard limit per plugin (0 = no limit)                                       |
-| **Appearance** | `backgroundTransparency` | `0.2`                       | Background transparency (0-1)                                              |
-|                | `launcherXRatio`         | `0.5`                       | Horizontal position (0=left, 1=right)                                      |
-|                | `launcherYRatio`         | `0.1`                       | Vertical position (0=top, 1=bottom)                                        |
-|                | `fontScale`              | `1`                         | Font scaling factor (0.75=min, 1.5=max)                                    |
-| **Sizes**      | `searchWidth`            | `580`                       | Search bar width (px)                                                      |
-|                | `maxResultsHeight`       | `600`                       | Max results container height (px)                                          |
-| **Paths**      | `wallpaperDir`           | `""`                        | Custom wallpaper directory (empty = ~/Pictures/Wallpapers)                 |
-|                | `colorsJson`             | `""`                        | Custom colors.json path (empty = ~/.config/hamr/colors.json)               |
+|                | `pluginDebounceMs`       | `150`                       | Search input debounce (ms)                                                 |
+|                | `diversityDecay`         | `0.7`                       | Decay for consecutive results from same plugin (0-1, lower = more diverse) |
+|                | `engineBaseUrl`          | `https://www.google.com/search?q=` | Default search engine URL                                   |
+|                | `excludedSites`          | `[]`                        | Sites to exclude from web search results                                   |
+|                | `pluginRankingBonus`     | `{}`                        | Per-plugin score boosts (e.g., `{"apps": 200}`)                            |
+| **Action Bar** | `actionBarHints`         | _see below_                 | Customizable action bar shortcuts                                          |
 
 ## Prefix Shortcuts
 
-The action bar shortcuts are fully customizable. Edit `~/.config/hamr/config.json`:
+Search prefixes let you quickly jump to specific functionality by typing a character:
+
+| Prefix | Option         | Function                     |
+| ------ | -------------- | ---------------------------- |
+| `/`    | `plugins`      | Search plugins by name       |
+| `@`    | `app`          | Application search           |
+| `:`    | `emojis`       | Emoji search                 |
+| `=`    | `math`         | Calculator                   |
+| `!`    | `shellCommand` | Shell command                |
+| `?`    | `webSearch`    | Web search                   |
+
+Configure these in `config.json` under the `search` section:
+
+```json
+{
+  "search": {
+    "plugins": "/",
+    "app": "@",
+    "emojis": ":",
+    "math": "=",
+    "shellCommand": "!",
+    "webSearch": "?"
+  }
+}
+```
+
+## Plugin Ranking Bonus
+
+Control which plugins appear higher in search results by assigning bonus points. This is useful when you want certain plugins (like apps) to consistently rank above others.
+
+### How It Works
+
+Hamr calculates a composite score for each result based on:
+- **Fuzzy match score** (0-1000+): How well the query matches the item name
+- **Frecency** (0-300): Usage frequency combined with recency
+- **History boost** (+200): When query exactly matches a previously used search term
+- **Plugin ranking bonus**: Your custom per-plugin boost
+
+Higher total scores appear first in results.
+
+### Configuration
+
+Add `pluginRankingBonus` to your `config.json`:
+
+```json
+{
+  "search": {
+    "pluginRankingBonus": {
+      "apps": 200,
+      "settings": 100,
+      "files": 50
+    }
+  }
+}
+```
+
+### Finding Plugin IDs
+
+To find the ID of a plugin:
+1. Type `/` in Hamr to open the plugin list
+2. The plugin ID is shown in the result subtitle (e.g., "apps", "clipboard", "emoji")
+
+Or check the `id` field in the plugin's `manifest.json`.
+
+### Recommended Values
+
+| Bonus Range | Effect |
+|-------------|--------|
+| 50-100 | Subtle boost, breaks ties in favor of this plugin |
+| 150-250 | Noticeable preference, plugin results appear higher |
+| 300+ | Strong preference, almost always appears first |
+
+**Example use cases:**
+- `"apps": 200` - Prioritize launching applications over other results
+- `"clipboard": 100` - Boost clipboard items when searching for copied text
+- `"quicklinks": 150` - Make your custom quicklinks more prominent
+
+### Interaction with Diversity Decay
+
+The `diversityDecay` setting (default: 0.7) penalizes consecutive results from the same plugin. Even with a high bonus, the 2nd result from a plugin scores 70% of the first, the 3rd scores 49%, etc. This prevents one plugin from dominating all results.
+
+## Action Bar Hints
+
+The action bar shortcuts are fully customizable via `actionBarHints`. Default hints include:
 
 ```json
 {
   "search": {
     "actionBarHints": [
-      { "prefix": "~", "icon": "folder", "label": "Files", "plugin": "files" },
-      {
-        "prefix": ";",
-        "icon": "content_paste",
-        "label": "Clipboard",
-        "plugin": "clipboard"
-      },
-      {
-        "prefix": "/",
-        "icon": "extension",
-        "label": "Plugins",
-        "plugin": "action"
-      },
-      {
-        "prefix": "!",
-        "icon": "terminal",
-        "label": "Shell",
-        "plugin": "shell"
-      },
-      {
-        "prefix": "=",
-        "icon": "calculate",
-        "label": "Math",
-        "plugin": "calculate"
-      },
-      {
-        "prefix": ":",
-        "icon": "emoji_emotions",
-        "label": "Emoji",
-        "plugin": "emoji"
-      }
+      { "prefix": "~", "icon": "folder_open", "label": "Files", "plugin": "files" },
+      { "prefix": ";", "icon": "content_paste", "label": "Clipboard", "plugin": "clipboard" },
+      { "prefix": "=", "icon": "calculate", "label": "Calculate", "plugin": "calculate" },
+      { "prefix": ":", "icon": "emoji_emotions", "label": "Emoji", "plugin": "emoji" },
+      { "prefix": "!", "icon": "terminal", "label": "Shell", "plugin": "shell" }
     ]
   }
 }
@@ -72,9 +123,10 @@ The action bar shortcuts are fully customizable. Edit `~/.config/hamr/config.jso
 Each hint has:
 
 - **prefix**: The trigger character (e.g., `~`, `;`, `:`)
-- **icon**: [Material Symbol](https://fonts.google.com/icons) name
+- **icon**: Icon name (GTK-compatible icon names)
 - **label**: Display name shown in the action bar
-- **plugin**: Plugin ID to launch or `action` for plugin search mode
+- **plugin**: Plugin ID to launch
+- **description**: Optional description (shown in settings)
 
 ## Direct Plugin Keybindings
 
@@ -115,6 +167,21 @@ binds {
 }
 ```
 
+### Sway
+
+```bash
+# ~/.config/sway/config
+
+# Open clipboard directly with Mod+V
+bindsym $mod+V exec hamr plugin clipboard
+
+# Open emoji picker with Mod+Period
+bindsym $mod+Period exec hamr plugin emoji
+
+# Open file search with Mod+E
+bindsym $mod+E exec hamr plugin files
+```
+
 ## File Structure
 
 ```
@@ -125,10 +192,8 @@ binds {
 └── plugin-indexes.json          # Plugin data and frecency (auto-generated)
 
 ~/.local/share/hamr/             # Installation directory (AUR/manual)
-├── shell.qml                    # Entry point
 ├── plugins/                     # Built-in plugins (read-only)
-├── modules/                     # UI components
-└── services/                    # Core services
+└── daemon                       # Hamr daemon binary
 ```
 
 ## Troubleshooting
@@ -141,30 +206,50 @@ This is expected. Hamr starts hidden and waits for a toggle signal. Make sure yo
 2. Reloaded your compositor config
 3. Press your keybind (e.g., Super key or Ctrl+Space)
 
-### Check dependencies
+### Check daemon status
 
 ```bash
-hamr --check-deps
+# Check if daemon is running
+hamr status
+
+# View daemon logs
+tail -f /tmp/hamr-daemon.log
 ```
 
 ### View logs
 
-```bash
-journalctl --user -u hamr -f
-```
-
-### Crash with Qt version mismatch
-
-```
-WARN: Quickshell was built against Qt 6.10.0 but the system has updated to Qt 6.10.1...
-```
-
-This happens when Qt is updated but Quickshell wasn't rebuilt:
+Hamr writes debug logs to `/tmp/` with symlinks to the latest:
+- Daemon: `/tmp/hamr-daemon.log`
+- TUI: `/tmp/hamr-tui.log`
+- GTK: `/tmp/hamr-gtk.log`
 
 ```bash
-paru -S quickshell --rebuild
-# or for quickshell-git:
-paru -S quickshell-git --rebuild
+# Follow daemon logs in real-time
+tail -f /tmp/hamr-daemon.log
+
+# View recent entries from both
+tail -n 100 /tmp/hamr-daemon.log /tmp/hamr-tui.log
+
+# Search for specific patterns
+grep -i "error\|warn" /tmp/hamr-daemon.log
+```
+
+### Configuration issues
+
+If your config isn't working:
+
+1. Check JSON syntax: `python -m json.tool ~/.config/hamr/config.json`
+2. Verify daemon picks up changes: `hamr daemon-reload`
+3. Check for unknown fields in logs: `grep "unknown field" /tmp/hamr-daemon.log`
+
+### Plugin not responding
+
+```bash
+# Check if plugin is connected
+grep "plugin" /tmp/hamr-daemon.log | tail -20
+
+# Look for action forwarding issues
+grep "handle_item_selected\|Forwarding action" /tmp/hamr-daemon.log
 ```
 
 ### Warning about missing `colors.json`

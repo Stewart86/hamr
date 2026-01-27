@@ -2,10 +2,17 @@
   "name": "Player",
   "description": "Media player controls via playerctl",
   "icon": "play_circle",
-  "supportedCompositors": ["*"],
-  "frecency": "none",
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
   "daemon": {
     "enabled": true,
-    "background": false
-  }
+    "background": false,
+    "restartOnCrash": true
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

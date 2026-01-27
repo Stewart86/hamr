@@ -1,0 +1,34 @@
+pkgbase = hamr
+	pkgdesc = A fast, extensible desktop launcher for Linux
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://github.com/Stewart86/hamr
+	arch = x86_64
+	arch = aarch64
+	license = MIT
+	makedepends = rust
+	makedepends = cargo
+	makedepends = pkgconf
+	depends = gtk4
+	depends = gtk4-layer-shell
+	depends = python
+	depends = ttf-material-symbols-variable
+	depends = ttf-jetbrains-mono-nerd
+	optdepends = python-dbus: system dbus integration for plugins
+	optdepends = python-gobject: GObject introspection for plugins
+	optdepends = wl-clipboard: clipboard operations in plugins
+	optdepends = xdg-utils: desktop integration (xdg-open)
+	optdepends = glib2: file operations (gio trash)
+	optdepends = grim: screenshot capture
+	optdepends = slurp: screen region selection
+	optdepends = wf-recorder: screen recording
+	optdepends = swww: animated wallpapers (wallpaper plugin)
+	optdepends = awww: wallpaper management
+	optdepends = playerctl: media player control (player plugin)
+	optdepends = bitwarden-cli: Bitwarden password manager integration
+	replaces = hamr-qml
+	install = hamr.install
+	source = hamr-1.0.0::git+https://github.com/Stewart86/hamr.git#tag=v1.0.0
+	sha256sums = SKIP
+
+pkgname = hamr

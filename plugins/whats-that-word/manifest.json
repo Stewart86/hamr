@@ -2,6 +2,12 @@
   "name": "What's That Word?",
   "description": "Find words from descriptions or fix misspellings",
   "icon": "lightbulb",
-  "supportedCompositors": ["*"],
-  "frecency": "plugin"
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

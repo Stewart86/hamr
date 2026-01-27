@@ -4,13 +4,40 @@ Quick reference for Hamr plugin development.
 
 ## Manifest Template
 
+**Simple stdio plugin:**
+
 ```json
 {
   "name": "My Plugin",
   "description": "What it does",
   "icon": "star",
-  "supportedCompositors": ["*"],
+  "supportedPlatforms": ["niri", "hyprland"],
+  "handler": {
+    "type": "stdio",
+    "path": "handler.py"
+  },
   "frecency": "item"
+}
+```
+
+**Socket-based daemon plugin:**
+
+```json
+{
+  "name": "My Daemon",
+  "description": "Real-time updates",
+  "icon": "sync",
+  "supportedPlatforms": ["niri", "hyprland"],
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
+  "daemon": {
+    "enabled": true,
+    "background": true,
+    "restartOnCrash": true,
+    "maxRestarts": 5
+  }
 }
 ```
 
@@ -23,7 +50,11 @@ For plugins that show results instantly in main search:
   "name": "Calculate",
   "description": "Calculator",
   "icon": "calculate",
-  "supportedCompositors": ["*"],
+  "supportedPlatforms": ["niri", "hyprland", "macos", "windows"],
+  "handler": {
+    "type": "stdio",
+    "path": "handler.py"
+  },
   "match": {
     "patterns": ["^=", "^[\\d\\.]+\\s*[\\+\\-\\*\\/]"],
     "priority": 100
@@ -288,20 +319,27 @@ journalctl --user -u hamr -f
 
 ## Manifest Options
 
-| Field                  | Required | Values                              | Description                                                                |
-| ---------------------- | -------- | ----------------------------------- | -------------------------------------------------------------------------- |
-| `name`                 | Yes      | string                              | Plugin display name                                                        |
-| `description`          | Yes      | string                              | Short description                                                          |
-| `icon`                 | Yes      | string                              | Material icon name                                                         |
-| `supportedCompositors` | Yes      | `["*"]`, `["hyprland"]`, `["niri"]` | Compositor support                                                         |
-| `handler`              | No       | filename                            | Handler script (default: `handler.py`)                                     |
-| `frecency`             | No       | `"item"`, `"plugin"`, `"none"`      | Usage tracking (see [Search Ranking](advanced-features.md#search-ranking)) |
-| `daemon.enabled`       | No       | bool                                | Enable daemon mode                                                         |
-| `daemon.background`    | No       | bool                                | Run always vs when open                                                    |
-| `index.enabled`        | No       | bool                                | Enable indexing (requires daemon)                                          |
-| `indexOnly`            | No       | bool                                | No interactive mode                                                        |
-| `match.patterns`       | No       | array                               | Regex patterns for instant match                                           |
-| `match.priority`       | No       | number                              | Match priority (default: 50)                                               |
+| Field                   | Required | Values                                   | Description                                                                |
+| ----------------------- | -------- | ---------------------------------------- | -------------------------------------------------------------------------- |
+| `name`                  | Yes      | string                                   | Plugin display name                                                        |
+| `description`           | Yes      | string                                   | Short description                                                          |
+| `icon`                  | Yes      | string                                   | Material icon name                                                         |
+| `supportedPlatforms`    | Yes      | `["niri", "hyprland"]`, etc              | Platform/compositor support (list all explicitly)                          |
+| `handler.type`          | No       | `"stdio"`, `"socket"`                    | Handler communication type (default: `stdio`)                              |
+| `handler.path`          | No       | string                                   | Script filename for `stdio` handlers (e.g., `handler.py`)                  |
+| `handler.command`       | No       | string                                   | Command to run for `socket` handlers (e.g., `python3 handler.py`)          |
+| `frecency`              | No       | `"item"`, `"plugin"`, `"none"`           | Usage tracking (see [Search Ranking](advanced-features.md#search-ranking)) |
+| `inputMode`             | No       | `"realtime"`, `"submit"`                 | Default input mode (default: `realtime`)                                   |
+| `hidden`                | No       | bool                                     | Hide from plugin list (prefix-only access)                                 |
+| `daemon.enabled`        | No       | bool                                     | Enable daemon mode                                                         |
+| `daemon.background`     | No       | bool                                     | Run always vs when open                                                    |
+| `daemon.restartOnCrash` | No       | bool                                     | Auto-restart on crash                                                      |
+| `daemon.maxRestarts`    | No       | number                                   | Max restart attempts (0 = unlimited)                                       |
+| `index.enabled`         | No       | bool                                     | Enable indexing (requires daemon)                                          |
+| `indexOnly`             | No       | bool                                     | No interactive mode                                                        |
+| `match.patterns`        | No       | array                                    | Regex patterns for instant match                                           |
+| `match.priority`        | No       | number                                   | Match priority (default: 50)                                               |
+| `staticIndex`           | No       | array                                    | Static index items defined in manifest                                     |
 
 ## CLI Commands
 

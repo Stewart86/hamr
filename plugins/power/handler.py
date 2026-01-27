@@ -11,6 +11,11 @@ import select
 import signal
 import subprocess
 import sys
+from pathlib import Path
+
+# Add parent directory to path to import SDK
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
 
 POWER_ACTIONS = [
     {
@@ -143,12 +148,11 @@ def handle_request(request: dict) -> None:
         results = [action_to_result(a) for a in POWER_ACTIONS]
         print(
             json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "placeholder": "Search power actions...",
-                    "inputMode": "realtime",
-                }
+                HamrPlugin.results(
+                    results,
+                    placeholder="Search power actions...",
+                    input_mode="realtime",
+                )
             ),
             flush=True,
         )
@@ -172,14 +176,7 @@ def handle_request(request: dict) -> None:
                 }
             ]
         print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                }
-            ),
-            flush=True,
+            json.dumps(HamrPlugin.results(results, input_mode="realtime")), flush=True
         )
         return
 
@@ -187,15 +184,13 @@ def handle_request(request: dict) -> None:
         selected_id = selected.get("id", "")
 
         if selected_id == "__empty__":
-            print(json.dumps({"type": "execute", "close": True}), flush=True)
+            print(json.dumps(HamrPlugin.close()), flush=True)
             return
 
         action = next((a for a in POWER_ACTIONS if a["id"] == selected_id), None)
         if not action:
             print(
-                json.dumps(
-                    {"type": "error", "message": f"Unknown action: {selected_id}"}
-                ),
+                json.dumps(HamrPlugin.error(f"Unknown action: {selected_id}")),
                 flush=True,
             )
             return
@@ -206,20 +201,13 @@ def handle_request(request: dict) -> None:
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
-        print(
-            json.dumps(
-                {
-                    "type": "execute",
-                    "name": action["name"],
-                    "icon": action["icon"],
-                    "close": True,
-                }
-            ),
-            flush=True,
-        )
+        response = HamrPlugin.close()
+        response["name"] = action["name"]
+        response["icon"] = action["icon"]
+        print(json.dumps(response), flush=True)
         return
 
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}), flush=True)
+    print(json.dumps(HamrPlugin.error(f"Unknown step: {step}")), flush=True)
 
 
 def main():

@@ -19,7 +19,11 @@ Show results instantly in main search without opening the plugin. When the user 
   "name": "Calculate",
   "description": "Calculator with currency and units",
   "icon": "calculate",
-  "supportedCompositors": ["*"],
+  "supportedPlatforms": ["niri", "hyprland", "macos", "windows"],
+  "handler": {
+    "type": "stdio",
+    "path": "handler.py"
+  },
   "match": {
     "patterns": ["^=", "^[\\d\\.]+\\s*[\\+\\-\\*\\/]", "^[$€£¥]"],
     "priority": 100
@@ -560,7 +564,11 @@ For plugins that only provide indexed items (no interactive mode), set `indexOnl
   "name": "Zoxide",
   "description": "Jump to directories",
   "icon": "folder_special",
-  "supportedCompositors": ["*"],
+  "supportedPlatforms": ["niri", "hyprland"],
+  "handler": {
+    "type": "stdio",
+    "path": "handler.py"
+  },
   "indexOnly": true,
   "daemon": {
     "enabled": true,
@@ -855,29 +863,34 @@ emit({"type": "status", "status": {"ambient": null}})
 
 ---
 
-## Compositor Support
+## Platform Support
 
-Specify which compositors your plugin supports:
+Specify which platforms your plugin supports:
 
 ```json
 {
   "name": "My Plugin",
-  "supportedCompositors": ["*"]
+  "supportedPlatforms": ["niri", "hyprland"]
 }
 ```
 
-| Value                  | Description             |
-| ---------------------- | ----------------------- |
-| `["*"]`                | All compositors         |
-| `["hyprland"]`         | Hyprland only (default) |
-| `["niri"]`             | Niri only               |
-| `["hyprland", "niri"]` | Both                    |
+| Value                                        | Description                     |
+| -------------------------------------------- | ------------------------------- |
+| `["hyprland"]`                               | Hyprland only                   |
+| `["niri"]`                                   | Niri only                       |
+| `["niri", "hyprland"]`                       | Linux Wayland compositors       |
+| `["macos"]`                                  | macOS only                      |
+| `["windows"]`                                | Windows only                    |
+| `["niri", "hyprland", "macos", "windows"]`   | All platforms (list explicitly) |
 
 **Guidelines:**
 
 - Uses `hyprctl` → `["hyprland"]`
 - Uses `niri msg` → `["niri"]`
-- Uses generic tools (`wl-copy`, `notify-send`) → `["*"]`
+- Uses generic tools (`wl-copy`, `notify-send`) → `["niri", "hyprland"]`
+- Truly cross-platform (no compositor-specific calls) → `["niri", "hyprland", "macos", "windows"]`
+
+**Note:** There is no wildcard support. List all supported platforms explicitly.
 
 ---
 

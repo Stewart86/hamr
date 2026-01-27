@@ -2,9 +2,16 @@
   "name": "Apps",
   "description": "Browse and launch applications",
   "icon": "apps",
-  "supportedCompositors": ["*"],
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
+  },
   "daemon": {
     "enabled": true,
     "background": true
-  }
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

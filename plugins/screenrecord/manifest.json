@@ -1,7 +1,13 @@
 {
-    "name": "Screen Record",
-    "description": "Record screen or region with wf-recorder",
-    "icon": "screen_record",
-    "supportedCompositors": ["*"],
-    "frecency": "none"
+  "name": "Screen Record",
+  "description": "Record screen or region with wf-recorder",
+  "icon": "screen_record",
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

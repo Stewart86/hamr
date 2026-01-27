@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Web Apps plugin - Install and manage web apps.
+Web Apps plugin for hamr - Install and manage web apps.
 
-Stores web apps in ~/.config/hamr/webapps.json and launches them
-in app mode (standalone browser window) via the bundled launch-webapp script.
+Socket-based daemon plugin that stores web apps in ~/.config/hamr/webapps.json
+and launches them in app mode (standalone browser window) via the bundled
+launch-webapp script.
 
 Features:
 - Install web apps from URL + icon
@@ -11,75 +12,34 @@ Features:
 - Launch web apps in standalone browser window
 - Delete web apps
 - Index support for main search integration
-- Daemon mode with inotify file watching for automatic reindexing
+- Daemon mode with file watching for automatic reindexing
 """
 
-import ctypes
+import asyncio
 import json
-import os
-import select
-import struct
 import subprocess
 import sys
 from pathlib import Path
+from uuid import uuid4
 
-# Config file location
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
+
 CONFIG_DIR = Path.home() / ".config/hamr"
-
 WEBAPPS_FILE = CONFIG_DIR / "webapps.json"
 ICONS_DIR = CONFIG_DIR / "webapp-icons"
 PLUGIN_DIR = Path(__file__).parent
 LAUNCHER_SCRIPT = PLUGIN_DIR / "launch-webapp"
 
-# inotify constants
-IN_CLOSE_WRITE = 0x00000008
-IN_MOVED_TO = 0x00000080
-IN_CREATE = 0x00000100
-
-
-def create_inotify_fd(watch_path: Path) -> int | None:
-    """Create inotify fd watching a directory. Returns fd or None."""
-    try:
-        libc = ctypes.CDLL("libc.so.6", use_errno=True)
-        fd = libc.inotify_init()
-        if fd < 0:
-            return None
-        mask = IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE
-        wd = libc.inotify_add_watch(fd, str(watch_path).encode(), mask)
-        if wd < 0:
-            os.close(fd)
-            return None
-        return fd
-    except (OSError, AttributeError):
-        return None
-
-
-def read_inotify_events(fd: int) -> list[str]:
-    """Read pending inotify events, return list of changed filenames."""
-    filenames = []
-    try:
-        buf = os.read(fd, 4096)
-        offset = 0
-        while offset < len(buf):
-            wd, mask, cookie, length = struct.unpack_from("iIII", buf, offset)
-            offset += 16
-            if length:
-                name = buf[offset : offset + length].rstrip(b"\x00").decode()
-                filenames.append(name)
-                offset += length
-    except (OSError, struct.error):
-        pass
-    return filenames
-
 
 def ensure_dirs():
-    """Ensure required directories exist"""
+    """Ensure required directories exist."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     ICONS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def load_webapps() -> list[dict]:
-    """Load web apps from config file"""
+    """Load web apps from config file."""
     if not WEBAPPS_FILE.exists():
         return []
     try:
@@ -91,7 +51,7 @@ def load_webapps() -> list[dict]:
 
 
 def save_webapps(webapps: list[dict]) -> bool:
-    """Save web apps to config file"""
+    """Save web apps to config file."""
     try:
         ensure_dirs()
         with open(WEBAPPS_FILE, "w") as f:
@@ -102,20 +62,21 @@ def save_webapps(webapps: list[dict]) -> bool:
 
 
 def sanitize_name(name: str) -> str:
-    """Sanitize app name for use in filenames"""
+    """Sanitize app name for use in filenames."""
     safe = "".join(c if c.isalnum() else "-" for c in name)
     while "--" in safe:
         safe = safe.replace("--", "-")
     return safe.strip("-").lower()
 
 
-def download_icon(url: str, name: str) -> str | None:
-    """Download icon from URL, return local path or None on failure"""
+async def download_icon(url: str, name: str) -> str | None:
+    """Download icon from URL, return local path or None on failure."""
     ensure_dirs()
     icon_path = ICONS_DIR / f"{sanitize_name(name)}.png"
 
     try:
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             ["curl", "-sL", "-o", str(icon_path), url],
             capture_output=True,
             timeout=30,
@@ -136,14 +97,14 @@ def download_icon(url: str, name: str) -> str | None:
 
 
 def delete_icon(name: str):
-    """Delete icon file for a web app"""
+    """Delete icon file for a web app."""
     icon_path = ICONS_DIR / f"{sanitize_name(name)}.png"
     if icon_path.exists():
         icon_path.unlink()
 
 
 def get_plugin_actions() -> list[dict]:
-    """Get plugin-level actions for the action bar"""
+    """Get plugin-level actions."""
     return [
         {
             "id": "add",
@@ -154,96 +115,8 @@ def get_plugin_actions() -> list[dict]:
     ]
 
 
-def show_add_form(name: str = "", url: str = "", icon_url: str = ""):
-    """Show form for adding a new web app"""
-    print(
-        json.dumps(
-            {
-                "type": "form",
-                "form": {
-                    "title": "Install Web App",
-                    "submitLabel": "Install",
-                    "cancelLabel": "Cancel",
-                    "fields": [
-                        {
-                            "id": "name",
-                            "type": "text",
-                            "label": "App Name",
-                            "placeholder": "My Favorite Web App",
-                            "required": True,
-                            "default": name,
-                        },
-                        {
-                            "id": "url",
-                            "type": "text",
-                            "label": "URL",
-                            "placeholder": "https://example.com",
-                            "required": True,
-                            "default": url,
-                        },
-                        {
-                            "id": "icon_url",
-                            "type": "text",
-                            "label": "Icon URL",
-                            "placeholder": "https://example.com/icon.png",
-                            "required": True,
-                            "default": icon_url,
-                            "hint": "PNG icon URL (try dashboardicons.com)",
-                        },
-                    ],
-                },
-                "context": "__add__",
-            }
-        )
-    )
-
-
-def show_edit_form(app: dict):
-    """Show form for editing an existing web app"""
-    print(
-        json.dumps(
-            {
-                "type": "form",
-                "form": {
-                    "title": f"Edit {app['name']}",
-                    "submitLabel": "Save",
-                    "cancelLabel": "Cancel",
-                    "fields": [
-                        {
-                            "id": "name",
-                            "type": "text",
-                            "label": "App Name",
-                            "placeholder": "My Favorite Web App",
-                            "required": True,
-                            "default": app["name"],
-                        },
-                        {
-                            "id": "url",
-                            "type": "text",
-                            "label": "URL",
-                            "placeholder": "https://example.com",
-                            "required": True,
-                            "default": app["url"],
-                        },
-                        {
-                            "id": "icon_url",
-                            "type": "text",
-                            "label": "Icon URL (leave empty to keep current)",
-                            "placeholder": "https://example.com/icon.png",
-                            "required": False,
-                            "default": "",
-                            "hint": "Leave empty to keep current icon",
-                        },
-                    ],
-                },
-                "context": f"__edit__:{app['id']}",
-            }
-        )
-    )
-
-
 def get_webapp_results(webapps: list[dict]) -> list[dict]:
-    """Convert webapps to result format"""
+    """Convert webapps to result format."""
     results = []
     for app in webapps:
         icon_path = app.get("icon", "")
@@ -274,7 +147,7 @@ def get_webapp_results(webapps: list[dict]) -> list[dict]:
 
 
 def get_empty_results() -> list[dict]:
-    """Return empty state results"""
+    """Return empty state results."""
     return [
         {
             "id": "__empty__",
@@ -286,12 +159,12 @@ def get_empty_results() -> list[dict]:
 
 
 def webapp_to_index_item(app: dict) -> dict:
-    """Convert a webapp to indexable item format for main search."""
+    """Convert webapp to index item for main search."""
     icon_path = app.get("icon", "")
     has_icon = icon_path and Path(icon_path).exists()
 
     return {
-        "id": app["id"],  # Use simple id (matches result IDs for frecency)
+        "id": app["id"],
         "name": app["name"],
         "description": app["url"],
         "keywords": app["name"].lower().split(),
@@ -327,420 +200,300 @@ def webapp_to_index_item(app: dict) -> dict:
     }
 
 
-def get_index_items() -> list[dict]:
-    """Get all webapps as index items for main search integration."""
+plugin = HamrPlugin(
+    id="webapp",
+    name="Web Apps",
+    description="Install and manage web apps",
+    icon="web",
+)
+
+
+@plugin.on_initial
+async def handle_initial(params=None):
+    """Handle initial request."""
     webapps = load_webapps()
-    return [webapp_to_index_item(app) for app in webapps]
+    results = get_webapp_results(webapps) if webapps else get_empty_results()
+    return HamrPlugin.results(
+        results,
+        input_mode="realtime",
+        placeholder="Search web apps...",
+        plugin_actions=get_plugin_actions(),
+    )
 
 
-def handle_request(input_data: dict):
-    """Handle a single request (initial, search, action, form, index)"""
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "").strip()
-    selected = input_data.get("selected", {})
-    action = input_data.get("action", "")
-    context = input_data.get("context", "")
-
-    selected_id = selected.get("id", "")
+@plugin.on_search
+async def handle_search(query: str, context: str | None):
+    """Handle search request."""
     webapps = load_webapps()
 
-    # Index: return items for main search integration
-    if step == "index":
-        mode = input_data.get("mode", "full")
-        indexed_ids = set(input_data.get("indexedIds", []))
+    if query:
+        query_lower = query.lower()
+        filtered = [
+            app
+            for app in webapps
+            if query_lower in app["name"].lower()
+            or query_lower in app.get("url", "").lower()
+        ]
+    else:
+        filtered = webapps
 
-        # Build current ID set
-        current_ids = {f"webapp:{app['id']}" for app in webapps}
+    results = (
+        get_webapp_results(filtered)
+        if filtered
+        else [
+            {
+                "id": "__empty__",
+                "name": "No matching web apps",
+                "icon": "search_off",
+            }
+        ]
+    )
 
-        if mode == "incremental" and indexed_ids:
-            # Find new items
-            new_ids = current_ids - indexed_ids
-            new_items = [
-                webapp_to_index_item(app)
-                for app in webapps
-                if f"webapp:{app['id']}" in new_ids
-            ]
+    return HamrPlugin.results(
+        results,
+        input_mode="realtime",
+        placeholder="Search web apps...",
+        plugin_actions=get_plugin_actions(),
+    )
 
-            # Find removed items
-            removed_ids = list(indexed_ids - current_ids)
 
-            print(
-                json.dumps(
+@plugin.on_action
+async def handle_action(item_id: str, action: str | None, context: str | None):
+    """Handle action request."""
+    webapps = load_webapps()
+
+    if item_id == "__plugin__" and action == "add":
+        return HamrPlugin.form(
+            {
+                "title": "Install Web App",
+                "submitLabel": "Install",
+                "cancelLabel": "Cancel",
+                "fields": [
                     {
-                        "type": "index",
-                        "mode": "incremental",
-                        "items": new_items,
-                        "remove": removed_ids,
-                    }
-                )
-            )
-        else:
-            # Full reindex
-            items = [webapp_to_index_item(app) for app in webapps]
-            print(json.dumps({"type": "index", "items": items}))
-        return
+                        "id": "name",
+                        "type": "text",
+                        "label": "App Name",
+                        "placeholder": "My Favorite Web App",
+                        "required": True,
+                    },
+                    {
+                        "id": "url",
+                        "type": "text",
+                        "label": "URL",
+                        "placeholder": "https://example.com",
+                        "required": True,
+                    },
+                    {
+                        "id": "icon_url",
+                        "type": "text",
+                        "label": "Icon URL",
+                        "placeholder": "https://example.com/icon.png",
+                        "required": True,
+                        "hint": "PNG icon URL (try dashboardicons.com)",
+                    },
+                ],
+            },
+            context="__add__",
+        )
 
-    # Initial: show installed web apps
-    if step == "initial":
+    if item_id == "__form_cancel__":
         results = get_webapp_results(webapps) if webapps else get_empty_results()
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                    "placeholder": "Search web apps...",
-                    "pluginActions": get_plugin_actions(),
-                }
-            )
+        return HamrPlugin.results(
+            results,
+            input_mode="realtime",
+            clear_input=True,
         )
-        return
 
-    # Search: filter web apps
-    if step == "search":
-        if query:
-            query_lower = query.lower()
-            filtered = [
-                app
-                for app in webapps
-                if query_lower in app["name"].lower()
-                or query_lower in app.get("url", "").lower()
-            ]
+    if action == "edit":
+        app = next((a for a in webapps if a["id"] == item_id), None)
+        if app:
+            return HamrPlugin.form(
+                {
+                    "title": f"Edit {app['name']}",
+                    "submitLabel": "Save",
+                    "cancelLabel": "Cancel",
+                    "fields": [
+                        {
+                            "id": "name",
+                            "type": "text",
+                            "label": "App Name",
+                            "default": app["name"],
+                            "required": True,
+                        },
+                        {
+                            "id": "url",
+                            "type": "text",
+                            "label": "URL",
+                            "default": app["url"],
+                            "required": True,
+                        },
+                        {
+                            "id": "icon_url",
+                            "type": "text",
+                            "label": "Icon URL (leave empty to keep current)",
+                            "required": False,
+                            "hint": "Leave empty to keep current icon",
+                        },
+                    ],
+                },
+                context=f"__edit__:{app['id']}",
+            )
+
+    if action == "floating":
+        app = next((a for a in webapps if a["id"] == item_id), None)
+        if app:
+            try:
+                await asyncio.to_thread(
+                    subprocess.Popen,
+                    [str(LAUNCHER_SCRIPT), "--floating", app["url"]],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                return HamrPlugin.close()
+            except Exception:
+                return HamrPlugin.error("Failed to launch app")
+
+    if action == "delete":
+        app = next((a for a in webapps if a["id"] == item_id), None)
+        if app:
+            delete_icon(app["name"])
+            webapps = [a for a in webapps if a["id"] != item_id]
+            save_webapps(webapps)
+
+        results = get_webapp_results(webapps) if webapps else get_empty_results()
+        return HamrPlugin.results(
+            results,
+            input_mode="realtime",
+            clear_input=True,
+            placeholder="Search web apps...",
+            plugin_actions=get_plugin_actions(),
+        )
+
+    # Launch web app (default action)
+    app = next((a for a in webapps if a["id"] == item_id), None)
+    if app:
+        try:
+            await asyncio.to_thread(
+                subprocess.Popen,
+                [str(LAUNCHER_SCRIPT), app["url"]],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return HamrPlugin.close()
+        except Exception:
+            return HamrPlugin.error("Failed to launch app")
+
+    return HamrPlugin.noop()
+
+
+@plugin.on_form_submitted
+async def handle_form_submitted(form_data: dict, context: str | None):
+    """Handle form submission."""
+    webapps = load_webapps()
+
+    if context == "__add__":
+        name = form_data.get("name", "").strip()
+        url = form_data.get("url", "").strip()
+        icon_url = form_data.get("icon_url", "").strip()
+
+        if not name:
+            return {"type": "error", "message": "App name is required"}
+        if not url:
+            return {"type": "error", "message": "URL is required"}
+        if not icon_url:
+            return {"type": "error", "message": "Icon URL is required"}
+
+        # Add https:// if missing
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = "https://" + url
+
+        if not icon_url.startswith("http://") and not icon_url.startswith("https://"):
+            icon_url = "https://" + icon_url
+
+        # Check if already exists
+        app_id = sanitize_name(name)
+        if any(app["id"] == app_id for app in webapps):
+            return {"type": "error", "message": f"'{name}' already exists"}
+
+        # Download icon
+        icon_path = await download_icon(icon_url, name)
+        if not icon_path:
+            return {"type": "error", "message": "Failed to download icon"}
+
+        # Add new webapp
+        new_app = {
+            "id": app_id,
+            "name": name,
+            "url": url,
+            "icon": icon_path,
+        }
+        webapps.append(new_app)
+
+        if save_webapps(webapps):
+            return HamrPlugin.results(
+                get_webapp_results(webapps),
+                input_mode="realtime",
+                clear_input=True,
+                placeholder="Search web apps...",
+                plugin_actions=get_plugin_actions(),
+            )
         else:
-            filtered = webapps
+            return HamrPlugin.error("Failed to save web app")
 
-        results = (
-            get_webapp_results(filtered)
-            if filtered
-            else [
-                {
-                    "id": "__empty__",
-                    "name": "No matching web apps",
-                    "icon": "search_off",
-                }
-            ]
-        )
+    if context and context.startswith("__edit__:"):
+        app_id = context.split(":", 1)[1]
+        app = next((a for a in webapps if a["id"] == app_id), None)
 
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                    "placeholder": "Search web apps...",
-                    "pluginActions": get_plugin_actions(),
-                }
-            )
-        )
-        return
+        if not app:
+            return {"type": "error", "message": "Web app not found"}
 
-    # Form submission
-    if step == "form":
-        form_data = input_data.get("formData", {})
+        name = form_data.get("name", "").strip()
+        url = form_data.get("url", "").strip()
+        icon_url = form_data.get("icon_url", "").strip()
 
-        if context == "__add__":
-            name = form_data.get("name", "").strip()
-            url = form_data.get("url", "").strip()
-            icon_url = form_data.get("icon_url", "").strip()
+        if not name:
+            return {"type": "error", "message": "App name is required"}
+        if not url:
+            return {"type": "error", "message": "URL is required"}
 
-            if not name:
-                print(json.dumps({"type": "error", "message": "App name is required"}))
-                return
+        # Add https:// if missing
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = "https://" + url
 
-            if not url:
-                print(json.dumps({"type": "error", "message": "URL is required"}))
-                return
+        # Update app
+        app["name"] = name
+        app["url"] = url
 
-            if not icon_url:
-                print(json.dumps({"type": "error", "message": "Icon URL is required"}))
-                return
-
-            # Add https:// if missing
-            if not url.startswith("http://") and not url.startswith("https://"):
-                url = "https://" + url
-
+        # Download new icon if provided
+        if icon_url:
             if not icon_url.startswith("http://") and not icon_url.startswith(
                 "https://"
             ):
                 icon_url = "https://" + icon_url
 
-            # Check if already exists
-            app_id = sanitize_name(name)
-            if any(app["id"] == app_id for app in webapps):
-                print(
-                    json.dumps({"type": "error", "message": f"'{name}' already exists"})
-                )
-                return
-
-            # Download icon
-            icon_path = download_icon(icon_url, name)
-            if not icon_path:
-                print(
-                    json.dumps({"type": "error", "message": "Failed to download icon"})
-                )
-                return
-
-            # Add new webapp
-            new_app = {
-                "id": app_id,
-                "name": name,
-                "url": url,
-                "icon": icon_path,
-            }
-            webapps.append(new_app)
-
-            if save_webapps(webapps):
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": get_webapp_results(webapps),
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": "",
-                            "placeholder": "Search web apps...",
-                            "pluginActions": get_plugin_actions(),
-                        }
-                    )
-                )
+            new_icon_path = await download_icon(icon_url, name)
+            if new_icon_path:
+                # Delete old icon if different
+                old_icon = app.get("icon", "")
+                if old_icon and old_icon != new_icon_path and Path(old_icon).exists():
+                    Path(old_icon).unlink()
+                app["icon"] = new_icon_path
             else:
-                print(
-                    json.dumps({"type": "error", "message": "Failed to save web app"})
-                )
-            return
+                return HamrPlugin.error("Failed to download new icon")
 
-        # Editing existing webapp
-        if context.startswith("__edit__:"):
-            app_id = context.split(":", 1)[1]
-            app = next((a for a in webapps if a["id"] == app_id), None)
-
-            if not app:
-                print(json.dumps({"type": "error", "message": "Web app not found"}))
-                return
-
-            name = form_data.get("name", "").strip()
-            url = form_data.get("url", "").strip()
-            icon_url = form_data.get("icon_url", "").strip()
-
-            if not name:
-                print(json.dumps({"type": "error", "message": "App name is required"}))
-                return
-
-            if not url:
-                print(json.dumps({"type": "error", "message": "URL is required"}))
-                return
-
-            # Add https:// if missing
-            if not url.startswith("http://") and not url.startswith("https://"):
-                url = "https://" + url
-
-            # Update app
-            app["name"] = name
-            app["url"] = url
-
-            # Download new icon if provided
-            if icon_url:
-                if not icon_url.startswith("http://") and not icon_url.startswith(
-                    "https://"
-                ):
-                    icon_url = "https://" + icon_url
-
-                new_icon_path = download_icon(icon_url, name)
-                if new_icon_path:
-                    # Delete old icon if different
-                    old_icon = app.get("icon", "")
-                    if (
-                        old_icon
-                        and old_icon != new_icon_path
-                        and Path(old_icon).exists()
-                    ):
-                        Path(old_icon).unlink()
-                    app["icon"] = new_icon_path
-                else:
-                    print(
-                        json.dumps(
-                            {"type": "error", "message": "Failed to download new icon"}
-                        )
-                    )
-                    return
-
-            if save_webapps(webapps):
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": get_webapp_results(webapps),
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": "",
-                            "placeholder": "Search web apps...",
-                            "pluginActions": get_plugin_actions(),
-                        }
-                    )
-                )
-            else:
-                print(
-                    json.dumps({"type": "error", "message": "Failed to save web app"})
-                )
-            return
-
-    # Action handling
-    if step == "action":
-        # Plugin-level action: add (from action bar)
-        if selected_id == "__plugin__" and action == "add":
-            show_add_form()
-            return
-
-        # Form cancelled
-        if selected_id == "__form_cancel__":
-            results = get_webapp_results(webapps) if webapps else get_empty_results()
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": results,
-                        "inputMode": "realtime",
-                        "clearInput": True,
-                        "context": "",
-                        "placeholder": "Search web apps...",
-                        "pluginActions": get_plugin_actions(),
-                    }
-                )
+        if save_webapps(webapps):
+            return HamrPlugin.results(
+                get_webapp_results(webapps),
+                input_mode="realtime",
+                clear_input=True,
+                placeholder="Search web apps...",
+                plugin_actions=get_plugin_actions(),
             )
-            return
+        else:
+            return HamrPlugin.error("Failed to save web app")
 
-        # Non-actionable items
-        if selected_id in ("__empty__",):
-            return
-
-        # Edit action - show edit form
-        if action == "edit":
-            app = next((a for a in webapps if a["id"] == selected_id), None)
-            if app:
-                show_edit_form(app)
-            return
-
-        # Floating action - open as floating window
-        if action == "floating":
-            app = next((a for a in webapps if a["id"] == selected_id), None)
-            if app:
-                try:
-                    subprocess.Popen(
-                        [str(LAUNCHER_SCRIPT), "--floating", app["url"]],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                    print(json.dumps({"type": "execute", "close": True}))
-                except Exception:
-                    print(
-                        json.dumps({"type": "error", "message": "Failed to launch app"})
-                    )
-            return
-
-        # Delete action
-        if action == "delete":
-            app = next((a for a in webapps if a["id"] == selected_id), None)
-            if app:
-                delete_icon(app["name"])
-                webapps = [a for a in webapps if a["id"] != selected_id]
-                save_webapps(webapps)
-
-            results = get_webapp_results(webapps) if webapps else get_empty_results()
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": results,
-                        "inputMode": "realtime",
-                        "clearInput": True,
-                        "placeholder": "Search web apps...",
-                        "pluginActions": get_plugin_actions(),
-                    }
-                )
-            )
-            return
-
-        # Launch web app (default action - click on item)
-        app = next((a for a in webapps if a["id"] == selected_id), None)
-        if app:
-            try:
-                subprocess.Popen(
-                    [str(LAUNCHER_SCRIPT), app["url"]],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-                print(json.dumps({"type": "execute", "close": True}))
-            except Exception:
-                print(json.dumps({"type": "error", "message": "Failed to launch app"}))
-        return
-
-
-def main():
-    ensure_dirs()
-
-    watch_dir = CONFIG_DIR
-    watch_filename = "webapps.json"
-
-    inotify_fd = create_inotify_fd(watch_dir)
-
-    # Emit full index on startup
-    items = get_index_items()
-    print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
-
-    if inotify_fd is not None:
-        # Daemon mode with inotify
-        while True:
-            readable, _, _ = select.select([sys.stdin, inotify_fd], [], [], 1.0)
-
-            for r in readable:
-                if r == sys.stdin:
-                    try:
-                        line = sys.stdin.readline()
-                        if not line:
-                            return
-                        input_data = json.loads(line)
-                        handle_request(input_data)
-                        sys.stdout.flush()
-                    except json.JSONDecodeError:
-                        continue
-
-                elif r == inotify_fd:
-                    changed = read_inotify_events(inotify_fd)
-                    if watch_filename in changed:
-                        items = get_index_items()
-                        print(
-                            json.dumps(
-                                {"type": "index", "mode": "full", "items": items}
-                            )
-                        )
-                        sys.stdout.flush()
-    else:
-        # Fallback: mtime polling
-        last_mtime = WEBAPPS_FILE.stat().st_mtime if WEBAPPS_FILE.exists() else 0
-
-        while True:
-            readable, _, _ = select.select([sys.stdin], [], [], 2.0)
-
-            if readable:
-                try:
-                    line = sys.stdin.readline()
-                    if not line:
-                        return
-                    input_data = json.loads(line)
-                    handle_request(input_data)
-                    sys.stdout.flush()
-                except json.JSONDecodeError:
-                    continue
-
-            # Check mtime
-            if WEBAPPS_FILE.exists():
-                current = WEBAPPS_FILE.stat().st_mtime
-                if current != last_mtime:
-                    last_mtime = current
-                    items = get_index_items()
-                    print(json.dumps({"type": "index", "mode": "full", "items": items}))
-                    sys.stdout.flush()
+    return HamrPlugin.noop()
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

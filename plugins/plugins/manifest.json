@@ -1,6 +1,0 @@
-{
-  "name": "Plugins",
-  "description": "Browse and launch plugins",
-  "icon": "extension",
-  "supportedCompositors": ["*"]
-}

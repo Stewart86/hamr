@@ -8,6 +8,8 @@ Sliders let users adjust numeric values (volume, brightness, etc.).
 
 ![Slider showing volume control](images/slider-item.png)
 
+**Simple format (stdio plugins):**
+
 ```python
 {
     "type": "results",
@@ -27,14 +29,45 @@ Sliders let users adjust numeric values (volume, brightness, etc.).
 }
 ```
 
-| Field          | Type   | Description                                        |
-| -------------- | ------ | -------------------------------------------------- |
-| `value`        | number | Current slider value                               |
-| `min`          | number | Minimum value                                      |
-| `max`          | number | Maximum value                                      |
-| `step`         | number | Step increment (also determines decimal precision) |
-| `unit`         | string | Unit suffix (e.g., `"%"`, `"px"`, `"ms"`)          |
-| `displayValue` | string | Override display text entirely                     |
+**Extended format (socket plugins with gauge):**
+
+```python
+{
+    "type": "results",
+    "results": [
+        {
+            "id": "volume",
+            "name": "Volume",
+            "icon": "volume_up",
+            "resultType": "slider",     # Alternative to "type"
+            "value": {                  # Object for extended control
+                "value": 75,
+                "min": 0,
+                "max": 100,
+                "step": 5,
+                "displayValue": "75%"
+            },
+            "gauge": {                  # Optional: show gauge alongside
+                "value": 75,
+                "max": 100,
+                "label": "75%"
+            }
+        }
+    ]
+}
+```
+
+| Field          | Type          | Description                                        |
+| -------------- | ------------- | -------------------------------------------------- |
+| `type`         | string        | `"slider"` (simple format)                         |
+| `resultType`   | string        | `"slider"` (extended format)                       |
+| `value`        | number/object | Current value (number or object with min/max/step) |
+| `min`          | number        | Minimum value (simple format)                      |
+| `max`          | number        | Maximum value (simple format)                      |
+| `step`         | number        | Step increment (also determines decimal precision) |
+| `unit`         | string        | Unit suffix (e.g., `"%"`, `"px"`, `"ms"`)          |
+| `displayValue` | string        | Override display text entirely                     |
+| `gauge`        | object        | Optional gauge to display alongside slider         |
 
 ### Handling Slider Changes
 
@@ -77,6 +110,8 @@ Switches are boolean toggles (mute, enable/disable).
 
 ![Switch showing mute toggle](images/switch-item.png)
 
+**Simple format (stdio plugins):**
+
 ```python
 {
     "type": "results",
@@ -88,6 +123,24 @@ Switches are boolean toggles (mute, enable/disable).
             "description": "Mute audio output",
             "icon": "volume_up",        # Shows current state
             "value": False              # Current state
+        }
+    ]
+}
+```
+
+**Extended format (socket plugins):**
+
+```python
+{
+    "type": "results",
+    "results": [
+        {
+            "id": "volume-mute",
+            "name": "Mute Volume",
+            "description": "Mute system audio output",
+            "icon": "volume_up",
+            "resultType": "switch",     # Alternative to "type"
+            "value": False
         }
     ]
 }

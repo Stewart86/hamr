@@ -8,20 +8,66 @@ The `manifest.json` file defines your plugin's metadata and capabilities.
 
 ### Required Fields
 
-| Field                  | Type   | Description                                         |
-| ---------------------- | ------ | --------------------------------------------------- |
-| `name`                 | string | Display name shown in launcher                      |
-| `description`          | string | Short description                                   |
-| `icon`                 | string | Material icon name                                  |
-| `supportedCompositors` | array  | `["*"]`, `["hyprland"]`, `["niri"]`, or combination |
+| Field                | Type   | Description                                                           |
+| -------------------- | ------ | --------------------------------------------------------------------- |
+| `name`               | string | Display name shown in launcher                                        |
+| `description`        | string | Short description                                                     |
+| `icon`               | string | Material icon name                                                    |
+| `supportedPlatforms` | array  | `["niri", "hyprland"]`, `["macos"]`, `["windows"]`, etc. (list all explicitly) |
 
 ### Optional Fields
 
-| Field       | Type   | Default        | Description                                             |
-| ----------- | ------ | -------------- | ------------------------------------------------------- |
-| `handler`   | string | `"handler.py"` | Handler script filename                                 |
-| `frecency`  | string | `"item"`       | Usage tracking: `"item"`, `"plugin"`, or `"none"`       |
-| `indexOnly` | bool   | `false`        | Plugin only provides indexed items, no interactive mode |
+| Field          | Type   | Default      | Description                                             |
+| -------------- | ------ | ------------ | ------------------------------------------------------- |
+| `handler`      | object | see below    | Handler configuration (type, command)                   |
+| `frecency`     | string | `"item"`     | Usage tracking: `"item"`, `"plugin"`, or `"none"`       |
+| `inputMode`    | string | `"realtime"` | Default input mode: `"realtime"` or `"submit"`          |
+| `hidden`       | bool   | `false`      | Hide plugin from plugin list (prefix-only access)       |
+| `staticIndex`  | array  | -            | Static index items defined in manifest (see below)      |
+| `match`        | object | -            | Pattern matching configuration (see below)              |
+| `matchPattern` | string | -            | Legacy single regex pattern (use `match` instead)       |
+
+### Handler Configuration
+
+The `handler` field specifies how the plugin communicates with hamr:
+
+**stdio handler (default):**
+
+```json
+{
+  "handler": {
+    "type": "stdio"
+  }
+}
+```
+
+For stdio plugins, Hamr runs `handler.py` in the plugin directory by default, so the `handler` field can be omitted entirely.
+
+**socket handler:**
+
+```json
+{
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  }
+}
+```
+
+| Field     | Type   | Default   | Description                               |
+| --------- | ------ | --------- | ----------------------------------------- |
+| `type`    | string | `"stdio"` | `"stdio"` or `"socket"`                   |
+| `path`    | string | -         | Reserved for stdio handlers; Hamr runs `handler.py` by default |
+| `command` | string | -         | Command to run the handler (for socket)   |
+
+**Handler Types:**
+
+| Type     | Description                                                    | Use Case                              |
+| -------- | -------------------------------------------------------------- | ------------------------------------- |
+| `stdio`  | JSON over stdin/stdout, new process per request or daemon loop | Simple plugins, stateless operations  |
+| `socket` | JSON-RPC 2.0 over Unix socket, persistent connection           | Complex daemons, real-time updates    |
+
+**Note:** For `stdio` handlers, if `daemon.enabled: true`, the handler runs as a persistent process reading JSON lines from stdin. For `socket` handlers, the handler connects to hamr's socket and uses JSON-RPC 2.0.
 
 ### Daemon Configuration
 
@@ -29,15 +75,19 @@ The `manifest.json` file defines your plugin's metadata and capabilities.
 {
   "daemon": {
     "enabled": true,
-    "background": false
+    "background": true,
+    "restartOnCrash": true,
+    "maxRestarts": 5
   }
 }
 ```
 
-| Field               | Type | Default | Description                                            |
-| ------------------- | ---- | ------- | ------------------------------------------------------ |
-| `daemon.enabled`    | bool | `false` | Enable persistent daemon mode                          |
-| `daemon.background` | bool | `false` | Run always (`true`) or only when plugin open (`false`) |
+| Field                 | Type | Default | Description                                            |
+| --------------------- | ---- | ------- | ------------------------------------------------------ |
+| `daemon.enabled`      | bool | `false` | Enable persistent daemon mode                          |
+| `daemon.background`   | bool | `false` | Run always (`true`) or only when plugin open (`false`) |
+| `daemon.restartOnCrash` | bool | `false` | Automatically restart daemon if it crashes           |
+| `daemon.maxRestarts`  | int  | `0`     | Maximum restart attempts (0 = unlimited)               |
 
 ### Index Configuration
 
@@ -69,27 +119,97 @@ The `manifest.json` file defines your plugin's metadata and capabilities.
 | `match.patterns` | array  | -       | Regex patterns to trigger instant match          |
 | `match.priority` | number | `50`    | Higher priority wins when multiple plugins match |
 
+### Static Index Configuration
+
+Define searchable items directly in the manifest without a handler:
+
+```json
+{
+  "staticIndex": [
+    {
+      "id": "shutdown",
+      "name": "Shutdown",
+      "description": "Power off the system",
+      "icon": "power_settings_new",
+      "keywords": ["power", "off", "halt"],
+      "verb": "Execute",
+      "entryPoint": {
+        "step": "action",
+        "selected": { "id": "shutdown" }
+      }
+    }
+  ]
+}
+```
+
+| Field        | Type   | Required | Description                          |
+| ------------ | ------ | -------- | ------------------------------------ |
+| `id`         | string | Yes      | Unique identifier                    |
+| `name`       | string | Yes      | Display name (searchable)            |
+| `description`| string | No       | Subtitle text                        |
+| `icon`       | string | No       | Material icon name                   |
+| `iconType`   | string | No       | `"material"` (default) or `"system"` |
+| `keywords`   | array  | No       | Additional search terms              |
+| `verb`       | string | No       | Action text (e.g., "Execute")        |
+| `entryPoint` | object | No       | Handler invocation data              |
+
 ### Complete Manifest Example
+
+**Simple stdio plugin:**
 
 ```json
 {
   "name": "My Plugin",
   "description": "What it does",
   "icon": "star",
-  "supportedCompositors": ["*"],
-  "handler": "handler.py",
-  "frecency": "item",
+  "supportedPlatforms": ["niri", "hyprland"],
+  "handler": {
+    "type": "stdio",
+    "path": "handler.py"
+  },
+  "frecency": "item"
+}
+```
+
+**Socket-based daemon plugin:**
+
+```json
+{
+  "name": "Timer",
+  "description": "Countdown timers",
+  "icon": "timer",
+  "supportedPlatforms": ["niri", "hyprland", "macos", "windows"],
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
   "daemon": {
     "enabled": true,
-    "background": false
+    "background": true,
+    "restartOnCrash": true,
+    "maxRestarts": 5
   },
-  "index": {
-    "enabled": true
+  "frecency": "plugin"
+}
+```
+
+**Pattern-matching plugin:**
+
+```json
+{
+  "name": "Calculate",
+  "description": "Calculator",
+  "icon": "calculate",
+  "supportedPlatforms": ["niri", "hyprland", "macos", "windows"],
+  "handler": {
+    "type": "stdio",
+    "path": "handler.py"
   },
   "match": {
-    "patterns": ["^pattern"],
+    "patterns": ["^=", "^[\\d\\.]+\\s*[\\+\\-\\*\\/]"],
     "priority": 100
-  }
+  },
+  "frecency": "plugin"
 }
 ```
 
@@ -222,20 +342,21 @@ Every response must be a single JSON object with a `type` field.
 }
 ```
 
-| Field             | Type   | Required | Default      | Description                  |
-| ----------------- | ------ | -------- | ------------ | ---------------------------- |
-| `type`            | string | Yes      | -            | Must be `"results"`          |
-| `results`         | array  | Yes      | -            | Array of result items        |
-| `placeholder`     | string | No       | -            | Search bar hint text         |
-| `inputMode`       | string | No       | `"realtime"` | `"realtime"` or `"submit"`   |
-| `clearInput`      | bool   | No       | `false`      | Clear search bar text        |
-| `context`         | string | No       | -            | State persisted across calls |
-| `notify`          | string | No       | -            | Show notification toast      |
-| `pluginActions`   | array  | No       | `[]`         | Toolbar action buttons       |
-| `navigateForward` | bool   | No       | -            | Increment navigation depth   |
-| `navigateBack`    | bool   | No       | -            | Decrement navigation depth   |
-| `navigationDepth` | int    | No       | -            | Set exact navigation depth   |
-| `status`          | object | No       | -            | Plugin status update         |
+| Field             | Type   | Required | Default      | Description                           |
+| ----------------- | ------ | -------- | ------------ | ------------------------------------- |
+| `type`            | string | Yes      | -            | Must be `"results"`                   |
+| `results`         | array  | Yes      | -            | Array of result items                 |
+| `placeholder`     | string | No       | -            | Search bar hint text                  |
+| `inputMode`       | string | No       | `"realtime"` | `"realtime"` or `"submit"`            |
+| `clearInput`      | bool   | No       | `false`      | Clear search bar text                 |
+| `context`         | string | No       | -            | State persisted across calls          |
+| `notify`          | string | No       | -            | Show notification toast               |
+| `pluginActions`   | array  | No       | `[]`         | Toolbar action buttons                |
+| `navigateForward` | bool   | No       | -            | Increment navigation depth            |
+| `navigateBack`    | bool   | No       | -            | Decrement navigation depth            |
+| `navigationDepth` | int    | No       | -            | Set exact navigation depth            |
+| `status`          | object | No       | -            | Plugin status update                  |
+| `activate`        | bool   | No       | -            | Activate plugin for multi-step flows  |
 
 ### Result Item Schema
 
@@ -258,24 +379,37 @@ Every response must be a single JSON object with a `type` field.
 }
 ```
 
-| Field         | Type   | Required | Default      | Description                         |
-| ------------- | ------ | -------- | ------------ | ----------------------------------- |
-| `id`          | string | Yes      | -            | Unique identifier                   |
-| `name`        | string | Yes      | -            | Primary display text                |
-| `description` | string | No       | -            | Secondary text                      |
-| `icon`        | string | No       | -            | Material icon name                  |
-| `iconType`    | string | No       | `"material"` | `"material"` or `"system"`          |
-| `thumbnail`   | string | No       | -            | Image path (overrides icon)         |
-| `verb`        | string | No       | -            | Action text on hover                |
-| `actions`     | array  | No       | `[]`         | Secondary action buttons (max 4)    |
-| `badges`      | array  | No       | `[]`         | Circular indicators (max 5)         |
-| `chips`       | array  | No       | `[]`         | Pill-shaped tags                    |
-| `graph`       | object | No       | -            | Line graph (replaces icon)          |
-| `gauge`       | object | No       | -            | Circular progress (replaces icon)   |
-| `progress`    | object | No       | -            | Progress bar (replaces description) |
-| `preview`     | object | No       | -            | Side panel content                  |
+| Field              | Type   | Required | Default      | Description                                     |
+| ------------------ | ------ | -------- | ------------ | ----------------------------------------------- |
+| `id`               | string | Yes      | -            | Unique identifier                               |
+| `name`             | string | Yes      | -            | Primary display text                            |
+| `description`      | string | No       | -            | Secondary text                                  |
+| `icon`             | string | No       | -            | Material icon name                              |
+| `iconType`         | string | No       | `"material"` | `"material"`, `"system"`, `"text"`, or `"path"` |
+| `thumbnail`        | string | No       | -            | Image path (overrides icon)                     |
+| `verb`             | string | No       | -            | Action text on hover                            |
+| `actions`          | array  | No       | `[]`         | Secondary action buttons (max 4)                |
+| `badges`           | array  | No       | `[]`         | Circular indicators (max 5)                     |
+| `chips`            | array  | No       | `[]`         | Pill-shaped tags                                |
+| `graph`            | object | No       | -            | Line graph (replaces icon)                      |
+| `gauge`            | object | No       | -            | Circular progress (replaces icon)               |
+| `progress`         | object | No       | -            | Progress bar (replaces description)             |
+| `preview`          | object | No       | -            | Side panel content                              |
+| `keepOpen`         | bool   | No       | `false`      | Keep launcher open after selection              |
+| `displayHint`      | string | No       | `"auto"`     | View hint: `"auto"`, `"list"`, `"grid"`, `"large_grid"` |
+| `isSuggestion`     | bool   | No       | `false`      | Mark as smart suggestion (shows reason)         |
+| `suggestionReason` | string | No       | -            | Why this was suggested (e.g., "Often used at 9am") |
+| `hasOcr`           | bool   | No       | `false`      | Item has OCR-searchable text (images)           |
+| `keywords`         | array  | No       | -            | Additional search terms (index items only)      |
+| `entryPoint`       | object | No       | -            | Handler invocation data (index items only)      |
+| `appId`            | string | No       | -            | App ID for window matching (apps only)          |
+| `appIdFallback`    | string | No       | -            | Fallback app ID (apps only)                     |
 
 ### Slider Item Schema
+
+There are two ways to define sliders:
+
+**Simple format (stdio plugins):**
 
 ```json
 {
@@ -292,20 +426,49 @@ Every response must be a single JSON object with a `type` field.
 }
 ```
 
-| Field         | Type   | Required | Default | Description               |
-| ------------- | ------ | -------- | ------- | ------------------------- |
-| `id`          | string | Yes      | -       | Unique identifier         |
-| `type`        | string | Yes      | -       | Must be `"slider"`        |
-| `name`        | string | Yes      | -       | Label text                |
-| `description` | string | No       | -       | Subtitle                  |
-| `icon`        | string | No       | -       | Material icon             |
-| `value`       | number | Yes      | -       | Current value             |
-| `min`         | number | No       | `0`     | Minimum value             |
-| `max`         | number | No       | `100`   | Maximum value             |
-| `step`        | number | No       | `1`     | Step increment            |
-| `unit`        | string | No       | -       | Unit suffix (e.g., `"%"`) |
+**Extended format (socket plugins with gauge):**
+
+```json
+{
+  "id": "volume",
+  "name": "Volume",
+  "icon": "volume_up",
+  "resultType": "slider",
+  "value": {
+    "value": 75,
+    "min": 0,
+    "max": 100,
+    "step": 5,
+    "displayValue": "75%"
+  },
+  "gauge": {
+    "value": 75,
+    "max": 100,
+    "label": "75%"
+  }
+}
+```
+
+| Field         | Type          | Required | Default | Description                              |
+| ------------- | ------------- | -------- | ------- | ---------------------------------------- |
+| `id`          | string        | Yes      | -       | Unique identifier                        |
+| `type`        | string        | No       | -       | `"slider"` (simple format)               |
+| `resultType`  | string        | No       | -       | `"slider"` (extended format)             |
+| `name`        | string        | Yes      | -       | Label text                               |
+| `description` | string        | No       | -       | Subtitle                                 |
+| `icon`        | string        | No       | -       | Material icon                            |
+| `value`       | number/object | Yes      | -       | Current value or value object            |
+| `min`         | number        | No       | `0`     | Minimum value (simple format)            |
+| `max`         | number        | No       | `100`   | Maximum value (simple format)            |
+| `step`        | number        | No       | `1`     | Step increment (simple format)           |
+| `unit`        | string        | No       | -       | Unit suffix (simple format)              |
+| `gauge`       | object        | No       | -       | Gauge display (extended format)          |
 
 ### Switch Item Schema
+
+There are two ways to define switches:
+
+**Simple format (stdio plugins):**
 
 ```json
 {
@@ -318,14 +481,28 @@ Every response must be a single JSON object with a `type` field.
 }
 ```
 
-| Field         | Type   | Required | Default | Description        |
-| ------------- | ------ | -------- | ------- | ------------------ |
-| `id`          | string | Yes      | -       | Unique identifier  |
-| `type`        | string | Yes      | -       | Must be `"switch"` |
-| `name`        | string | Yes      | -       | Label text         |
-| `description` | string | No       | -       | Subtitle           |
-| `icon`        | string | No       | -       | Material icon      |
-| `value`       | bool   | Yes      | -       | Current state      |
+**Extended format (socket plugins):**
+
+```json
+{
+  "id": "volume-mute",
+  "name": "Mute Volume",
+  "description": "Mute system audio output",
+  "icon": "volume_up",
+  "resultType": "switch",
+  "value": false
+}
+```
+
+| Field         | Type   | Required | Default | Description                  |
+| ------------- | ------ | -------- | ------- | ---------------------------- |
+| `id`          | string | Yes      | -       | Unique identifier            |
+| `type`        | string | No       | -       | `"switch"` (simple format)   |
+| `resultType`  | string | No       | -       | `"switch"` (extended format) |
+| `name`        | string | Yes      | -       | Label text                   |
+| `description` | string | No       | -       | Subtitle                     |
+| `icon`        | string | No       | -       | Material icon                |
+| `value`       | bool   | Yes      | -       | Current state                |
 
 ### Action Button Schema
 

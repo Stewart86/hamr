@@ -1,12 +1,15 @@
 # Hamr
 
-A standalone search bar / launcher for [Quickshell](https://quickshell.outfoxxed.me/).
+A standalone search bar / launcher built with Rust and GTK4.
+
+> **Migration Notice**: This documentation covers the Rust/GTK4 rewrite of Hamr. For the legacy QML/Quickshell version, see the [legacy-qml branch](https://github.com/stewart86/hamr/tree/legacy-qml).
 
 ## Features
 
 - Fast fuzzy search across apps, files, and plugins
 - Plugin system with JSON-over-stdio protocol
 - Frecency-based ranking (frequently used items rank higher)
+- GTK4 native UI with layer shell support
 - Support for Hyprland and Niri compositors
 - Material Design 3 theming with dynamic color support
 
@@ -17,13 +20,13 @@ A standalone search bar / launcher for [Quickshell](https://quickshell.outfoxxed
 Install from AUR:
 
 ```bash
-paru -S hamr
+paru -S hamr-git
 ```
 
-Enable and start the service:
+Or use the quick install script:
 
 ```bash
-systemctl --user enable --now hamr
+curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
 ```
 
 Toggle the launcher with `hamr toggle` (bind this to a key in your compositor).
@@ -71,14 +74,13 @@ Toggle the launcher with `hamr toggle` (bind this to a key in your compositor).
 ## CLI Commands
 
 ```bash
-hamr toggle              # Toggle launcher visibility
-hamr plugin <name>       # Open specific plugin
-hamr status              # Check if Hamr is running
-hamr audio [sink|source] # Open audio controls
+hamr toggle          # Toggle launcher visibility
+hamr plugin <name>   # Open specific plugin
+hamr status          # Check if daemon is running
+hamr test <plugin>   # Test a plugin
 ```
 
 ## Links
 
 - [GitHub Repository](https://github.com/stewart86/hamr)
-- [AUR Package](https://aur.archlinux.org/packages/hamr)
-- [Quickshell Documentation](https://quickshell.outfoxxed.me/)
+- [AUR Package](https://aur.archlinux.org/packages/hamr-git)

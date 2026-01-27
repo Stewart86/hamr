@@ -1,0 +1,152 @@
+{
+  "version": 1,
+  "generated": "2026-01-23T14:32:27+08:00",
+  "plugins": {
+    "accentcolor": {
+      "manifest.json": "1703b638fa7f035a85398cee8902d6514d15009bc146e54b71a855563f394486",
+      "handler.py": "9dcab6f4706616da183740267ba6a7af77a6e74ea15f53a2cf82f92239a6c4c8"
+    },
+    "apps": {
+      "manifest.json": "af7a7c32a4031f1a48ed1145713da57beab268aa50c54fcf3e7635b76b8d9e27",
+      "handler.py": "4d24c709c9652d1d887fcd2cdce33775b9adb0c0186d51b82cae8ac89549138a"
+    },
+    "aur": {
+      "manifest.json": "ea340522d9f8d38757bd067ab82f95c3f27b2569329373a187d001f706fb364d",
+      "handler.py": "17ba56fb9952361e00adeee1a7e5f3d688ef14624990c1d11dada77bfc317364"
+    },
+    "bitwarden": {
+      "manifest.json": "b25e64e6b231c3a067bb1bc0f5a3beda468f01ae9a35f0e9b0ba5ec2698bf8b5",
+      "handler.py": "4f67e604cbacbb5d3c09764078c0a3713f6f7c5c8f358cd973d9a9bb2108906f"
+    },
+    "calculate": {
+      "manifest.json": "1a38bd8f36ba295f923788b6594c1f68643eec8ecb03cc6e165c96e74e5b59ea",
+      "handler.py": "73331290e3b68a6fb1adc79b0fa4f8233ccc5e188878e6087b5eef58c7341320"
+    },
+    "clipboard": {
+      "manifest.json": "85bf8d992551bfc0073c29e209072e608836552265ae1f1dfc4e4e930b32d36a",
+      "handler.py": "f0eceffaf59e5c7ce146dc02e5fc962593ee109174566e2e415a28383a6bc062"
+    },
+    "colorpick": {
+      "manifest.json": "66157d953d02cc1931b5975e8cc11d729a4304b17ac5854cebd4b0043a3fdf5e",
+      "handler.py": "ecc77ef05d38b2b974796c7974950385b073c2fe793310eb5d98fa7988d6b961"
+    },
+    "dictionary": {
+      "manifest.json": "07e0071f131ad5b171a52f708a7548b8630da04ff24215ef1b1c63a57a779b58",
+      "handler.py": "8e4e57ae3dc5894d78881a9499b6739382833a82db2382f512f5bf60504e95a7"
+    },
+    "emoji": {
+      "manifest.json": "4f0bf4c2febabcca8d602f6132462f432833e6de25b95a99144e83caf15aaadf",
+      "handler.py": "5f04a1231c8eba95d6744e9805318de8292c438a85715bc1e8ce884aad59d73b",
+      "emojis.tsv": "56cae8ef4b82297d37bc07af3d1d561329180929f1594bab73e683e05620e12a"
+    },
+    "files": {
+      "manifest.json": "6a8b0a239d8f133cc00a5d9009be16884f566322cb96d02d4f5e5a3c26898e83",
+      "handler.py": "24b051530304eef299508f95f1a58b2bf9f061888c2b44c0bb5ac33e646be6c9"
+    },
+    "flathub": {
+      "manifest.json": "ea7da5b97f3c07aae06c3f0eb56849d23b3d52c546b08cd4ee44550498e3881f",
+      "handler.py": "6a050ec1e5e8225b848e8f6eeec40995aa1335d463f280df5af41831310afba5"
+    },
+    "hyprland": {
+      "manifest.json": "a2afec47ecb83ef1c5911fca4ba3ec87771acff461c19d279952a5da875d5a13",
+      "handler.py": "49fd90866e5aca956a42cab5071aa4cd4b1f486ab7c87fafd060be23068d0df9"
+    },
+    "niri": {
+      "manifest.json": "670bc48d93367c0c2f569650abcb1b8d7a81e7c74e1f332c423f759e8c7921ff",
+      "handler.py": "ce962145365dcc850af3a10e2adebe2d0fadc4acf104390a4c24c1edf9aca9c3"
+    },
+    "notes": {
+      "manifest.json": "db2b4507f411c809c2c1d818edd9f788c9ad07463ac1566da3fc9a60afbcc461",
+      "handler.py": "ad86115e371d5c7a34857f8e1353a04b5ff2509aebf91310f9e44cb6b1772c2e"
+    },
+    "pictures": {
+      "manifest.json": "c1eebaa6d6284368a1b9232faf4f0ad3de230884460a6748cb687abd2c002b65",
+      "handler.py": "26cb79e4531354b1145a4cc5f259c5b181671d99e7948b8abea4c240b9849dc4"
+    },
+    "player": {
+      "manifest.json": "7efef65a79c2c5ff2285e04d7aa013976b77aba65b295a4e5e4a3d711a882afa",
+      "handler.py": "c7182a8fb610c4f13b4ffe28c63c0ac7127b8a1fc11a83d8e06e4808f44ef9f6"
+    },
+    "power": {
+      "manifest.json": "1d527347a130e3181199a7f3527d37f95c61cc7f80882d70809d667372af1b60",
+      "handler.py": "b417b5f2becb5f9cb44cc6a11831d69d7377e03deb371a103fc6d18ece2bad9a"
+    },
+    "quicklinks": {
+      "manifest.json": "635fd17b428029c7b2ecb640ee61f287c0f59e9384e0f4003e5ba7a660da7102",
+      "handler.py": "715284711174dd78d7da85e9d29f8a2f06ad06741deee127c37e8970afbf95ef"
+    },
+    "screenrecord": {
+      "manifest.json": "249f3eb9f9769bff7ce0f32685fb6486d9bc582956a3876fa88ac24ca84f7120",
+      "handler.py": "93ec4d5114c9f67352b7f662e95248027d9c5d3c892fb8b0589baf58d5d90bf9"
+    },
+    "screenshot": {
+      "manifest.json": "e2661dc607daea83e5fa11eecf8c6b955214df53d98c0956e14d2be92df1e123",
+      "handler.py": "26f2664d53a86a459527bd6ed63dbe4db4ff971f70a8d8cb483297633dbe9b31"
+    },
+    "settings": {
+      "manifest.json": "324c3182e3a1d0b0707e6f2705a6a985348576f83dccde2a5b296a22985e86ef",
+      "handler.py": "01c04a1afe5f7631b66b5d267e40c014ea4f2bf5d2f93d59c4f90b6e52fb5665"
+    },
+    "shell": {
+      "manifest.json": "c009340b6d6936511c054e1b06862b295b49b2b62c50e47bb88dcd406ad45e4e",
+      "handler.py": "2d3573f4a459a024284eafe16f4de88b21a7daa7575f088b231e11c9d05d86a2"
+    },
+    "snip": {
+      "manifest.json": "936231d5f68d429dd20662dd96e75ed2c6700f815d34648141002f1005f6259a",
+      "handler.py": "f343dc36c2cb905ad3f02a1c6a284cb147c44d29dc9adb927805db66d7dfcd6b"
+    },
+    "snippet": {
+      "manifest.json": "5ce408aa0e4c5864761bfab066cbed32aecc4c60ebcd7138c5f7f2ddcfbe2964",
+      "handler.py": "b1ffc9706e9a9bbe5a9eec0e0854075891af94271b6a4712e8ca3bdc56ed5496"
+    },
+    "sound": {
+      "manifest.json": "3c5af7baf3a6f0b67e00ea2bdb58644f460ba2f551f36f5fdb744c3e35e55315",
+      "handler.py": "290fa41b5e5374f038f9809375d90ebdc3251e815e67b18c5871ba924c4bf1e1"
+    },
+    "test-widgets": {
+      "manifest.json": "ed881dad493df9ccc849ebaa8eeea91fe49c7b27bdeaa26a7fb800ad59da7983",
+      "handler.py": "82c9346b8ed98d9ebd9c7caae34f918dbd6cb3b64bd15aea350fd424c943d66f"
+    },
+    "theme": {
+      "manifest.json": "073f54286830213f24e7e38f55085d06b2c7fec0772077efafc4691ae48f62f8",
+      "handler.py": "faf0636d932eea8dbd14929b969625318fbaf60202db3e254eba59945fd628fb"
+    },
+    "timer": {
+      "manifest.json": "b208ec7df4a077d07a575316ff8115d4452ab1b08039dcf61d2001f25a45d5d1",
+      "handler.py": "5be0a7e46ea8b35f757ed1c01784d3e05d57f2ff543fecc5bfbf2ee65731c408"
+    },
+    "todo": {
+      "manifest.json": "f8fce69fc25ef7584f5887e1fa88dd23d61c5060186fd43f9fded7b9dbc44f52",
+      "handler.py": "bc6cebb520fb2e66628de9e1c2b1a1e95164f397911f3d914af9e772676b56b6"
+    },
+    "topcpu": {
+      "manifest.json": "10ec4659bf7db77adcadbe6b5c3c5cef3e6d53a96613cc7d48c7b0aeaeac0dc4",
+      "handler.py": "ecfa02358660b108689c1d3b53d64605a65bc0928bf2a5c436b395a3915ccc1a"
+    },
+    "topmem": {
+      "manifest.json": "b2138c90c465d22a5d67dafb5d6161e3ac0413c4741dfafb82600ea7a4f6e053",
+      "handler.py": "b0b328ea91eb1cc87810832f3836b56773d5ebd224fe7f4c4096b36c206826db"
+    },
+    "url": {
+      "manifest.json": "f5a131dcbdc40709a8bb98c406fa9bd1cbf4661ae6fd83c141bb48a28ee2aede",
+      "handler.py": "0dd51f64c0df31a73b79b5239f789032c0b0fdd0ff8dad1e8147b4548bea0683"
+    },
+    "wallpaper": {
+      "manifest.json": "cda579138eb7ed4dea85c8255792ea76f4f3ad3092f1328879ecb9b9ba4d348e",
+      "handler.py": "f23f4c7a4e24db6995027179758975123fde987c6d2cb2f00369ae47571f3682"
+    },
+    "webapp": {
+      "manifest.json": "6f01838e90f7423078ddec71fc4f79d5ff61799a7b9f5730ab92018678b29c60",
+      "handler.py": "ee0aa2f5f1d0e1ff72a68930fe3d24294abd1a604de8d862f2573865f756e51b",
+      "launch-webapp": "697f7094b603c757af3a71121d66fbf8bdc4e14f36b3ea8594f9097bdbd307a6"
+    },
+    "whats-that-word": {
+      "manifest.json": "f27b021de276f26677284198c63e92f1a86b0a521ca814a1040207a12f5ad27e",
+      "handler.py": "3fd3fc418bd192010b481f32c5a169950e8e353cc6d11c1a5ce579df76e3b118"
+    },
+    "zoxide": {
+      "manifest.json": "0801376be84a7c2a452803a438e10316c0f7aea83dd353c7dae0b6112af85222",
+      "handler.py": "156ee54fcf4049f775eb92b28036ee6de5c40f7aec82532acacd571a3a29c268"
+    }
+  }
+}

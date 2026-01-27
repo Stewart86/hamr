@@ -1,631 +1,733 @@
 #!/usr/bin/env bash
-# Hamr installation script
-# Usage: ./install.sh [--uninstall]
-# Or: curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
+#
+# Hamr Launcher Installer
+#
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
+#   ./install.sh  # If running from cloned repository
+#
+# Options:
+#   --reset-user-data        Reset user configuration and plugins (backup created)
+#   --check                  Dry-run mode: show what would be installed without making changes
+#   --yes                    Assume yes for all prompts (non-interactive mode)
+#
+# Environment variables:
+#   HAMR_VERSION=v0.1.0    Install specific version (default: latest)
+#   HAMR_DIR=~/.local      Install directory (default: ~/.local)
+#   HAMR_NO_MODIFY_PATH=1  Don't add to PATH via shell rc
+#   HAMR_SKIP_INSTALL=1    Download only, don't run `hamr install`
+#
 
-set -e
+set -euo pipefail
 
-HAMR_REPO="https://github.com/stewart86/hamr.git"
-HAMR_INSTALL_DIR="$HOME/.local/share/hamr"
-
+# ANSI color codes
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-info() { echo -e "${GREEN}[INFO]${NC} $1"; }
-warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
+# Repository information
+REPO="stewart86/hamr"
+BINARY_NAME="hamr"
 
-# Detect if running via curl | bash (piped input, no valid SCRIPT_DIR)
-detect_and_clone() {
-    # BASH_SOURCE is empty when script is piped
-    if [[ -z "${BASH_SOURCE[0]}" ]] || [[ ! -f "${BASH_SOURCE[0]}" ]]; then
-        info "Running via curl | bash, cloning repository..."
-        
-        if [[ -d "$HAMR_INSTALL_DIR" ]]; then
-            if [[ -d "$HAMR_INSTALL_DIR/.git" ]]; then
-                info "Existing installation found, updating..."
-                cd "$HAMR_INSTALL_DIR"
-                git pull --rebase
-                exec "$HAMR_INSTALL_DIR/install.sh" "$@"
-            else
-                warn "Directory exists but is not a git repo: $HAMR_INSTALL_DIR"
-                error "Please remove it manually and retry"
-            fi
+# Configuration
+VERSION="${HAMR_VERSION:-}"
+INSTALL_DIR="${HAMR_DIR:-$HOME/.local}"
+NO_MODIFY_PATH="${HAMR_NO_MODIFY_PATH:-}"
+SKIP_INSTALL="${HAMR_SKIP_INSTALL:-}"
+RESET_USER_DATA=""
+DRY_RUN=""
+ASSUME_YES=""
+
+info() { printf "${BLUE}==>${NC} %s\n" "$*"; }
+success() { printf "${GREEN}==>${NC} %s\n" "$*"; }
+warn() { printf "${YELLOW}Warning:${NC} %s\n" "$*"; }
+error() { printf "${RED}Error:${NC} %s\n" "$*" >&2; exit 1; }
+
+# Prompt for user confirmation
+prompt_yes_no() {
+    local prompt="$1"
+    local default="${2:-n}"
+    
+    if [[ -n "$ASSUME_YES" ]]; then
+        return 0
+    fi
+    
+    while true; do
+        if [[ "$default" == "y" ]]; then
+            printf "${BLUE}==>${NC} %s [Y/n] " "$prompt"
+        else
+            printf "${BLUE}==>${NC} %s [y/N] " "$prompt"
         fi
         
-        git clone "$HAMR_REPO" "$HAMR_INSTALL_DIR"
-        exec "$HAMR_INSTALL_DIR/install.sh" "$@"
-    fi
-}
-
-detect_and_clone "$@"
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
-QUICKSHELL_DIR="$CONFIG_DIR/quickshell"
-HAMR_LINK="$QUICKSHELL_DIR/hamr"
-
-check_command() {
-    command -v "$1" >/dev/null 2>&1
-}
-
-detect_distro() {
-    if [[ -f /etc/os-release ]]; then
-        # shellcheck source=/dev/null
-        source /etc/os-release
-        case "$ID" in
-            arch|manjaro|endeavouros|artix|parabola)
-                echo "arch"
-                ;;
-            debian|ubuntu|pop|linuxmint|elementary)
-                echo "debian"
-                ;;
-            fedora|rhel|centos|rocky|alma)
-                echo "fedora"
-                ;;
-            opensuse*|suse)
-                echo "suse"
-                ;;
-            nixos)
-                echo "nixos"
-                ;;
-            void)
-                echo "void"
-                ;;
-            gentoo)
-                echo "gentoo"
-                ;;
-            *)
-                echo "unknown"
-                ;;
+        if [[ -n "$DRY_RUN" ]]; then
+            echo "(dry-run: would prompt)"
+            return 0
+        fi
+        
+        read -r response
+        case "$response" in
+            [yY]|[yY][eE][sS]) return 0 ;;
+            [nN]|[nN][oO]) return 1 ;;
+            "") [[ "$default" == "y" ]] && return 0 || return 1 ;;
+            *) echo "Please answer yes or no." ;;
         esac
-    else
-        echo "unknown"
+    done
+}
+
+# Print dry-run summary
+print_summary() {
+    local title="$1"
+    local content="$2"
+    local indent="    "
+    
+    if [[ -n "$DRY_RUN" ]]; then
+        printf "${BLUE}==>${NC} %s:\n" "$title"
+        echo "$content" | sed "s/^/$indent/"
+        echo ""
     fi
 }
 
-# Package mappings: command -> arch:debian:fedora:suse:void:gentoo
-# Verified against repology.org
-declare -A PKG_MAP=(
-    ["qs"]="quickshell:BUILD_FROM_SOURCE:quickshell:quickshell:quickshell:gui-apps/quickshell"
-    ["python3"]="python:python3:python3:python3:python3:dev-lang/python"
-    ["jq"]="jq:jq:jq:jq:jq:app-misc/jq"
-    ["wl-copy"]="wl-clipboard:wl-clipboard:wl-clipboard:wl-clipboard:wl-clipboard:gui-apps/wl-clipboard"
-    ["cliphist"]="cliphist:cliphist:cliphist:cliphist:cliphist:app-misc/cliphist"
-    ["slurp"]="slurp:slurp:slurp:slurp:slurp:gui-apps/slurp"
-    ["grim"]="grim:grim:grim:grim:grim:gui-apps/grim"
-    ["hyprpicker"]="hyprpicker:hyprpicker:hyprpicker:hyprpicker:hyprpicker:gui-apps/hyprpicker"
-    ["matugen"]="matugen:BUILD_FROM_SOURCE:BUILD_FROM_SOURCE:BUILD_FROM_SOURCE:BUILD_FROM_SOURCE:x11-misc/matugen"
-)
-
-get_pkg_name() {
-    local cmd="$1"
-    local distro="$2"
-    local mapping="${PKG_MAP[$cmd]}"
+# Check for file conflicts and prompt for overwrite
+check_file_conflicts() {
+    local bin_dir="$1"
+    local conflicts=()
     
-    if [[ -z "$mapping" ]]; then
-        echo "$cmd"
-        return
-    fi
-    
-    local idx
-    case "$distro" in
-        arch) idx=1 ;;
-        debian) idx=2 ;;
-        fedora) idx=3 ;;
-        suse) idx=4 ;;
-        void) idx=5 ;;
-        gentoo) idx=6 ;;
-        *) idx=1 ;;
-    esac
-    
-    echo "$mapping" | cut -d: -f"$idx"
-}
-
-install_packages() {
-    local distro="$1"
-    shift
-    local packages=("$@")
-    
-    case "$distro" in
-        arch)
-            # Try paru, yay, or pacman
-            if check_command paru; then
-                paru -S --needed --noconfirm "${packages[@]}"
-            elif check_command yay; then
-                yay -S --needed --noconfirm "${packages[@]}"
-            else
-                sudo pacman -S --needed --noconfirm "${packages[@]}"
-            fi
-            ;;
-        debian)
-            sudo apt-get update
-            sudo apt-get install -y "${packages[@]}"
-            ;;
-        fedora)
-            sudo dnf install -y "${packages[@]}"
-            ;;
-        suse)
-            sudo zypper install -y "${packages[@]}"
-            ;;
-        void)
-            sudo xbps-install -y "${packages[@]}"
-            ;;
-        gentoo)
-            sudo emerge --ask=n "${packages[@]}"
-            ;;
-        *)
-            error "Cannot auto-install on $distro"
-            ;;
-    esac
-}
-
-setup_fedora_copr() {
-    if ! check_command dnf; then
-        error "dnf not found"
-    fi
-    
-    # Check if COPR is already enabled
-    if dnf repolist | grep -q "avengemedia-dms"; then
-        info "COPR avengemedia/dms already enabled"
-        return
-    fi
-    
-    info "Enabling COPR repository: avengemedia/dms"
-    sudo dnf copr enable -y avengemedia/dms
-}
-
-check_dependencies() {
-    local distro
-    distro=$(detect_distro)
-    
-    info "Detected distribution: $distro"
-    echo ""
-    
-    # Required dependencies
-    local required=("qs:Quickshell" "python3:Python 3.9+")
-    local missing_required=()
-    
-    info "Checking required dependencies..."
-    for dep in "${required[@]}"; do
-        local cmd="${dep%%:*}"
-        local desc="${dep#*:}"
-        if check_command "$cmd"; then
-            echo "  [ok] $cmd"
-        else
-            echo "  [missing] $cmd - $desc"
-            missing_required+=("$cmd")
+    # Check for existing binaries
+    for binary in hamr hamr-daemon hamr-gtk hamr-tui; do
+        if [[ -f "$bin_dir/$binary" ]]; then
+            conflicts+=("$bin_dir/$binary")
         fi
     done
     
-    if [[ ${#missing_required[@]} -gt 0 ]]; then
-        echo ""
-        
-        # Check if we can auto-install
-        local can_auto_install=true
-        local packages_to_install=()
-        
-        for cmd in "${missing_required[@]}"; do
-            local pkg
-            pkg=$(get_pkg_name "$cmd" "$distro")
-            if [[ "$pkg" == "BUILD_FROM_SOURCE" ]]; then
-                can_auto_install=false
-            else
-                packages_to_install+=("$pkg")
-            fi
+    # Check for existing plugins
+    if [[ -d "$bin_dir/../plugins" ]]; then
+        conflicts+=("$bin_dir/../plugins")
+    fi
+    
+    if [[ ${#conflicts[@]} -gt 0 ]]; then
+        warn "The following files/directories already exist:"
+        for conflict in "${conflicts[@]}"; do
+            echo "  - $conflict"
         done
         
-        if [[ "$can_auto_install" == "true" && ${#packages_to_install[@]} -gt 0 ]]; then
-            info "Installing required dependencies: ${packages_to_install[*]}"
-            
-            # Fedora needs COPR enabled first for quickshell
-            if [[ "$distro" == "fedora" ]] && [[ " ${missing_required[*]} " == *" qs "* ]]; then
-                setup_fedora_copr
-            fi
-            
-            install_packages "$distro" "${packages_to_install[@]}"
-            
-            # Verify installation
-            for cmd in "${missing_required[@]}"; do
-                if ! check_command "$cmd"; then
-                    error "Failed to install $cmd"
-                fi
-            done
-            info "Dependencies installed successfully"
-        else
-            # Can't auto-install
-            warn "Cannot auto-install some dependencies on $distro"
-            echo ""
-            for cmd in "${missing_required[@]}"; do
-                local pkg
-                pkg=$(get_pkg_name "$cmd" "$distro")
-                if [[ "$pkg" == "BUILD_FROM_SOURCE" ]]; then
-                    echo "  $cmd: Build from source required"
-                    if [[ "$cmd" == "qs" ]]; then
-                        echo "         See: https://quickshell.outfoxxed.me/docs/v0.2.1/guide/install-setup/"
-                    fi
-                fi
-            done
-            echo ""
-            error "Please install required dependencies and retry."
+        if ! prompt_yes_no "Overwrite existing files?" "n"; then
+            error "Installation cancelled by user"
         fi
     fi
-    
-    # Optional dependencies (just show info, don't install)
-    local optional=("jq:JSON processor" "wl-copy:Clipboard" "cliphist:Clipboard history" "slurp:Region selector" "grim:Screenshot" "hyprpicker:Color picker" "matugen:Material colors")
-    local missing_optional=()
-    
-    echo ""
-    info "Checking optional dependencies..."
-    for dep in "${optional[@]}"; do
-        local cmd="${dep%%:*}"
-        local desc="${dep#*:}"
-        if check_command "$cmd"; then
-            echo "  [ok] $cmd - $desc"
-        else
-            echo "  [missing] $cmd - $desc"
-            missing_optional+=("$cmd")
+}
+
+# Parse command line arguments
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --reset-user-data)
+                RESET_USER_DATA=1
+                shift
+                ;;
+            --check)
+                DRY_RUN=1
+                shift
+                ;;
+            --yes)
+                ASSUME_YES=1
+                shift
+                ;;
+            *)
+                error "Unknown option: $1"
+                ;;
+        esac
+    done
+}
+
+# Detect architecture
+detect_arch() {
+    local arch
+    arch=$(uname -m)
+    case "$arch" in
+        x86_64) echo "x86_64" ;;
+        aarch64|arm64) echo "aarch64" ;;
+        *) error "Unsupported architecture: $arch (supported: x86_64, aarch64)" ;;
+    esac
+}
+
+# Detect OS
+detect_os() {
+    local os
+    os=$(uname -s)
+    case "$os" in
+        Linux) echo "linux" ;;
+        *) error "Unsupported OS: $os (only Linux is supported)" ;;
+    esac
+}
+
+# Check for required commands
+check_requirements() {
+    local missing=()
+
+    # Always need curl and tar for remote install
+    for cmd in curl tar; do
+        if ! command -v "$cmd" &>/dev/null; then
+            missing+=("$cmd")
         fi
     done
-    echo ""
+
+    # Need cargo for local builds
+    if is_local_clone && ! command -v cargo &>/dev/null; then
+        missing+=("cargo")
+    fi
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        error "Missing required commands: ${missing[*]}"
+    fi
 }
 
-create_default_config() {
-    local config_file="$CONFIG_DIR/hamr/config.json"
-    
-    # Default config template
-    local default_config='{
-  "apps": {
-    "terminal": "ghostty",
-    "terminalArgs": "--class=floating.terminal",
-    "shell": "zsh"
-  },
-  "search": {
-    "nonAppResultDelay": 30,
-    "debounceMs": 50,
-    "pluginDebounceMs": 150,
-    "maxHistoryItems": 500,
-    "maxDisplayedResults": 16,
-    "maxRecentItems": 20,
-    "shellHistoryLimit": 50,
-    "engineBaseUrl": "https://www.google.com/search?q=",
-    "excludedSites": ["quora.com", "facebook.com"],
-    "prefix": {
-      "action": "/",
-      "app": ">",
-      "clipboard": ";",
-      "emojis": ":",
-      "file": "~",
-      "math": "=",
-      "shellCommand": "$",
-      "shellHistory": "!",
-      "webSearch": "?"
-    },
-    "shellHistory": {
-      "enable": true,
-      "shell": "auto",
-      "customHistoryPath": "",
-      "maxEntries": 500
-    },
-    "actionKeys": ["u", "i", "o", "p"]
-  },
-  "imageBrowser": {
-    "useSystemFileDialog": false,
-    "columns": 4,
-    "cellAspectRatio": 1.333,
-    "sidebarWidth": 140
-  },
-  "appearance": {
-    "backgroundTransparency": 0.2,
-    "contentTransparency": 0.2,
-    "launcherXRatio": 0.5,
-    "launcherYRatio": 0.1
-  },
-  "sizes": {
-    "searchWidth": 580,
-    "searchInputHeight": 40,
-    "maxResultsHeight": 600,
-    "resultIconSize": 40,
-    "imageBrowserWidth": 1200,
-    "imageBrowserHeight": 690,
-    "windowPickerMaxWidth": 350,
-    "windowPickerMaxHeight": 220
-  },
-  "fonts": {
-    "main": "Google Sans Flex",
-    "monospace": "JetBrains Mono NF",
-    "reading": "Readex Pro",
-    "icon": "Material Symbols Rounded"
-  },
-  "paths": {
-    "wallpaperDir": "",
-    "colorsJson": ""
-  }
-}'
+# Get the latest release version from GitHub
+get_latest_version() {
+    local url="https://api.github.com/repos/${REPO}/releases/latest"
+    local version
 
-    mkdir -p "$CONFIG_DIR/hamr"
-    
-    if [[ -f "$config_file" ]]; then
-        # Config exists - merge new keys without overwriting existing values
-        if check_command jq; then
-            info "Updating config with new default keys (preserving existing values)..."
-            local tmp_file
-            tmp_file=$(mktemp)
-            # Use jq to merge: existing values take priority over defaults
-            echo "$default_config" | jq -s '.[0] * .[1]' - "$config_file" > "$tmp_file"
-            mv "$tmp_file" "$config_file"
+    version=$(curl -fsSL "$url" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+    if [[ -z "$version" ]]; then
+        error "Failed to get latest version from GitHub"
+    fi
+
+    echo "$version"
+}
+
+# Verify checksums
+verify_checksum() {
+    local archive="$1"
+    local checksums_file="$2"
+    local expected
+
+    if ! command -v sha256sum &>/dev/null; then
+        warn "sha256sum not found, skipping checksum verification"
+        return 0
+    fi
+
+    expected=$(grep "$(basename "$archive")" "$checksums_file" | awk '{print $1}')
+    if [[ -z "$expected" ]]; then
+        warn "No checksum found for $(basename "$archive"), skipping verification"
+        return 0
+    fi
+
+    local actual
+    actual=$(sha256sum "$archive" | awk '{print $1}')
+
+    if [[ "$expected" != "$actual" ]]; then
+        error "Checksum mismatch for $archive\n  Expected: $expected\n  Actual:   $actual"
+    fi
+
+    success "Checksum verified"
+}
+
+# Add to PATH in shell rc file
+add_to_path() {
+    local bin_dir="$1"
+    local rc_file=""
+    local shell_name=""
+
+    # Detect shell
+    shell_name=$(basename "$SHELL")
+    case "$shell_name" in
+        bash) rc_file="$HOME/.bashrc" ;;
+        zsh)  rc_file="$HOME/.zshrc" ;;
+        fish) rc_file="$HOME/.config/fish/config.fish" ;;
+        *)
+            warn "Unknown shell: $shell_name. Please add $bin_dir to your PATH manually."
+            return
+            ;;
+    esac
+
+    # Check if already in PATH
+    if [[ ":$PATH:" == *":$bin_dir:"* ]]; then
+        return 0
+    fi
+
+    # Check if rc file already has the path
+    if [[ -f "$rc_file" ]] && grep -q "$bin_dir" "$rc_file" 2>/dev/null; then
+        return 0
+    fi
+
+    # Add to rc file
+    local path_line
+    if [[ "$shell_name" == "fish" ]]; then
+        path_line="set -gx PATH $bin_dir \$PATH"
+    else
+        path_line="export PATH=\"$bin_dir:\$PATH\""
+    fi
+
+    echo "" >> "$rc_file"
+    echo "# Added by hamr installer" >> "$rc_file"
+    echo "$path_line" >> "$rc_file"
+
+    info "Added $bin_dir to PATH in $rc_file"
+    info "Run 'source $rc_file' or start a new terminal to use hamr"
+}
+
+# Check if running from local repository clone
+is_local_clone() {
+    [[ -d ".git" ]] && [[ -f "Cargo.toml" ]] && command -v cargo &>/dev/null
+}
+
+# Check if systemd services are running
+check_systemd_services() {
+    local services_running=""
+
+    # Check user services
+    if systemctl --user is-active --quiet hamr-daemon 2>/dev/null; then
+        services_running="user"
+    fi
+
+    # Check system services (less common)
+    if systemctl is-active --quiet hamr-daemon 2>/dev/null; then
+        services_running="system"
+    fi
+
+    echo "$services_running"
+}
+
+# Stop systemd services before installation
+stop_services() {
+    local service_type="$1"
+    if [[ "$service_type" == "system" ]]; then
+        info "Stopping system hamr-daemon service..."
+        sudo systemctl stop hamr-daemon
+    elif [[ "$service_type" == "user" ]]; then
+        info "Stopping user hamr-daemon service..."
+        systemctl --user stop hamr-daemon
+    fi
+}
+
+# Kill running hamr processes to prevent "Text file busy" errors during install
+kill_hamr_processes() {
+    local processes
+    processes=$(pgrep -f "hamr-(daemon|gtk|tui)" || true)
+    if [[ -n "$processes" ]]; then
+        info "Stopping running hamr processes..."
+        killall hamr hamr-daemon hamr-gtk hamr-tui 2>/dev/null || true
+        sleep 1
+    fi
+}
+
+# Start systemd services after installation
+start_services() {
+    local service_type="$1"
+    if [[ "$service_type" == "system" ]]; then
+        info "Starting system hamr-daemon service..."
+        sudo systemctl start hamr-daemon
+    elif [[ "$service_type" == "user" ]]; then
+        import_user_environment
+        info "Starting user hamr-daemon service..."
+        systemctl --user start hamr-daemon
+    fi
+}
+
+import_user_environment() {
+    if command -v systemctl &>/dev/null; then
+        systemctl --user import-environment \
+            NIRI_SOCKET \
+            HYPRLAND_INSTANCE_SIGNATURE \
+            SWAYSOCK \
+            WAYLAND_DISPLAY \
+            XDG_CURRENT_DESKTOP \
+            XDG_SESSION_DESKTOP \
+            DISPLAY \
+            XDG_RUNTIME_DIR \
+            || warn "Failed to import session environment"
+    fi
+}
+
+reload_user_systemd() {
+    if command -v systemctl &>/dev/null; then
+        import_user_environment
+        info "Reloading systemd user daemon..."
+        if systemctl --user daemon-reload; then
+            info "Restarting hamr user services..."
+            systemctl --user restart hamr-daemon hamr-gtk || warn "Failed to restart hamr services"
         else
-            info "Config exists. Install jq to auto-merge new config options."
+            warn "Failed to reload systemd user daemon"
+        fi
+    fi
+}
+
+main() {
+    echo ""
+    info "Installing Hamr Launcher"
+    echo ""
+
+    # Parse command line arguments
+    parse_args "$@"
+
+    # Check requirements
+    check_requirements
+
+    # Check if local clone
+    if is_local_clone; then
+        info "Detected local repository clone, building from source..."
+        
+        # Dry-run summary for local build
+        if [[ -n "$DRY_RUN" ]]; then
+            local summary="Platform: $(detect_os)-$(detect_arch)
+Installation directory: $INSTALL_DIR/bin
+Build from source: yes (local repository)
+Reset user data: $([ -n "$RESET_USER_DATA" ] && echo "yes" || echo "no")
+Skip hamr install: $([ -n "$SKIP_INSTALL" ] && echo "yes" || echo "no")
+Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
+            print_summary "Installation Summary" "$summary"
+            
+            info "Dry-run mode: would build from source and install to $INSTALL_DIR/bin"
+            return 0
+        fi
+        
+        # Build from local source
+        if ! cargo build --release; then
+            error "Failed to build from local source"
+        fi
+
+        # Use local build directory
+        local local_build_dir="target/release"
+        if [[ ! -d "$local_build_dir" ]]; then
+            error "Build directory not found: $local_build_dir"
+        fi
+
+        # Check for running services
+        local running_services
+        running_services=$(check_systemd_services)
+
+        # Check for file conflicts
+        local bin_dir="$INSTALL_DIR/bin"
+        check_file_conflicts "$bin_dir"
+
+        # Stop services if running (only if not dry-run)
+        if [[ -n "$running_services" ]] && [[ -z "$DRY_RUN" ]]; then
+            stop_services "$running_services"
+        fi
+
+        # Kill running processes to prevent "Text file busy" errors (only if not dry-run)
+        if [[ -z "$DRY_RUN" ]]; then
+            kill_hamr_processes
+        fi
+
+        # Create installation directories (only if not dry-run)
+        if [[ -z "$DRY_RUN" ]]; then
+            mkdir -p "$bin_dir"
+        fi
+
+        # Install binaries from local build
+        info "Installing binaries from local build to $bin_dir..."
+        for binary in hamr hamr-daemon hamr-gtk hamr-tui; do
+            if [[ -f "$local_build_dir/$binary" ]]; then
+                if [[ -n "$DRY_RUN" ]]; then
+                    print_summary "Would install" "$binary to $bin_dir/"
+                else
+                    cp "$local_build_dir/$binary" "$bin_dir/"
+                    chmod +x "$bin_dir/$binary"
+                fi
+            fi
+        done
+
+        # Restart services if they were running (only if not dry-run)
+        if [[ -n "$running_services" ]] && [[ -z "$DRY_RUN" ]]; then
+            start_services "$running_services"
+        fi
+
+        # Install plugins directory if it exists
+        if [[ -d "plugins" ]]; then
+            info "Installing plugins..."
+            
+            # Backup user data if --reset-user-data is set (only if not dry-run)
+            if [[ -n "$RESET_USER_DATA" ]] && [[ -z "$DRY_RUN" ]]; then
+                if [[ -d "$HOME/.config/hamr" ]]; then
+                    local backup_dir="$HOME/.config/hamr.backup.$(date +%Y%m%d_%H%M%S)"
+                    info "Backing up existing user config to $backup_dir..."
+                    cp -r "$HOME/.config/hamr" "$backup_dir"
+                fi
+                # Remove old plugins to ensure clean update
+                rm -rf "$bin_dir/../plugins"
+                rm -rf "$HOME/.config/hamr/plugins"
+            else
+                # Preserve user config and plugins by default
+                info "Preserving existing user configuration and plugins..."
+            fi
+            
+            if [[ -n "$DRY_RUN" ]]; then
+                # Dry-run plugin installation summary
+                local plugin_summary=""
+                for plugin_dir in plugins/*/; do
+                    if [[ -d "$plugin_dir" ]]; then
+                        local plugin_name=$(basename "$plugin_dir")
+                        plugin_summary="${plugin_summary}System plugin: $plugin_name\n"
+                    fi
+                done
+                if [[ -n "$RESET_USER_DATA" ]] || [[ ! -d "$HOME/.config/hamr/plugins" ]]; then
+                    plugin_summary="${plugin_summary}User plugins: would copy to ~/.config/hamr/plugins/"
+                fi
+                print_summary "Plugin Installation" "$plugin_summary"
+            else
+                # Install system plugins (always update these)
+                cp -r "plugins" "$bin_dir/../"
+                
+                # Only copy plugins to user config if they don't exist or if --reset-user-data
+                if [[ -n "$RESET_USER_DATA" ]] || [[ ! -d "$HOME/.config/hamr/plugins" ]]; then
+                    mkdir -p "$HOME/.config/hamr/plugins"
+                    cp -r "plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
+                fi
+            fi
+            
+            # Make handler scripts executable based on manifest (only if not dry-run)
+            if [[ -z "$DRY_RUN" ]]; then
+                for manifest in "$bin_dir/../plugins"/*/manifest.json; do
+                    if [[ -f "$manifest" ]]; then
+                        handler_cmd=$(grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" | sed 's/.*"\([^"]*\)"$/\1/' | tail -1)
+                        if [[ -n "$handler_cmd" ]]; then
+                            handler_file=$(echo "$handler_cmd" | awk '{print $NF}')
+                            plugin_dir=$(basename "$(dirname "$manifest")")
+                            if [[ -f "$bin_dir/../plugins/$plugin_dir/$handler_file" ]]; then
+                                chmod +x "$bin_dir/../plugins/$plugin_dir/$handler_file"
+                            fi
+                            if [[ -f "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file" ]]; then
+                                chmod +x "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file"
+                            fi
+                        fi
+                    fi
+                done
+            fi
+        fi
+
+        success "Binaries installed from local build to $bin_dir"
+
+        # Add to PATH if needed (only if not dry-run)
+        if [[ -z "$NO_MODIFY_PATH" ]] && [[ -z "$DRY_RUN" ]]; then
+            add_to_path "$bin_dir"
+        elif [[ -n "$DRY_RUN" ]] && [[ -z "$NO_MODIFY_PATH" ]]; then
+            print_summary "PATH Update" "Would add $bin_dir to PATH in shell rc file"
+        fi
+
+        # Run hamr install to set up config and systemd (only if not dry-run)
+        if [[ -z "$SKIP_INSTALL" ]] && [[ -z "$DRY_RUN" ]]; then
+            echo ""
+            info "Running 'hamr install' to set up config and services..."
+            echo ""
+
+            # Add bin_dir to PATH for this invocation
+            export PATH="$bin_dir:$PATH"
+
+            if ! "$bin_dir/hamr" install; then
+                warn "'hamr install' encountered issues. You may need to run it manually."
+            else
+                reload_user_systemd
+            fi
+        elif [[ -n "$DRY_RUN" ]] && [[ -z "$SKIP_INSTALL" ]]; then
+            print_summary "Post-Install" "Would run 'hamr install' to set up config and systemd services"
+        elif [[ -n "$SKIP_INSTALL" ]]; then
+            echo ""
+            info "Skipping 'hamr install' (HAMR_SKIP_INSTALL=1)"
+            info "Run 'hamr install' manually to set up config and systemd services"
+        fi
+
+        echo ""
+        success "Installation complete!"
+        echo ""
+        echo "Quick start:"
+        echo "  hamr                    # Start GTK launcher (auto-starts daemon)"
+        echo "  hamr toggle             # Toggle visibility (bind to Super+Space)"
+        echo "  hamr plugin clipboard   # Open clipboard manager"
+        echo ""
+        echo "Keybinding examples (Hyprland):"
+        echo "  exec-once = hamr        # Auto-start on login"
+        echo "  bind = SUPER, Space, exec, hamr toggle"
+        echo ""
+        echo "For more info: https://github.com/${REPO}"
+        return 0
+    fi
+
+    # Detect platform
+    local os arch
+    os=$(detect_os)
+    arch=$(detect_arch)
+    info "Detected platform: $os-$arch"
+
+    # Get version
+    if [[ -z "$VERSION" ]]; then
+        info "Fetching latest release..."
+        VERSION=$(get_latest_version)
+    fi
+    info "Version: $VERSION"
+
+    # Dry-run summary for remote install
+    if [[ -n "$DRY_RUN" ]]; then
+        local summary="Platform: $os-$arch
+Version: $VERSION
+Installation directory: $INSTALL_DIR/bin
+Download from: GitHub releases
+Reset user data: $([ -n "$RESET_USER_DATA" ] && echo "yes" || echo "no")
+Skip hamr install: $([ -n "$SKIP_INSTALL" ] && echo "yes" || echo "no")
+Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
+        print_summary "Installation Summary" "$summary"
+        
+        info "Dry-run mode: would download and install from GitHub releases"
+        return 0
+    fi
+
+    # Construct download URLs
+    local archive_name="hamr-${os}-${arch}.tar.gz"
+    local base_url="https://github.com/${REPO}/releases/download/${VERSION}"
+    local archive_url="${base_url}/${archive_name}"
+    local checksums_url="${base_url}/checksums.txt"
+
+    # Create temp directory
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "$tmp_dir"' EXIT
+
+    # Download archive
+    info "Downloading $archive_name..."
+    if ! curl -fsSL --progress-bar "$archive_url" -o "$tmp_dir/$archive_name"; then
+        error "Failed to download $archive_url"
+    fi
+
+    # Download and verify checksums
+    info "Verifying checksum..."
+    if curl -fsSL "$checksums_url" -o "$tmp_dir/checksums.txt" 2>/dev/null; then
+        verify_checksum "$tmp_dir/$archive_name" "$tmp_dir/checksums.txt"
+    else
+        warn "Could not download checksums, skipping verification"
+    fi
+
+    # Extract archive
+    info "Extracting..."
+    tar -xzf "$tmp_dir/$archive_name" -C "$tmp_dir"
+
+    # Find extracted directory (hamr-linux-x86_64 or similar)
+    local extract_dir
+    extract_dir=$(find "$tmp_dir" -maxdepth 1 -type d -name "hamr-*" | head -1)
+    if [[ -z "$extract_dir" ]]; then
+        error "Could not find extracted directory"
+    fi
+
+    # Check for file conflicts
+    local bin_dir="$INSTALL_DIR/bin"
+    check_file_conflicts "$bin_dir"
+
+    # Check for running services
+    local running_services
+    running_services=$(check_systemd_services)
+
+    # Stop services if running
+    if [[ -n "$running_services" ]]; then
+        stop_services "$running_services"
+    fi
+
+    # Kill running processes to prevent "Text file busy" errors
+    kill_hamr_processes
+
+    # Create installation directories
+    mkdir -p "$bin_dir"
+
+    # Install binaries
+    info "Installing binaries to $bin_dir..."
+    for binary in hamr hamr-daemon hamr-gtk hamr-tui; do
+        if [[ -f "$extract_dir/$binary" ]]; then
+            cp "$extract_dir/$binary" "$bin_dir/"
+            chmod +x "$bin_dir/$binary"
+        fi
+    done
+
+    # Restart services if they were running
+    if [[ -n "$running_services" ]]; then
+        start_services "$running_services"
+    fi
+
+    # Install plugins directory next to binaries (for plugin discovery)
+    if [[ -d "$extract_dir/plugins" ]]; then
+        info "Installing plugins..."
+        
+        # Backup user data if --reset-user-data is set
+        if [[ -n "$RESET_USER_DATA" ]]; then
+            if [[ -d "$HOME/.config/hamr" ]]; then
+                local backup_dir="$HOME/.config/hamr.backup.$(date +%Y%m%d_%H%M%S)"
+                info "Backing up existing user config to $backup_dir..."
+                cp -r "$HOME/.config/hamr" "$backup_dir"
+            fi
+            # Remove old plugins to ensure clean update
+            rm -rf "$bin_dir/../plugins"
+            rm -rf "$HOME/.config/hamr/plugins"
+        else
+            # Preserve user config and plugins by default
+            info "Preserving existing user configuration and plugins..."
+        fi
+        
+        # Install system plugins (always update these)
+        cp -r "$extract_dir/plugins" "$bin_dir/../"
+        
+        # Only copy plugins to user config if they don't exist or if --reset-user-data
+        if [[ -n "$RESET_USER_DATA" ]] || [[ ! -d "$HOME/.config/hamr/plugins" ]]; then
+            mkdir -p "$HOME/.config/hamr/plugins"
+            cp -r "$extract_dir/plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
+        fi
+        
+        # Make handler scripts executable based on manifest
+        for manifest in "$bin_dir/../plugins"/*/manifest.json; do
+            if [[ -f "$manifest" ]]; then
+                handler_cmd=$(grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" | sed 's/.*"\([^"]*\)"$/\1/' | tail -1)
+                if [[ -n "$handler_cmd" ]]; then
+                    handler_file=$(echo "$handler_cmd" | awk '{print $NF}')
+                    plugin_dir=$(basename "$(dirname "$manifest")")
+                    if [[ -f "$bin_dir/../plugins/$plugin_dir/$handler_file" ]]; then
+                        chmod +x "$bin_dir/../plugins/$plugin_dir/$handler_file"
+                    fi
+                    if [[ -f "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file" ]]; then
+                        chmod +x "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file"
+                    fi
+                fi
+            fi
+        done
+    fi
+
+    success "Binaries installed to $bin_dir"
+
+    # Add to PATH if needed
+    if [[ -z "$NO_MODIFY_PATH" ]]; then
+        add_to_path "$bin_dir"
+    fi
+
+    # Run hamr install to set up config and systemd
+    if [[ -z "$SKIP_INSTALL" ]]; then
+        echo ""
+        info "Running 'hamr install' to set up config and services..."
+        echo ""
+
+        # Add bin_dir to PATH for this invocation
+        export PATH="$bin_dir:$PATH"
+
+        if ! "$bin_dir/hamr" install; then
+            warn "'hamr install' encountered issues. You may need to run it manually."
+        else
+            reload_user_systemd
         fi
     else
-        # Create new config
-        info "Creating default config: $config_file"
-        echo "$default_config" > "$config_file"
-    fi
-}
-
-install_hamr() {
-    info "Installing hamr..."
-
-    # Create quickshell config directory
-    mkdir -p "$QUICKSHELL_DIR"
-
-    # Remove existing symlink or directory
-    if [[ -L "$HAMR_LINK" ]]; then
-        rm "$HAMR_LINK"
-    elif [[ -d "$HAMR_LINK" ]]; then
-        warn "Existing hamr directory found at $HAMR_LINK"
-        read -p "Replace with symlink? [y/N] " -n 1 -r
-        echo
-        [[ $REPLY =~ ^[Yy]$ ]] || exit 1
-        rm -rf "$HAMR_LINK"
-    fi
-
-    # Create symlink
-    ln -s "$SCRIPT_DIR" "$HAMR_LINK"
-    info "Created symlink: $HAMR_LINK -> $SCRIPT_DIR"
-
-    # Create user plugins directory
-    mkdir -p "$CONFIG_DIR/hamr/plugins"
-    info "Created user plugins directory: $CONFIG_DIR/hamr/plugins"
-
-    # Create or update default config
-    create_default_config
-
-    # Copy switchwall.sh to user config if it doesn't exist
-    mkdir -p "$CONFIG_DIR/hamr/scripts"
-    if [[ ! -f "$CONFIG_DIR/hamr/scripts/switchwall.sh" ]]; then
-        cp "$SCRIPT_DIR/scripts/colors/switchwall.sh" "$CONFIG_DIR/hamr/scripts/switchwall.sh"
-        chmod +x "$CONFIG_DIR/hamr/scripts/switchwall.sh"
-        info "Copied switchwall.sh to $CONFIG_DIR/hamr/scripts/"
-    fi
-
-    # Make scripts executable
-    chmod +x "$SCRIPT_DIR/scripts/thumbnails/thumbgen.sh" 2>/dev/null || true
-    chmod +x "$SCRIPT_DIR/scripts/thumbnails/thumbgen.py" 2>/dev/null || true
-    chmod +x "$SCRIPT_DIR/scripts/ocr/ocr-index.sh" 2>/dev/null || true
-    chmod +x "$SCRIPT_DIR/scripts/ocr/ocr-index.py" 2>/dev/null || true
-    chmod +x "$SCRIPT_DIR/scripts/colors/switchwall.sh" 2>/dev/null || true
-    chmod +x "$SCRIPT_DIR/hamr" 2>/dev/null || true
-
-    # Install hamr command to ~/.local/bin
-    local bin_dir="$HOME/.local/bin"
-    mkdir -p "$bin_dir"
-    ln -sf "$SCRIPT_DIR/hamr" "$bin_dir/hamr"
-    info "Installed hamr command: $bin_dir/hamr"
-    
-    # Check if ~/.local/bin is in PATH
-    if [[ ":$PATH:" != *":$bin_dir:"* ]]; then
-        warn "$bin_dir is not in your PATH"
-        echo "Add to your shell rc file:"
-        echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
-    fi
-
-    info "Installation complete!"
-    echo ""
-    echo "Start hamr with:"
-    echo "  hamr"
-    echo ""
-    echo "Commands:"
-    echo "  hamr              Start daemon"
-    echo "  hamr toggle       Toggle open/close"
-    echo "  hamr plugin NAME  Open plugin directly"
-    echo ""
-    
-    # Detect compositor and show appropriate instructions
-    if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
-        show_hyprland_instructions
-    elif [[ -n "${NIRI_SOCKET:-}" ]]; then
-        show_niri_instructions
-    else
-        echo "Add to your compositor config for autostart."
         echo ""
-        echo "For Hyprland: $0 --hyprland-config"
-        echo "For Niri: $0 --niri-config"
+        info "Skipping 'hamr install' (HAMR_SKIP_INSTALL=1)"
+        info "Run 'hamr install' manually to set up config and systemd services"
     fi
+
+    echo ""
+    success "Installation complete!"
+    echo ""
+    echo "Quick start:"
+    echo "  hamr                    # Start GTK launcher (auto-starts daemon)"
+    echo "  hamr toggle             # Toggle visibility (bind to Super+Space)"
+    echo "  hamr plugin clipboard   # Open clipboard manager"
+    echo ""
+    echo "Keybinding examples (Hyprland):"
+    echo "  exec-once = hamr        # Auto-start on login"
+    echo "  bind = SUPER, Space, exec, hamr toggle"
+    echo ""
+    echo "For more info: https://github.com/${REPO}"
 }
 
-show_hyprland_instructions() {
-    echo "Hyprland detected! Add to ~/.config/hypr/hyprland.conf:"
-    echo ""
-    echo "  # Autostart hamr"
-    echo "  exec-once = hamr"
-    echo ""
-    echo "  # Toggle hamr with Super key"
-    echo "  bind = SUPER, SUPER_L, global, quickshell:hamrToggle"
-    echo "  bindr = SUPER, SUPER_L, global, quickshell:hamrToggleRelease"
-    echo ""
-    echo "  # Or with Ctrl+Space"
-    echo "  bind = CTRL, Space, exec, hamr toggle"
-    echo ""
-}
-
-show_niri_instructions() {
-    echo "Niri detected!"
-    echo ""
-    echo "1. Enable systemd service (recommended):"
-    echo "   $0 --enable-service"
-    echo ""
-    echo "2. Add keybinding to ~/.config/niri/config.kdl:"
-    echo ""
-    echo "   binds {"
-    echo "       // Toggle hamr with Ctrl+Space"
-    echo "       Ctrl+Space { spawn \"hamr\" \"toggle\"; }"
-    echo ""
-    echo "       // Or with Super key (Mod key)"
-    echo "       Mod+Space { spawn \"hamr\" \"toggle\"; }"
-    echo "   }"
-    echo ""
-}
-
-install_systemd_service() {
-    local service_src="$SCRIPT_DIR/hamr.service"
-    local service_dest="$HOME/.config/systemd/user/hamr.service"
-    
-    if [[ ! -f "$service_src" ]]; then
-        error "hamr.service not found in $SCRIPT_DIR"
-    fi
-    
-    mkdir -p "$HOME/.config/systemd/user"
-    cp "$service_src" "$service_dest"
-    info "Installed systemd service: $service_dest"
-    
-    systemctl --user daemon-reload
-    systemctl --user enable hamr.service
-    
-    # Try to add wants for niri if it exists
-    if systemctl --user list-unit-files niri.service &>/dev/null; then
-        systemctl --user add-wants niri.service hamr.service
-        info "Enabled hamr.service (will start with niri.service)"
-    else
-        info "Enabled hamr.service"
-    fi
-    
-    echo ""
-    echo "To start now: systemctl --user start hamr.service"
-    echo "To check status: systemctl --user status hamr.service"
-    echo "To view logs: journalctl --user -u hamr.service -f"
-}
-
-disable_systemd_service() {
-    systemctl --user stop hamr.service 2>/dev/null || true
-    systemctl --user disable hamr.service 2>/dev/null || true
-    rm -f "$HOME/.config/systemd/user/niri.service.wants/hamr.service" 2>/dev/null || true
-    rm -f "$HOME/.config/systemd/user/hamr.service"
-    systemctl --user daemon-reload
-    info "Disabled and removed hamr.service"
-}
-
-update_hamr() {
-    info "Updating hamr..."
-
-    if [[ ! -d "$SCRIPT_DIR/.git" ]]; then
-        error "Not a git repository. Cannot update."
-    fi
-
-    cd "$SCRIPT_DIR"
-    
-    # Check for local changes
-    if [[ -n $(git status --porcelain) ]]; then
-        warn "Local changes detected:"
-        git status --short
-        echo ""
-        echo "Options:"
-        echo "  1. Stash changes:  git stash && $0 -U && git stash pop"
-        echo "  2. Commit changes: git add -A && git commit -m 'local changes'"
-        echo "  3. Discard changes: git checkout -- ."
-        echo ""
-        error "Please resolve local changes before updating."
-    fi
-
-    git pull --rebase
-
-    info "Update complete!"
-    echo ""
-    echo "Restart hamr to apply changes:"
-    echo "  systemctl --user restart hamr"
-    echo "  # or kill and restart manually"
-}
-
-uninstall_hamr() {
-    info "Uninstalling hamr..."
-
-    # Disable service if running
-    if systemctl --user is-active hamr.service &>/dev/null; then
-        systemctl --user stop hamr.service
-    fi
-    if systemctl --user is-enabled hamr.service &>/dev/null; then
-        disable_systemd_service
-    fi
-
-    if [[ -L "$HAMR_LINK" ]]; then
-        rm "$HAMR_LINK"
-        info "Removed symlink: $HAMR_LINK"
-    elif [[ -d "$HAMR_LINK" ]]; then
-        warn "Found directory instead of symlink at $HAMR_LINK"
-        read -p "Remove it? [y/N] " -n 1 -r
-        echo
-        [[ $REPLY =~ ^[Yy]$ ]] && rm -rf "$HAMR_LINK"
-    else
-        warn "No hamr installation found at $HAMR_LINK"
-    fi
-
-    # Remove hamr command from ~/.local/bin
-    local bin_link="$HOME/.local/bin/hamr"
-    if [[ -L "$bin_link" ]]; then
-        rm "$bin_link"
-        info "Removed command: $bin_link"
-    fi
-
-    info "Uninstall complete. User data in $CONFIG_DIR/hamr/ was preserved."
-}
-
-# Main
-case "${1:-}" in
-    --update|-U)
-        update_hamr
-        ;;
-    --uninstall|-u)
-        uninstall_hamr
-        ;;
-    --check|-c)
-        check_dependencies
-        ;;
-    --hyprland-config)
-        show_hyprland_instructions
-        ;;
-    --niri-config)
-        show_niri_instructions
-        ;;
-    --enable-service)
-        install_systemd_service
-        ;;
-    --disable-service)
-        disable_systemd_service
-        ;;
-    --help|-h)
-        echo "Usage: $0 [OPTIONS]"
-        echo ""
-        echo "Install:"
-        echo "  curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash"
-        echo ""
-        echo "Options:"
-        echo "  (none)             Install hamr"
-        echo "  --check, -c        Check dependencies only"
-        echo "  --update, -U       Update hamr via git pull"
-        echo "  --uninstall, -u    Remove hamr installation"
-        echo "  --hyprland-config  Show Hyprland configuration"
-        echo "  --niri-config      Show Niri configuration"
-        echo "  --enable-service   Enable systemd user service"
-        echo "  --disable-service  Disable systemd user service"
-        echo "  --help, -h         Show this help"
-        echo ""
-        echo "Supported compositors: Hyprland, Niri"
-        ;;
-    *)
-        check_dependencies
-        install_hamr
-        ;;
-esac
+main "$@"

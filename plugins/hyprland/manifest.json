@@ -2,8 +2,13 @@
   "name": "Hyprland",
   "description": "Window management and Hyprland dispatchers",
   "icon": "desktop_windows",
-  "supportedCompositors": ["hyprland"],
-  "frecency": "item",
+  "supportedPlatforms": [
+    "hyprland"
+  ],
+  "handler": {
+    "type": "socket",
+    "command": "python3 handler.py"
+  },
   "daemon": {
     "enabled": true,
     "background": true

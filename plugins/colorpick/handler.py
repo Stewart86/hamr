@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """
-Color Picker plugin handler - pick color from screen.
+Color Picker plugin for hamr - Pick color from screen.
+
+Socket-based plugin using hyprpicker to select and copy color values.
 """
 
-import json
-import select
-import signal
+import asyncio
 import subprocess
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
 
 ACTIONS = [
     {
@@ -20,22 +24,8 @@ ACTIONS = [
 ]
 
 
-def action_to_index_item(action: dict) -> dict:
-    return {
-        "id": action["id"],
-        "name": action["name"],
-        "description": action["description"],
-        "icon": action["icon"],
-        "verb": "Pick",
-        "keywords": ["color", "pick", "picker", "eyedropper", "hex", "rgb"],
-        "entryPoint": {
-            "step": "action",
-            "selected": {"id": action["id"]},
-        },
-    }
-
-
 def action_to_result(action: dict) -> dict:
+    """Convert action to result format."""
     return {
         "id": action["id"],
         "name": action["name"],
@@ -45,96 +35,45 @@ def action_to_result(action: dict) -> dict:
     }
 
 
-def get_index_items() -> list[dict]:
-    return [action_to_index_item(a) for a in ACTIONS]
+plugin = HamrPlugin(
+    id="colorpick",
+    name="Color Picker",
+    description="Pick a color from screen and copy to clipboard",
+    icon="colorize",
+)
 
 
-def handle_request(request: dict) -> None:
-    step = request.get("step", "initial")
-    selected = request.get("selected", {})
-
-    if step == "index":
-        items = get_index_items()
-        print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
-        return
-
-    if step == "initial":
-        results = [action_to_result(a) for a in ACTIONS]
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "placeholder": "Pick a color...",
-                    "inputMode": "realtime",
-                }
-            ),
-            flush=True,
-        )
-        return
-
-    if step == "search":
-        results = [action_to_result(a) for a in ACTIONS]
-        print(
-            json.dumps(
-                {"type": "results", "results": results, "inputMode": "realtime"}
-            ),
-            flush=True,
-        )
-        return
-
-    if step == "action":
-        selected_id = selected.get("id", "")
-
-        action = next((a for a in ACTIONS if a["id"] == selected_id), None)
-        if not action:
-            print(
-                json.dumps(
-                    {"type": "error", "message": f"Unknown action: {selected_id}"}
-                ),
-                flush=True,
-            )
-            return
-
-        subprocess.Popen(
-            action["command"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-
-        print(
-            json.dumps(
-                {
-                    "type": "execute",
-                    "name": action["name"],
-                    "icon": action["icon"],
-                    "close": True,
-                }
-            ),
-            flush=True,
-        )
-        return
-
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}), flush=True)
+@plugin.on_initial
+def handle_initial(params=None):
+    """Handle initial request."""
+    results = [action_to_result(a) for a in ACTIONS]
+    return HamrPlugin.results(results, placeholder="Pick a color...")
 
 
-def main():
-    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
-    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
+@plugin.on_search
+def handle_search(query: str, context: str | None):
+    """Handle search request."""
+    results = [action_to_result(a) for a in ACTIONS]
+    return HamrPlugin.results(results)
 
-    items = get_index_items()
-    print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
 
-    while True:
-        readable, _, _ = select.select([sys.stdin], [], [], 1.0)
-        if readable:
-            line = sys.stdin.readline()
-            if not line:
-                break
-            request = json.loads(line.strip())
-            handle_request(request)
+@plugin.on_action
+async def handle_action(item_id: str, action: str | None, context: str | None):
+    """Handle action request."""
+    selected_action = next((a for a in ACTIONS if a["id"] == item_id), None)
+    if not selected_action:
+        return HamrPlugin.error(f"Unknown action: {item_id}")
+
+    await asyncio.to_thread(
+        subprocess.Popen,
+        selected_action["command"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+    return HamrPlugin.execute(close=True)
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

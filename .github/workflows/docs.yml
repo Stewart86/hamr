@@ -4,13 +4,14 @@ on:
   push:
     branches:
       - main
+      - rusty-hamr-v1.0.0-alpha
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -30,10 +31,32 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install -r docs/requirements.txt
+        run: |
+          pip install -r docs/requirements.txt
+          pip install mike
 
-      - name: Build docs
-        run: mkdocs build --strict
+      - name: Setup git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Initialize gh-pages branch
+        run: |
+          # Check if gh-pages branch exists
+          if git ls-remote --heads origin gh-pages | grep -q gh-pages; then
+            echo "gh-pages branch exists"
+            git fetch origin gh-pages
+          else
+            echo "Creating gh-pages branch"
+            git checkout --orphan gh-pages
+            git reset --hard
+            git commit --allow-empty -m "Initial gh-pages commit for mike versioning"
+            git push origin gh-pages
+            git checkout ${{ github.ref_name }}
+          fi
+
+      - name: Deploy Rust docs with mike
+        run: mike deploy v1.0.0-alpha --update-aliases latest --push
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4

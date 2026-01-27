@@ -1,0 +1,66 @@
+[package]
+name = "hamr-gtk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "GTK4 UI for Hamr launcher"
+
+[lints]
+workspace = true
+
+[dependencies]
+# GTK4 (no Adwaita - we use custom styling)
+gtk4 = { version = "0.10", features = ["v4_20"] }
+gio = { version = "0.21", features = ["v2_58"] }
+libc = "0.2"
+
+# Wayland Layer Shell
+gtk4-layer-shell = "0.7"
+
+# Async runtime
+tokio = { workspace = true }
+futures-util = { workspace = true }
+
+# Internal crates
+hamr-core = { path = "../hamr-core" }
+hamr-rpc = { path = "../hamr-rpc" }
+hamr-types = { path = "../hamr-types" }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Directories
+dirs = "6"
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
+chrono = "0.4"
+
+# Async channel for GTK/tokio bridge
+async-channel = "2"
+
+# Markdown parsing
+pulldown-cmark = "0.13"
+
+# Syntax highlighting
+syntect = { version = "5", default-features = false, features = ["default-fancy"] }
+
+# HTTP client for image loading
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+
+# Image processing for thumbnails
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+
+# UUID for unique IDs
+uuid = { version = "1", features = ["v4"] }
+
+[[bin]]
+name = "hamr-gtk"
+path = "src/main.rs"

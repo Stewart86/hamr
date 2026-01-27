@@ -1,0 +1,40 @@
+[package]
+name = "hamr-types-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.hamr-types]
+path = ".."
+
+[dependencies.serde_json]
+version = "1"
+
+# Fuzz targets for JSON parsing
+
+[[bin]]
+name = "fuzz_result_item"
+path = "fuzz_targets/fuzz_result_item.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_core_event"
+path = "fuzz_targets/fuzz_core_event.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_core_update"
+path = "fuzz_targets/fuzz_core_update.rs"
+test = false
+doc = false
+bench = false

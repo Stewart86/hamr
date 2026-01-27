@@ -1,0 +1,60 @@
+{
+  "$schema": "./config.schema.json",
+  "search": {
+    "maxDisplayedResults": 16,
+    "maxRecentItems": 20,
+    "maxResultsPerPlugin": 0,
+    "pluginDebounceMs": 150,
+    "diversityDecay": 0.7,
+    "engineBaseUrl": "https://www.google.com/search?q=",
+    "excludedSites": [],
+    "prefix": {
+      "plugins": "/",
+      "app": "@",
+      "emojis": ":",
+      "math": "=",
+      "shellCommand": "!",
+      "webSearch": "?"
+    },
+    "actionBarHints": [
+      { "prefix": "~", "plugin": "files", "label": "Files", "icon": "folder_open" },
+      { "prefix": ";", "plugin": "clipboard", "label": "Clipboard", "icon": "content_paste" },
+      { "prefix": "=", "plugin": "calculate", "label": "Calculate", "icon": "calculate" },
+      { "prefix": ":", "plugin": "emoji", "label": "Emoji", "icon": "emoji_emotions" },
+      { "prefix": "!", "plugin": "shell", "label": "Shell", "icon": "terminal" }
+    ],
+    "pluginRankingBonus": {}
+  },
+  "apps": {
+    "terminal": null,
+    "fileManager": null,
+    "browser": null
+  },
+  "appearance": {
+    "backgroundTransparency": 0.2,
+    "contentTransparency": 0.2,
+    "launcherXRatio": 0.5,
+    "launcherYRatio": 0.1,
+    "fontScale": 1.0,
+    "uiScale": 1.0,
+    "defaultResultView": "list",
+    "grid": {
+      "columns": 5,
+      "itemWidth": 110,
+      "spacing": 2
+    }
+  },
+  "sizes": {
+    "searchWidth": 640,
+    "maxResultsHeight": 600
+  },
+  "fonts": {
+    "main": "Google Sans Flex",
+    "monospace": "JetBrains Mono NF",
+    "icon": "Material Symbols Rounded"
+  },
+  "behavior": {
+    "clickOutsideAction": "intuitive",
+    "stateRestoreWindowMs": 30000
+  }
+}

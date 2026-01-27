@@ -1,23 +1,33 @@
 #!/usr/bin/env python3
 """
-Settings plugin - Configure Hamr launcher options
-Reads/writes config from ~/.config/hamr/config.json
+Settings plugin for hamr - Configure Hamr launcher options.
+
+Socket-based daemon plugin providing access to hamr configuration through
+an interactive settings browser with category-based navigation, search,
+and live form editing.
 
 Features:
 - Browse settings by category
-- Search all settings from initial view
-- Filter within category when navigated
-- Edit settings via form
-- Reset all settings to defaults
+- Search all settings
+- Edit settings via forms with live updates
+- Reset individual settings or all settings
+- Slider and switch controls
+- Action bar hints configuration
 """
 
 import json
-import os
+import logging
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
+
+logger = logging.getLogger(__name__)
+
 CONFIG_PATH = Path.home() / ".config/hamr/config.json"
 
+# Schema defining all configuration options and their metadata
 SETTINGS_SCHEMA: dict = {
     "apps": {
         "terminal": {
@@ -79,6 +89,11 @@ SETTINGS_SCHEMA: dict = {
             "default": 0,
             "type": "number",
             "description": "Hard limit per plugin (0 = no limit, relies on decay only)",
+        },
+        "pluginRankingBonus": {
+            "default": {},
+            "type": "json",
+            "description": 'Per-plugin ranking bonus (e.g., {"apps": 200, "settings": 150})',
         },
         "shellHistoryLimit": {
             "default": 50,
@@ -199,57 +214,31 @@ SETTINGS_SCHEMA: dict = {
             "step": 0.05,
             "description": "Font scale (0.75=75%, 1.0=100%, 1.5=150%)",
         },
+        "uiScale": {
+            "default": 1.0,
+            "type": "slider",
+            "min": 0.8,
+            "max": 1.5,
+            "step": 0.1,
+            "description": "UI scale (0.8=compact, 1.0=default, 1.5=large)",
+        },
     },
     "sizes": {
         "searchWidth": {
-            "default": 580,
-            "type": "number",
-            "description": "Launcher search bar width (px)",
-        },
-        "searchInputHeight": {
-            "default": 40,
-            "type": "number",
-            "description": "Search input height (px)",
+            "default": 640,
+            "type": "slider",
+            "min": 400,
+            "max": 1000,
+            "step": 20,
+            "description": "Launcher width (px)",
         },
         "maxResultsHeight": {
             "default": 600,
-            "type": "number",
+            "type": "slider",
+            "min": 300,
+            "max": 900,
+            "step": 50,
             "description": "Max results panel height (px)",
-        },
-        "resultIconSize": {
-            "default": 40,
-            "type": "number",
-            "description": "Result item icon size (px)",
-        },
-        "imageBrowserWidth": {
-            "default": 1200,
-            "type": "number",
-            "description": "Image browser width (legacy panel, px)",
-        },
-        "imageBrowserHeight": {
-            "default": 690,
-            "type": "number",
-            "description": "Image browser height (legacy panel, px)",
-        },
-        "imageBrowserGridWidth": {
-            "default": 900,
-            "type": "number",
-            "description": "Image browser grid width (integrated, px)",
-        },
-        "imageBrowserGridHeight": {
-            "default": 600,
-            "type": "number",
-            "description": "Image browser grid height (integrated, px)",
-        },
-        "windowPickerMaxWidth": {
-            "default": 350,
-            "type": "number",
-            "description": "Window picker preview max width (px)",
-        },
-        "windowPickerMaxHeight": {
-            "default": 220,
-            "type": "number",
-            "description": "Window picker preview max height (px)",
         },
     },
     "fonts": {
@@ -320,37 +309,28 @@ DEFAULT_ACTION_BAR_HINTS = [
         "label": "Clipboard",
         "plugin": "clipboard",
     },
-    {"prefix": "/", "icon": "extension", "label": "Plugins", "plugin": "plugins"},
     {"prefix": "!", "icon": "terminal", "label": "Shell", "plugin": "shell"},
     {"prefix": "=", "icon": "calculate", "label": "Math", "plugin": "calculate"},
     {"prefix": ":", "icon": "emoji_emotions", "label": "Emoji", "plugin": "emoji"},
 ]
 
-
-def get_action_bar_hints(config: dict) -> list[dict]:
-    """Get current action bar hints from config, parsing JSON string."""
-    hints_json = get_nested_value(config, "search.actionBarHintsJson", None)
-    if hints_json and isinstance(hints_json, str):
-        try:
-            hints = json.loads(hints_json)
-            if isinstance(hints, list):
-                return hints
-        except (json.JSONDecodeError, TypeError):
-            pass
-    return DEFAULT_ACTION_BAR_HINTS
+# Reserved prefixes that cannot be used for action bar hints
+RESERVED_PREFIXES = ["/"]
 
 
 def load_config() -> dict:
+    """Load configuration from file."""
     if not CONFIG_PATH.exists():
-        return {}
+        return HamrPlugin.noop()
     try:
         with open(CONFIG_PATH) as f:
             return json.load(f)
     except Exception:
-        return {}
+        return HamrPlugin.noop()
 
 
 def save_config(config: dict) -> bool:
+    """Save configuration to file."""
     try:
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(CONFIG_PATH, "w") as f:
@@ -404,26 +384,12 @@ def get_current_value(config: dict, category: str, key: str):
     return get_nested_value(config, path, default)
 
 
-def fuzzy_match(query: str, text: str) -> bool:
-    """Simple fuzzy match - all query chars appear in order."""
-    query = query.lower()
-    text = text.lower()
-    qi = 0
-    for c in text:
-        if qi < len(query) and c == query[qi]:
-            qi += 1
-    return qi == len(query)
-
-
-def format_value(value) -> str:
-    """Format a value for display."""
-    if isinstance(value, bool):
-        return "Yes" if value else "No"
-    if isinstance(value, list):
-        return ", ".join(str(v) for v in value)
-    if value == "" or value is None:
-        return "(empty)"
-    return str(value)
+def is_modified(config: dict, category: str, key: str) -> bool:
+    """Check if a setting is modified from its default."""
+    schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
+    default = schema.get("default")
+    current = get_current_value(config, category, key)
+    return current != default
 
 
 def count_modified_in_category(config: dict, category: str) -> int:
@@ -438,6 +404,34 @@ def count_modified_in_category(config: dict, category: str) -> int:
     return modified
 
 
+def format_value(value) -> str:
+    """Format a value for display."""
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value)
+    if isinstance(value, dict):
+        if not value:
+            return "(empty)"
+        return json.dumps(value)
+    if value == "" or value is None:
+        return "(empty)"
+    return str(value)
+
+
+def get_action_bar_hints(config: dict) -> list[dict]:
+    """Get current action bar hints from config, parsing JSON string."""
+    hints_json = get_nested_value(config, "search.actionBarHintsJson", None)
+    if hints_json and isinstance(hints_json, str):
+        try:
+            hints = json.loads(hints_json)
+            if isinstance(hints, list):
+                return hints
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return DEFAULT_ACTION_BAR_HINTS
+
+
 def is_hint_modified(hint: dict, default_hint: dict) -> bool:
     """Check if a hint differs from its default."""
     for key in ("prefix", "icon", "label", "plugin"):
@@ -450,6 +444,7 @@ def get_categories() -> list[dict]:
     """Get list of categories."""
     config = load_config()
     results = []
+
     for category in SETTINGS_SCHEMA:
         settings_count = len(SETTINGS_SCHEMA[category])
         modified_count = count_modified_in_category(config, category)
@@ -499,14 +494,6 @@ def get_categories() -> list[dict]:
     results.append(hint_item)
 
     return results
-
-
-def is_modified(config: dict, category: str, key: str) -> bool:
-    """Check if a setting is modified from its default."""
-    schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
-    default = schema.get("default")
-    current = get_current_value(config, category, key)
-    return current != default
 
 
 def get_action_bar_hints_list(config: dict) -> list[dict]:
@@ -573,7 +560,13 @@ def get_settings_for_category(config: dict, category: str) -> list[dict]:
             result["description"] = info.get("description", "")
         elif setting_type == "boolean":
             result["type"] = "switch"
-            result["value"] = bool(current)
+            # Value must be a SliderValue struct, not a boolean
+            result["value"] = {
+                "value": 1.0 if current else 0.0,
+                "min": 0.0,
+                "max": 1.0,
+                "step": 1.0,
+            }
             result["description"] = info.get("description", "")
             result["actions"] = [
                 {"id": "reset", "name": "Reset to Default", "icon": "restart_alt"},
@@ -582,12 +575,15 @@ def get_settings_for_category(config: dict, category: str) -> list[dict]:
             slider_default = info.get("default", 0)
             slider_value = current if current is not None else slider_default
             result["type"] = "slider"
-            result["value"] = (
-                float(slider_value) if isinstance(slider_value, (int, float)) else 0.0
-            )
-            result["min"] = info.get("min", 0)
-            result["max"] = info.get("max", 1)
-            result["step"] = info.get("step", 0.05)
+            # Value must be a SliderValue struct with value, min, max, step
+            result["value"] = {
+                "value": float(slider_value)
+                if isinstance(slider_value, (int, float))
+                else 0.0,
+                "min": float(info.get("min", 0)),
+                "max": float(info.get("max", 1)),
+                "step": float(info.get("step", 0.05)),
+            }
             result["description"] = info.get("description", "")
             result["actions"] = [
                 {
@@ -597,7 +593,6 @@ def get_settings_for_category(config: dict, category: str) -> list[dict]:
                 },
             ]
         elif setting_type == "select":
-            options = info.get("options", [])
             result["description"] = f"{current} | {info.get('description', '')}"
             result["verb"] = "Edit"
             result["chips"] = [{"text": str(current)}]
@@ -611,113 +606,7 @@ def get_settings_for_category(config: dict, category: str) -> list[dict]:
             ]
 
         results.append(result)
-    return results
 
-
-def get_all_settings(config: dict) -> list[dict]:
-    """Get all settings as a flat list."""
-    results = []
-    for category, settings in SETTINGS_SCHEMA.items():
-        for key, info in settings.items():
-            setting_type = info.get("type", "string")
-
-            # Skip actionBarHintsJson - we show individual actions instead
-            if setting_type == "actionbarhints":
-                continue
-
-            current = get_current_value(config, category, key)
-            default = info.get("default")
-            modified = current != default
-
-            result: dict = {
-                "id": f"setting:{category}.{key}",
-                "name": key,
-                "icon": get_type_icon(setting_type),
-                "category": category,
-            }
-
-            if modified:
-                result["badges"] = [{"text": "*", "color": "#4caf50"}]
-
-            if setting_type == "readonly":
-                result["description"] = (
-                    f"{CATEGORY_NAMES.get(category, category)} | {info.get('description', '')}"
-                )
-            elif setting_type == "boolean":
-                result["type"] = "switch"
-                result["value"] = bool(current)
-                result["description"] = (
-                    f"{CATEGORY_NAMES.get(category, category)} | {info.get('description', '')}"
-                )
-                result["actions"] = [
-                    {
-                        "id": "reset",
-                        "name": "Reset to Default",
-                        "icon": "restart_alt",
-                    },
-                ]
-            elif setting_type == "slider":
-                slider_value = current if current is not None else default
-                result["type"] = "slider"
-                result["value"] = (
-                    float(slider_value)
-                    if isinstance(slider_value, (int, float))
-                    else 0.0
-                )
-                result["min"] = info.get("min", 0)
-                result["max"] = info.get("max", 1)
-                result["step"] = info.get("step", 0.05)
-                result["description"] = (
-                    f"{CATEGORY_NAMES.get(category, category)} | {info.get('description', '')}"
-                )
-                result["actions"] = [
-                    {
-                        "id": "reset",
-                        "name": f"Reset to {default}",
-                        "icon": "restart_alt",
-                    },
-                ]
-            elif setting_type == "select":
-                result["description"] = (
-                    f"{CATEGORY_NAMES.get(category, category)} | {current}"
-                )
-                result["verb"] = "Edit"
-                result["chips"] = [{"text": str(current)}]
-                result["actions"] = [
-                    {
-                        "id": "reset",
-                        "name": "Reset to Default",
-                        "icon": "restart_alt",
-                    },
-                ]
-            else:
-                result["description"] = (
-                    f"{CATEGORY_NAMES.get(category, category)} | {format_value(current)}"
-                )
-                result["verb"] = "Edit"
-                result["actions"] = [
-                    {
-                        "id": "reset",
-                        "name": "Reset to Default",
-                        "icon": "restart_alt",
-                    },
-                ]
-
-            results.append(result)
-
-    return results
-
-
-def filter_settings(settings: list[dict], query: str) -> list[dict]:
-    """Filter settings by query matching name or description."""
-    if not query:
-        return settings
-    results = []
-    for setting in settings:
-        name = setting.get("name", "")
-        desc = setting.get("description", "")
-        if fuzzy_match(query, name) or fuzzy_match(query, desc):
-            results.append(setting)
     return results
 
 
@@ -731,150 +620,9 @@ def get_type_icon(setting_type: str) -> str:
         "list": "list",
         "readonly": "info",
         "select": "arrow_drop_down",
+        "json": "data_object",
     }
     return icons.get(setting_type, "settings")
-
-
-def get_form_field_type(setting_type: str) -> str:
-    """Map setting type to form field type."""
-    if setting_type == "boolean":
-        return "select"
-    return "text"
-
-
-def show_edit_form(category: str, key: str, info: dict, current_value):
-    """Show form for editing a setting."""
-    setting_type = info.get("type", "string")
-    default = info.get("default")
-    description = info.get("description", "")
-
-    if setting_type == "boolean":
-        fields = [
-            {
-                "id": "value",
-                "type": "switch",
-                "label": key,
-                "default": current_value if current_value is not None else default,
-                "hint": f"{description}\nDefault: {'Yes' if default else 'No'}",
-            }
-        ]
-    elif setting_type == "select":
-        options = info.get("options", [])
-        fields = [
-            {
-                "id": "value",
-                "type": "select",
-                "label": key,
-                "options": [{"value": opt, "label": opt} for opt in options],
-                "default": str(current_value) if current_value else str(default),
-                "hint": f"{description}\nDefault: {default}",
-            }
-        ]
-    elif setting_type == "slider":
-        min_val = info.get("min", 0)
-        max_val = info.get("max", 100)
-        step_val = info.get("step", 1)
-        fields = [
-            {
-                "id": "value",
-                "type": "slider",
-                "label": key,
-                "min": min_val,
-                "max": max_val,
-                "step": step_val,
-                "default": current_value if current_value is not None else default,
-                "hint": f"{description}\nDefault: {default}",
-            }
-        ]
-    elif setting_type == "list":
-        fields = [
-            {
-                "id": "value",
-                "type": "text",
-                "label": key,
-                "default": ", ".join(str(v) for v in current_value)
-                if current_value
-                else "",
-                "hint": f"{description}\nDefault: {', '.join(str(v) for v in (default or []))}\nEnter comma-separated values",
-            }
-        ]
-    else:
-        fields = [
-            {
-                "id": "value",
-                "type": "text",
-                "label": key,
-                "default": str(current_value) if current_value is not None else "",
-                "hint": f"{description}\nDefault: {default}",
-            }
-        ]
-
-    print(
-        json.dumps(
-            {
-                "type": "form",
-                "form": {
-                    "title": f"Edit: {key}",
-                    "submitLabel": "Save",
-                    "cancelLabel": "Cancel",
-                    "fields": fields,
-                },
-                "context": f"edit:{category}.{key}",
-                "navigateForward": True,
-            }
-        )
-    )
-
-
-def show_appearance_form(config: dict):
-    """Show a live form with all appearance settings."""
-    appearance = SETTINGS_SCHEMA.get("appearance", {})
-    fields = []
-
-    for key, info in appearance.items():
-        setting_type = info.get("type", "string")
-        current = get_current_value(config, "appearance", key)
-
-        if setting_type == "boolean":
-            fields.append(
-                {
-                    "id": f"appearance.{key}",
-                    "type": "switch",
-                    "label": key,
-                    "default": bool(current)
-                    if current is not None
-                    else bool(info.get("default")),
-                    "hint": info.get("description", ""),
-                }
-            )
-        elif setting_type == "slider":
-            fields.append(
-                {
-                    "id": f"appearance.{key}",
-                    "type": "slider",
-                    "label": key,
-                    "min": info.get("min", 0),
-                    "max": info.get("max", 1),
-                    "step": info.get("step", 0.05),
-                    "default": current if current is not None else info.get("default"),
-                    "hint": info.get("description", ""),
-                }
-            )
-
-    print(
-        json.dumps(
-            {
-                "type": "form",
-                "form": {
-                    "title": "Appearance",
-                    "liveUpdate": True,
-                    "fields": fields,
-                },
-                "context": "liveform:appearance",
-                "navigateForward": True,
-            }
-        )
-    )
 
 
 def parse_value(value_str, setting_type: str, default):
@@ -884,7 +632,6 @@ def parse_value(value_str, setting_type: str, default):
             return value_str
         return str(value_str).lower() in ("true", "yes", "1")
     if setting_type == "slider":
-        # Slider values come as floats directly from form
         if isinstance(value_str, (int, float)):
             return float(value_str)
         try:
@@ -901,16 +648,123 @@ def parse_value(value_str, setting_type: str, default):
         except (ValueError, TypeError):
             return default
     if setting_type == "list":
+        if isinstance(value_str, list):
+            return value_str
         if not str(value_str).strip():
             return []
-        return [v.strip() for v in value_str.split(",")]
+        return [v.strip() for v in str(value_str).split(",")]
+    if setting_type == "json":
+        if isinstance(value_str, dict):
+            return value_str
+        if not str(value_str).strip():
+            return default
+        try:
+            return json.loads(value_str)
+        except (json.JSONDecodeError, TypeError):
+            return default
     return value_str
 
 
-def get_plugin_actions(in_form: bool = False) -> list[dict]:
+def show_edit_form(category: str, key: str, schema: dict, current_value):
+    """Show form for editing a setting."""
+    setting_type = schema.get("type", "string")
+    default = schema.get("default")
+    description = schema.get("description", "")
+
+    if setting_type == "boolean":
+        fields = [
+            {
+                "id": "value",
+                "type": "switch",
+                "label": key,
+                "default_value": str(current_value).lower()
+                if current_value is not None
+                else str(default).lower(),
+                "hint": f"{description}\nDefault: {'Yes' if default else 'No'}",
+            }
+        ]
+    elif setting_type == "select":
+        options = schema.get("options", [])
+        fields = [
+            {
+                "id": "value",
+                "type": "select",
+                "label": key,
+                "options": [{"value": opt, "label": opt} for opt in options],
+                "default_value": str(current_value) if current_value else str(default),
+                "hint": f"{description}\nDefault: {default}",
+            }
+        ]
+    elif setting_type == "slider":
+        min_val = schema.get("min", 0)
+        max_val = schema.get("max", 100)
+        step_val = schema.get("step", 1)
+        fields = [
+            {
+                "id": "value",
+                "type": "slider",
+                "label": key,
+                "min": min_val,
+                "max": max_val,
+                "step": step_val,
+                "default_value": str(current_value)
+                if current_value is not None
+                else str(default),
+                "hint": f"{description}\nDefault: {default}",
+            }
+        ]
+    elif setting_type == "list":
+        fields = [
+            {
+                "id": "value",
+                "type": "text",
+                "label": key,
+                "default_value": ", ".join(str(v) for v in current_value)
+                if current_value
+                else "",
+                "hint": f"{description}\nDefault: {', '.join(str(v) for v in (default or []))}\nEnter comma-separated values",
+            }
+        ]
+    elif setting_type == "json":
+        fields = [
+            {
+                "id": "value",
+                "type": "textarea",
+                "label": key,
+                "default_value": json.dumps(current_value, indent=2)
+                if current_value
+                else "{}",
+                "hint": f"{description}\nDefault: {json.dumps(default)}\nEnter valid JSON",
+            }
+        ]
+    else:
+        # string, number, and other types
+        fields = [
+            {
+                "id": "value",
+                "type": "number" if setting_type == "number" else "text",
+                "label": key,
+                "default_value": str(current_value)
+                if current_value is not None
+                else "",
+                "hint": f"{description}\nDefault: {default}",
+            }
+        ]
+
+    return {
+        "type": "form",
+        "form": {
+            "title": f"Edit: {key}",
+            "submit_label": "Save",
+            "cancel_label": "Cancel",
+            "fields": fields,
+        },
+        "context": f"edit:{category}.{key}",
+    }
+
+
+def get_plugin_actions() -> list[dict]:
     """Get plugin-level actions."""
-    if in_form:
-        return []
     return [
         {
             "id": "clear_cache",
@@ -927,596 +781,440 @@ def get_plugin_actions(in_form: bool = False) -> list[dict]:
     ]
 
 
-def main():
-    input_data = json.load(sys.stdin)
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "").strip()
-    selected = input_data.get("selected", {})
-    action = input_data.get("action", "")
-    context = input_data.get("context", "")
+plugin = HamrPlugin(
+    id="settings",
+    name="Settings",
+    description="Configure Hamr launcher options",
+    icon="settings",
+)
 
+
+@plugin.on_initial
+def handle_initial(params=None):
+    """Handle initial request."""
+    return HamrPlugin.results(
+        get_categories(),
+        input_mode="realtime",
+        placeholder="Search settings or select category...",
+        plugin_actions=get_plugin_actions(),
+    )
+
+
+@plugin.on_search
+def handle_search(query: str, context: str | None):
+    """Handle search request."""
     config = load_config()
-    selected_id = selected.get("id", "")
 
-    if step == "initial":
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": get_categories(),
-                    "inputMode": "realtime",
-                    "placeholder": "Search settings or select category...",
-                    "pluginActions": get_plugin_actions(),
-                }
-            )
+    if context and context.startswith("category:"):
+        category = context.split(":", 1)[1]
+        settings = get_settings_for_category(config, category)
+
+        # Filter by query
+        if query:
+            query_lower = query.lower()
+            settings = [
+                s
+                for s in settings
+                if query_lower in s.get("name", "").lower()
+                or query_lower in s.get("description", "").lower()
+            ]
+
+        placeholder = (
+            "Configure action bar shortcuts..."
+            if category == "actionBarHints"
+            else f"Filter {CATEGORY_NAMES.get(category, category)} settings..."
         )
-        return
 
-    # Handle live form slider changes
-    if step == "formSlider":
-        field_id = input_data.get("fieldId", "")
-        value = input_data.get("value", 0)
+        return HamrPlugin.results(
+            settings,
+            input_mode="realtime",
+            placeholder=placeholder,
+            context=context,
+            plugin_actions=get_plugin_actions(),
+        )
+    else:
+        if query:
+            # Search all settings
+            all_settings = []
+            for category in SETTINGS_SCHEMA:
+                for key in SETTINGS_SCHEMA[category]:
+                    current = get_current_value(config, category, key)
+                    setting_type = SETTINGS_SCHEMA[category][key].get("type", "string")
 
-        # field_id is like "appearance.backgroundTransparency"
-        if "." in field_id:
-            category, key = field_id.rsplit(".", 1)
-            schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
-            if schema:
-                config = set_nested_value(config, field_id, float(value))
-                save_config(config)
-
-        # Return noop - UI already shows the new value
-        print(json.dumps({"type": "noop"}))
-        return
-
-    # Handle live form switch changes
-    if step == "formSwitch":
-        field_id = input_data.get("fieldId", "")
-        value = input_data.get("value", False)
-
-        # For edit forms, field_id is "value" and context is "edit:category.key"
-        # For live forms, field_id is the full path like "search.shellHistory.enable"
-        if field_id == "value" and context.startswith("edit:"):
-            path = context.split(":", 1)[1]
-            parts = path.rsplit(".", 1)
-            if len(parts) == 2:
-                category, key = parts
-                schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
-                if schema:
-                    config = set_nested_value(config, path, bool(value))
-                    save_config(config)
-        elif "." in field_id:
-            # Live form with full path field id
-            parts = field_id.rsplit(".", 1)
-            if len(parts) == 2:
-                category, key = parts
-                schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
-                if schema:
-                    config = set_nested_value(config, field_id, bool(value))
-                    save_config(config)
-
-        # Return noop - UI already shows the new value
-        print(json.dumps({"type": "noop"}))
-        return
-
-    if step == "search":
-        if context.startswith("category:"):
-            category = context.split(":", 1)[1]
-            settings = get_settings_for_category(config, category)
-            filtered = filter_settings(settings, query)
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": filtered,
-                        "inputMode": "realtime",
-                        "placeholder": f"Filter {CATEGORY_NAMES.get(category, category)} settings...",
-                        "context": context,
-                        "pluginActions": get_plugin_actions(),
+                    result = {
+                        "id": f"setting:{category}.{key}",
+                        "name": key,
+                        "description": f"{CATEGORY_NAMES.get(category, category)} | {format_value(current)}",
+                        "icon": get_type_icon(setting_type),
                     }
-                )
+
+                    all_settings.append(result)
+
+            query_lower = query.lower()
+            filtered = [
+                s
+                for s in all_settings
+                if query_lower in s.get("name", "").lower()
+                or query_lower in s.get("description", "").lower()
+            ]
+
+            return HamrPlugin.results(
+                filtered,
+                input_mode="realtime",
+                placeholder="Search settings or select category...",
+                plugin_actions=get_plugin_actions(),
             )
         else:
-            if query:
-                all_settings = get_all_settings(config)
-                filtered = filter_settings(all_settings, query)
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": filtered,
-                            "inputMode": "realtime",
-                            "placeholder": "Search settings or select category...",
-                            "pluginActions": get_plugin_actions(),
-                        }
-                    )
-                )
-            else:
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": get_categories(),
-                            "inputMode": "realtime",
-                            "placeholder": "Search settings or select category...",
-                            "pluginActions": get_plugin_actions(),
-                        }
-                    )
-                )
-        return
-
-    if step == "form":
-        form_data = input_data.get("formData", {})
-
-        if context.startswith("editActionHint:"):
-            hint_idx = int(context.split(":", 1)[1])
-            hints = get_action_bar_hints(config)
-
-            # Ensure we have enough hints
-            while len(hints) <= hint_idx:
-                hints.append({"prefix": "", "icon": "", "label": "", "plugin": ""})
-
-            # Update the hint with form data
-            hints[hint_idx] = {
-                "prefix": form_data.get("prefix", "").strip(),
-                "plugin": form_data.get("plugin", "").strip(),
-                "label": form_data.get("label", "").strip(),
-                "icon": form_data.get("icon", "").strip(),
-            }
-
-            config = set_nested_value(
-                config, "search.actionBarHintsJson", json.dumps(hints)
+            return HamrPlugin.results(
+                get_categories(),
+                input_mode="realtime",
+                placeholder="Search settings or select category...",
+                plugin_actions=get_plugin_actions(),
             )
-            if save_config(config):
-                settings = get_action_bar_hints_list(config)
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": settings,
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": "category:actionBarHints",
-                            "placeholder": "Configure action bar shortcuts...",
-                            "pluginActions": get_plugin_actions(),
-                            "navigateBack": True,
-                        }
-                    )
+
+
+@plugin.on_action
+def handle_action(item_id: str, action: str | None, context: str | None):
+    """Handle action request."""
+    logger.debug(
+        f"handle_action: item_id={item_id}, action={action}, context={context}"
+    )
+
+    config = load_config()
+
+    # Plugin actions
+    if item_id == "__plugin__":
+        if action == "reset_all":
+            if save_config({}):
+                return HamrPlugin.results(
+                    get_categories(),
+                    input_mode="realtime",
+                    clear_input=True,
+                    placeholder="Search settings or select category...",
+                    plugin_actions=get_plugin_actions(),
                 )
             else:
-                print(json.dumps({"type": "error", "message": "Failed to save config"}))
-            return
-
-        if context.startswith("edit:"):
-            path = context.split(":", 1)[1]
-            parts = path.rsplit(".", 1)
-            if len(parts) == 2:
-                category, key = parts
-            else:
-                print(json.dumps({"type": "error", "message": "Invalid setting path"}))
-                return
-
-            schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
-            setting_type = schema.get("type", "string")
-            default = schema.get("default")
-
-            value_str = form_data.get("value", "")
-            new_value = parse_value(value_str, setting_type, default)
-
-            config = set_nested_value(config, path, new_value)
-            if save_config(config):
-                settings = get_settings_for_category(config, category)
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": settings,
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": f"category:{category}",
-                            "placeholder": f"Filter {CATEGORY_NAMES.get(category, category)} settings...",
-                            "pluginActions": get_plugin_actions(),
-                            "navigateBack": True,
-                        }
-                    )
-                )
-            else:
-                print(json.dumps({"type": "error", "message": "Failed to save config"}))
-
-        return
-
-    if step == "action":
-        # Handle switch toggle for boolean settings
-        if action == "switch" and selected_id.startswith("setting:"):
-            path = selected_id.split(":", 1)[1]
-            parts = path.rsplit(".", 1)
-            if len(parts) == 2:
-                category, key = parts
-                schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
-                if schema and schema.get("type") == "boolean":
-                    new_value = input_data.get("value", False)
-                    config = set_nested_value(config, path, bool(new_value))
-                    save_config(config)
-                    print(json.dumps({"type": "noop"}))
-                    return
-
-        # Handle inline slider changes in category view
-        if action == "slider" and selected_id.startswith("setting:"):
-            path = selected_id.split(":", 1)[1]
-            parts = path.rsplit(".", 1)
-            if len(parts) == 2:
-                category, key = parts
-                schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
-                if schema and schema.get("type") == "slider":
-                    new_value = input_data.get("value", 0)
-                    config = set_nested_value(config, path, float(new_value))
-                    save_config(config)
-                    print(json.dumps({"type": "noop"}))
-                    return
-
-        if selected_id == "__plugin__" and action == "clear_cache":
+                return HamrPlugin.error("Failed to reset config")
+        elif action == "clear_cache":
             cache_path = Path.home() / ".config/hamr/plugin-indexes.json"
             try:
                 if cache_path.exists():
                     cache_path.unlink()
-                print(
-                    json.dumps(
-                        {
-                            "type": "execute",
-                            "notify": "Cache cleared. Restart Hamr to reindex plugins.",
-                            "close": True,
-                        }
-                    )
-                )
+                return HamrPlugin.execute()
             except Exception as e:
-                print(
-                    json.dumps(
-                        {"type": "error", "message": f"Failed to clear cache: {e}"}
-                    )
-                )
-            return
+                return HamrPlugin.error(f"Failed to clear cache: {e}")
 
-        if selected_id == "__plugin__" and action == "reset_all":
-            if save_config({}):
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": get_categories(),
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": "",
-                            "placeholder": "Search settings or select category...",
-                            "pluginActions": get_plugin_actions(),
-                        }
-                    )
-                )
-            else:
-                print(
-                    json.dumps({"type": "error", "message": "Failed to reset config"})
-                )
-            return
-
-        if selected_id == "__form_cancel__":
-            if context.startswith("liveform:"):
-                # Live form cancel - go back to categories
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": get_categories(),
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": "",
-                            "placeholder": "Search settings or select category...",
-                            "pluginActions": get_plugin_actions(),
-                        }
-                    )
-                )
-            elif context.startswith("editActionHint:"):
-                # Go back to action hints list
-                settings = get_action_bar_hints_list(config)
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": settings,
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": "category:actionBarHints",
-                            "placeholder": "Configure action bar shortcuts...",
-                            "pluginActions": get_plugin_actions(),
-                        }
-                    )
-                )
-            elif context.startswith("edit:"):
-                path = context.split(":", 1)[1]
-                category = path.rsplit(".", 1)[0]
-                settings = get_settings_for_category(config, category)
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": settings,
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": f"category:{category}",
-                            "placeholder": f"Filter {CATEGORY_NAMES.get(category, category)} settings...",
-                            "pluginActions": get_plugin_actions(),
-                        }
-                    )
-                )
-            else:
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": get_categories(),
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": "",
-                            "placeholder": "Search settings or select category...",
-                            "pluginActions": get_plugin_actions(),
-                        }
-                    )
-                )
-            return
-
-        if selected_id == "__back__":
-            if context.startswith("liveform:"):
-                # Going back from live form to categories
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": get_categories(),
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": "",
-                            "placeholder": "Search settings or select category...",
-                            "pluginActions": get_plugin_actions(),
-                            "navigationDepth": 0,
-                        }
-                    )
-                )
-            elif context.startswith("category:"):
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": get_categories(),
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": "",
-                            "placeholder": "Search settings or select category...",
-                            "pluginActions": get_plugin_actions(),
-                            "navigationDepth": 0,
-                        }
-                    )
-                )
-            else:
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": get_categories(),
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": "",
-                            "placeholder": "Search settings or select category...",
-                            "pluginActions": get_plugin_actions(),
-                        }
-                    )
-                )
-            return
-
-        if selected_id.startswith("category:"):
-            category = selected_id.split(":", 1)[1]
-
-            # Appearance category shows a live form with all sliders
-            if category == "appearance":
-                show_appearance_form(config)
-                return
-
-            settings = get_settings_for_category(config, category)
-            placeholder = (
-                "Configure action bar shortcuts..."
-                if category == "actionBarHints"
-                else f"Filter {CATEGORY_NAMES.get(category, category)} settings..."
-            )
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": settings,
-                        "inputMode": "realtime",
-                        "clearInput": True,
-                        "context": f"category:{category}",
-                        "placeholder": placeholder,
-                        "pluginActions": get_plugin_actions(),
-                        "navigateForward": True,
-                    }
-                )
-            )
-            return
-
-        if selected_id.startswith("actionHint:"):
-            hint_idx = int(selected_id.split(":", 1)[1])
-            hints = get_action_bar_hints(config)
-            default_hint = (
-                DEFAULT_ACTION_BAR_HINTS[hint_idx]
-                if hint_idx < len(DEFAULT_ACTION_BAR_HINTS)
-                else {}
-            )
-            current_hint = hints[hint_idx] if hint_idx < len(hints) else {}
-
-            if action == "reset":
-                if hint_idx < len(hints):
-                    hints[hint_idx] = default_hint.copy()
-                    config = set_nested_value(
-                        config, "search.actionBarHintsJson", json.dumps(hints)
-                    )
-                    save_config(config)
-                settings = get_action_bar_hints_list(config)
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": settings,
-                            "inputMode": "realtime",
-                            "context": "category:actionBarHints",
-                            "placeholder": "Configure action bar shortcuts...",
-                            "pluginActions": get_plugin_actions(),
-                            "navigateForward": False,
-                        }
-                    )
-                )
-                return
-
-            # Show form to edit this action hint
-            print(
-                json.dumps(
-                    {
-                        "type": "form",
-                        "form": {
-                            "title": f"Edit Action {hint_idx + 1}",
-                            "submitLabel": "Save",
-                            "cancelLabel": "Cancel",
-                            "fields": [
-                                {
-                                    "id": "prefix",
-                                    "type": "text",
-                                    "label": "Prefix",
-                                    "default": current_hint.get("prefix", ""),
-                                    "hint": f"Keyboard shortcut (e.g., ~, ;, /)\nDefault: {default_hint.get('prefix', '')}",
-                                },
-                                {
-                                    "id": "plugin",
-                                    "type": "text",
-                                    "label": "Plugin",
-                                    "default": current_hint.get("plugin", ""),
-                                    "hint": f"Plugin to open (e.g., files, clipboard, emoji)\nDefault: {default_hint.get('plugin', '')}",
-                                },
-                                {
-                                    "id": "label",
-                                    "type": "text",
-                                    "label": "Label",
-                                    "default": current_hint.get("label", ""),
-                                    "hint": f"Display label\nDefault: {default_hint.get('label', '')}",
-                                },
-                                {
-                                    "id": "icon",
-                                    "type": "text",
-                                    "label": "Icon",
-                                    "default": current_hint.get("icon", ""),
-                                    "hint": f"Material icon name\nDefault: {default_hint.get('icon', '')}",
-                                },
-                            ],
-                        },
-                        "context": f"editActionHint:{hint_idx}",
-                        "navigateForward": True,
-                    }
-                )
-            )
-            return
-
-        if selected_id.startswith("setting:"):
-            path = selected_id.split(":", 1)[1]
+    # Back navigation - return to categories
+    if item_id == "__back__":
+        if context and context.startswith("edit:"):
+            # Going back from edit form to category view
+            # Context is "edit:category.key", extract category
+            path = context.split(":", 1)[1]  # "category.key"
             parts = path.rsplit(".", 1)
             if len(parts) == 2:
-                category, key = parts
-            else:
-                print(json.dumps({"type": "error", "message": "Invalid setting path"}))
-                return
+                category = parts[0]
+                settings = get_settings_for_category(config, category)
+                placeholder = (
+                    "Configure action bar shortcuts..."
+                    if category == "actionBarHints"
+                    else f"Filter {CATEGORY_NAMES.get(category, category)} settings..."
+                )
+                return HamrPlugin.results(
+                    settings,
+                    input_mode="realtime",
+                    clear_input=True,
+                    context=f"category:{category}",
+                    placeholder=placeholder,
+                    plugin_actions=get_plugin_actions(),
+                )
+            # Fallback if parse fails
+            return HamrPlugin.results(
+                get_categories(),
+                input_mode="realtime",
+                clear_input=True,
+                context="",
+                placeholder="Search settings or select category...",
+                plugin_actions=get_plugin_actions(),
+            )
+        elif context and (
+            context.startswith("category:") or context.startswith("liveform:")
+        ):
+            # Going back from a category or live form to the main categories list
+            return HamrPlugin.results(
+                get_categories(),
+                input_mode="realtime",
+                clear_input=True,
+                context="",
+                placeholder="Search settings or select category...",
+                plugin_actions=get_plugin_actions(),
+                navigation_depth=0,  # Jump back to root
+            )
+        else:
+            # Default: return to categories
+            return HamrPlugin.results(
+                get_categories(),
+                input_mode="realtime",
+                clear_input=True,
+                context="",
+                placeholder="Search settings or select category...",
+                plugin_actions=get_plugin_actions(),
+            )
 
-            schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
-            setting_type = schema.get("type", "string")
+    # Category selection
+    if item_id.startswith("category:"):
+        category = item_id.split(":", 1)[1]
+        logger.debug(f"Category selection: {category}")
+        settings = get_settings_for_category(config, category)
+        logger.debug(f"Got {len(settings)} settings")
 
-            if action == "reset":
-                config = delete_nested_value(config, path)
+        placeholder = (
+            "Configure action bar shortcuts..."
+            if category == "actionBarHints"
+            else f"Filter {CATEGORY_NAMES.get(category, category)} settings..."
+        )
+
+        result = HamrPlugin.results(
+            settings,
+            input_mode="realtime",
+            clear_input=True,
+            context=f"category:{category}",
+            placeholder=placeholder,
+            plugin_actions=get_plugin_actions(),
+            navigate_forward=True,
+        )
+        logger.debug(f"Returning result with {len(result['results'])} items")
+        return result
+
+    # Action bar hint actions
+    if item_id.startswith("actionHint:"):
+        hint_idx = int(item_id.split(":", 1)[1])
+        hints = get_action_bar_hints(config)
+        default_hint = (
+            DEFAULT_ACTION_BAR_HINTS[hint_idx]
+            if hint_idx < len(DEFAULT_ACTION_BAR_HINTS)
+            else {}
+        )
+
+        if action == "reset":
+            if hint_idx < len(hints):
+                hints[hint_idx] = default_hint.copy()
+                config = set_nested_value(
+                    config, "search.actionBarHintsJson", json.dumps(hints)
+                )
                 save_config(config)
+            settings = get_action_bar_hints_list(config)
+            return HamrPlugin.results(
+                settings,
+                input_mode="realtime",
+                context="category:actionBarHints",
+                placeholder="Configure action bar shortcuts...",
+                plugin_actions=get_plugin_actions(),
+            )
 
-                default = schema.get("default")
-                current_category = (
-                    context.split(":", 1)[1]
-                    if context.startswith("category:")
-                    else category
-                )
+        # Show form for editing action hint
+        hint_idx = int(item_id.split(":", 1)[1])
+        hints = get_action_bar_hints(config)
+        default_hint = (
+            DEFAULT_ACTION_BAR_HINTS[hint_idx]
+            if hint_idx < len(DEFAULT_ACTION_BAR_HINTS)
+            else {}
+        )
+        current_hint = hints[hint_idx] if hint_idx < len(hints) else {}
 
-                # For inline controls (slider/switch), use update response
-                if setting_type in ("slider", "boolean"):
-                    update_item: dict = {"id": selected_id}
-                    if setting_type == "slider":
-                        slider_val = (
-                            default if isinstance(default, (int, float)) else 0.0
-                        )
-                        update_item["value"] = float(slider_val)
-                    else:
-                        update_item["value"] = bool(default)
-                    # Remove badge since it's now at default
-                    update_item["badges"] = []
-                    print(
-                        json.dumps(
-                            {
-                                "type": "update",
-                                "items": [update_item],
-                            }
-                        )
-                    )
-                else:
-                    settings = get_settings_for_category(config, current_category)
-                    print(
-                        json.dumps(
-                            {
-                                "type": "results",
-                                "results": settings,
-                                "inputMode": "realtime",
-                                "context": f"category:{current_category}",
-                                "placeholder": f"Filter {CATEGORY_NAMES.get(current_category, current_category)} settings...",
-                                "pluginActions": get_plugin_actions(),
-                                "navigateForward": False,
-                            }
-                        )
-                    )
-                return
+        return HamrPlugin.form(
+            {
+                "title": f"Edit Action {hint_idx + 1}",
+                "submit_label": "Save",
+                "cancel_label": "Cancel",
+                "fields": [
+                    {
+                        "id": "prefix",
+                        "type": "text",
+                        "label": "Prefix",
+                        "default_value": current_hint.get("prefix", ""),
+                        "hint": f"Keyboard shortcut (e.g., ~, ;, !)\nDefault: {default_hint.get('prefix', '')}\nNote: '/' is reserved for plugin management",
+                    },
+                    {
+                        "id": "plugin",
+                        "type": "text",
+                        "label": "Plugin",
+                        "default_value": current_hint.get("plugin", ""),
+                        "hint": f"Plugin to open (e.g., files, clipboard, emoji)\nDefault: {default_hint.get('plugin', '')}",
+                    },
+                    {
+                        "id": "label",
+                        "type": "text",
+                        "label": "Label",
+                        "default_value": current_hint.get("label", ""),
+                        "hint": f"Display label\nDefault: {default_hint.get('label', '')}",
+                    },
+                    {
+                        "id": "icon",
+                        "type": "text",
+                        "label": "Icon",
+                        "default_value": current_hint.get("icon", ""),
+                        "hint": f"Material icon name\nDefault: {default_hint.get('icon', '')}",
+                    },
+                ],
+            },
+            context=f"editActionHint:{hint_idx}",
+        )
 
-            if not schema:
-                print(
-                    json.dumps({"type": "error", "message": f"Unknown setting: {path}"})
-                )
-                return
+    # Setting actions
+    if item_id.startswith("setting:"):
+        path = item_id.split(":", 1)[1]
+        parts = path.rsplit(".", 1)
+        if len(parts) == 2:
+            category, key = parts
+        else:
+            return {"type": "error", "message": "Invalid setting path"}
 
-            # Readonly settings cannot be edited
-            if setting_type == "readonly":
-                current_category = (
-                    context.split(":", 1)[1]
-                    if context.startswith("category:")
-                    else category
-                )
-                settings = get_settings_for_category(config, current_category)
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": settings,
-                            "inputMode": "realtime",
-                            "context": f"category:{current_category}",
-                            "placeholder": f"Filter {CATEGORY_NAMES.get(current_category, current_category)} settings...",
-                            "pluginActions": get_plugin_actions(),
-                        }
-                    )
-                )
-                return
+        schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
+        if not schema:
+            return {"type": "error", "message": "Setting not found"}
 
-            # Slider and boolean are inline - clicking on them should not open a form
-            if setting_type in ("slider", "boolean"):
-                print(json.dumps({"type": "noop"}))
-                return
+        if action == "reset":
+            config = delete_nested_value(config, path)
+            save_config(config)
+            settings = get_settings_for_category(config, category)
 
-            current = get_current_value(config, category, key)
-            show_edit_form(category, key, schema, current)
-            return
+            return HamrPlugin.results(
+                settings,
+                input_mode="realtime",
+                clear_input=True,
+                context=f"category:{category}",
+                placeholder=f"Filter {CATEGORY_NAMES.get(category, category)} settings...",
+                plugin_actions=get_plugin_actions(),
+            )
+
+        # Show form for editing setting
+        current = get_current_value(config, category, key)
+        return show_edit_form(category, key, schema, current)
+
+    return HamrPlugin.noop()
+
+
+@plugin.on_slider_changed
+def handle_slider_changed(slider_id: str, value: float):
+    """Handle slider changes in settings."""
+    if slider_id.startswith("setting:"):
+        path = slider_id.split(":", 1)[1]
+        config = load_config()
+        # Size settings need integer values for GTK config parsing
+        parts = path.rsplit(".", 1)
+        if len(parts) == 2:
+            category, key = parts
+            schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
+            # Use int for size settings (pixels), float for appearance (ratios)
+            if category == "sizes":
+                config = set_nested_value(config, path, int(value))
+            else:
+                config = set_nested_value(config, path, float(value))
+        else:
+            config = set_nested_value(config, path, float(value))
+        save_config(config)
+    return {"type": "noop"}
+
+
+@plugin.on_switch_toggled
+def handle_switch_toggled(switch_id: str, value: bool):
+    """Handle switch toggles in settings."""
+    if switch_id.startswith("setting:"):
+        path = switch_id.split(":", 1)[1]
+        config = load_config()
+        config = set_nested_value(config, path, bool(value))
+        save_config(config)
+    return {"type": "noop"}
+
+
+@plugin.on_form_submitted
+def handle_form_submitted(form_data: dict, context: str | None):
+    """Handle form submission for settings and action hint editing."""
+    if not context:
+        return {"type": "error", "message": "Invalid context"}
+
+    config = load_config()
+
+    # Handle action hint editing
+    if context.startswith("editActionHint:"):
+        hint_idx = int(context.split(":", 1)[1])
+        hints = get_action_bar_hints(config)
+
+        # Validate prefix is not reserved
+        new_prefix = form_data.get("prefix", "").strip()
+        if new_prefix in RESERVED_PREFIXES:
+            return HamrPlugin.error(
+                f"'{new_prefix}' is reserved for plugin management and cannot be used"
+            )
+
+        # Ensure we have enough hints
+        while len(hints) <= hint_idx:
+            hints.append({"prefix": "", "icon": "", "label": "", "plugin": ""})
+
+        # Update the hint with form data
+        hints[hint_idx] = {
+            "prefix": new_prefix,
+            "plugin": form_data.get("plugin", "").strip(),
+            "label": form_data.get("label", "").strip(),
+            "icon": form_data.get("icon", "").strip(),
+        }
+
+        config = set_nested_value(
+            config, "search.actionBarHintsJson", json.dumps(hints)
+        )
+        if not save_config(config):
+            return HamrPlugin.error("Failed to save config")
+
+        # Return to action hints list
+        settings = get_action_bar_hints_list(config)
+        return HamrPlugin.results(
+            settings,
+            input_mode="realtime",
+            clear_input=True,
+            context="category:actionBarHints",
+            placeholder="Configure action bar shortcuts...",
+            plugin_actions=get_plugin_actions(),
+        )
+
+    # Handle setting editing
+    if context.startswith("edit:"):
+        path = context.split(":", 1)[1]
+        parts = path.rsplit(".", 1)
+        if len(parts) != 2:
+            return HamrPlugin.error("Invalid setting path")
+
+        category, key = parts
+
+        schema = SETTINGS_SCHEMA.get(category, {}).get(key, {})
+        if not schema:
+            return HamrPlugin.error("Setting not found")
+
+        # Get the value from form data
+        value_str = form_data.get("value", "")
+        setting_type = schema.get("type", "string")
+        default = schema.get("default")
+
+        # Parse value based on type
+        new_value = parse_value(value_str, setting_type, default)
+
+        # Save to config
+        config = set_nested_value(config, path, new_value)
+        if not save_config(config):
+            return HamrPlugin.error("Failed to save config")
+
+        # Return to category view with updated settings
+        settings = get_settings_for_category(config, category)
+        return HamrPlugin.results(
+            settings,
+            input_mode="realtime",
+            clear_input=True,
+            context=f"category:{category}",
+            placeholder=f"Filter {CATEGORY_NAMES.get(category, category)} settings...",
+            plugin_actions=get_plugin_actions(),
+        )
+
+    return HamrPlugin.error("Invalid context")
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

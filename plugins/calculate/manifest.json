@@ -2,8 +2,11 @@
   "name": "Calculate",
   "description": "Calculator with currency, units, and temperature conversion",
   "icon": "calculate",
-  "supportedCompositors": ["*"],
   "frecency": "plugin",
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
+  },
   "match": {
     "patterns": [
       "^=",
@@ -11,9 +14,9 @@
       "^[\\+\\-\\*\\/\\^]",
       "^\\(",
       "^(sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|sqrt|cbrt|log|ln|exp|abs|ceil|floor|round|factorial|rand)\\s*\\(",
-      "^-?\\d+\\.?\\d*\\s*°?[cf](\\s|$)",
+      "^-?\\d+\\.?\\d*\\s*\u00b0?[cf](\\s|$)",
       "^-?\\d+\\.?\\d*\\s*(celsius|fahrenheit)",
-      "^[$€£¥₹₽₩₪฿₫₴₸₺₼₾]",
+      "^[$\u20ac\u00a3\u00a5\u20b9\u20bd\u20a9\u20aa\u0e3f\u20ab\u20b4\u20b8\u20ba\u20bc\u20be]",
       "^(S|HK|A|C|NZ|NT|R|MX)\\$\\s*\\d",
       "^(USD|EUR|GBP|JPY|CNY|SGD|AUD|CAD|CHF|HKD|NZD|SEK|NOK|DKK|KRW|INR|RUB|BRL|MXN|ZAR|TRY|THB|MYR|IDR|PHP|VND|PLN|CZK|HUF|ILS|AED|SAR|TWD|BTC|ETH)\\s*[\\d,]",
       "^\\d+\\.?\\d*\\s*(USD|EUR|GBP|JPY|CNY|SGD|AUD|CAD|CHF|HKD|NZD|SEK|NOK|DKK|KRW|INR|RUB|BRL|MXN|ZAR|TRY|THB|MYR|IDR|PHP|VND|PLN|CZK|HUF|ILS|AED|SAR|TWD|BTC|ETH)",
@@ -26,5 +29,11 @@
       "^\\d+\\s+to\\s+(hex|binary|bin)"
     ],
     "priority": 100
-  }
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland",
+    "macos",
+    "windows"
+  ]
 }

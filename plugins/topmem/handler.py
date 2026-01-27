@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 """
-Top Memory daemon - show processes sorted by memory usage.
+Top Memory plugin for hamr - Show processes sorted by memory usage.
+
+Uses socket SDK for daemon mode with real-time auto-refresh.
 """
 
-import json
-import select
-import signal
+import asyncio
 import subprocess
 import sys
-import time
+from pathlib import Path
+from typing import Optional
+
+# Add parent directory to path to import SDK
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
 
 
 def format_bytes(bytes_val: int) -> str:
-    """Format bytes to human-readable format (e.g., 1.2 GB, 256 MB)"""
+    """Format bytes to human-readable format (e.g., 1.2 GB, 256 MB)."""
     value = float(bytes_val)
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if value < 1024:
@@ -24,7 +29,7 @@ def format_bytes(bytes_val: int) -> str:
 
 
 def get_processes() -> list[dict]:
-    """Get processes sorted by memory usage"""
+    """Get processes sorted by memory usage."""
     try:
         # Use ps to get process info sorted by memory
         result = subprocess.run(
@@ -38,28 +43,31 @@ def get_processes() -> list[dict]:
         for line in result.stdout.strip().split("\n")[1:51]:  # Skip header, limit to 50
             parts = line.split()
             if len(parts) >= 6:
-                pid = parts[0]
-                user = parts[1]
-                cpu = float(parts[2])
-                mem = float(parts[3])
-                name = parts[4]
-                rss_kb = float(parts[5])
-                rss = int(rss_kb * 1024)  # Convert KB to bytes
+                try:
+                    pid = parts[0]
+                    user = parts[1]
+                    cpu = float(parts[2])
+                    mem = float(parts[3])
+                    name = parts[4]
+                    rss_kb = float(parts[5])
+                    rss = int(rss_kb * 1024)  # Convert KB to bytes
 
-                # Skip kernel threads and very low memory processes
-                if mem < 0.1:
+                    # Skip kernel threads and very low memory processes
+                    if mem < 0.1:
+                        continue
+
+                    processes.append(
+                        {
+                            "pid": pid,
+                            "name": name,
+                            "cpu": cpu,
+                            "mem": mem,
+                            "rss": rss,
+                            "user": user,
+                        }
+                    )
+                except ValueError:
                     continue
-
-                processes.append(
-                    {
-                        "pid": pid,
-                        "name": name,
-                        "cpu": cpu,
-                        "mem": mem,
-                        "rss": rss,
-                        "user": user,
-                    }
-                )
 
         return processes[:30]  # Limit results
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -67,7 +75,7 @@ def get_processes() -> list[dict]:
 
 
 def get_process_results(processes: list[dict], query: str = "") -> list[dict]:
-    """Convert processes to result format"""
+    """Convert processes to result format."""
     results = []
 
     # Filter by query if provided
@@ -123,7 +131,7 @@ def get_process_results(processes: list[dict], query: str = "") -> list[dict]:
 
 
 def kill_process(pid: str, force: bool = False) -> tuple[bool, str]:
-    """Kill a process by PID"""
+    """Kill a process by PID."""
     try:
         signal = "-9" if force else "-15"
         subprocess.run(["kill", signal, pid], check=True)
@@ -132,121 +140,81 @@ def kill_process(pid: str, force: bool = False) -> tuple[bool, str]:
         return False, f"Failed to kill process {pid}"
 
 
-def emit(data: dict) -> None:
-    print(json.dumps(data), flush=True)
+# Create plugin instance
+plugin = HamrPlugin(
+    id="topmem",
+    name="Top Memory",
+    description="Processes sorted by memory usage",
+    icon="memory",
+)
+
+# Plugin state
+state = {
+    "current_query": "",
+}
 
 
-def handle_request(request: dict, current_query: str) -> str:
-    step = request.get("step", "initial")
-    query = request.get("query", "").strip()
-    selected = request.get("selected", {})
-    action = request.get("action", "")
+@plugin.on_initial
+async def handle_initial(params=None):
+    """Handle initial request."""
+    state["current_query"] = ""
+    processes = get_processes()
+    return HamrPlugin.results(
+        get_process_results(processes),
+        placeholder="Filter processes...",
+    )
 
-    if step == "initial":
+
+@plugin.on_search
+async def handle_search(query: str, context: Optional[str]):
+    """Handle search request."""
+    state["current_query"] = query
+    processes = get_processes()
+    return HamrPlugin.results(
+        get_process_results(processes, query),
+    )
+
+
+@plugin.on_action
+async def handle_action(item_id: str, action: Optional[str], context: Optional[str]):
+    """Handle action request."""
+    if item_id == "__empty__":
         processes = get_processes()
-        emit(
-            {
-                "type": "results",
-                "results": get_process_results(processes),
-                "placeholder": "Filter processes...",
-                "inputMode": "realtime",
-            }
+        return HamrPlugin.results(
+            get_process_results(processes),
         )
-        return query
 
-    if step == "search":
+    if item_id.startswith("proc:"):
+        pid = item_id.split(":")[1]
+
+        if action in ("kill", ""):
+            success, message = kill_process(pid, force=False)
+        elif action == "kill9":
+            success, message = kill_process(pid, force=True)
+        else:
+            success, message = False, "Unknown action"
+
         processes = get_processes()
-        emit(
-            {
-                "type": "results",
-                "results": get_process_results(processes, query),
-                "inputMode": "realtime",
-            }
+        response = HamrPlugin.results(
+            get_process_results(processes, state["current_query"]),
         )
-        return query
+        if success:
+            response["status"] = {"notify": message}
+        return response
 
-    if step == "poll":
-        processes = get_processes()
-        emit(
-            {
-                "type": "results",
-                "results": get_process_results(processes, query),
-            }
-        )
-        return current_query
-
-    if step == "action":
-        item_id = selected.get("id", "")
-
-        if item_id == "__empty__":
-            processes = get_processes()
-            emit(
-                {
-                    "type": "results",
-                    "results": get_process_results(processes),
-                }
-            )
-            return current_query
-
-        if item_id.startswith("proc:"):
-            pid = item_id.split(":")[1]
-
-            if action in ("kill", ""):
-                success, message = kill_process(pid, force=False)
-            elif action == "kill9":
-                success, message = kill_process(pid, force=True)
-            else:
-                success, message = False, "Unknown action"
-
-            processes = get_processes()
-            emit(
-                {
-                    "type": "results",
-                    "results": get_process_results(processes),
-                    "notify": message if success else None,
-                }
-            )
-            return current_query
-
-    emit({"type": "error", "message": f"Unknown step: {step}"})
-    return current_query
+    return HamrPlugin.noop()
 
 
-def main():
-    def shutdown_handler(signum, frame):
-        sys.exit(0)
-
-    signal.signal(signal.SIGTERM, shutdown_handler)
-    signal.signal(signal.SIGINT, shutdown_handler)
-
-    current_query = ""
-    last_refresh = time.time()
-    refresh_interval = 2.0
-
+@plugin.add_background_task
+async def refresh_task(p: HamrPlugin):
+    """Background task that refreshes process list every 2 seconds."""
     while True:
-        readable, _, _ = select.select([sys.stdin], [], [], 0.5)
-
-        if readable:
-            try:
-                line = sys.stdin.readline()
-                if not line:
-                    break
-                request = json.loads(line.strip())
-                current_query = handle_request(request, current_query)
-            except (json.JSONDecodeError, ValueError):
-                continue
-
-        now = time.time()
-        if now - last_refresh >= refresh_interval:
-            processes = get_processes()
-            emit(
-                {
-                    "type": "results",
-                    "results": get_process_results(processes, current_query),
-                }
-            )
-            last_refresh = now
+        await asyncio.sleep(2)
+        processes = get_processes()
+        await p.send_results(
+            get_process_results(processes, state["current_query"]),
+        )
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

@@ -285,9 +285,8 @@ def get_file_preview(path: str) -> dict | None:
     # Image files - show image preview
     if ext in [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"]:
         return {
-            "type": "image",
-            "content": path,
             "title": name,
+            "image": path,
             "metadata": metadata,
             "actions": actions,
         }
@@ -410,7 +409,7 @@ def path_to_result(path: str, show_actions: bool = True) -> dict:
     if chips:
         result["chips"] = chips
 
-    # Add thumbnail for images
+    # Add thumbnail for images (GTK side will handle caching/generation)
     ext = Path(path).suffix.lower()
     if ext in [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]:
         result["thumbnail"] = path

@@ -1,0 +1,64 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+exclude = ["crates/hamr-types/fuzz"]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/stewart86/hamr"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Fuzzy matching
+nucleo = "0.5"
+nucleo-matcher = "0.3"
+
+# File watching
+notify = "8"
+notify-debouncer-mini = "0.7"
+
+# Directories
+directories = "6"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+rustyline = "17"
+
+# TUI
+ratatui = "0.30"
+crossterm = { version = "0.29", features = ["event-stream"] }
+
+# Regex for match patterns
+regex = "1"
+
+# RPC/Transport
+tokio-util = { version = "0.7", features = ["codec"] }
+bytes = "1"
+futures-util = { version = "0.3", features = ["sink"] }
+
+# Internal crates
+hamr-types = { path = "crates/hamr-types" }
+
+[workspace.lints.clippy]
+# Enable pedantic lints - all warnings must be fixed or have inline #[allow] with justification
+pedantic = { level = "warn", priority = -1 }
+
+# NO GLOBAL ALLOWS - use inline #[allow(...)] with justification on specific functions

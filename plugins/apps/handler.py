@@ -18,6 +18,10 @@ import sys
 from configparser import ConfigParser
 from pathlib import Path
 
+# Add parent directory to path to import SDK
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
+
 # XDG application directories
 APP_DIRS = [
     Path.home() / ".local/share/applications",
@@ -125,6 +129,11 @@ def parse_desktop_file(path: Path) -> dict | None:
                         }
                     )
 
+        # StartupWMClass is what the compositor uses as app_id (most reliable)
+        # Desktop filename is fallback (e.g., "com.microsoft.Edge")
+        startup_wm_class = entry.get("StartupWMClass", "")
+        desktop_id = path.stem  # filename without .desktop
+
         return {
             "id": str(path),
             "name": name,
@@ -137,6 +146,8 @@ def parse_desktop_file(path: Path) -> dict | None:
             "keywords": entry.get("Keywords", ""),
             "terminal": entry.get("Terminal", "").lower() == "true",
             "actions": desktop_actions,
+            "startup_wm_class": startup_wm_class,  # May be empty
+            "desktop_id": desktop_id,  # Always present
         }
     except Exception:
         return None
@@ -189,10 +200,6 @@ def app_to_index_item(app: dict) -> dict:
 
     Uses entryPoint for execution so handler controls the launch.
     """
-    # Get desktop file name without .desktop extension
-    filename = Path(app["id"]).name
-    desktop_name = filename.removesuffix(".desktop")
-
     # Build keywords from name, generic name, comment, and keywords field
     keywords = []
     if app.get("generic_name"):
@@ -240,6 +247,13 @@ def app_to_index_item(app: dict) -> dict:
     }
     actions.insert(0, new_window_action)
 
+    # Window matching fallback chain:
+    # 1. StartupWMClass (most reliable when present)
+    # 2. Desktop filename (e.g., "com.microsoft.Edge")
+    # 3. No match -> launch new instance
+    startup_wm_class = app.get("startup_wm_class", "")
+    desktop_id = app.get("desktop_id", "")
+
     item = {
         "id": app["id"],  # Use full path as ID (matches result IDs for frecency)
         "name": app["name"],
@@ -248,7 +262,8 @@ def app_to_index_item(app: dict) -> dict:
         "icon": app["icon"],
         "iconType": "system",
         "verb": "Open",
-        "appId": desktop_name,  # For window integration in LauncherSearch
+        "appId": startup_wm_class,  # Primary: StartupWMClass (may be empty)
+        "appIdFallback": desktop_id,  # Fallback: desktop filename
         "entryPoint": {
             "step": "action",
             "selected": {"id": app["id"]},
@@ -297,6 +312,12 @@ def app_to_result(app: dict, show_category: bool = False) -> dict:
             }
         )
 
+    # Window matching fallback chain:
+    # 1. StartupWMClass (most reliable when present)
+    # 2. Desktop filename (e.g., "com.microsoft.Edge")
+    startup_wm_class = app.get("startup_wm_class", "")
+    desktop_id = app.get("desktop_id", "")
+
     result = {
         "id": app["id"],
         "name": app["name"],
@@ -304,6 +325,8 @@ def app_to_result(app: dict, show_category: bool = False) -> dict:
         "icon": app["icon"],
         "iconType": "system",  # App icons are system icons from .desktop files
         "verb": "Launch",
+        "appId": startup_wm_class,  # Primary: StartupWMClass (may be empty)
+        "appIdFallback": desktop_id,  # Fallback: desktop filename
     }
     if actions:
         result["actions"] = actions
@@ -406,12 +429,11 @@ def handle_request(request: dict, all_apps: list[dict]) -> None:
             )
 
         emit(
-            {
-                "type": "results",
-                "results": results,
-                "inputMode": "realtime",
-                "placeholder": "Search apps or select category...",
-            }
+            HamrPlugin.results(
+                results,
+                input_mode="realtime",
+                placeholder="Search apps or select category...",
+            )
         )
         return
 
@@ -450,15 +472,14 @@ def handle_request(request: dict, all_apps: list[dict]) -> None:
                 ]
 
             emit(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                    "placeholder": f"Search in {category}..."
+                HamrPlugin.results(
+                    results,
+                    input_mode="realtime",
+                    placeholder=f"Search in {category}..."
                     if category != "All"
                     else "Search all apps...",
-                    "context": context,
-                }
+                    context=context,
+                )
             )
             return
 
@@ -485,12 +506,11 @@ def handle_request(request: dict, all_apps: list[dict]) -> None:
                 ]
 
             emit(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                    "placeholder": "Search apps or select category...",
-                }
+                HamrPlugin.results(
+                    results,
+                    input_mode="realtime",
+                    placeholder="Search apps or select category...",
+                )
             )
         else:
             # Show categories
@@ -515,12 +535,11 @@ def handle_request(request: dict, all_apps: list[dict]) -> None:
                 )
 
             emit(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                    "placeholder": "Search apps or select category...",
-                }
+                HamrPlugin.results(
+                    results,
+                    input_mode="realtime",
+                    placeholder="Search apps or select category...",
+                )
             )
         return
 
@@ -546,17 +565,15 @@ def handle_request(request: dict, all_apps: list[dict]) -> None:
                     }
                 )
 
-            emit(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                    "placeholder": "Search apps or select category...",
-                    "clearInput": True,
-                    "context": "",
-                    "navigateBack": True,
-                }
+            response = HamrPlugin.results(
+                results,
+                input_mode="realtime",
+                placeholder="Search apps or select category...",
+                clear_input=True,
+                context="",
             )
+            response["navigateBack"] = True
+            emit(response)
             return
 
         if selected_id == "__empty__":
@@ -591,18 +608,14 @@ def handle_request(request: dict, all_apps: list[dict]) -> None:
                             stderr=subprocess.DEVNULL,
                             start_new_session=True,
                         )
-                        emit(
-                            {
-                                "type": "execute",
-                                "name": f"{app['name']}: {action['name']}",
-                                "icon": action.get("icon") or app["icon"],
-                                "iconType": "system",
-                                "close": True,
-                            }
-                        )
+                        response = HamrPlugin.close()
+                        response["name"] = f"{app['name']}: {action['name']}"
+                        response["icon"] = action.get("icon") or app["icon"]
+                        response["iconType"] = "system"
+                        emit(response)
                         return
 
-            emit({"type": "error", "message": "Action not found"})
+            emit(HamrPlugin.error("Action not found"))
             return
 
         if selected_id.startswith("__cat__:"):
@@ -616,19 +629,17 @@ def handle_request(request: dict, all_apps: list[dict]) -> None:
                 app_to_result(a, show_category=(category == "All")) for a in apps[:50]
             ]
 
-            emit(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                    "placeholder": f"Search in {category}..."
-                    if category != "All"
-                    else "Search all apps...",
-                    "clearInput": True,
-                    "context": selected_id,
-                    "navigateForward": True,
-                }
+            response = HamrPlugin.results(
+                results,
+                input_mode="realtime",
+                placeholder=f"Search in {category}..."
+                if category != "All"
+                else "Search all apps...",
+                clear_input=True,
+                context=selected_id,
+                navigate_forward=True,
             )
+            emit(response)
             return
 
         app = None
@@ -639,18 +650,13 @@ def handle_request(request: dict, all_apps: list[dict]) -> None:
 
         if app:
             # Use safe launch API - hamr will run gio launch
-            emit(
-                {
-                    "type": "execute",
-                    "launch": selected_id,
-                    "name": f"Launch {app['name']}",
-                    "icon": app["icon"],
-                    "iconType": "system",
-                    "close": True,
-                }
-            )
+            response = HamrPlugin.execute(launch=selected_id, close=True)
+            response["name"] = f"Launch {app['name']}"
+            response["icon"] = app["icon"]
+            response["iconType"] = "system"
+            emit(response)
         else:
-            emit({"type": "error", "message": f"App not found: {selected_id}"})
+            emit(HamrPlugin.error(f"App not found: {selected_id}"))
 
 
 def main():

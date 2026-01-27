@@ -10,7 +10,7 @@ Open an issue with:
 - Steps to reproduce
 - Expected vs actual behavior
 - Hamr version and system info (Hyprland version, distro)
-- Relevant logs from terminal output when running `qs -c hamr`
+- Relevant logs from `/tmp/hamr-daemon.log` and `/tmp/hamr-tui.log`
 
 ### Plugin Contributions
 
@@ -34,13 +34,17 @@ Plugins without tests will not be accepted.
 
 ## Code Style
 
-### QML (modules/, services/)
+### Rust (crates/)
 
-- Use `pragma Singleton` and `pragma ComponentBehavior: Bound` for singletons
-- Imports: Qt/Quickshell imports first, then project imports (`qs.*`)
-- Properties: Use `readonly property` for computed values, typed when possible
-- Naming: `camelCase` for properties/functions, `id: root` for root element
-- Keep comments minimal - code should be self-explanatory
+- Edition 2024 with workspace-level dependency management
+- Imports: `crate::` first, then `std::`, then external crates, then `tracing::{...}`
+- Use `thiserror` for library errors with `Error` enum and `Result<T>` alias
+- Use `#[serde(rename_all = "camelCase")]` for JSON protocol types
+- Async: `tokio` runtime with `Arc<Mutex<T>>` for shared state
+- Tests: `#[tokio::test]` with fixtures in `tests/fixtures.rs`
+- Avoid inline comments - code should be self-documenting
+
+See `AGENTS.md` for detailed code style guidelines.
 
 ### Python (plugins/)
 
@@ -70,18 +74,68 @@ Use `./dev --no-restore` to not restart production after exiting.
 
 Hamr auto-reloads on file changes. Logs appear directly in your terminal.
 
+Dev builds use a separate socket at `$XDG_RUNTIME_DIR/hamr-dev.sock`. The release
+`hamr toggle` command will attempt the dev socket first so your compositor binding
+still works while you run `cargo run -p hamr-daemon` and `cargo run -p hamr-gtk`.
+
+The GTK dev build uses a separate application ID (`org.hamr.Launcher.Dev`) so it
+can run alongside the production launcher during development.
+
 **Note:** You can have the AUR version installed alongside development. The dev script temporarily takes over, then restores production on exit.
 
 ## Testing Plugins
 
-```bash
-# Run plugin tests
-cd plugins
-./test-all
+Follow this checklist when developing or modifying plugins:
 
-# Test a specific plugin
-HAMR_TEST_MODE=1 ./test-harness ./my-plugin/handler.py initial
-```
+### Pre-flight Checks
+
+1. **Verify manifest format** - Ensure `manifest.json` is valid JSON with required fields
+2. **Check Python syntax** - Run `python3 -m py_compile handler.py`
+3. **Audit plugin integrity** - Run `hamr plugins audit` to verify checksum status
+
+### Manual Testing Workflow
+
+4. **Start the daemon in a terminal:**
+   ```bash
+   cargo run -p hamr-daemon
+   ```
+
+5. **Open a second terminal for logs:**
+   ```bash
+   tail -f /tmp/hamr-daemon.log
+   ```
+
+6. **Test plugin with CLI:**
+   ```bash
+   # Test initial step
+   cargo run -p hamr-cli -- test my-plugin ""
+
+   # Test search step
+   cargo run -p hamr-cli -- test my-plugin "search query"
+   ```
+
+7. **Test with TUI for interactive validation:**
+   ```bash
+   cargo run -p hamr-tui
+   # Type your plugin prefix (e.g., "my:") to activate
+   ```
+
+8. **Enable debug logging if needed:**
+   ```bash
+   HAMR_PLUGIN_DEBUG=1 cargo run -p hamr-daemon
+   RUST_LOG=debug cargo run -p hamr-daemon
+   ```
+
+### Verification Checklist
+
+- [ ] Plugin activates with correct prefix
+- [ ] Search results appear as expected
+- [ ] Actions (copy, open URL, launch) work correctly
+- [ ] Error states display meaningful messages
+- [ ] No Python exceptions in daemon logs
+- [ ] Plugin responds within reasonable time (<100ms for search)
+
+See `plugins/sdk/README.md` for response types and SDK usage.
 
 ## Pull Request Guidelines
 
@@ -90,6 +144,15 @@ HAMR_TEST_MODE=1 ./test-harness ./my-plugin/handler.py initial
 - Reference any related issues
 - Ensure existing tests still pass
 - Add tests for new functionality
+
+## Release Process
+
+For maintainers preparing a release, see the [Release Checklist](docs/releases/checklist.md) which covers:
+
+- Automated pre-flight checks (`./scripts/release-check.sh`)
+- Manual smoke tests (daemon, TUI, plugins, GTK)
+- Version bump procedure
+- Post-release verification
 
 ## Questions?
 

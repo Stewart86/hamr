@@ -1,0 +1,36 @@
+[package]
+name = "hamr-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Hamr launcher daemon with socket server"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "hamr-daemon"
+path = "src/main.rs"
+
+[lib]
+name = "hamr_daemon"
+path = "src/lib.rs"
+
+[dependencies]
+hamr-core = { path = "../hamr-core" }
+hamr-rpc = { path = "../hamr-rpc" }
+hamr-types = { path = "../hamr-types" }
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+futures-util = { version = "0.3", features = ["sink"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+chrono = "0.4"
+thiserror = "2"
+anyhow = "1"
+uuid = { version = "1", features = ["v4"] }
+clap = { version = "4", features = ["derive"] }
+notify = "8"

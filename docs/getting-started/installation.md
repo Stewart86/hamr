@@ -1,17 +1,42 @@
 # Installation
 
+## Architecture Overview
+
+Hamr consists of several components that work together:
+
+- **hamr-daemon**: Core service that manages plugins and search
+- **hamr-gtk**: GTK4 launcher UI (what you see when you press the hotkey)
+- **hamr-cli**: Command-line interface for testing and control
+- **hamr-tui**: Terminal UI for headless environments
+
+The daemon runs continuously and communicates with the UI clients via JSON-RPC.
+
 ## Requirements
 
-- [Quickshell](https://quickshell.outfoxxed.me/) (QML-based shell framework)
+- **GTK4 4.20+** and **gtk4-layer-shell** (for the GTK4 interface)
 - A supported Wayland compositor: **Hyprland** or **Niri**
 - Python 3.9+ (for plugins)
+- Rust 1.85+ (for building from source)
+
+### Compositor Support Matrix
+
+| Compositor | Status | Notes |
+|------------|--------|-------|
+| **Hyprland** | ✅ Supported | Full functionality with layer-shell |
+| **Niri** | ✅ Supported | Full functionality with layer-shell |
+| **Sway** | ✅ Supported | Works with layer-shell protocol |
+| **KDE Wayland** | ✅ Supported | Requires layer-shell support |
+| **GNOME Wayland** | ❌ Not Supported | No layer-shell protocol support |
+| **X11** | ❌ Not Supported | Wayland-only application |
 
 ## Arch Linux (AUR)
 
 ```bash
+# Install from AUR
+paru -S hamr-git
+
+# Or build from source
 paru -S hamr
-systemctl --user enable --now hamr
-```
 
 ## NixOS / Nix
 
@@ -56,7 +81,7 @@ Add the flake input to your configuration:
 }
 ```
 
-## Other Distributions
+## Quick Install (All Distributions)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
@@ -64,16 +89,47 @@ curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | ba
 
 The install script will:
 
-- Detect your distribution and show how to install Quickshell if missing
-- Clone the repo to `~/.local/share/hamr`
-- Create symlinks and default config
+- Detect your distribution and install required dependencies (GTK4, gtk4-layer-shell)
+- Download the latest release binaries
+- Install to `~/.local/bin/`
+- Copy essential plugins to `~/.local/share/hamr/plugins/`
+- Create default configuration
 - Show compositor-specific setup instructions
 
-For Niri users, enable the systemd service:
+**Installer Flags:**
 
+| Flag | Description |
+|------|-------------|
+| `--check` | Dry-run mode: show what would be installed without making changes |
+| `--yes` | Assume yes for all prompts (non-interactive mode) |
+| `--reset-user-data` | Reset user configuration and plugins (backup created) |
+
+### Manual Dependencies
+
+**Arch Linux:**
 ```bash
-~/.local/share/hamr/install.sh --enable-service
+sudo pacman -S gtk4 gtk4-layer-shell python
 ```
+
+**Fedora:**
+```bash
+sudo dnf install gtk4-devel gtk4-layer-shell-devel python3
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt install libgtk-4-dev gtk4-layer-shell-dev python3
+```
+
+### Layer-shell Package Names by Distribution
+
+| Distribution | Package Name |
+|--------------|--------------|
+| **Arch Linux** | `gtk4-layer-shell` |
+| **Fedora** | `gtk4-layer-shell-devel` |
+| **Ubuntu/Debian** | `gtk4-layer-shell-dev` |
+| **openSUSE** | `gtk4-layer-shell-devel` |
+| **Gentoo** | `gui-libs/gtk4-layer-shell` |
 
 ## Keybinding
 
@@ -82,24 +138,26 @@ Bind `hamr toggle` to a key in your compositor config.
 ### Hyprland
 
 ```conf
-# ~/.config/hypr/hyprland.conf
-exec-once = hamr
-
+exec-once = hamr daemon
 bind = $mainMod, SPACE, exec, hamr toggle
+bind = $mainMod, V, exec, hamr plugin clipboard
 ```
 
 ### Niri
 
 ```kdl
 // ~/.config/niri/config.kdl
+spawn-at-startup "hamr-daemon"
+
 binds {
-    Mod+Space { spawn "hamr" "toggle"; }
+    Mod+Space { spawn "hamr-gtk" "toggle"; }
+    Mod+V { spawn "hamr-gtk" "plugin" "clipboard"; }
 }
 ```
 
 ## Verify Installation
 
-Check if Hamr is running:
+Check if Hamr daemon is running:
 
 ```bash
 hamr status
@@ -108,35 +166,49 @@ hamr status
 View logs:
 
 ```bash
-journalctl --user -u hamr -f
+# Daemon logs (debug builds write to /tmp/hamr-daemon.log)
+tail -f /tmp/hamr-daemon.log
+
+# Or if using systemd
+journalctl --user -u hamr-daemon -f
 ```
+
+For detailed logging configuration, including `RUST_LOG` and `HAMR_PLUGIN_DEBUG` environment variables, see the [Logging Guide](logging.md).
+
+If you encounter issues, see the [Troubleshooting Guide](troubleshooting.md) for common problems and solutions.
 
 ## Updating
 
-Arch Linux:
+Arch Linux (AUR):
 
 ```bash
-paru -Syu hamr
+paru -Syu hamr-git
 ```
 
 Other distributions:
 
 ```bash
-~/.local/share/hamr/install.sh --update
+# Re-run the installer to update
+curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
 ```
 
 ## Uninstall
 
-Arch Linux:
+Arch Linux (AUR):
 
 ```bash
-systemctl --user disable --now hamr
-paru -R hamr
+systemctl --user disable --now hamr-daemon
+paru -R hamr-git
 ```
 
 Other distributions:
 
 ```bash
-~/.local/share/hamr/install.sh --uninstall
+# Remove binaries and config
+rm -f ~/.local/bin/{hamr,hamr-cli,hamr-daemon,hamr-gtk,hamr-tui}
 rm -rf ~/.local/share/hamr
+rm -rf ~/.config/hamr
+
+# Disable systemd service if enabled
+systemctl --user disable --now hamr-daemon 2>/dev/null || true
 ```

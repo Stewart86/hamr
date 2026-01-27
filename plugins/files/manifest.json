@@ -2,6 +2,13 @@
   "name": "Files",
   "description": "Search and browse files",
   "icon": "folder_open",
-  "supportedCompositors": ["*"],
-  "prefix": "~"
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
+  },
+  "prefix": "~",
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

@@ -5,7 +5,6 @@ Triggered via match patterns when user types something that looks like a URL.
 """
 
 import json
-import os
 import sys
 
 
@@ -75,6 +74,8 @@ def main():
                             "description": "Open in browser",
                             "icon": "open_in_browser",
                             "verb": "Open",
+                            "openUrl": url,
+                            "close": True,
                             "actions": [
                                 {
                                     "id": "copy",

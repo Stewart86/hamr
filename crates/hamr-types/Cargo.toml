@@ -1,0 +1,16 @@
+[package]
+name = "hamr-types"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared types for Hamr launcher components"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+proptest = "1.5"

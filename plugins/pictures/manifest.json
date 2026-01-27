@@ -1,6 +1,13 @@
 {
   "name": "Pictures",
-  "description": "Search pictures in Downloads folder",
+  "description": "Search pictures in Pictures folder",
   "icon": "image",
-  "supportedCompositors": ["*"]
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
+  },
+  "supportedPlatforms": [
+    "niri",
+    "hyprland"
+  ]
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Bitwarden workflow handler - search and copy credentials from Bitwarden vault.
+Bitwarden plugin - Search and copy credentials from Bitwarden vault.
 
 Requires:
 - bw (Bitwarden CLI) installed and in PATH
@@ -9,21 +9,30 @@ Requires:
 The plugin will guide users through login/unlock if no session is found.
 """
 
-import ctypes
+import asyncio
 import json
 import os
-import select
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
+
+# Add parent directory to path to import SDK
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
 
 # Optional keyring support for secure session storage
 KEYRING_SERVICE = "hamr-bitwarden"
 KEYRING_USERNAME = "session"
 
+CACHE_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "hamr" / "bitwarden"
+ITEMS_CACHE_FILE = CACHE_DIR / "items.json"
+LAST_EMAIL_FILE = CACHE_DIR / "last_email"
+CACHE_MAX_AGE_SECONDS = 300  # 5 minutes
 
-def _get_keyring():  # type: ignore
+
+def _get_keyring():
     """Lazy import keyring module"""
     try:
         import importlib
@@ -31,60 +40,6 @@ def _get_keyring():  # type: ignore
         return importlib.import_module("keyring")
     except ImportError:
         return None
-
-
-# inotify constants
-IN_CLOSE_WRITE = 0x00000008
-IN_MOVED_TO = 0x00000080
-IN_CREATE = 0x00000100
-
-
-def create_inotify_fd(watch_path: Path) -> int | None:
-    """Create inotify fd watching a directory. Returns fd or None."""
-    try:
-        libc = ctypes.CDLL("libc.so.6", use_errno=True)
-        fd = libc.inotify_init()
-        if fd < 0:
-            return None
-        mask = IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE
-        wd = libc.inotify_add_watch(fd, str(watch_path).encode(), mask)
-        if wd < 0:
-            os.close(fd)
-            return None
-        return fd
-    except (OSError, AttributeError):
-        return None
-
-
-def read_inotify_events(fd: int) -> list[str]:
-    """Read pending inotify events, return list of changed filenames."""
-    import struct
-
-    filenames = []
-    try:
-        buf = os.read(fd, 4096)
-        offset = 0
-        while offset < len(buf):
-            wd, mask, cookie, length = struct.unpack_from("iIII", buf, offset)
-            offset += 16
-            if length:
-                name = buf[offset : offset + length].rstrip(b"\x00").decode()
-                filenames.append(name)
-                offset += length
-    except (OSError, struct.error):
-        pass
-    return filenames
-
-
-# Cache directory for vault items (use runtime dir for security - never persists to disk)
-CACHE_DIR = (
-    Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
-    / "hamr"
-    / "bitwarden"
-)
-ITEMS_CACHE_FILE = CACHE_DIR / "items.json"
-LAST_EMAIL_FILE = CACHE_DIR / "last_email"
-CACHE_MAX_AGE_SECONDS = 300  # 5 minutes
 
 
 def get_last_email() -> str:
@@ -104,16 +59,6 @@ def save_last_email(email: str):
         LAST_EMAIL_FILE.write_text(email)
     except OSError:
         pass
-
-
-# Migrate: remove old cache from ~/.cache (security fix)
-_OLD_CACHE_DIR = (
-    Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-    / "hamr"
-    / "bitwarden"
-)
-if _OLD_CACHE_DIR.exists():
-    shutil.rmtree(_OLD_CACHE_DIR, ignore_errors=True)
 
 
 def find_bw() -> str | None:
@@ -146,17 +91,6 @@ def find_bw() -> str | None:
 
 
 BW_PATH = find_bw()
-
-
-def get_bw_status(session: str | None = None) -> dict:
-    """Get Bitwarden CLI status, optionally with session to check if unlocked"""
-    success, output = run_bw(["status"], session=session)
-    if success:
-        try:
-            return json.loads(output)
-        except json.JSONDecodeError:
-            pass
-    return {"status": "unauthenticated"}
 
 
 def get_session_from_keyring() -> str | None:
@@ -197,6 +131,31 @@ def clear_session_from_keyring() -> bool:
 def get_session() -> str | None:
     """Get session from keyring"""
     return get_session_from_keyring()
+
+
+def get_bw_status(session: str | None = None) -> dict:
+    """Get Bitwarden CLI status"""
+    try:
+        env = os.environ.copy()
+        if session:
+            env["BW_SESSION"] = session
+        env["NODE_NO_WARNINGS"] = "1"
+
+        result = subprocess.run(
+            [BW_PATH, "status"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=env,
+        )
+        if result.returncode == 0:
+            try:
+                return json.loads(result.stdout)
+            except json.JSONDecodeError:
+                pass
+    except Exception:
+        pass
+    return {"status": "unauthenticated"}
 
 
 def unlock_vault(password: str) -> tuple[bool, str]:
@@ -272,36 +231,9 @@ def run_bw(args: list[str], session: str | None = None) -> tuple[bool, str]:
             timeout=30,
             env=env,
         )
-        stdout = "\n".join(
-            line
-            for line in result.stdout.split("\n")
-            if not any(
-                skip in line
-                for skip in [
-                    "DeprecationWarning",
-                    "ExperimentalWarning",
-                    "--trace-deprecation",
-                    "Support for loading ES Module",
-                ]
-            )
-        ).strip()
-        stderr = "\n".join(
-            line
-            for line in result.stderr.split("\n")
-            if not any(
-                skip in line
-                for skip in [
-                    "DeprecationWarning",
-                    "ExperimentalWarning",
-                    "--trace-deprecation",
-                    "Support for loading ES Module",
-                ]
-            )
-        ).strip()
-
         if result.returncode == 0:
-            return True, stdout
-        return False, stderr or stdout
+            return True, result.stdout.strip()
+        return False, result.stderr.strip() or result.stdout.strip()
     except subprocess.TimeoutExpired:
         return False, "Command timed out"
     except Exception as e:
@@ -312,8 +244,6 @@ def get_cache_age() -> float | None:
     """Get age of cache in seconds"""
     if not ITEMS_CACHE_FILE.exists():
         return None
-    import time
-
     return time.time() - ITEMS_CACHE_FILE.stat().st_mtime
 
 
@@ -333,16 +263,6 @@ def load_cached_items() -> list[dict] | None:
         return None
 
 
-def get_cached_item(item_id: str) -> dict | None:
-    """Get a single item from cache by ID"""
-    items = load_cached_items()
-    if items:
-        for item in items:
-            if item.get("id") == item_id:
-                return item
-    return None
-
-
 def save_items_cache(items: list[dict]):
     """Save items to cache"""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -354,36 +274,6 @@ def clear_items_cache():
     """Clear items cache"""
     if ITEMS_CACHE_FILE.exists():
         ITEMS_CACHE_FILE.unlink()
-
-
-def sync_vault_background(session: str):
-    """Sync vault in background"""
-    if not BW_PATH:
-        return
-    pid = os.fork()
-    if pid == 0:
-        try:
-            os.setsid()
-            subprocess.run(
-                [BW_PATH, "sync"],
-                capture_output=True,
-                timeout=60,
-                env={**os.environ, "BW_SESSION": session, "NODE_NO_WARNINGS": "1"},
-            )
-            result = subprocess.run(
-                [BW_PATH, "list", "items"],
-                capture_output=True,
-                text=True,
-                timeout=60,
-                env={**os.environ, "BW_SESSION": session, "NODE_NO_WARNINGS": "1"},
-            )
-            if result.returncode == 0:
-                items = json.loads(result.stdout)
-                save_items_cache(items)
-        except Exception:
-            pass
-        finally:
-            os._exit(0)
 
 
 def fetch_all_items(session: str) -> list[dict]:
@@ -416,7 +306,14 @@ def search_items(query: str, session: str, force_refresh: bool = False) -> list[
             results = cached_items
 
         if not is_cache_fresh():
-            sync_vault_background(session)
+            # Sync in background
+            try:
+                run_bw(["sync"], session=session)
+                new_items = fetch_all_items(session)
+                if new_items:
+                    save_items_cache(new_items)
+            except Exception:
+                pass
 
         return results[:50]
 
@@ -434,6 +331,97 @@ def get_totp(item_id: str, session: str) -> str | None:
     """Get TOTP code for item"""
     success, output = run_bw(["get", "totp", item_id], session=session)
     return output if success else None
+
+
+def get_item_icon(item: dict) -> str:
+    """Get icon for item type"""
+    item_type = item.get("type", 1)
+    icons = {1: "password", 2: "note", 3: "credit_card", 4: "person"}
+    return icons.get(item_type, "key")
+
+
+def get_item_uris(item: dict) -> list[str]:
+    """Extract URIs from vault item"""
+    login = item.get("login", {}) or {}
+    uris = login.get("uris", []) or []
+    return [u.get("uri", "") for u in uris if u.get("uri")]
+
+
+def get_item_type_badge(item: dict) -> dict | None:
+    """Get badge for item type"""
+    item_type = item.get("type", 1)
+    badges = {
+        1: None,
+        2: {"icon": "note", "color": "#9c27b0"},
+        3: {"icon": "credit_card", "color": "#ff9800"},
+        4: {"icon": "person", "color": "#4caf50"},
+    }
+    return badges.get(item_type)
+
+
+def get_item_chips(item: dict) -> list[dict]:
+    """Get feature chips for item"""
+    chips = []
+    login = item.get("login", {}) or {}
+    uris = get_item_uris(item)
+
+    if login.get("totp"):
+        chips.append({"text": "2FA", "icon": "schedule"})
+    if len(uris) > 1:
+        chips.append({"text": f"{len(uris)} URLs", "icon": "link"})
+
+    return chips
+
+
+def format_item_results(items: list[dict]) -> list[dict]:
+    """Format vault items as results"""
+    results = []
+    for item in items:
+        item_id = item.get("id", "")
+        name = item.get("name", "Unknown")
+        login = item.get("login", {}) or {}
+        username = login.get("username", "")
+
+        actions = []
+        if username:
+            actions.append(
+                {"id": "copy_username", "name": "Copy Username", "icon": "person"}
+            )
+        if login.get("password"):
+            actions.append(
+                {"id": "copy_password", "name": "Copy Password", "icon": "key"}
+            )
+        if login.get("totp"):
+            actions.append({"id": "copy_totp", "name": "Copy TOTP", "icon": "schedule"})
+        if get_item_uris(item):
+            actions.append(
+                {"id": "open_url", "name": "Open URL", "icon": "open_in_new"}
+            )
+
+        badges = []
+        type_badge = get_item_type_badge(item)
+        if type_badge:
+            badges.append(type_badge)
+
+        chips = get_item_chips(item)
+
+        result = {
+            "id": item_id,
+            "name": name,
+            "description": username
+            or (item.get("notes", "")[:50] if item.get("notes") else ""),
+            "icon": get_item_icon(item),
+            "verb": "Copy Password" if login.get("password") else "View",
+            "actions": actions,
+        }
+        if badges:
+            result["badges"] = badges
+        if chips:
+            result["chips"] = chips
+
+        results.append(result)
+
+    return results
 
 
 def get_plugin_actions(cache_age: float | None = None) -> list[dict]:
@@ -477,7 +465,6 @@ def lock_vault() -> tuple[bool, str]:
         return False, "Bitwarden CLI not found"
 
     clear_session_from_keyring()
-
     clear_items_cache()
 
     try:
@@ -501,7 +488,6 @@ def logout_vault() -> tuple[bool, str]:
         return False, "Bitwarden CLI not found"
 
     clear_session_from_keyring()
-
     clear_items_cache()
 
     if LAST_EMAIL_FILE.exists():
@@ -527,733 +513,269 @@ def logout_vault() -> tuple[bool, str]:
         return False, str(e)
 
 
-def get_item_icon(item: dict) -> str:
-    """Get icon for item type"""
-    item_type = item.get("type", 1)
-    icons = {1: "password", 2: "note", 3: "credit_card", 4: "person"}
-    return icons.get(item_type, "key")
+# Create plugin instance
+plugin = HamrPlugin(
+    id="bitwarden",
+    name="Bitwarden",
+    description="Search and copy credentials from Bitwarden vault",
+    icon="key",
+)
 
 
-def get_item_uris(item: dict) -> list[str]:
-    """Extract URIs from vault item"""
-    login = item.get("login", {}) or {}
-    uris = login.get("uris", []) or []
-    return [u.get("uri", "") for u in uris if u.get("uri")]
-
-
-def open_url(url: str) -> None:
-    """Open URL in default browser"""
-    subprocess.Popen(
-        ["xdg-open", url],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-
-def get_item_type_badge(item: dict) -> dict | None:
-    """Get badge for item type"""
-    item_type = item.get("type", 1)
-    badges = {
-        1: None,
-        2: {"icon": "note", "color": "#9c27b0"},
-        3: {"icon": "credit_card", "color": "#ff9800"},
-        4: {"icon": "person", "color": "#4caf50"},
-    }
-    return badges.get(item_type)
-
-
-def get_item_chips(item: dict) -> list[dict]:
-    """Get feature chips for item"""
-    chips = []
-    login = item.get("login", {}) or {}
-    uris = get_item_uris(item)
-
-    if login.get("totp"):
-        chips.append({"text": "2FA", "icon": "schedule"})
-    if len(uris) > 1:
-        chips.append({"text": f"{len(uris)} URLs", "icon": "link"})
-
-    return chips
-
-
-def format_item_results(items: list[dict]) -> list[dict]:
-    """Format vault items as results"""
-    results = []
-    for item in items:
-        item_id = item.get("id", "")
-        name = item.get("name", "Unknown")
-        login = item.get("login", {}) or {}
-        username = login.get("username", "")
-        has_totp = bool(login.get("totp"))
-        uris = get_item_uris(item)
-
-        actions = []
-        if username:
-            actions.append(
-                {"id": "copy_username", "name": "Copy Username", "icon": "person"}
-            )
-        if login.get("password"):
-            actions.append(
-                {"id": "copy_password", "name": "Copy Password", "icon": "key"}
-            )
-        if has_totp:
-            actions.append({"id": "copy_totp", "name": "Copy TOTP", "icon": "schedule"})
-        if uris:
-            actions.append(
-                {"id": "open_url", "name": "Open URL", "icon": "open_in_new"}
-            )
-
-        badges = []
-        type_badge = get_item_type_badge(item)
-        if type_badge:
-            badges.append(type_badge)
-
-        chips = get_item_chips(item)
-
-        result = {
-            "id": item_id,
-            "name": name,
-            "description": username
-            or (item.get("notes", "")[:50] if item.get("notes") else ""),
-            "icon": get_item_icon(item),
-            "verb": "Copy Password" if login.get("password") else "View",
-            "actions": actions,
-        }
-        if badges:
-            result["badges"] = badges
-        if chips:
-            result["chips"] = chips
-
-        results.append(result)
-
-    return results
-
-
-def respond_results(
-    results: list[dict], placeholder: str = "Search vault...", **kwargs
-):
-    """Send results response"""
-    response = {
-        "type": "results",
-        "results": results,
-        "inputMode": kwargs.get("input_mode", "realtime"),
-        "placeholder": placeholder,
-    }
-    if kwargs.get("clear_input"):
-        response["clearInput"] = True
-    print(json.dumps(response))
-
-
-def respond_card(title: str, content: str, **kwargs):
-    """Send card response"""
-    print(
-        json.dumps(
-            {
-                "type": "card",
-                "card": {"title": title, "content": content, "markdown": True},
-                "inputMode": kwargs.get("input_mode", "realtime"),
-                "placeholder": kwargs.get("placeholder", ""),
-            }
-        )
-    )
-
-
-def respond_execute(
-    close: bool = True,
-    notify: str = "",
-):
-    """Send execute response.
-
-    Args:
-        close: Whether to close the launcher
-        notify: Notification message to show
-    """
-    response: dict = {"type": "execute", "close": close}
-    if notify:
-        response["notify"] = notify
-    print(json.dumps(response))
-
-
-def respond_form(
-    form_id: str, title: str, fields: list[dict], submit_label: str = "Submit"
-):
-    """Send form response for user input"""
-    print(
-        json.dumps(
-            {
-                "type": "form",
-                "form": {
-                    "id": form_id,
-                    "title": title,
-                    "fields": fields,
-                    "submitLabel": submit_label,
-                },
-            }
-        )
-    )
-
-
-def item_to_index_item(item: dict) -> dict:
-    """Convert a vault item to an index item for main search.
-
-    IMPORTANT: Never include passwords or sensitive data in index items.
-    Uses entryPoint for execution so credentials are fetched fresh on replay.
-    """
-    item_id = item.get("id", "")
-    name = item.get("name", "Unknown")
-    login = item.get("login", {}) or {}
-    username = login.get("username", "")
-    has_password = bool(login.get("password"))
-    has_totp = bool(login.get("totp"))
-    uris = get_item_uris(item)
-
-    actions = []
-    if username:
-        actions.append(
-            {
-                "id": "copy_username",
-                "name": "Copy Username",
-                "icon": "person",
-                "entryPoint": {
-                    "step": "action",
-                    "selected": {"id": item_id},
-                    "action": "copy_username",
-                },
-            }
-        )
-    if has_password:
-        actions.append(
-            {
-                "id": "copy_password",
-                "name": "Copy Password",
-                "icon": "key",
-                "entryPoint": {
-                    "step": "action",
-                    "selected": {"id": item_id},
-                    "action": "copy_password",
-                },
-            }
-        )
-    if has_totp:
-        actions.append(
-            {
-                "id": "copy_totp",
-                "name": "Copy TOTP",
-                "icon": "schedule",
-                "entryPoint": {
-                    "step": "action",
-                    "selected": {"id": item_id},
-                    "action": "copy_totp",
-                },
-            }
-        )
-    if uris:
-        actions.append(
-            {
-                "id": "open_url",
-                "name": "Open URL",
-                "icon": "open_in_new",
-                "entryPoint": {
-                    "step": "action",
-                    "selected": {"id": item_id},
-                    "action": "open_url",
-                },
-            }
-        )
-
-    badges = []
-    type_badge = get_item_type_badge(item)
-    if type_badge:
-        badges.append(type_badge)
-
-    chips = get_item_chips(item)
-
-    result = {
-        "id": f"bitwarden:{item_id}",
-        "name": name,
-        "description": username,
-        "keywords": [username] if username else [],
-        "icon": get_item_icon(item),
-        "verb": "Copy Password" if has_password else "Copy Username",
-        "actions": actions,
-        "entryPoint": {
-            "step": "action",
-            "selected": {"id": item_id},
-            "action": "copy_password" if has_password else "copy_username",
-        },
-    }
-    if badges:
-        result["badges"] = badges
-    if chips:
-        result["chips"] = chips
-
-    return result
-
-
-def handle_request(input_data: dict):
-    """Handle a single request from stdin"""
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "").strip()
-    selected = input_data.get("selected", {})
-    action = input_data.get("action", "")
-
-    if step == "index":
-        mode = input_data.get("mode", "full")
-        indexed_ids = set(input_data.get("indexedIds", []))
-
-        cached_items = load_cached_items()
-        if not cached_items:
-            print(json.dumps({"type": "index", "items": []}))
-            return
-
-        current_ids = {f"bitwarden:{item.get('id', '')}" for item in cached_items}
-
-        if mode == "incremental" and indexed_ids:
-            new_ids = current_ids - indexed_ids
-            new_items = [
-                item_to_index_item(item)
-                for item in cached_items
-                if f"bitwarden:{item.get('id', '')}" in new_ids
-            ]
-
-            removed_ids = list(indexed_ids - current_ids)
-
-            print(
-                json.dumps(
-                    {
-                        "type": "index",
-                        "mode": "incremental",
-                        "items": new_items,
-                        "remove": removed_ids,
-                    }
-                )
-            )
-        else:
-            items = [item_to_index_item(item) for item in cached_items]
-            print(json.dumps({"type": "index", "items": items}))
-        return
-
-    if step == "form":
-        form_id = input_data.get("formId", "")
-        form_data = input_data.get("formData", {})
-
-        if form_id == "unlock":
-            password = form_data.get("password", "")
-            if not password:
-                respond_card("Error", "Password is required")
-                return
-            success, result = unlock_vault(password)
-            if success:
-                items = fetch_all_items(result)
-                if items:
-                    save_items_cache(items)
-                    results = format_item_results(items)
-                    cache_age = get_cache_age()
-                    print(
-                        json.dumps(
-                            {
-                                "type": "results",
-                                "results": results,
-                                "inputMode": "realtime",
-                                "placeholder": "Vault unlocked! Search...",
-                                "pluginActions": get_plugin_actions(cache_age),
-                            }
-                        )
-                    )
-                else:
-                    respond_card(
-                        "Vault Unlocked",
-                        "Vault unlocked but no items found. Your vault may be empty.",
-                    )
-            else:
-                respond_card("Unlock Failed", f"**Error:** {result}")
-            return
-
-        if form_id == "login":
-            email = form_data.get("email", "")
-            password = form_data.get("password", "")
-            code = form_data.get("code", "")
-            if not email or not password:
-                respond_card("Error", "Email and password are required")
-                return
-            success, result = login_vault(email, password, code)
-            if success:
-                save_last_email(email)
-                items = fetch_all_items(result)
-                if items:
-                    save_items_cache(items)
-                    results = format_item_results(items)
-                    cache_age = get_cache_age()
-                    print(
-                        json.dumps(
-                            {
-                                "type": "results",
-                                "results": results,
-                                "inputMode": "realtime",
-                                "placeholder": "Logged in! Search...",
-                                "pluginActions": get_plugin_actions(cache_age),
-                            }
-                        )
-                    )
-                else:
-                    respond_card(
-                        "Logged In",
-                        "Logged in but no items found. Your vault may be empty.",
-                    )
-            else:
-                if (
-                    "Two-step" in result
-                    or "two-step" in result
-                    or "code" in result.lower()
-                ):
-                    respond_form(
-                        "login",
-                        "Two-Factor Authentication Required",
-                        [
-                            {"id": "email", "type": "hidden", "value": email},
-                            {"id": "password", "type": "hidden", "value": password},
-                            {
-                                "id": "code",
-                                "label": "2FA Code",
-                                "type": "text",
-                                "placeholder": "Enter your 2FA code",
-                            },
-                        ],
-                        submit_label="Verify",
-                    )
-                else:
-                    respond_card("Login Failed", f"**Error:** {result}")
-            return
-
+@plugin.on_initial
+async def handle_initial(params=None):
+    """Handle initial request when plugin is opened."""
     if not BW_PATH:
-        respond_card(
-            "Bitwarden CLI Required",
-            "**Bitwarden CLI (`bw`) is not installed.**\n\n"
-            "Install with: `npm install -g @bitwarden/cli`",
+        return HamrPlugin.results(
+            [],
+            card=HamrPlugin.card(
+                "Bitwarden CLI Required",
+                markdown="**Bitwarden CLI (`bw`) is not installed.**\n\n"
+                "Install with: `npm install -g @bitwarden/cli`",
+            ),
         )
-        return
-
-    session = get_session()
-
-    if session:
-        pass
-    else:
-        status = get_bw_status()
-        bw_status = status.get("status", "unauthenticated")
-
-        if bw_status == "unauthenticated":
-            clear_items_cache()
-            last_email = get_last_email()
-            respond_form(
-                "login",
-                "Login to Bitwarden",
-                [
-                    {
-                        "id": "email",
-                        "label": "Email",
-                        "type": "email",
-                        "placeholder": "your@email.com",
-                        "default": last_email,
-                    },
-                    {
-                        "id": "password",
-                        "label": "Master Password",
-                        "type": "password",
-                        "placeholder": "Enter your master password",
-                    },
-                ],
-                submit_label="Login",
-            )
-            return
 
         if bw_status == "locked":
             user_email = status.get("userEmail", "")
-            respond_form(
-                "unlock",
-                f"Unlock Vault ({user_email})" if user_email else "Unlock Vault",
-                [
-                    {
-                        "id": "password",
-                        "label": "Master Password",
-                        "type": "password",
-                        "placeholder": "Enter your master password",
-                    },
-                ],
-                submit_label="Unlock",
+            return HamrPlugin.form(
+                {
+                    "id": "unlock",
+                    "title": f"Unlock Vault ({user_email})"
+                    if user_email
+                    else "Unlock Vault",
+                    "fields": [
+                        {
+                            "id": "password",
+                            "label": "Master Password",
+                            "type": "password",
+                            "placeholder": "Enter your master password",
+                        },
+                    ],
+                    "submitLabel": "Unlock",
+                },
             )
-            return
 
-        respond_card(
-            "Session Required",
-            "Vault is unlocked but session not found.\n\n"
-            "Please lock and unlock again via this plugin, or install `python-keyring`.",
-        )
-        return
-
-    if step == "initial":
-        items = search_items("", session)
-        if not items:
-            respond_card(
+    items = search_items("", session)
+    if not items:
+        return HamrPlugin.results(
+            [],
+            card=HamrPlugin.card(
                 "No Items Found",
-                "Either your vault is empty, locked, or the session expired.\n\n"
-                "Try unlocking: `bw unlock` and restart Quickshell from a login shell.",
-            )
-            return
-
-        results = format_item_results(items)
-        cache_age = get_cache_age()
-
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                    "placeholder": "Search vault...",
-                    "pluginActions": get_plugin_actions(cache_age),
-                }
-            )
+                content="Either your vault is empty, locked, or the session expired.",
+                markdown=True,
+            ),
         )
-        return
 
-    if step == "search":
-        items = search_items(query, session)
-        results = format_item_results(items)
-        cache_age = get_cache_age()
+    results = format_item_results(items)
+    cache_age = get_cache_age()
 
-        if not results:
-            results = [
-                {
-                    "id": "__no_results__",
-                    "name": f"No results for '{query}'",
-                    "icon": "search_off",
-                }
-            ]
+    return HamrPlugin.results(
+        results,
+        status={"chips": [{"text": "Vault unlocked", "icon": "lock"}]},
+        plugin_actions=get_plugin_actions(cache_age),
+        placeholder="Search vault...",
+    )
 
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                    "placeholder": "Search vault...",
-                    "pluginActions": get_plugin_actions(cache_age),
-                }
-            )
-        )
-        return
 
-    if step == "action":
-        item_id = selected.get("id", "")
+@plugin.on_search
+async def handle_search(query: str, context: str | None):
+    """Handle search request."""
+    if not BW_PATH:
+        return HamrPlugin.results([])
 
-        if item_id == "__plugin__" and action == "sync":
+    session = get_session()
+    if not session:
+        return HamrPlugin.results([])
+
+    items = search_items(query, session)
+    results = format_item_results(items)
+    cache_age = get_cache_age()
+
+    if not results:
+        results = [
+            {
+                "id": "__no_results__",
+                "name": f"No results for '{query}'",
+                "icon": "search_off",
+            }
+        ]
+
+    return HamrPlugin.results(
+        results,
+        status={"chips": [{"text": "Vault unlocked", "icon": "lock"}]},
+        plugin_actions=get_plugin_actions(cache_age),
+        placeholder="Search vault...",
+    )
+
+
+@plugin.on_action
+async def handle_action(item_id: str, action: str | None, context: str | None):
+    """Handle action request."""
+    if not BW_PATH:
+        return HamrPlugin.noop()
+
+    session = get_session()
+    if not session:
+        return HamrPlugin.noop()
+
+    # Plugin-level actions
+    if item_id == "__plugin__":
+        if action == "sync":
             run_bw(["sync"], session=session)
             clear_items_cache()
             items = search_items("", session, force_refresh=True)
             results = format_item_results(items)
             cache_age = get_cache_age()
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": results,
-                        "inputMode": "realtime",
-                        "placeholder": "Vault synced!",
-                        "clearInput": True,
-                        "pluginActions": get_plugin_actions(cache_age),
-                        "navigateForward": False,
-                    }
-                )
+            return HamrPlugin.results(
+                results,
+                clear_input=True,
+                plugin_actions=get_plugin_actions(cache_age),
+                placeholder="Vault synced!",
             )
-            return
 
-        if item_id == "__plugin__" and action == "lock":
+        if action == "lock":
             success, message = lock_vault()
             if success:
-                respond_execute(
-                    notify="Vault locked",
-                    close=True,
-                )
-            else:
-                respond_card("Error", f"Failed to lock vault: {message}")
-            return
+                return HamrPlugin.execute(close=True, notify="Vault locked")
+            return HamrPlugin.card("Error", content=f"Failed: {message}")
 
-        if item_id == "__plugin__" and action == "logout":
+        if action == "logout":
             success, message = logout_vault()
             if success:
-                respond_execute(
-                    notify="Logged out of Bitwarden",
-                    close=True,
-                )
-            else:
-                respond_card("Error", f"Failed to logout: {message}")
-            return
+                return HamrPlugin.execute(close=True, notify="Logged out of Bitwarden")
+            return HamrPlugin.card("Error", content=f"Failed: {message}")
 
-        if item_id == "__sync__":
-            run_bw(["sync"], session=session)
-            clear_items_cache()
-            items = search_items("", session, force_refresh=True)
-            results = format_item_results(items)
-            cache_age = get_cache_age()
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": results,
-                        "inputMode": "realtime",
-                        "placeholder": "Vault synced!",
-                        "clearInput": True,
-                        "pluginActions": get_plugin_actions(cache_age),
-                        "navigateForward": False,
-                    }
-                )
-            )
-            return
+    if item_id == "__no_results__":
+        return HamrPlugin.noop()
 
-        if item_id == "__no_results__":
-            return
-
-        item = get_cached_item(item_id)
-        if not item:
-            success, output = run_bw(["get", "item", item_id], session=session)
-            if not success:
-                respond_card("Error", f"Failed to get item: {output}")
-                return
-            try:
-                item = json.loads(output)
-            except json.JSONDecodeError:
-                respond_card("Error", "Failed to parse item data")
-                return
-
-        login = item.get("login", {}) or {}
-        username = login.get("username", "") or ""
-        password = login.get("password", "") or ""
-        name = item.get("name", "Unknown")
-
-        if action == "copy_username" and username:
-            subprocess.run(["wl-copy", username], check=False)
-            respond_execute(
-                notify=f"Username copied: {username[:30]}{'...' if len(username) > 30 else ''}",
-            )
-            return
-
-        if action == "copy_password" and password:
-            subprocess.run(["wl-copy", password], check=False)
-            respond_execute(notify="Password copied to clipboard")
-            return
-
-        if action == "copy_totp":
-            totp = get_totp(item_id, session)
-            if totp:
-                subprocess.run(["wl-copy", totp], check=False)
-                respond_execute(notify=f"TOTP copied: {totp}")
-            else:
-                respond_card("Error", "Failed to get TOTP code")
-            return
-
-        if action == "open_url":
-            uris = get_item_uris(item)
-            if uris:
-                url = uris[0]
-                open_url(url)
-                respond_execute(
-                    notify=f"Opening {url[:40]}{'...' if len(url) > 40 else ''}",
-                )
-            else:
-                respond_card("Error", "No URL found for this item")
-            return
-
-        if password:
-            subprocess.run(["wl-copy", password], check=False)
-            respond_execute(notify="Password copied to clipboard")
-        elif username:
-            subprocess.run(["wl-copy", username], check=False)
-            respond_execute(
-                notify=f"Username copied: {username[:30]}...",
-            )
-        else:
-            respond_card("Error", "No credentials to copy")
-
-
-def main():
-    """Daemon mode main loop with inotify file watching"""
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
-    watch_dir = CACHE_DIR
-    watch_filename = "items.json"
-
+    # Item actions
+    item = None
     cached_items = load_cached_items()
     if cached_items:
-        items = [item_to_index_item(item) for item in cached_items]
-    else:
-        items = []
-    print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
+        item = next((i for i in cached_items if i.get("id") == item_id), None)
 
-    inotify_fd = create_inotify_fd(watch_dir)
+    if not item:
+        success, output = run_bw(["get", "item", item_id], session=session)
+        if not success:
+            return {
+                "card": {"title": "Error", "content": f"Failed to get item: {output}"}
+            }
+        try:
+            item = json.loads(output)
+        except json.JSONDecodeError:
+            return {"card": {"title": "Error", "content": "Failed to parse item data"}}
 
-    if inotify_fd is not None:
-        while True:
-            readable, _, _ = select.select([sys.stdin, inotify_fd], [], [], 1.0)
+    login = item.get("login", {}) or {}
+    username = login.get("username", "") or ""
+    password = login.get("password", "") or ""
 
-            for r in readable:
-                if r == sys.stdin:
-                    try:
-                        line = sys.stdin.readline()
-                        if not line:
-                            return
-                        input_data = json.loads(line)
-                        handle_request(input_data)
-                        sys.stdout.flush()
-                    except json.JSONDecodeError:
-                        continue
+    if action == "copy_username" and username:
+        subprocess.run(["wl-copy", username], check=False)
+        return HamrPlugin.copy_and_close(username)
 
-                elif r == inotify_fd:
-                    changed = read_inotify_events(inotify_fd)
-                    if watch_filename in changed:
-                        cached_items = load_cached_items()
-                        items = (
-                            [item_to_index_item(item) for item in cached_items]
-                            if cached_items
-                            else []
-                        )
-                        print(
-                            json.dumps(
-                                {"type": "index", "mode": "full", "items": items}
-                            )
-                        )
-                        sys.stdout.flush()
-    else:
-        last_mtime = (
-            ITEMS_CACHE_FILE.stat().st_mtime if ITEMS_CACHE_FILE.exists() else 0
+    if action == "copy_password" and password:
+        subprocess.run(["wl-copy", password], check=False)
+        return HamrPlugin.execute(close=True, notify="Password copied to clipboard")
+
+    if action == "copy_totp":
+        totp = get_totp(item_id, session)
+        if totp:
+            subprocess.run(["wl-copy", totp], check=False)
+            return HamrPlugin.execute(close=True, notify=f"TOTP copied: {totp}")
+        return HamrPlugin.card("Error", content="Failed to get TOTP code")
+
+    if action == "open_url":
+        uris = get_item_uris(item)
+        if uris:
+            url = uris[0]
+            subprocess.Popen(["xdg-open", url])
+            return HamrPlugin.execute(close=True, notify=f"Opening {url[:40]}")
+        return HamrPlugin.card("Error", content="No URL found for this item")
+
+    # Default action
+    if password:
+        subprocess.run(["wl-copy", password], check=False)
+        return HamrPlugin.execute(close=True, notify="Password copied to clipboard")
+    elif username:
+        subprocess.run(["wl-copy", username], check=False)
+        return HamrPlugin.copy_and_close(username)
+
+    return HamrPlugin.noop()
+
+
+@plugin.on_form_submitted
+async def handle_form_submitted(form_data: dict, context: str | None):
+    """Handle form submission."""
+    if context == "login":
+        email = form_data.get("email", "")
+        password = form_data.get("password", "")
+        code = form_data.get("code", "")
+
+        success, result = login_vault(email, password, code)
+        if success:
+            save_last_email(email)
+            items = fetch_all_items(result)
+            if items:
+                save_items_cache(items)
+                results = format_item_results(items)
+                return HamrPlugin.results(
+                    results,
+                    plugin_actions=get_plugin_actions(get_cache_age()),
+                    placeholder="Logged in! Search...",
+                )
+            return HamrPlugin.card(
+                "Logged In",
+                content="Logged in but no items found. Your vault may be empty.",
+            )
+        if "Two-step" in result or "code" in result.lower():
+            return HamrPlugin.form(
+                {
+                    "id": "login",
+                    "title": "Two-Factor Authentication Required",
+                    "fields": [
+                        {"id": "email", "type": "hidden", "value": email},
+                        {"id": "password", "type": "hidden", "value": password},
+                        {
+                            "id": "code",
+                            "label": "2FA Code",
+                            "type": "text",
+                            "placeholder": "Enter your 2FA code",
+                        },
+                    ],
+                    "submitLabel": "Verify",
+                }
+            )
+        return HamrPlugin.card(
+            "Login Failed",
+            content=f"**Error:** {result}",
+            markdown=True,
         )
 
-        while True:
-            readable, _, _ = select.select([sys.stdin], [], [], 2.0)
+    if context == "unlock":
+        password = form_data.get("password", "")
+        success, result = unlock_vault(password)
+        if success:
+            items = fetch_all_items(result)
+            if items:
+                save_items_cache(items)
+                results = format_item_results(items)
+                return HamrPlugin.results(
+                    results,
+                    plugin_actions=get_plugin_actions(get_cache_age()),
+                    placeholder="Vault unlocked! Search...",
+                )
+            return HamrPlugin.card(
+                "Vault Unlocked",
+                content="Vault unlocked but no items found. Your vault may be empty.",
+            )
+        return HamrPlugin.card(
+            "Unlock Failed",
+            content=f"**Error:** {result}",
+            markdown=True,
+        )
 
-            if readable:
-                try:
-                    line = sys.stdin.readline()
-                    if not line:
-                        return
-                    input_data = json.loads(line)
-                    handle_request(input_data)
-                    sys.stdout.flush()
-                except json.JSONDecodeError:
-                    continue
-
-            if ITEMS_CACHE_FILE.exists():
-                current = ITEMS_CACHE_FILE.stat().st_mtime
-                if current != last_mtime:
-                    last_mtime = current
-                    cached_items = load_cached_items()
-                    items = (
-                        [item_to_index_item(item) for item in cached_items]
-                        if cached_items
-                        else []
-                    )
-                    print(json.dumps({"type": "index", "mode": "full", "items": items}))
-                    sys.stdout.flush()
+    return HamrPlugin.noop()
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

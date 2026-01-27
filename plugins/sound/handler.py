@@ -1,14 +1,27 @@
 #!/usr/bin/env python3
-import json
-import os
-import select
-import signal
+"""
+Sound plugin for hamr - Socket-based version
+
+Provides system volume controls via WirePlumber:
+- Volume slider with gauge
+- Microphone slider with gauge
+- Mute toggles for volume and mic
+- Real-time monitoring for external changes
+"""
+
+import asyncio
 import subprocess
 import sys
-import time
+from pathlib import Path
+from typing import Any, Optional
+
+# Add parent directory to path to import SDK
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
 
 
 def run_cmd(cmd: list[str]) -> tuple[str, int]:
+    """Run a command and return stdout and return code."""
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
         return result.stdout.strip(), result.returncode
@@ -16,7 +29,8 @@ def run_cmd(cmd: list[str]) -> tuple[str, int]:
         return "", 1
 
 
-def get_volume_info() -> dict:
+def get_volume_info() -> dict[str, Any]:
+    """Get current volume info from WirePlumber."""
     output, code = run_cmd(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"])
     if code != 0:
         return {"volume": 0, "muted": False}
@@ -35,7 +49,8 @@ def get_volume_info() -> dict:
     return {"volume": volume, "muted": muted}
 
 
-def get_mic_info() -> dict:
+def get_mic_info() -> dict[str, Any]:
+    """Get current microphone info from WirePlumber."""
     output, code = run_cmd(["wpctl", "get-volume", "@DEFAULT_AUDIO_SOURCE@"])
     if code != 0:
         return {"volume": 0, "muted": False}
@@ -55,16 +70,24 @@ def get_mic_info() -> dict:
 
 
 def set_volume(volume_pct: int) -> None:
+    """Set system volume."""
     vol_decimal = max(0, min(100, volume_pct)) / 100.0
     run_cmd(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", str(vol_decimal)])
 
 
 def set_mic_volume(volume_pct: int) -> None:
+    """Set microphone volume."""
     vol_decimal = max(0, min(100, volume_pct)) / 100.0
     run_cmd(["wpctl", "set-volume", "@DEFAULT_AUDIO_SOURCE@", str(vol_decimal)])
 
 
+def set_mute(device: str, muted: bool) -> None:
+    """Set mute state for a device."""
+    run_cmd(["wpctl", "set-mute", device, "1" if muted else "0"])
+
+
 def get_volume_icon(volume: float, muted: bool) -> str:
+    """Get appropriate icon for volume level."""
     if muted:
         return "volume_off"
     if volume <= 0:
@@ -74,329 +97,268 @@ def get_volume_icon(volume: float, muted: bool) -> str:
     return "volume_up"
 
 
-def get_results(
-    vol_override: int | None = None, mic_override: int | None = None
-) -> list[dict]:
+def get_results() -> list[dict[str, Any]]:
+    """Build results list with sliders and switches."""
     vol_info = get_volume_info()
     mic_info = get_mic_info()
 
-    vol_pct = (
-        vol_override if vol_override is not None else int(vol_info["volume"] * 100)
-    )
-    mic_pct = (
-        mic_override if mic_override is not None else int(mic_info["volume"] * 100)
-    )
+    vol_pct = int(vol_info["volume"] * 100)
+    mic_pct = int(mic_info["volume"] * 100)
 
     return [
         {
             "id": "volume",
-            "type": "slider",
             "name": "Volume",
-            "icon": get_volume_icon(vol_pct / 100, vol_info["muted"]),
+            "icon": get_volume_icon(vol_info["volume"], vol_info["muted"]),
+            "resultType": "slider",
+            "value": {
+                "value": vol_pct,
+                "min": 0,
+                "max": 100,
+                "step": 5,
+                "displayValue": f"{vol_pct}%",
+            },
             "gauge": {
                 "value": vol_pct,
                 "max": 100,
                 "label": f"{vol_pct}%",
             },
-            "value": vol_pct,
-            "min": 0,
-            "max": 100,
-            "step": 5,
         },
         {
             "id": "volume-mute",
-            "type": "switch",
             "name": "Unmute Volume" if vol_info["muted"] else "Mute Volume",
             "description": "Volume is muted"
             if vol_info["muted"]
             else "Mute system audio output",
             "icon": "volume_off" if vol_info["muted"] else "volume_up",
+            "resultType": "switch",
             "value": vol_info["muted"],
         },
         {
             "id": "mic",
-            "type": "slider",
             "name": "Microphone",
             "icon": "mic_off" if mic_info["muted"] else "mic",
+            "resultType": "slider",
+            "value": {
+                "value": mic_pct,
+                "min": 0,
+                "max": 100,
+                "step": 5,
+                "displayValue": f"{mic_pct}%",
+            },
             "gauge": {
                 "value": mic_pct,
                 "max": 100,
                 "label": f"{mic_pct}%",
             },
-            "value": mic_pct,
-            "min": 0,
-            "max": 100,
-            "step": 5,
         },
         {
             "id": "mic-mute",
-            "type": "switch",
             "name": "Unmute Microphone" if mic_info["muted"] else "Mute Microphone",
             "description": "Microphone is muted"
             if mic_info["muted"]
             else "Mute microphone input",
             "icon": "mic_off" if mic_info["muted"] else "mic",
+            "resultType": "switch",
             "value": mic_info["muted"],
         },
     ]
 
 
-def get_plugin_actions() -> list[dict]:
-    return []
+# Create plugin instance
+plugin = HamrPlugin(
+    id="sound",
+    name="Sound",
+    description="System volume controls",
+    icon="volume_up",
+)
+
+# Track last known values for change detection
+state: dict[str, Any] = {
+    "last_vol": None,
+    "last_mic": None,
+}
 
 
-def emit(data: dict) -> None:
-    print(json.dumps(data), flush=True)
+@plugin.on_initial
+async def handle_initial(params=None) -> dict:
+    """Handle initial plugin open."""
+    state["last_vol"] = get_volume_info()
+    state["last_mic"] = get_mic_info()
+    return HamrPlugin.results(get_results())
 
 
-def emit_index() -> None:
-    """Emit index with current volume state for search/history."""
-    emit({"type": "index", "mode": "full", "items": get_results()})
+@plugin.on_search
+async def handle_search(query: str, context: Optional[str]) -> dict:
+    """Handle search - just return current state."""
+    return HamrPlugin.results(get_results())
 
 
-def handle_request(request: dict) -> None:
-    step = request.get("step", "initial")
-    selected = request.get("selected", {})
-    action = request.get("action", "")
+@plugin.on_slider_changed
+async def handle_slider(slider_id: str, value: float) -> dict:
+    """Handle slider value changes."""
+    int_value = int(value)
 
-    vol_info = get_volume_info()
-    mic_info = get_mic_info()
+    if slider_id == "volume":
+        set_volume(int_value)
+        state["last_vol"] = get_volume_info()
+    elif slider_id == "mic":
+        set_mic_volume(int_value)
+        state["last_mic"] = get_mic_info()
 
-    if step == "initial":
-        emit(
+    # Send updated results
+    await plugin.send_update(
+        [
             {
-                "type": "results",
-                "results": get_results(),
-                "pluginActions": get_plugin_actions(),
+                "id": slider_id,
+                "value": {
+                    "value": int_value,
+                    "min": 0,
+                    "max": 100,
+                    "step": 5,
+                    "displayValue": f"{int_value}%",
+                },
+                "gauge": {"value": int_value, "max": 100, "label": f"{int_value}%"},
             }
+        ]
+    )
+
+    return {"type": "noop"}
+
+
+@plugin.on_switch_toggled
+async def handle_switch(switch_id: str, value: bool) -> dict:
+    """Handle switch toggle."""
+    if switch_id == "volume-mute":
+        set_mute("@DEFAULT_AUDIO_SINK@", value)
+        state["last_vol"] = get_volume_info()
+    elif switch_id == "mic-mute":
+        set_mute("@DEFAULT_AUDIO_SOURCE@", value)
+        state["last_mic"] = get_volume_info()
+
+    # Send updated switch state
+    vol_info = get_volume_info() if switch_id == "volume-mute" else None
+    mic_info = get_mic_info() if switch_id == "mic-mute" else None
+
+    if vol_info:
+        await plugin.send_update(
+            [
+                {
+                    "id": "volume-mute",
+                    "value": vol_info["muted"],
+                    "name": "Unmute Volume" if vol_info["muted"] else "Mute Volume",
+                    "description": "Volume is muted"
+                    if vol_info["muted"]
+                    else "Mute system audio output",
+                    "icon": "volume_off" if vol_info["muted"] else "volume_up",
+                }
+            ]
         )
-        return
-
-    if step == "search":
-        emit(
-            {
-                "type": "results",
-                "results": get_results(),
-                "pluginActions": get_plugin_actions(),
-            }
+    elif mic_info:
+        await plugin.send_update(
+            [
+                {
+                    "id": "mic-mute",
+                    "value": mic_info["muted"],
+                    "name": "Unmute Microphone"
+                    if mic_info["muted"]
+                    else "Mute Microphone",
+                    "description": "Microphone is muted"
+                    if mic_info["muted"]
+                    else "Mute microphone input",
+                    "icon": "mic_off" if mic_info["muted"] else "mic",
+                }
+            ]
         )
-        return
 
-    if step == "action":
-        selected_id = selected.get("id", "")
-
-        if action == "slider":
-            new_value = int(request.get("value", 0))
-
-            if selected_id == "volume":
-                set_volume(new_value)
-            elif selected_id == "mic":
-                set_mic_volume(new_value)
-
-            vol_info = get_volume_info()
-            mic_info = get_mic_info()
-
-            # Get updated values for the changed slider
-            if selected_id == "volume":
-                vol_pct = int(vol_info["volume"] * 100)
-                emit(
-                    {
-                        "type": "update",
-                        "items": [
-                            {
-                                "id": "volume",
-                                "value": vol_pct,
-                                "gauge": {
-                                    "value": vol_pct,
-                                    "max": 100,
-                                    "label": f"{vol_pct}%",
-                                },
-                                "icon": get_volume_icon(
-                                    vol_info["volume"], vol_info["muted"]
-                                ),
-                            }
-                        ],
-                    }
-                )
-            elif selected_id == "mic":
-                mic_pct = int(mic_info["volume"] * 100)
-                emit(
-                    {
-                        "type": "update",
-                        "items": [
-                            {
-                                "id": "mic",
-                                "value": mic_pct,
-                                "gauge": {
-                                    "value": mic_pct,
-                                    "max": 100,
-                                    "label": f"{mic_pct}%",
-                                },
-                            }
-                        ],
-                    }
-                )
-            return
-
-        if action == "switch":
-            new_value = request.get("value", False)
-
-            if selected_id == "volume-mute":
-                run_cmd(
-                    [
-                        "wpctl",
-                        "set-mute",
-                        "@DEFAULT_AUDIO_SINK@",
-                        "1" if new_value else "0",
-                    ]
-                )
-                emit(
-                    {
-                        "type": "update",
-                        "items": [
-                            {
-                                "id": "volume-mute",
-                                "value": new_value,
-                                "name": "Unmute Volume" if new_value else "Mute Volume",
-                                "description": "Volume is muted"
-                                if new_value
-                                else "Mute system audio output",
-                                "icon": "volume_off" if new_value else "volume_up",
-                            }
-                        ],
-                    }
-                )
-            elif selected_id == "mic-mute":
-                run_cmd(
-                    [
-                        "wpctl",
-                        "set-mute",
-                        "@DEFAULT_AUDIO_SOURCE@",
-                        "1" if new_value else "0",
-                    ]
-                )
-                emit(
-                    {
-                        "type": "update",
-                        "items": [
-                            {
-                                "id": "mic-mute",
-                                "value": new_value,
-                                "name": "Unmute Microphone"
-                                if new_value
-                                else "Mute Microphone",
-                                "description": "Microphone is muted"
-                                if new_value
-                                else "Mute microphone input",
-                                "icon": "mic_off" if new_value else "mic",
-                            }
-                        ],
-                    }
-                )
-            return
-
-        emit({"type": "noop"})
-        return
-
-    emit({"type": "error", "message": f"Unknown step: {step}"})
+    return {"type": "noop"}
 
 
-def main():
-    def shutdown_handler(signum, frame):
-        sys.exit(0)
-
-    signal.signal(signal.SIGTERM, shutdown_handler)
-    signal.signal(signal.SIGINT, shutdown_handler)
-
-    emit_index()
-
-    # Track last known values to detect external changes
-    last_vol = get_volume_info()
-    last_mic = get_mic_info()
-
+@plugin.add_background_task
+async def monitor_changes(p: HamrPlugin) -> None:
+    """Background task to monitor external volume changes."""
     while True:
-        readable, _, _ = select.select([sys.stdin], [], [], 1.0)
+        await asyncio.sleep(1)
 
-        if readable:
-            try:
-                line = sys.stdin.readline()
-                if not line:
-                    break
-                request = json.loads(line.strip())
-                handle_request(request)
-                # Update tracked values after handling request
-                last_vol = get_volume_info()
-                last_mic = get_mic_info()
-            except (json.JSONDecodeError, ValueError):
-                continue
-        else:
-            # Timeout - check for external volume changes
-            current_vol = get_volume_info()
-            current_mic = get_mic_info()
+        current_vol = get_volume_info()
+        current_mic = get_mic_info()
 
-            updates = []
+        updates: list[dict[str, Any]] = []
 
-            if current_vol["volume"] != last_vol["volume"]:
-                vol_pct = int(current_vol["volume"] * 100)
-                updates.append(
-                    {
-                        "id": "volume",
+        # Check volume changes
+        if state["last_vol"] and (
+            current_vol["volume"] != state["last_vol"]["volume"]
+            or current_vol["muted"] != state["last_vol"]["muted"]
+        ):
+            vol_pct = int(current_vol["volume"] * 100)
+            updates.append(
+                {
+                    "id": "volume",
+                    "value": {
                         "value": vol_pct,
-                        "gauge": {"value": vol_pct, "max": 100, "label": f"{vol_pct}%"},
-                        "icon": get_volume_icon(
-                            current_vol["volume"], current_vol["muted"]
-                        ),
-                    }
-                )
+                        "min": 0,
+                        "max": 100,
+                        "step": 5,
+                        "displayValue": f"{vol_pct}%",
+                    },
+                    "gauge": {"value": vol_pct, "max": 100, "label": f"{vol_pct}%"},
+                    "icon": get_volume_icon(
+                        current_vol["volume"], current_vol["muted"]
+                    ),
+                }
+            )
+            updates.append(
+                {
+                    "id": "volume-mute",
+                    "name": "Unmute Volume" if current_vol["muted"] else "Mute Volume",
+                    "description": "Volume is muted"
+                    if current_vol["muted"]
+                    else "Mute system audio output",
+                    "icon": "volume_off" if current_vol["muted"] else "volume_up",
+                    "value": current_vol["muted"],
+                }
+            )
+            state["last_vol"] = current_vol
 
-            if current_vol["muted"] != last_vol["muted"]:
-                muted = current_vol["muted"]
-                updates.append(
-                    {
-                        "id": "volume-mute",
-                        "value": muted,
-                        "name": "Unmute Volume" if muted else "Mute Volume",
-                        "description": "Volume is muted"
-                        if muted
-                        else "Mute system audio output",
-                        "icon": "volume_off" if muted else "volume_up",
-                    }
-                )
-
-            if current_vol != last_vol:
-                last_vol = current_vol
-
-            if current_mic["volume"] != last_mic["volume"]:
-                mic_pct = int(current_mic["volume"] * 100)
-                updates.append(
-                    {
-                        "id": "mic",
+        # Check mic changes
+        if state["last_mic"] and (
+            current_mic["volume"] != state["last_mic"]["volume"]
+            or current_mic["muted"] != state["last_mic"]["muted"]
+        ):
+            mic_pct = int(current_mic["volume"] * 100)
+            updates.append(
+                {
+                    "id": "mic",
+                    "value": {
                         "value": mic_pct,
-                        "gauge": {"value": mic_pct, "max": 100, "label": f"{mic_pct}%"},
-                        "icon": "mic_off" if current_mic["muted"] else "mic",
-                    }
-                )
+                        "min": 0,
+                        "max": 100,
+                        "step": 5,
+                        "displayValue": f"{mic_pct}%",
+                    },
+                    "gauge": {"value": mic_pct, "max": 100, "label": f"{mic_pct}%"},
+                    "icon": "mic_off" if current_mic["muted"] else "mic",
+                }
+            )
+            updates.append(
+                {
+                    "id": "mic-mute",
+                    "name": "Unmute Microphone"
+                    if current_mic["muted"]
+                    else "Mute Microphone",
+                    "description": "Microphone is muted"
+                    if current_mic["muted"]
+                    else "Mute microphone input",
+                    "icon": "mic_off" if current_mic["muted"] else "mic",
+                    "value": current_mic["muted"],
+                }
+            )
+            state["last_mic"] = current_mic
 
-            if current_mic["muted"] != last_mic["muted"]:
-                muted = current_mic["muted"]
-                updates.append(
-                    {
-                        "id": "mic-mute",
-                        "value": muted,
-                        "name": "Unmute Microphone" if muted else "Mute Microphone",
-                        "description": "Microphone is muted"
-                        if muted
-                        else "Mute microphone input",
-                        "icon": "mic_off" if muted else "mic",
-                    }
-                )
-
-            if current_mic != last_mic:
-                last_mic = current_mic
-
-            if updates:
-                emit({"type": "update", "items": updates})
+        # Send updates if any
+        if updates:
+            await p.send_update(updates)
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()

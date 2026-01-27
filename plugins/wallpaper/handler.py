@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Wallpaper workflow handler - browse and set wallpapers using the image browser.
+Wallpaper workflow handler - browse and set wallpapers.
 
 Supports multiple wallpaper backends with automatic detection:
 1. awww (swww renamed, recommended for Wayland)
@@ -8,11 +8,6 @@ Supports multiple wallpaper backends with automatic detection:
 3. hyprctl hyprpaper
 4. swaybg
 5. feh (X11 fallback)
-
-For theme integration (dark/light mode), place a custom script at:
-  ~/.config/hamr/scripts/switchwall.sh
-
-The script will be called with: switchwall.sh --image <path> --mode <dark|light>
 """
 
 import json
@@ -94,18 +89,49 @@ def get_wallpaper_dir() -> Path:
     return PICTURES_DIR
 
 
-# Switchwall script paths (in order of preference)
-SCRIPT_DIR = Path(__file__).parent
-HAMR_DIR = SCRIPT_DIR.parent.parent
+def scan_wallpaper_dir(directory: Path) -> list[dict]:
+    """Scan wallpaper directory and return results."""
+    if not directory.exists() or not directory.is_dir():
+        return []
 
+    results = []
+    for f in directory.iterdir():
+        if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS:
+            file_path = str(f)
+            results.append(
+                {
+                    "id": file_path,
+                    "name": f.stem,
+                    "icon": "image",
+                    "thumbnail": file_path,
+                    "verb": "Set",
+                    "actions": [
+                        {
+                            "id": "set_dark",
+                            "name": "Set (Dark Mode)",
+                            "icon": "dark_mode",
+                        },
+                        {
+                            "id": "set_light",
+                            "name": "Set (Light Mode)",
+                            "icon": "light_mode",
+                        },
+                    ],
+                }
+            )
+
+    return results
+
+
+PLUGIN_DIR = Path(__file__).parent
 SWITCHWALL_PATHS = [
-    HAMR_DIR / "scripts" / "colors" / "switchwall.sh",  # bundled with hamr
-    XDG_CONFIG / "hamr" / "scripts" / "switchwall.sh",  # user override
+    PLUGIN_DIR / "switchwall.sh",  # bundled with plugin
+    Path.home() / ".config" / "hamr" / "scripts" / "colors" / "switchwall.sh",
 ]
 
 
 def find_switchwall_script() -> Path | None:
-    """Find switchwall script, preferring bundled then user override."""
+    """Find switchwall script for setting wallpaper and updating colors."""
     for path in SWITCHWALL_PATHS:
         if path.exists() and os.access(path, os.X_OK):
             return path
@@ -156,12 +182,12 @@ def detect_wallpaper_backend() -> str | None:
 
 def build_wallpaper_command(image_path: str, mode: str) -> list[str]:
     """Build command to set wallpaper based on available backend."""
-    # First check for switchwall script (user override or bundled)
-    custom_script = find_switchwall_script()
-    if custom_script:
-        return [str(custom_script), "--image", image_path, "--mode", mode]
+    # First check for switchwall script (handles wallpaper + color extraction)
+    switchwall = find_switchwall_script()
+    if switchwall:
+        return [str(switchwall), "--image", image_path, "--mode", mode]
 
-    # Detect backend
+    # Fall back to direct backend
     backend = detect_wallpaper_backend()
 
     if backend == "awww":
@@ -187,8 +213,6 @@ def build_wallpaper_command(image_path: str, mode: str) -> list[str]:
         ]
 
     if backend == "hyprpaper":
-        # hyprpaper requires preload then set
-        # We use hyprctl to communicate with hyprpaper
         return [
             "bash",
             "-c",
@@ -228,51 +252,130 @@ def get_plugin_actions() -> list[dict]:
     ]
 
 
+def set_wallpaper(file_path: str, mode: str = "dark") -> None:
+    """Set wallpaper and save to history."""
+    command = build_wallpaper_command(file_path, mode)
+    save_wallpaper_to_history(file_path)
+    # Detach subprocess so it continues running after this script exits
+    subprocess.Popen(
+        command,
+        start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def main():
     input_data = json.load(sys.stdin)
     step = input_data.get("step", "initial")
+    query = input_data.get("query", "").strip()
     selected = input_data.get("selected", {})
     action = input_data.get("action", "")
-    context = input_data.get("context", "")
 
-    # Handle plugin actions
-    if step == "action" and selected.get("id") == "__plugin__":
+    if step == "initial":
+        wallpaper_dir = get_wallpaper_dir()
+        results = scan_wallpaper_dir(wallpaper_dir)
+
+        print(
+            json.dumps(
+                {
+                    "type": "results",
+                    "results": results,
+                    "displayHint": "large_grid",
+                    "pluginActions": get_plugin_actions(),
+                }
+            )
+        )
+        return
+
+    if step == "search":
+        wallpaper_dir = get_wallpaper_dir()
+        results = scan_wallpaper_dir(wallpaper_dir)
+
+        if query:
+            query_lower = query.lower()
+            results = [r for r in results if query_lower in r["name"].lower()]
+
+        print(
+            json.dumps(
+                {
+                    "type": "results",
+                    "results": results,
+                    "displayHint": "large_grid",
+                    "pluginActions": get_plugin_actions(),
+                }
+            )
+        )
+        return
+
+    if step == "action":
+        item_id = selected.get("id", "")
         wallpaper_dir = get_wallpaper_dir()
 
-        if action == "random":
-            random_path = get_random_wallpaper(wallpaper_dir)
-            if random_path:
-                mode = "dark"
-                command = build_wallpaper_command(random_path, mode)
-                save_wallpaper_to_history(random_path)
-                subprocess.Popen(command)
-                print(
-                    json.dumps(
+        # Handle plugin actions
+        if item_id == "__plugin__":
+            if action == "random":
+                random_path = get_random_wallpaper(wallpaper_dir)
+                if random_path:
+                    set_wallpaper(random_path, "dark")
+                    print(json.dumps({"type": "execute", "close": True}))
+                else:
+                    print(
+                        json.dumps({"type": "error", "message": "No wallpapers found"})
+                    )
+                return
+
+            if action == "history":
+                history = load_wallpaper_history()
+                if not history:
+                    print(
+                        json.dumps(
+                            {
+                                "type": "results",
+                                "results": [
+                                    {
+                                        "id": "__empty__",
+                                        "name": "No wallpaper history",
+                                        "icon": "info",
+                                        "description": "Set a wallpaper to see it here",
+                                    }
+                                ],
+                                "pluginActions": get_plugin_actions(),
+                                "context": "history",
+                            }
+                        )
+                    )
+                    return
+
+                results = []
+                for path in history:
+                    if Path(path).exists():
+                        results.append(
+                            {
+                                "id": f"history:{path}",
+                                "name": Path(path).name,
+                                "description": path,
+                                "icon": "image",
+                                "thumbnail": path,
+                                "verb": "Set",
+                            }
+                        )
+
+                if not results:
+                    results.append(
                         {
-                            "type": "execute",
-                            "close": True,
+                            "id": "__empty__",
+                            "name": "No wallpaper history",
+                            "icon": "info",
+                            "description": "Previous wallpapers no longer exist",
                         }
                     )
-                )
-            else:
-                print(json.dumps({"type": "error", "message": "No wallpapers found"}))
-            return
 
-        if action == "history":
-            history = load_wallpaper_history()
-            if not history:
                 print(
                     json.dumps(
                         {
                             "type": "results",
-                            "results": [
-                                {
-                                    "id": "__empty__",
-                                    "name": "No wallpaper history",
-                                    "icon": "info",
-                                    "description": "Set a wallpaper to see it here",
-                                }
-                            ],
+                            "results": results,
                             "pluginActions": get_plugin_actions(),
                             "context": "history",
                         }
@@ -280,132 +383,29 @@ def main():
                 )
                 return
 
-            results = []
-            for path in history:
-                if Path(path).exists():
-                    filename = Path(path).name
-                    results.append(
-                        {
-                            "id": f"history:{path}",
-                            "name": filename,
-                            "description": path,
-                            "icon": "image",
-                            "thumbnail": path,
-                            "verb": "Set",
-                        }
-                    )
+        # Handle history item selection
+        if item_id.startswith("history:"):
+            file_path = item_id[8:]  # Remove "history:" prefix
+            if not Path(file_path).exists():
+                print(json.dumps({"type": "error", "message": "File no longer exists"}))
+                return
 
-            if not results:
-                results.append(
-                    {
-                        "id": "__empty__",
-                        "name": "No wallpaper history",
-                        "icon": "info",
-                        "description": "Previous wallpapers no longer exist",
-                    }
-                )
-
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": results,
-                        "pluginActions": get_plugin_actions(),
-                        "context": "history",
-                    }
-                )
-            )
+            set_wallpaper(file_path, "dark")
+            print(json.dumps({"type": "execute", "close": True}))
             return
 
-    # Handle history item selection
-    if step == "action" and selected.get("id", "").startswith("history:"):
-        file_path = selected.get("id")[8:]  # Remove "history:" prefix
+        # Handle image selection (item_id is the file path)
+        file_path = item_id
         if not Path(file_path).exists():
-            print(json.dumps({"type": "error", "message": "File no longer exists"}))
-            return
-
-        mode = "dark"
-        command = build_wallpaper_command(file_path, mode)
-        save_wallpaper_to_history(file_path)
-        subprocess.Popen(command)
-
-        print(
-            json.dumps(
-                {
-                    "type": "execute",
-                    "close": True,
-                }
+            print(
+                json.dumps({"type": "error", "message": f"File not found: {file_path}"})
             )
-        )
-        return
-
-    # Initial or search: show the image browser
-    if step in ("initial", "search"):
-        # Determine initial directory
-        initial_dir = str(get_wallpaper_dir())
-
-        has_custom_script = find_switchwall_script() is not None
-
-        # Build actions - only show dark/light mode if custom script supports it
-        if has_custom_script:
-            actions = [
-                {"id": "set_dark", "name": "Set (Dark Mode)", "icon": "dark_mode"},
-                {"id": "set_light", "name": "Set (Light Mode)", "icon": "light_mode"},
-            ]
-        else:
-            # Simple set action when no theming script
-            actions = [
-                {"id": "set", "name": "Set Wallpaper", "icon": "wallpaper"},
-            ]
-
-        print(
-            json.dumps(
-                {
-                    "type": "imageBrowser",
-                    "imageBrowser": {
-                        "directory": initial_dir,
-                        "title": "Select Wallpaper",
-                        "actions": actions,
-                    },
-                    "pluginActions": get_plugin_actions(),
-                }
-            )
-        )
-        return
-
-    if step == "action" and selected.get("id") == "imageBrowser":
-        file_path = selected.get("path", "")
-        action_id = selected.get("action", "set")
-
-        if not file_path:
-            print(json.dumps({"type": "error", "message": "No file selected"}))
             return
 
         # Determine mode based on action
-        if action_id == "set_light":
-            mode = "light"
-        else:
-            mode = "dark"  # default
-
-        # Build command to set wallpaper
-        command = build_wallpaper_command(file_path, mode)
-
-        # Save to history
-        save_wallpaper_to_history(file_path)
-        subprocess.Popen(command)
-
-        print(
-            json.dumps(
-                {
-                    "type": "execute",
-                    "close": True,
-                }
-            )
-        )
-        return
-
-    # Unknown step
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}))
+        mode = "light" if action == "set_light" else "dark"
+        set_wallpaper(file_path, mode)
+        print(json.dumps({"type": "execute", "close": True}))
 
 
 if __name__ == "__main__":

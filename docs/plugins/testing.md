@@ -105,7 +105,7 @@ journalctl --user -u hamr --since "5 min ago" | grep -i error
 
 | Issue                 | Solution                                                       |
 | --------------------- | -------------------------------------------------------------- |
-| Plugin doesn't appear | Check `supportedCompositors` in manifest                       |
+| Plugin doesn't appear | Check `supportedPlatforms` in manifest                         |
 | Handler errors        | Check `journalctl --user -u hamr -f`                           |
 | Invalid JSON          | Test with `echo '{"step": "initial"}' \| ./handler.py \| jq .` |
 | Missing fields        | Check schema requirements above                                |

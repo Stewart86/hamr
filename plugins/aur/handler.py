@@ -22,8 +22,11 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 
+# Add parent directory to path to import SDK
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from sdk.hamr_sdk import HamrPlugin
+
 AUR_RPC = "https://aur.archlinux.org/rpc/v5/search"
-AUR_INFO = "https://aur.archlinux.org/rpc/v5/info"
 AUR_WEB = "https://aur.archlinux.org/packages"
 CACHE_DIR = (
     Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "hamr" / "aur"
@@ -169,16 +172,6 @@ def format_votes(votes: int) -> str:
     return str(votes)
 
 
-def format_date(timestamp: int | None) -> str:
-    """Format Unix timestamp to readable date"""
-    if not timestamp:
-        return ""
-    try:
-        return time.strftime("%Y-%m-%d", time.localtime(timestamp))
-    except Exception:
-        return ""
-
-
 def pkg_to_result(pkg: dict, installed_pkgs: set[str], aur_helper: str | None) -> dict:
     """Convert AUR package to result format"""
     name = pkg.get("Name", "")
@@ -219,7 +212,7 @@ def pkg_to_result(pkg: dict, installed_pkgs: set[str], aur_helper: str | None) -
     if not aur_helper:
         verb = "View"
 
-    result: dict = {
+    result = {
         "id": name,
         "name": f"{name} {version}",
         "description": description,
@@ -236,204 +229,131 @@ def pkg_to_result(pkg: dict, installed_pkgs: set[str], aur_helper: str | None) -
     return result
 
 
-def get_plugin_actions() -> list[dict]:
-    """Get plugin-level actions for the action bar"""
-    return []
+# Create plugin instance
+plugin = HamrPlugin(
+    id="aur",
+    name="AUR",
+    description="Search and install packages from AUR",
+    icon="inventory_2",
+)
 
 
-def main():
-    input_data = json.load(sys.stdin)
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "").strip()
-    selected = input_data.get("selected", {})
-    action = input_data.get("action", "")
+@plugin.on_initial
+async def handle_initial(params=None):
+    """Handle initial request when plugin is opened."""
+    aur_helper = detect_aur_helper()
+    helper_msg = (
+        f"Using {aur_helper}"
+        if aur_helper
+        else "No AUR helper found (install yay or paru)"
+    )
+    return HamrPlugin.results(
+        [
+            {
+                "id": "__prompt__",
+                "name": "Search AUR",
+                "description": helper_msg,
+                "icon": "search",
+            }
+        ],
+        input_mode="realtime",
+        placeholder="Search AUR packages...",
+    )
 
-    selected_id = selected.get("id", "")
+
+@plugin.on_search
+async def handle_search(query: str, context: str | None):
+    """Handle search request."""
     aur_helper = detect_aur_helper()
 
-    if step == "initial":
-        helper_msg = (
-            f"Using {aur_helper}"
-            if aur_helper
-            else "No AUR helper found (install yay or paru)"
-        )
-        print(
-            json.dumps(
+    if not query or len(query) < 2:
+        helper_msg = f"Using {aur_helper}" if aur_helper else "No AUR helper found"
+        return HamrPlugin.results(
+            [
                 {
-                    "type": "results",
-                    "results": [
-                        {
-                            "id": "__prompt__",
-                            "name": "Search AUR",
-                            "description": helper_msg,
-                            "icon": "search",
-                        }
-                    ],
-                    "inputMode": "realtime",
-                    "placeholder": "Search AUR packages...",
-                    "pluginActions": get_plugin_actions(),
+                    "id": "__prompt__",
+                    "name": "Search AUR",
+                    "description": f"Type at least 2 characters to search. {helper_msg}",
+                    "icon": "search",
                 }
-            )
+            ],
+            input_mode="realtime",
+            placeholder="Search AUR packages...",
         )
-        return
 
-    if step == "search":
-        if not query or len(query) < 2:
-            helper_msg = f"Using {aur_helper}" if aur_helper else "No AUR helper found"
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": [
-                            {
-                                "id": "__prompt__",
-                                "name": "Search AUR",
-                                "description": f"Type at least 2 characters to search. {helper_msg}",
-                                "icon": "search",
-                            }
-                        ],
-                        "inputMode": "realtime",
-                        "placeholder": "Search AUR packages...",
-                        "pluginActions": get_plugin_actions(),
-                    }
-                )
-            )
-            return
+    packages = search_aur(query)
+    installed_pkgs = get_installed_packages()
 
-        packages = search_aur(query)
-        installed_pkgs = get_installed_packages()
-
-        if not packages:
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": [
-                            {
-                                "id": "__empty__",
-                                "name": "No packages found",
-                                "description": f"No AUR packages matching '{query}'",
-                                "icon": "search_off",
-                            }
-                        ],
-                        "inputMode": "realtime",
-                        "placeholder": "Search AUR packages...",
-                        "pluginActions": get_plugin_actions(),
-                    }
-                )
-            )
-            return
-
-        results = [
-            pkg_to_result(pkg, installed_pkgs, aur_helper) for pkg in packages[:30]
-        ]
-        print(
-            json.dumps(
+    if not packages:
+        return HamrPlugin.results(
+            [
                 {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                    "placeholder": "Search AUR packages...",
-                    "pluginActions": get_plugin_actions(),
+                    "id": "__empty__",
+                    "name": "No packages found",
+                    "description": f"No AUR packages matching '{query}'",
+                    "icon": "search_off",
                 }
-            )
+            ],
+            input_mode="realtime",
+            placeholder="Search AUR packages...",
         )
-        return
 
-    if step == "action":
-        if selected_id in ("__prompt__", "__empty__"):
-            return
+    results = [pkg_to_result(pkg, installed_pkgs, aur_helper) for pkg in packages[:30]]
+    return HamrPlugin.results(
+        results,
+        input_mode="realtime",
+        placeholder="Search AUR packages...",
+    )
 
-        pkg_name = selected_id
 
-        if action == "open_web":
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "openUrl": f"{AUR_WEB}/{pkg_name}",
-                        "close": True,
-                    }
-                )
-            )
-            return
+@plugin.on_action
+async def handle_action(item_id: str, action: str | None, context: str | None):
+    """Handle action request."""
+    if item_id in ("__prompt__", "__empty__"):
+        return HamrPlugin.noop()
 
-        if not aur_helper:
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "openUrl": f"{AUR_WEB}/{pkg_name}",
-                        "close": True,
-                    }
-                )
-            )
-            return
+    aur_helper = detect_aur_helper()
+    pkg_name = item_id
 
-        if action == "uninstall":
-            cmd = f'{aur_helper} -Rns {pkg_name} && notify-send "AUR" "{pkg_name} uninstalled" -a "Hamr" || notify-send "AUR" "Failed to uninstall {pkg_name}" -a "Hamr"'
-            terminal = detect_terminal()
-            if terminal:
-                spawn_in_terminal(terminal, cmd)
-            else:
-                subprocess.Popen(["bash", "-c", cmd])
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "close": True,
-                    }
-                )
-            )
-            return
+    if action == "open_web":
+        return HamrPlugin.open_url(f"{AUR_WEB}/{pkg_name}", close=True)
 
-        if action == "install":
-            cmd = f'{aur_helper} -S {pkg_name} && notify-send "AUR" "{pkg_name} installed" -a "Hamr" || notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
-            terminal = detect_terminal()
-            if terminal:
-                spawn_in_terminal(terminal, cmd)
-            else:
-                subprocess.Popen(["bash", "-c", cmd])
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "close": True,
-                    }
-                )
-            )
-            return
+    if not aur_helper:
+        return HamrPlugin.open_url(f"{AUR_WEB}/{pkg_name}", close=True)
 
-        installed_pkgs = get_installed_packages()
-        is_installed = pkg_name in installed_pkgs
-
-        if is_installed:
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "openUrl": f"{AUR_WEB}/{pkg_name}",
-                        "close": True,
-                    }
-                )
-            )
+    if action == "uninstall":
+        cmd = f'{aur_helper} -Rns {pkg_name} && notify-send "AUR" "{pkg_name} uninstalled" -a "Hamr" || notify-send "AUR" "Failed to uninstall {pkg_name}" -a "Hamr"'
+        terminal = detect_terminal()
+        if terminal:
+            spawn_in_terminal(terminal, cmd)
         else:
-            cmd = f'{aur_helper} -S {pkg_name} && notify-send "AUR" "{pkg_name} installed" -a "Hamr" || notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
-            terminal = detect_terminal()
-            if terminal:
-                spawn_in_terminal(terminal, cmd)
-            else:
-                subprocess.Popen(["bash", "-c", cmd])
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "close": True,
-                    }
-                )
-            )
-        return
+            subprocess.Popen(["bash", "-c", cmd])
+        return HamrPlugin.close()
+
+    if action == "install":
+        cmd = f'{aur_helper} -S {pkg_name} && notify-send "AUR" "{pkg_name} installed" -a "Hamr" || notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
+        terminal = detect_terminal()
+        if terminal:
+            spawn_in_terminal(terminal, cmd)
+        else:
+            subprocess.Popen(["bash", "-c", cmd])
+        return HamrPlugin.close()
+
+    # Default action
+    installed_pkgs = get_installed_packages()
+    is_installed = pkg_name in installed_pkgs
+
+    if is_installed:
+        return HamrPlugin.open_url(f"{AUR_WEB}/{pkg_name}", close=True)
+    else:
+        cmd = f'{aur_helper} -S {pkg_name} && notify-send "AUR" "{pkg_name} installed" -a "Hamr" || notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
+        terminal = detect_terminal()
+        if terminal:
+            spawn_in_terminal(terminal, cmd)
+        else:
+            subprocess.Popen(["bash", "-c", cmd])
+        return HamrPlugin.close()
 
 
 if __name__ == "__main__":
-    main()
+    plugin.run()
