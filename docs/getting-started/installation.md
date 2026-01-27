@@ -85,7 +85,7 @@ Add the flake input to your configuration:
 ## Quick Install (All Distributions)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
+curl -fsSL https://hamr.run/install.sh | bash
 ```
 
 The install script will:
@@ -192,7 +192,7 @@ Other distributions:
 
 ```bash
 # Re-run the installer to update
-curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
+curl -fsSL https://hamr.run/install.sh | bash
 ```
 
 ## Uninstall
