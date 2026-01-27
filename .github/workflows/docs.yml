@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - rusty-hamr-v1.0.0-alpha
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
@@ -55,8 +54,8 @@ jobs:
             git checkout ${{ github.ref_name }}
           fi
 
-      - name: Deploy Rust docs with mike
-        run: mike deploy v1.0.0-alpha --update-aliases latest --push
+      - name: Deploy docs with mike
+        run: mike deploy v1.0.0 --update-aliases latest --push
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4

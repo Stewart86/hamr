@@ -16,7 +16,7 @@ The daemon runs continuously and communicates with the UI clients via JSON-RPC.
 - **GTK4 4.20+** and **gtk4-layer-shell** (for the GTK4 interface)
 - A supported Wayland compositor: **Hyprland** or **Niri**
 - Python 3.9+ (for plugins)
-- Rust 1.85+ (for building from source)
+- Rust 1.88+ (for building from source)
 
 ### Compositor Support Matrix
 
@@ -32,11 +32,12 @@ The daemon runs continuously and communicates with the UI clients via JSON-RPC.
 ## Arch Linux (AUR)
 
 ```bash
-# Install from AUR
-paru -S hamr-git
+# Pre-built binary (recommended - faster install)
+paru -S hamr-bin
 
 # Or build from source
 paru -S hamr
+```
 
 ## NixOS / Nix
 
@@ -182,7 +183,9 @@ If you encounter issues, see the [Troubleshooting Guide](troubleshooting.md) for
 Arch Linux (AUR):
 
 ```bash
-paru -Syu hamr-git
+paru -Syu hamr
+# or
+paru -Syu hamr-bin
 ```
 
 Other distributions:
@@ -198,7 +201,7 @@ Arch Linux (AUR):
 
 ```bash
 systemctl --user disable --now hamr-daemon
-paru -R hamr-git
+paru -R hamr  # or hamr-bin
 ```
 
 Other distributions:
