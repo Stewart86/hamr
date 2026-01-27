@@ -115,6 +115,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main  # Checkout main branch, not the tag (detached HEAD)
+          fetch-depth: 0
 
       - name: Get release tag
         id: tag
