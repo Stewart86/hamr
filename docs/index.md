@@ -20,13 +20,15 @@ A standalone search bar / launcher built with Rust and GTK4.
 Install from AUR:
 
 ```bash
-paru -S hamr-git
+paru -S hamr-bin  # Pre-built binary (recommended)
+# or
+paru -S hamr      # Build from source
 ```
 
 Or use the quick install script:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
+curl -fsSL https://hamr.run/install.sh | bash
 ```
 
 Toggle the launcher with `hamr toggle` (bind this to a key in your compositor).
@@ -83,4 +85,4 @@ hamr test <plugin>   # Test a plugin
 ## Links
 
 - [GitHub Repository](https://github.com/stewart86/hamr)
-- [AUR Package](https://aur.archlinux.org/packages/hamr-git)
+- [AUR Package](https://aur.archlinux.org/packages/hamr)
