@@ -4,7 +4,6 @@ pkgbase = hamr
 	pkgrel = 1
 	url = https://github.com/Stewart86/hamr
 	arch = x86_64
-	arch = aarch64
 	license = MIT
 	makedepends = rust
 	makedepends = cargo

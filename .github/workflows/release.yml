@@ -39,7 +39,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libgtk-4-dev \
-            pkg-config
+            pkg-config \
+            meson \
+            ninja-build \
+            libwayland-dev \
+            gobject-introspection \
+            libgirepository1.0-dev \
+            gtk-doc-tools \
+            valac
+
+      - name: Build and install gtk4-layer-shell
+        run: |
+          git clone https://github.com/wmww/gtk4-layer-shell.git
+          cd gtk4-layer-shell
+          meson setup build
+          ninja -C build
+          sudo ninja -C build install
+          sudo ldconfig
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -67,54 +83,9 @@ jobs:
           name: hamr-linux-x86_64
           path: dist/hamr-linux-x86_64.tar.gz
 
-  build-linux-aarch64:
-    name: Build Linux aarch64
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
-      - name: Build in Docker (aarch64)
-        run: |
-          docker run --rm --platform linux/arm64 \
-            -v "${{ github.workspace }}:/workspace" \
-            -w /workspace \
-          ubuntu:24.04 bash -c '
-            apt-get update && apt-get install -y \
-              curl build-essential pkg-config \
-              libgtk-4-dev
-            curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            source $HOME/.cargo/env
-            cargo build --release
-          '
-
-      - name: Generate plugin checksums
-        run: ./scripts/generate-plugin-checksums.sh
-
-      - name: Create archive
-        run: |
-          mkdir -p dist/hamr-linux-aarch64
-          cp target/release/hamr dist/hamr-linux-aarch64/
-          cp target/release/hamr-daemon dist/hamr-linux-aarch64/
-          cp target/release/hamr-gtk dist/hamr-linux-aarch64/
-          cp target/release/hamr-tui dist/hamr-linux-aarch64/
-          cp -r plugins dist/hamr-linux-aarch64/
-          cp README.md LICENSE dist/hamr-linux-aarch64/ 2>/dev/null || true
-          cd dist && tar -czvf hamr-linux-aarch64.tar.gz hamr-linux-aarch64
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: hamr-linux-aarch64
-          path: dist/hamr-linux-aarch64.tar.gz
-
   release:
     name: Create Release
-    needs: [build-linux-x86_64, build-linux-aarch64]
+    needs: [build-linux-x86_64]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.tag != ''
     steps:
@@ -122,12 +93,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: hamr-linux-x86_64
-          path: dist
-
-      - name: Download aarch64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: hamr-linux-aarch64
           path: dist
 
       - name: Get release tag
@@ -142,7 +107,7 @@ jobs:
       - name: Create checksums
         working-directory: dist
         run: |
-          sha256sum hamr-linux-x86_64.tar.gz hamr-linux-aarch64.tar.gz > checksums.txt
+          sha256sum hamr-linux-x86_64.tar.gz > checksums.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -153,12 +118,11 @@ jobs:
            generate_release_notes: true
            files: |
              dist/hamr-linux-x86_64.tar.gz
-             dist/hamr-linux-aarch64.tar.gz
              dist/checksums.txt
 
   update-aur:
     name: Update AUR Package
-    needs: [build-linux-x86_64, build-linux-aarch64]
+    needs: [build-linux-x86_64]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.tag != ''
     steps:

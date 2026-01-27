@@ -5,7 +5,7 @@ pkgname=hamr-bin
 pkgver=1.0.0
 pkgrel=1
 pkgdesc="A fast, extensible desktop launcher for Linux (pre-built binaries)"
-arch=('x86_64' 'aarch64')
+arch=('x86_64')
 url="https://github.com/Stewart86/hamr"
 license=('MIT')
 depends=(
@@ -47,20 +47,11 @@ provides=('hamr')
 conflicts=('hamr')
 replaces=('hamr-qml')
 install=hamr.install
-source_x86_64=("${pkgname}-${pkgver}-x86_64.tar.gz::${url}/releases/download/v${pkgver}/hamr-linux-x86_64.tar.gz")
-source_aarch64=("${pkgname}-${pkgver}-aarch64.tar.gz::${url}/releases/download/v${pkgver}/hamr-linux-aarch64.tar.gz")
-sha256sums_x86_64=('SKIP')
-sha256sums_aarch64=('SKIP')
+source=("${pkgname}-${pkgver}.tar.gz::${url}/releases/download/v${pkgver}/hamr-linux-x86_64.tar.gz")
+sha256sums=('SKIP')
 
 package() {
-    cd "$srcdir"
-
-    # Find the extracted directory
-    if [[ "$CARCH" == "x86_64" ]]; then
-        cd "hamr-linux-x86_64"
-    else
-        cd "hamr-linux-aarch64"
-    fi
+    cd "$srcdir/hamr-linux-x86_64"
 
     # Install binaries
     install -Dm755 hamr "$pkgdir/usr/bin/hamr"
