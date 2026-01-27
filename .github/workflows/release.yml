@@ -31,34 +31,21 @@ jobs:
   build-linux-x86_64:
     name: Build Linux x86_64
     runs-on: ubuntu-24.04
+    container:
+      image: archlinux:base
     steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel \
+            git \
+            rust \
+            gtk4 \
+            gtk4-layer-shell \
+            pkgconf
+
       - uses: actions/checkout@v4
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgtk-4-dev \
-            pkg-config \
-            meson \
-            ninja-build \
-            libwayland-dev \
-            gobject-introspection \
-            libgirepository1.0-dev \
-            gtk-doc-tools \
-            valac
-
-      - name: Build and install gtk4-layer-shell
-        run: |
-          git clone https://github.com/wmww/gtk4-layer-shell.git
-          cd gtk4-layer-shell
-          meson setup build
-          ninja -C build
-          sudo ninja -C build install
-          sudo ldconfig
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
 
       - name: Build release binaries
         run: cargo build --release
@@ -168,7 +155,7 @@ jobs:
           VERSION=${{ steps.version.outputs.version }}
           sed -i "s/^pkgver=.*/pkgver=$VERSION/" pkg/aur-bin/PKGBUILD
           # Update source URLs with new version
-          sed -i "s/hamr-bin-[0-9.]*-/hamr-bin-$VERSION-/g" pkg/aur-bin/PKGBUILD
+          sed -i "s/hamr-bin-[0-9.]*\.tar\.gz/hamr-bin-$VERSION.tar.gz/g" pkg/aur-bin/PKGBUILD
           sed -i "s|/v[0-9.]*/hamr-linux|/v$VERSION/hamr-linux|g" pkg/aur-bin/PKGBUILD
           echo "Updated hamr-bin PKGBUILD pkgver to $VERSION"
 
@@ -176,7 +163,7 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.version }}
           sed -i "s/^\tpkgver = .*/\tpkgver = $VERSION/" pkg/aur-bin/.SRCINFO
-          sed -i "s/hamr-bin-[0-9.]*-/hamr-bin-$VERSION-/g" pkg/aur-bin/.SRCINFO
+          sed -i "s/hamr-bin-[0-9.]*\.tar\.gz/hamr-bin-$VERSION.tar.gz/g" pkg/aur-bin/.SRCINFO
           sed -i "s|/v[0-9.]*/hamr-linux|/v$VERSION/hamr-linux|g" pkg/aur-bin/.SRCINFO
           echo "Updated hamr-bin .SRCINFO pkgver to $VERSION"
 
