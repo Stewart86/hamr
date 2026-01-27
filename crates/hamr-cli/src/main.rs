@@ -798,28 +798,8 @@ WantedBy=graphical-session.target
 
 /// Find a hamr binary by name
 fn which_binary(name: &str) -> Result<PathBuf> {
-    // For hamr install command, prioritize installed binaries over dev binaries
-    // This prevents systemd services from pointing to dev binaries that may be cleaned later
-
-    // Check ~/.local/bin (common user install location) - highest priority for install
-    if let Some(home) = dirs::home_dir() {
-        let local_bin = home.join(format!(".local/bin/{name}"));
-        if local_bin.exists() {
-            return Ok(local_bin.canonicalize()?);
-        }
-    }
-
-    // Check if it's in PATH
-    if let Ok(output) = Command::new("which").arg(name).output()
-        && output.status.success()
-    {
-        let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if !path_str.is_empty() {
-            return Ok(PathBuf::from(path_str));
-        }
-    }
-
-    // Finally check if we're in dev mode (same directory as hamr) - lowest priority
+    // Priority 1: Same directory as current executable
+    // This ensures /usr/bin/hamr finds /usr/bin/hamr-daemon, not ~/.local/bin/hamr-daemon
     if let Ok(exe) = std::env::current_exe()
         && let Some(dir) = exe.parent()
     {
@@ -829,12 +809,30 @@ fn which_binary(name: &str) -> Result<PathBuf> {
         }
     }
 
+    // Priority 2: Check PATH (respects user's PATH order)
+    if let Ok(output) = Command::new("which").arg(name).output()
+        && output.status.success()
+    {
+        let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !path_str.is_empty() {
+            return Ok(PathBuf::from(path_str));
+        }
+    }
+
+    // Priority 3: Check ~/.local/bin (fallback for user installs)
+    if let Some(home) = dirs::home_dir() {
+        let local_bin = home.join(format!(".local/bin/{name}"));
+        if local_bin.exists() {
+            return Ok(local_bin.canonicalize()?);
+        }
+    }
+
     bail!(
         "Could not find {name} binary.\n\
          Make sure it's installed in one of:\n\
-         - ~/.local/bin/{name}\n\
-         - /usr/local/bin/{name}\n\
-         - Or in your PATH"
+         - Same directory as hamr\n\
+         - In your PATH\n\
+         - ~/.local/bin/{name}"
     )
 }
 

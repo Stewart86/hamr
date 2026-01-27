@@ -85,13 +85,8 @@ impl Directories {
             }
         }
 
-        let dev_paths: [PathBuf; 3] = [
-            PathBuf::from("plugins"),
-            PathBuf::from("../hamr/plugins"),
-            std::env::var("HOME")
-                .map(|h| PathBuf::from(h).join("Projects/Personal/Qml/hamr/plugins"))
-                .unwrap_or_default(),
-        ];
+        // Dev paths - only used when running from source/dev builds
+        let dev_paths: [PathBuf; 2] = [PathBuf::from("plugins"), PathBuf::from("../hamr/plugins")];
 
         for path in dev_paths {
             if path.exists() {
