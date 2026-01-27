@@ -102,8 +102,8 @@ check_file_conflicts() {
     done
     
     # Check for existing plugins
-    if [[ -d "$bin_dir/../plugins" ]]; then
-        conflicts+=("$bin_dir/../plugins")
+    if [[ -d "$bin_dir/plugins" ]]; then
+        conflicts+=("$bin_dir/plugins")
     fi
     
     if [[ ${#conflicts[@]} -gt 0 ]]; then
@@ -447,7 +447,7 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
                     cp -r "$HOME/.config/hamr" "$backup_dir"
                 fi
                 # Remove old plugins to ensure clean update
-                rm -rf "$bin_dir/../plugins"
+                rm -rf "$bin_dir/plugins"
                 rm -rf "$HOME/.config/hamr/plugins"
             else
                 # Preserve user config and plugins by default
@@ -469,7 +469,7 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
                 print_summary "Plugin Installation" "$plugin_summary"
             else
                 # Install system plugins (always update these)
-                cp -r "plugins" "$bin_dir/../"
+                cp -r "plugins" "$bin_dir/"
                 
                 # Only copy plugins to user config if they don't exist or if --reset-user-data
                 if [[ -n "$RESET_USER_DATA" ]] || [[ ! -d "$HOME/.config/hamr/plugins" ]]; then
@@ -480,14 +480,14 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
             
             # Make handler scripts executable based on manifest (only if not dry-run)
             if [[ -z "$DRY_RUN" ]]; then
-                for manifest in "$bin_dir/../plugins"/*/manifest.json; do
+                for manifest in "$bin_dir/plugins"/*/manifest.json; do
                     if [[ -f "$manifest" ]]; then
                         handler_cmd=$(grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" | sed 's/.*"\([^"]*\)"$/\1/' | tail -1)
                         if [[ -n "$handler_cmd" ]]; then
                             handler_file=$(echo "$handler_cmd" | awk '{print $NF}')
                             plugin_dir=$(basename "$(dirname "$manifest")")
-                            if [[ -f "$bin_dir/../plugins/$plugin_dir/$handler_file" ]]; then
-                                chmod +x "$bin_dir/../plugins/$plugin_dir/$handler_file"
+                            if [[ -f "$bin_dir/plugins/$plugin_dir/$handler_file" ]]; then
+                                chmod +x "$bin_dir/plugins/$plugin_dir/$handler_file"
                             fi
                             if [[ -f "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file" ]]; then
                                 chmod +x "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file"
@@ -654,7 +654,7 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
                 cp -r "$HOME/.config/hamr" "$backup_dir"
             fi
             # Remove old plugins to ensure clean update
-            rm -rf "$bin_dir/../plugins"
+            rm -rf "$bin_dir/plugins"
             rm -rf "$HOME/.config/hamr/plugins"
         else
             # Preserve user config and plugins by default
@@ -662,7 +662,7 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
         fi
         
         # Install system plugins (always update these)
-        cp -r "$extract_dir/plugins" "$bin_dir/../"
+        cp -r "$extract_dir/plugins" "$bin_dir/"
         
         # Only copy plugins to user config if they don't exist or if --reset-user-data
         if [[ -n "$RESET_USER_DATA" ]] || [[ ! -d "$HOME/.config/hamr/plugins" ]]; then
@@ -671,14 +671,14 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
         fi
         
         # Make handler scripts executable based on manifest
-        for manifest in "$bin_dir/../plugins"/*/manifest.json; do
+        for manifest in "$bin_dir/plugins"/*/manifest.json; do
             if [[ -f "$manifest" ]]; then
                 handler_cmd=$(grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" | sed 's/.*"\([^"]*\)"$/\1/' | tail -1)
                 if [[ -n "$handler_cmd" ]]; then
                     handler_file=$(echo "$handler_cmd" | awk '{print $NF}')
                     plugin_dir=$(basename "$(dirname "$manifest")")
-                    if [[ -f "$bin_dir/../plugins/$plugin_dir/$handler_file" ]]; then
-                        chmod +x "$bin_dir/../plugins/$plugin_dir/$handler_file"
+                    if [[ -f "$bin_dir/plugins/$plugin_dir/$handler_file" ]]; then
+                        chmod +x "$bin_dir/plugins/$plugin_dir/$handler_file"
                     fi
                     if [[ -f "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file" ]]; then
                         chmod +x "$HOME/.config/hamr/plugins/$plugin_dir/$handler_file"
