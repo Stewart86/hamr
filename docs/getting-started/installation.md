@@ -39,6 +39,27 @@ paru -S hamr-bin
 paru -S hamr
 ```
 
+## Manual Download
+
+Download pre-built binaries directly from GitHub:
+
+```bash
+# Download latest release
+wget https://github.com/Stewart86/hamr/releases/latest/download/hamr-linux-x86_64.tar.gz
+
+# Extract
+tar -xzf hamr-linux-x86_64.tar.gz
+cd hamr-linux-x86_64
+
+# Install binaries
+mkdir -p ~/.local/bin
+cp hamr hamr-daemon hamr-gtk hamr-tui ~/.local/bin/
+cp -r plugins ~/.local/bin/
+
+# Set up systemd services
+hamr install
+```
+
 ## NixOS / Nix
 
 ### Quick install
@@ -131,6 +152,31 @@ sudo apt install libgtk-4-dev gtk4-layer-shell-dev python3
 | **Ubuntu/Debian** | `gtk4-layer-shell-dev` |
 | **openSUSE** | `gtk4-layer-shell-devel` |
 | **Gentoo** | `gui-libs/gtk4-layer-shell` |
+
+## Post-Installation Setup
+
+After installing binaries (via any method), run the setup command:
+
+```bash
+hamr install --check  # Preview what will be set up
+hamr install          # Set up systemd services and directories
+```
+
+This creates:
+
+- Systemd user services (`hamr-daemon.service`, `hamr-gtk.service`)
+- Config directory (`~/.config/hamr/`)
+- Essential plugins copied to user config
+
+Then start the launcher:
+
+```bash
+systemctl --user start hamr-gtk  # Start via systemd (recommended)
+# or
+hamr                             # Start directly
+```
+
+For full CLI documentation, see [CLI Reference](cli.md).
 
 ## Keybinding
 

@@ -39,6 +39,7 @@ nav:
   - Features: features.md
   - Getting Started:
       - Installation: getting-started/installation.md
+      - CLI Reference: getting-started/cli.md
       - Configuration: getting-started/configuration.md
       - Logging: getting-started/logging.md
       - Theming: getting-started/theming.md

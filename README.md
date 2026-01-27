@@ -30,6 +30,17 @@ This downloads the latest release binaries, installs to `~/.local/bin`, copies e
 
 **Dependencies:** GTK4 4.20+, gtk4-layer-shell, Python 3.9+
 
+### Manual Download
+
+```bash
+wget https://github.com/Stewart86/hamr/releases/latest/download/hamr-linux-x86_64.tar.gz
+tar -xzf hamr-linux-x86_64.tar.gz
+cd hamr-linux-x86_64
+cp hamr hamr-daemon hamr-gtk hamr-tui ~/.local/bin/
+cp -r plugins ~/.local/bin/
+hamr install
+```
+
 ### Compositor Support
 
 | Compositor | Status | Notes |
