@@ -216,20 +216,28 @@ impl ResultList {
         }
     }
 
-/// Update the list with new results (full rebuild)
-#[allow(dead_code)]
+    /// Update the list with new results (full rebuild)
+    #[allow(dead_code)]
     pub fn set_results(&self, results: &[SearchResult], theme: &Theme) {
         self.set_results_with_selection(results, theme, true);
     }
 
     /// Update the list with new results, optionally resetting selection/scroll
-    pub fn set_results_with_selection(&self, results: &[SearchResult], theme: &Theme, reset_selection: bool) {
+    pub fn set_results_with_selection(
+        &self,
+        results: &[SearchResult],
+        theme: &Theme,
+        reset_selection: bool,
+    ) {
         self.set_results_impl(results, theme, reset_selection);
     }
 
     fn set_results_impl(&self, results: &[SearchResult], theme: &Theme, reset_selection: bool) {
         let _span = debug_span!("ResultList::set_results", count = results.len()).entered();
-        debug!(count = results.len(), "full rebuild, reset_selection={}", reset_selection);
+        debug!(
+            count = results.len(),
+            "full rebuild, reset_selection={}", reset_selection
+        );
         while let Some(child) = self.list_box.first_child() {
             self.list_box.remove(&child);
         }
@@ -343,11 +351,21 @@ impl ResultList {
 
     /// Update results using diffing - only update changed items, preserving widget state
     /// Returns true if a full rebuild was performed, false if incremental update was done
-    pub fn update_results_diff_with_selection(&self, results: &[SearchResult], theme: &Theme, reset_selection: bool) -> bool {
+    pub fn update_results_diff_with_selection(
+        &self,
+        results: &[SearchResult],
+        theme: &Theme,
+        reset_selection: bool,
+    ) -> bool {
         self.update_results_diff_impl(results, theme, reset_selection)
     }
 
-    fn update_results_diff_impl(&self, results: &[SearchResult], theme: &Theme, reset_selection: bool) -> bool {
+    fn update_results_diff_impl(
+        &self,
+        results: &[SearchResult],
+        theme: &Theme,
+        reset_selection: bool,
+    ) -> bool {
         let _span = debug_span!("ResultList::update_results_diff", count = results.len()).entered();
 
         let items = self.items.borrow();
@@ -376,7 +394,6 @@ impl ResultList {
             return true;
         }
 
-        
         debug!(count = results.len(), "incremental update");
         for result in results {
             if let Some(&idx) = items_by_id.get(&result.id)
@@ -444,8 +461,8 @@ impl ResultList {
         items.get(selected).map(|item| item.id().to_string())
     }
 
-/// Reset selection to first item (call when starting a new search)
-pub fn reset_selection(&self) {
+    /// Reset selection to first item (call when starting a new search)
+    pub fn reset_selection(&self) {
         let items = self.items.borrow();
         let mut selected = self.selected.borrow_mut();
 

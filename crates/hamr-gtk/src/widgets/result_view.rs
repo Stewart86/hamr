@@ -310,12 +310,17 @@ impl ResultView {
         }
     }
 
-// Data methods - delegate to current view
+    // Data methods - delegate to current view
     pub fn set_results(&self, results: &[SearchResult], theme: &Theme) {
         self.set_results_with_selection(results, theme, true);
     }
 
-    pub fn set_results_with_selection(&self, results: &[SearchResult], theme: &Theme, reset_selection: bool) {
+    pub fn set_results_with_selection(
+        &self,
+        results: &[SearchResult],
+        theme: &Theme,
+        reset_selection: bool,
+    ) {
         let has_results = !results.is_empty();
         match self.mode {
             ResultViewMode::List => {
@@ -337,7 +342,12 @@ impl ResultView {
         self.update_results_diff_with_selection(results, theme, true);
     }
 
-    pub fn update_results_diff_with_selection(&self, results: &[SearchResult], theme: &Theme, reset_selection: bool) {
+    pub fn update_results_diff_with_selection(
+        &self,
+        results: &[SearchResult],
+        theme: &Theme,
+        reset_selection: bool,
+    ) {
         match self.mode {
             ResultViewMode::List => {
                 if let Some(ref list) = self.list {

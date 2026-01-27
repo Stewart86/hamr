@@ -2579,11 +2579,17 @@ impl LauncherWindow {
                 // Update results
                 let in_plugin = state.borrow().active_plugin.is_some();
                 if in_plugin {
-                    result_view
-                        .borrow()
-                        .update_results_diff_with_selection(&merged_results, &theme, query_changed);
+                    result_view.borrow().update_results_diff_with_selection(
+                        &merged_results,
+                        &theme,
+                        query_changed,
+                    );
                 } else {
-                    result_view.borrow().set_results_with_selection(&merged_results, &theme, query_changed);
+                    result_view.borrow().set_results_with_selection(
+                        &merged_results,
+                        &theme,
+                        query_changed,
+                    );
                 }
 
                 // GtkFixed doesn't always relayout immediately when a positioned child changes its

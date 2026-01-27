@@ -7,13 +7,13 @@ use crate::config::{Config, Directories};
 use crate::frecency::{ExecutionContext, FrecencyScorer, MatchType};
 use crate::index::IndexStore;
 use crate::plugin::{
-    invoke_match, FrecencyMode, PluginInput, PluginManager, PluginProcess, PluginResponse,
-    PluginSender, SelectedItem, Step,
+    FrecencyMode, PluginInput, PluginManager, PluginProcess, PluginResponse, PluginSender,
+    SelectedItem, Step, invoke_match,
 };
-use std::path::Path;
 use crate::search::{SearchEngine, SearchMatch, Searchable, SearchableSource};
 use hamr_types::{Action, CoreEvent, CoreUpdate, ResultType, SearchResult};
 use std::collections::HashMap;
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tracing::{debug, error, info, warn};
@@ -1206,8 +1206,14 @@ impl HamrCore {
     ) -> Option<SearchResult> {
         const MATCH_TIMEOUT_MS: u64 = 150;
 
-        let response =
-            invoke_match(plugin_id, handler_path, working_dir, query, MATCH_TIMEOUT_MS).await?;
+        let response = invoke_match(
+            plugin_id,
+            handler_path,
+            working_dir,
+            query,
+            MATCH_TIMEOUT_MS,
+        )
+        .await?;
 
         match response {
             PluginResponse::Match { result: Some(item) } => {

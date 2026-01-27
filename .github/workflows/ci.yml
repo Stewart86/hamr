@@ -51,7 +51,7 @@ jobs:
         run: cargo test --workspace --exclude hamr-gtk
 
   msrv:
-    name: Check MSRV (1.85)
+    name: Check MSRV (1.88)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -63,8 +63,8 @@ jobs:
             libgtk-4-dev \
             pkg-config
 
-      - name: Install Rust 1.85
-        uses: dtolnay/rust-toolchain@1.85
+      - name: Install Rust 1.88
+        uses: dtolnay/rust-toolchain@1.88
 
       - name: Check compilation
         run: cargo check --workspace --exclude hamr-gtk

@@ -295,7 +295,10 @@ impl ResultGrid {
 
     fn set_results_impl(&self, results: &[SearchResult], reset_selection: bool) {
         let _span = debug_span!("ResultGrid::set_results", count = results.len()).entered();
-        debug!(count = results.len(), "full rebuild, reset_selection={}", reset_selection);
+        debug!(
+            count = results.len(),
+            "full rebuild, reset_selection={}", reset_selection
+        );
         self.model.remove_all();
         self.grid_items.borrow_mut().clear();
 
@@ -306,11 +309,10 @@ impl ResultGrid {
             self.model.append(&obj);
         }
 
-        if !results.is_empty()
-            && reset_selection {
-                self.selection_model.set_selected(0);
-                self.scroll_to_selected();
-            }
+        if !results.is_empty() && reset_selection {
+            self.selection_model.set_selected(0);
+            self.scroll_to_selected();
+        }
 
         *self.selected_action.borrow_mut() = -1;
 
@@ -329,7 +331,11 @@ impl ResultGrid {
         self.notify_selection_change();
     }
 
-    pub fn update_results_diff_with_selection(&self, results: &[SearchResult], reset_selection: bool) -> bool {
+    pub fn update_results_diff_with_selection(
+        &self,
+        results: &[SearchResult],
+        reset_selection: bool,
+    ) -> bool {
         self.update_results_diff_impl(results, reset_selection)
     }
 
