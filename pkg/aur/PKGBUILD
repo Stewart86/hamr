@@ -1,8 +1,8 @@
 # Maintainer: Stewart <stewart@anomaly.co>
 # AUR package for hamr - builds from source
 
-pkgname=hamr-git
-pkgver=1.0.0-alpha
+pkgname=hamr
+pkgver=1.0.0
 pkgrel=1
 pkgdesc="A fast, extensible desktop launcher for Linux"
 arch=('x86_64' 'aarch64')
@@ -48,25 +48,19 @@ optdepends=(
     # Bitwarden integration
     'bitwarden-cli: Bitwarden password manager integration'
 )
-provides=('hamr')
-conflicts=('hamr')
-source=("${pkgname}::git+${url}.git")
+replaces=('hamr-qml')
+install=hamr.install
+source=("$pkgname-$pkgver::git+${url}.git#tag=v${pkgver}")
 sha256sums=('SKIP')
 
-pkgver() {
-    cd "$pkgname"
-    git describe --tags --long 2>/dev/null | sed 's/^v//;s/-/.r/;s/-/./' || \
-    printf "0.1.0.r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
-}
-
 build() {
-    cd "$pkgname"
+    cd "$pkgname-$pkgver"
     export CARGO_TARGET_DIR=target
     cargo build --release --locked
 }
 
 package() {
-    cd "$pkgname"
+    cd "$pkgname-$pkgver"
 
     # Install binaries
     install -Dm755 target/release/hamr "$pkgdir/usr/bin/hamr"

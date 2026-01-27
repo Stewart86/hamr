@@ -186,15 +186,20 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.version }}
           sed -i "s/^pkgver=.*/pkgver=$VERSION/" pkg/aur/PKGBUILD
+          # Update source line with new version
+          sed -i "s/hamr-[0-9.]*::git/hamr-$VERSION::git/" pkg/aur/PKGBUILD
+          sed -i "s/#tag=v[0-9.]*/#tag=v$VERSION/" pkg/aur/PKGBUILD
           echo "Updated PKGBUILD pkgver to $VERSION"
 
       - name: Update .SRCINFO version
         run: |
           VERSION=${{ steps.version.outputs.version }}
           sed -i "s/^\tpkgver = .*/\tpkgver = $VERSION/" pkg/aur/.SRCINFO
+          sed -i "s/hamr-[0-9.]*::git/hamr-$VERSION::git/" pkg/aur/.SRCINFO
+          sed -i "s/#tag=v[0-9.]*/#tag=v$VERSION/" pkg/aur/.SRCINFO
           echo "Updated .SRCINFO pkgver to $VERSION"
 
-      - name: Commit AUR package updates
+      - name: Commit AUR package updates to repo
         run: |
           VERSION=${{ steps.version.outputs.version }}
           git config --local user.email "action@github.com"
@@ -202,3 +207,30 @@ jobs:
           git add pkg/aur/PKGBUILD pkg/aur/.SRCINFO
           git commit -m "chore: update AUR package to v$VERSION" || echo "No changes to commit"
           git push
+
+      - name: Install SSH key for AUR
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$AUR_SSH_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          cat > ~/.ssh/config << 'EOF'
+          Host aur.archlinux.org
+            IdentityFile ~/.ssh/aur
+            User aur
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Publish to AUR
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          git clone ssh://aur@aur.archlinux.org/hamr.git aur-repo
+          cd aur-repo
+          git config user.email "siwei.wong@gmail.com"
+          git config user.name "Stewart Wong"
+          cp ../pkg/aur/PKGBUILD ../pkg/aur/.SRCINFO ../pkg/aur/hamr.install .
+          git add PKGBUILD .SRCINFO hamr.install
+          git diff --cached --quiet || git commit -m "Update to v$VERSION"
+          git push || echo "AUR push failed - may need manual intervention"
