@@ -57,7 +57,7 @@
         # Runtime dependencies for plugins
         runtimeDeps = with pkgs; [
           python3
-          paplay  # For sound notifications (part of pulseaudio)
+          pulseaudio  # Provides paplay for sound notifications
 
           # Fonts required for UI
           material-symbols-variable
