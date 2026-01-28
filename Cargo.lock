@@ -1364,7 +1364,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-cli"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "anyhow",
  "clap",
@@ -1377,7 +1377,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-core"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "anyhow",
  "criterion",
@@ -1400,7 +1400,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-daemon"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1423,7 +1423,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-gtk"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -1453,7 +1453,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-rpc"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "bytes",
  "futures-util",
@@ -1468,7 +1468,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-tui"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1488,7 +1488,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-types"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "proptest",
  "serde",
