@@ -367,10 +367,10 @@ impl ActionBar {
         let mut section_to_remove = None;
 
         while let Some(c) = child {
-            if let Some(label) = c.downcast_ref::<gtk4::Label>() {
-                if label.label() == "Launcher" {
-                    found_launcher_section = true;
-                }
+            if let Some(label) = c.downcast_ref::<gtk4::Label>()
+                && label.label() == "Launcher"
+            {
+                found_launcher_section = true;
             }
             if found_launcher_section {
                 // Remove this child and all subsequent children (the Launcher section)
