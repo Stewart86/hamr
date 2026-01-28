@@ -260,28 +260,9 @@ mod tests {
     }
 
     #[test]
-    fn test_socket_path_with_xdg() {
-        // SAFETY: This test is run single-threaded and restores the env var after
-        unsafe {
-            std::env::set_var("XDG_RUNTIME_DIR", "/run/user/1000");
-        }
-        let path = socket_path();
-        assert_eq!(path, PathBuf::from("/run/user/1000/hamr.sock"));
-        // SAFETY: Restoring original state
-        unsafe {
-            std::env::remove_var("XDG_RUNTIME_DIR");
-        }
-    }
-
-    #[test]
-    fn test_socket_path_fallback() {
-        // When XDG_RUNTIME_DIR is not set, should fall back to temp_dir
-        unsafe {
-            std::env::remove_var("XDG_RUNTIME_DIR");
-        }
-        let path = socket_path();
-        // Falls back to system temp directory (platform-specific)
-        assert!(path.ends_with("hamr.sock"));
+    fn test_dev_socket_path() {
+        let path = dev_socket_path();
+        assert!(path.ends_with("hamr-dev.sock"));
     }
 
     #[test]
