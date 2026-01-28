@@ -7,13 +7,14 @@
 
 use crate::widgets::ambient_container::AmbientItemWithPlugin;
 use crate::widgets::ambient_item::AmbientItemWidget;
+use crate::widgets::kbd::KbdWidget;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use gtk4::Orientation;
 use gtk4::prelude::*;
+use gtk4::Orientation;
 use hamr_rpc::PluginAction;
 
 /// Callback type for simple button events (home, back, help)
@@ -28,6 +29,8 @@ type AmbientActionCallback = Rc<RefCell<Option<Box<dyn Fn(&str, &str, &str)>>>>;
 type AmbientDismissCallback = Rc<RefCell<Option<Box<dyn Fn(&str, &str)>>>>;
 /// Callback type for compact mode toggle events (`new_state`)
 type CompactToggleCallback = Rc<RefCell<Option<Box<dyn Fn(bool)>>>>;
+/// Callback type for grid view toggle events (`new_state`)
+type GridViewToggleCallback = Rc<RefCell<Option<Box<dyn Fn(bool)>>>>;
 /// Callback type for minimize button
 type MinimizeCallback = Rc<RefCell<Option<Box<dyn Fn()>>>>;
 
@@ -74,6 +77,7 @@ struct ActionBarState {
     ambient_items: Vec<AmbientItemWithPlugin>,
     actions_visible: bool,
     compact_mode: bool,
+    grid_view: bool,
 }
 
 impl Default for ActionBarState {
@@ -85,6 +89,7 @@ impl Default for ActionBarState {
             ambient_items: Vec::new(),
             actions_visible: false,
             compact_mode: false,
+            grid_view: false,
         }
     }
 }
@@ -99,9 +104,6 @@ pub struct ActionBar {
     actions_menu_button: gtk4::MenuButton,
     actions_popover: gtk4::Popover,
     actions_popover_container: gtk4::Box,
-    help_button: gtk4::Button,
-    compact_toggle: gtk4::Button,
-    minimize_button: gtk4::Button,
     on_home: ButtonCallback,
     on_back: ButtonCallback,
     on_action: ActionCallback,
@@ -110,6 +112,7 @@ pub struct ActionBar {
     on_ambient_action: AmbientActionCallback,
     on_ambient_dismiss: AmbientDismissCallback,
     on_compact_toggle: CompactToggleCallback,
+    on_grid_view: GridViewToggleCallback,
     on_minimize: MinimizeCallback,
 }
 
@@ -136,9 +139,6 @@ impl ActionBar {
 
         let home_button = Self::create_icon_button("home", "Home");
         let back_button = Self::create_icon_button("arrow_back", "Back");
-        let help_button = Self::create_icon_button("keyboard", "Keymap");
-        let compact_toggle = Self::create_icon_button("view_list", "Toggle compact mode");
-        let minimize_button = Self::create_icon_button("minimize", "Minimize (Ctrl+M)");
 
         let actions_menu_button = gtk4::MenuButton::builder()
             .css_classes(["action-bar-icon-button", "action-bar-menu-button"])
@@ -171,9 +171,6 @@ impl ActionBar {
         actions_row.append(&home_button);
         actions_row.append(&back_button);
         actions_row.append(&actions_menu_button);
-        actions_row.append(&compact_toggle);
-        actions_row.append(&minimize_button);
-        actions_row.append(&help_button);
 
         let action_bar = Self {
             state,
@@ -185,9 +182,6 @@ impl ActionBar {
             actions_menu_button,
             actions_popover,
             actions_popover_container,
-            help_button,
-            compact_toggle,
-            minimize_button,
             on_home: Rc::new(RefCell::new(None)),
             on_back: Rc::new(RefCell::new(None)),
             on_action: Rc::new(RefCell::new(None)),
@@ -196,10 +190,12 @@ impl ActionBar {
             on_ambient_action: Rc::new(RefCell::new(None)),
             on_ambient_dismiss: Rc::new(RefCell::new(None)),
             on_compact_toggle: Rc::new(RefCell::new(None)),
+            on_grid_view: Rc::new(RefCell::new(None)),
             on_minimize: Rc::new(RefCell::new(None)),
         };
 
         action_bar.setup_button_handlers();
+        action_bar.rebuild_actions();
         action_bar.update_visibility();
         action_bar
     }
@@ -247,55 +243,6 @@ impl ActionBar {
                 cb();
             }
         });
-
-        let on_help = self.on_help.clone();
-        self.help_button.connect_clicked(move |_| {
-            if let Some(ref cb) = *on_help.borrow() {
-                cb();
-            }
-        });
-
-        let state = self.state.clone();
-        let on_compact_toggle = self.on_compact_toggle.clone();
-        let compact_toggle = self.compact_toggle.clone();
-        self.compact_toggle.connect_clicked(move |_| {
-            let new_state = {
-                let mut s = state.borrow_mut();
-                s.compact_mode = !s.compact_mode;
-                s.compact_mode
-            };
-            Self::update_compact_toggle_icon(&compact_toggle, new_state);
-            if let Some(ref cb) = *on_compact_toggle.borrow() {
-                cb(new_state);
-            }
-        });
-
-        let on_minimize = self.on_minimize.clone();
-        self.minimize_button.connect_clicked(move |_| {
-            if let Some(ref cb) = *on_minimize.borrow() {
-                cb();
-            }
-        });
-    }
-
-    fn update_compact_toggle_icon(button: &gtk4::Button, compact_mode: bool) {
-        let icon = if compact_mode {
-            "view_compact"
-        } else {
-            "view_list"
-        };
-        let tooltip = if compact_mode {
-            "Show recent items on open"
-        } else {
-            "Hide recent items on open"
-        };
-        if let Some(label) = button
-            .child()
-            .and_then(|c| c.downcast::<gtk4::Label>().ok())
-        {
-            label.set_label(icon);
-        }
-        button.set_tooltip_text(Some(tooltip));
     }
 
     /// Get the GTK widget for inline actions
@@ -380,6 +327,11 @@ impl ActionBar {
         *self.on_compact_toggle.borrow_mut() = Some(Box::new(f));
     }
 
+    /// Connect grid view toggle callback (`new_state`)
+    pub fn connect_grid_view<F: Fn(bool) + 'static>(&self, f: F) {
+        *self.on_grid_view.borrow_mut() = Some(Box::new(f));
+    }
+
     /// Connect minimize button callback
     pub fn connect_minimize<F: Fn() + 'static>(&self, f: F) {
         *self.on_minimize.borrow_mut() = Some(Box::new(f));
@@ -388,13 +340,58 @@ impl ActionBar {
     /// Set compact mode state (for initialization from persisted settings)
     pub fn set_compact_mode(&self, compact: bool) {
         self.state.borrow_mut().compact_mode = compact;
-        Self::update_compact_toggle_icon(&self.compact_toggle, compact);
+    }
+
+    /// Set grid view state (for initialization from persisted settings)
+    pub fn set_grid_view(&self, grid: bool) {
+        self.state.borrow_mut().grid_view = grid;
     }
 
     /// Get current compact mode state
     #[allow(dead_code)]
     pub fn compact_mode(&self) -> bool {
         self.state.borrow().compact_mode
+    }
+
+    /// Get current grid view state
+    #[allow(dead_code)]
+    pub fn grid_view(&self) -> bool {
+        self.state.borrow().grid_view
+    }
+
+    /// Rebuild the launcher actions section (call after state changes like grid view toggle)
+    pub fn rebuild_launcher_actions(&self) {
+        // Find and remove the Launcher section
+        let mut child = self.actions_popover_container.first_child();
+        let mut found_launcher_section = false;
+        let mut section_to_remove = None;
+
+        while let Some(c) = child {
+            if let Some(label) = c.downcast_ref::<gtk4::Label>() {
+                if label.label() == "Launcher" {
+                    found_launcher_section = true;
+                }
+            }
+            if found_launcher_section {
+                // Remove this child and all subsequent children (the Launcher section)
+                section_to_remove = Some(c.clone());
+                break;
+            }
+            child = c.next_sibling();
+        }
+
+        // Remove the Launcher section label and all its children
+        if let Some(start_remove) = section_to_remove {
+            let mut current = Some(start_remove);
+            while let Some(c) = current {
+                let next = c.next_sibling();
+                self.actions_popover_container.remove(&c);
+                current = next;
+            }
+        }
+
+        // Re-add the Launcher section
+        self.append_launcher_actions_section();
     }
 
     /// Set ambient items (from all plugins) - uses diffing for reactive updates
@@ -487,10 +484,8 @@ impl ActionBar {
 
         set_visible_if_changed(&self.home_button, in_plugin);
         set_visible_if_changed(&self.back_button, in_plugin);
-        set_visible_if_changed(
-            &self.actions_menu_button,
-            in_plugin && !state.actions.is_empty(),
-        );
+        // Menu button always visible - contains launcher actions
+        set_visible_if_changed(&self.actions_menu_button, true);
 
         if in_plugin {
             let should_be_sensitive = state.navigation_depth > 0;
@@ -515,33 +510,180 @@ impl ActionBar {
 
         let state = self.state.borrow();
         let actions: Vec<ActionBarAction> = state.actions.iter().take(6).cloned().collect();
-        let has_actions = !actions.is_empty();
-        self.actions_menu_button.set_visible(has_actions);
-        self.actions_menu_button.set_sensitive(has_actions);
+        let has_plugin_actions = !actions.is_empty();
 
-        if !has_actions {
-            self.actions_popover.popdown();
-            return;
-        }
+        // Always show menu button since launcher actions are always available
+        self.actions_menu_button.set_visible(true);
+        self.actions_menu_button.set_sensitive(true);
 
-        let (primary, confirm): (Vec<ActionBarAction>, Vec<ActionBarAction>) = actions
-            .into_iter()
-            .partition(|action| action.confirm.is_none());
+        if has_plugin_actions {
+            let (primary, confirm): (Vec<ActionBarAction>, Vec<ActionBarAction>) = actions
+                .into_iter()
+                .partition(|action| action.confirm.is_none());
 
-        let mut first_section = true;
+            let mut first_section = true;
 
-        if !primary.is_empty() {
-            self.append_action_section("Actions", &primary);
-            first_section = false;
-        }
-
-        if !confirm.is_empty() {
-            if !first_section {
-                self.actions_popover_container
-                    .append(&Self::create_section_separator());
+            if !primary.is_empty() {
+                self.append_action_section("Actions", &primary);
+                first_section = false;
             }
-            self.append_action_section("Confirm", &confirm);
+
+            if !confirm.is_empty() {
+                if !first_section {
+                    self.actions_popover_container
+                        .append(&Self::create_section_separator());
+                }
+                self.append_action_section("Confirm", &confirm);
+            }
+
+            // Add separator before launcher actions
+            self.actions_popover_container
+                .append(&Self::create_section_separator());
         }
+
+        // Add launcher actions section
+        self.append_launcher_actions_section();
+    }
+
+    fn append_launcher_actions_section(&self) {
+        self.actions_popover_container
+            .append(&Self::create_section_label("Launcher"));
+
+        let section = gtk4::Box::builder()
+            .orientation(Orientation::Vertical)
+            .spacing(4)
+            .build();
+
+        // Minimize button
+        let minimize_button =
+            Self::create_launcher_action_button("minimize", "Minimize", Some("Ctrl+M"));
+        let on_minimize = self.on_minimize.clone();
+        let actions_popover = self.actions_popover.clone();
+        minimize_button.connect_clicked(move |_| {
+            actions_popover.popdown();
+            if let Some(ref cb) = *on_minimize.borrow() {
+                cb();
+            }
+        });
+        section.append(&minimize_button);
+
+        // Compact mode toggle button
+        let compact_icon = if self.state.borrow().compact_mode {
+            "view_compact"
+        } else {
+            "view_list"
+        };
+        let compact_tooltip = if self.state.borrow().compact_mode {
+            "Show recent items on open"
+        } else {
+            "Hide recent items on open"
+        };
+        let compact_button =
+            Self::create_launcher_action_button(compact_icon, "Compact Mode", Some("Ctrl+C"));
+        compact_button.set_tooltip_text(Some(compact_tooltip));
+        let state = self.state.clone();
+        let on_compact_toggle = self.on_compact_toggle.clone();
+        let actions_popover = self.actions_popover.clone();
+        compact_button.connect_clicked(move |_| {
+            actions_popover.popdown();
+            let new_state = {
+                let mut s = state.borrow_mut();
+                s.compact_mode = !s.compact_mode;
+                s.compact_mode
+            };
+            if let Some(ref cb) = *on_compact_toggle.borrow() {
+                cb(new_state);
+            }
+        });
+        section.append(&compact_button);
+
+        // Grid view toggle button
+        // Show what clicking will do (not current state)
+        let grid_icon = if self.state.borrow().grid_view {
+            "view_list"
+        } else {
+            "grid_view"
+        };
+        let grid_label = if self.state.borrow().grid_view {
+            "List View"
+        } else {
+            "Grid View"
+        };
+        let grid_tooltip = if self.state.borrow().grid_view {
+            "Switch to list view"
+        } else {
+            "Switch to grid view"
+        };
+        let grid_button =
+            Self::create_launcher_action_button(grid_icon, grid_label, Some("Ctrl+G"));
+        grid_button.set_tooltip_text(Some(grid_tooltip));
+        let state = self.state.clone();
+        let on_grid_view = self.on_grid_view.clone();
+        let actions_popover = self.actions_popover.clone();
+        grid_button.connect_clicked(move |_| {
+            actions_popover.popdown();
+            let new_state = {
+                let mut s = state.borrow_mut();
+                s.grid_view = !s.grid_view;
+                s.grid_view
+            };
+            if let Some(ref cb) = *on_grid_view.borrow() {
+                cb(new_state);
+            }
+        });
+        section.append(&grid_button);
+
+        // Keymap/Help button
+        let help_button = Self::create_launcher_action_button("keyboard", "Keymap", None);
+        let on_help = self.on_help.clone();
+        let actions_popover = self.actions_popover.clone();
+        help_button.connect_clicked(move |_| {
+            actions_popover.popdown();
+            if let Some(ref cb) = *on_help.borrow() {
+                cb();
+            }
+        });
+        section.append(&help_button);
+
+        self.actions_popover_container.append(&section);
+    }
+
+    fn create_launcher_action_button(
+        icon: &str,
+        label: &str,
+        shortcut: Option<&str>,
+    ) -> gtk4::Button {
+        let button = gtk4::Button::builder()
+            .css_classes(["action-popover-item"])
+            .tooltip_text(label)
+            .build();
+
+        let content = gtk4::Box::builder()
+            .orientation(Orientation::Horizontal)
+            .spacing(8)
+            .build();
+
+        let icon_label = gtk4::Label::builder()
+            .label(icon)
+            .css_classes(["material-icon", "action-bar-icon"])
+            .build();
+        content.append(&icon_label);
+
+        let text_label = gtk4::Label::builder()
+            .label(label)
+            .css_classes(["action-popover-label"])
+            .hexpand(true)
+            .halign(gtk4::Align::Start)
+            .build();
+        content.append(&text_label);
+
+        if let Some(sc) = shortcut {
+            let kbd = KbdWidget::new(sc);
+            content.append(kbd.widget());
+        }
+
+        button.set_child(Some(&content));
+        button
     }
 
     fn append_action_section(&self, title: &str, actions: &[ActionBarAction]) {
@@ -637,6 +779,7 @@ pub fn action_bar_css(theme: &crate::config::Theme) -> String {
     let popover_radius = theme.scaled(radius::SM + spacing::XXXS); // 8 + 2 = 10
     let item_radius = theme.scaled(radius::SM - spacing::XXXS); // 8 - 2 = 6
     let font_tiny = theme.scaled_font(font::XS + 1); // 9 + 1 = 10
+    let font_sm = theme.scaled_font(font::SM); // 11
     let font_icon = theme.scaled_font(font::XL + 1); // 17 + 1 = 18
 
     format!(
@@ -705,6 +848,10 @@ pub fn action_bar_css(theme: &crate::config::Theme) -> String {
 
         .action-popover-item:hover {{
             background-color: {surface_highest};
+        }}
+
+        .action-popover-label {{
+            font-size: {font_sm}px;
         }}
 
         .action-bar-icon {{

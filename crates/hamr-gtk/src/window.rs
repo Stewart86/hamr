@@ -881,6 +881,66 @@ impl LauncherWindow {
                 .set_visible(!should_hide_results);
         });
 
+        // Grid view toggle - same as Ctrl+G
+        let state = self.state.clone();
+        let action_bar = self.action_bar.clone();
+        let result_view = self.result_view.clone();
+        let content_container = self.content_container.clone();
+        let width_animation_source = self.width_animation_source.clone();
+        let preview_window = self.preview_window.window.clone();
+        let preview_revealer = self.preview_window.revealer.clone();
+        let launcher_root = self.launcher_root.clone();
+        let drag_state = self.drag_state.clone();
+        let config_watcher = self.config_watcher.clone();
+        self.action_bar.connect_grid_view(move |grid_view| {
+            info!("Grid view toggled: {}", grid_view);
+            action_bar.set_grid_view(grid_view);
+
+            // Rebuild the menu to update the button label/icon
+            action_bar.rebuild_launcher_actions();
+
+            let new_mode = {
+                let mut s = state.borrow_mut();
+                s.view_mode = if grid_view {
+                    ResultViewMode::Grid
+                } else {
+                    ResultViewMode::List
+                };
+                s.view_mode
+            };
+
+            // Switch view mode
+            result_view.borrow_mut().set_mode(new_mode);
+
+            // Animate width, repositioning preview during animation
+            let theme = config_watcher.theme();
+            let target_width = match new_mode {
+                ResultViewMode::List => theme.config.sizes.search_width,
+                ResultViewMode::Grid => theme.config.appearance.grid.calculate_width(),
+            };
+            let preview_window_anim = preview_window.clone();
+            let preview_revealer_anim = preview_revealer.clone();
+            let launcher_root_anim = launcher_root.clone();
+            let drag_state_anim = drag_state.clone();
+            Self::animate_width_with_callback(
+                &content_container,
+                &width_animation_source,
+                target_width,
+                Some(move |new_width| {
+                    let ds = drag_state_anim.borrow();
+                    Self::reposition_preview(
+                        &preview_window_anim,
+                        &preview_revealer_anim,
+                        ds.current_left,
+                        ds.current_top,
+                        ds.screen_width,
+                        new_width,
+                        launcher_root_anim.width(),
+                    );
+                }),
+            );
+        });
+
         let event_tx = rpc.event_sender();
         let state = self.state.clone();
         self.action_bar.connect_back(move || {
@@ -2167,12 +2227,34 @@ impl LauncherWindow {
         let state = self.state.clone();
         let search_entry = self.search_entry.clone();
         let result_view = self.result_view.clone();
+        let state_manager = self.state_manager.clone();
         let entry_key_controller = gtk4::EventControllerKey::new();
         entry_key_controller.set_propagation_phase(gtk4::PropagationPhase::Capture);
         entry_key_controller.connect_key_pressed(move |_, keyval, _keycode, modifier| {
+            let ctrl = modifier.contains(gdk::ModifierType::CONTROL_MASK);
             let shift = modifier.contains(gdk::ModifierType::SHIFT_MASK);
 
             match keyval {
+                // Ctrl+C: Toggle compact mode (intercept before entry handles it as copy)
+                gdk::Key::c if ctrl && !shift => {
+                    let enabled = {
+                        let mut s = state.borrow_mut();
+                        s.compact_mode = !s.compact_mode;
+                        s.compact_mode
+                    };
+
+                    info!("Compact mode toggled via keyboard: {}", enabled);
+                    state_manager.set_compact_mode(enabled);
+
+                    let empty_query = search_entry.text().trim().is_empty();
+                    let should_hide_results = enabled && empty_query;
+                    result_view
+                        .borrow()
+                        .widget()
+                        .set_visible(!should_hide_results);
+
+                    glib::Propagation::Stop
+                }
                 // Shift+Backspace - exit plugin immediately
                 gdk::Key::BackSpace if shift => {
                     let s = state.borrow();
@@ -4429,6 +4511,27 @@ impl LauncherWindow {
                             );
                         }),
                     );
+
+                    glib::Propagation::Stop
+                }
+
+                // Ctrl+C: Toggle compact mode
+                gdk::Key::c if ctrl && !shift => {
+                    let enabled = {
+                        let mut s = state.borrow_mut();
+                        s.compact_mode = !s.compact_mode;
+                        s.compact_mode
+                    };
+
+                    info!("Compact mode toggled via keyboard: {}", enabled);
+                    state_manager.set_compact_mode(enabled);
+
+                    let empty_query = search_entry.text().trim().is_empty();
+                    let should_hide_results = enabled && empty_query;
+                    result_view
+                        .borrow()
+                        .widget()
+                        .set_visible(!should_hide_results);
 
                     glib::Propagation::Stop
                 }
