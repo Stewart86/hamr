@@ -419,6 +419,20 @@ overlay.set_measure_overlay(&overlay_widget, true);
 - **padding** is internal and doesn't affect overlay positioning
 - Prefer `padding` for spacing inside overlay children
 
+## Release Checklist
+
+Before tagging a release:
+
+1. **Update `Cargo.lock`**: Run `cargo update` to ensure lock file is current
+2. **Verify build**: Run `cargo build --locked` to confirm AUR/reproducible builds work
+3. **Run tests**: `cargo test -q`
+4. **Bump version**: Update `version` in root `Cargo.toml` (workspace members inherit it)
+5. **Commit**: `git add Cargo.toml Cargo.lock && git commit -m "chore: release vX.Y.Z"`
+6. **Tag**: `git tag -a vX.Y.Z -m "vX.Y.Z"`
+7. **Push**: `git push && git push --tags`
+
+**Why this matters**: AUR packages build with `--locked` for reproducibility. If `Cargo.lock` is stale, the build fails with "lock file needs to be updated" errors.
+
 ## Dependencies (Key Crates)
 
 | Category       | Crate                 | Purpose                  |
