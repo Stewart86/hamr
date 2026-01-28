@@ -204,8 +204,29 @@ impl HamrCore {
         Ok(())
     }
 
+    fn try_late_platform_init(&mut self) {
+        if let Ok(true) = self.plugins.retry_platform_detection() {
+            let ids: Vec<_> = self
+                .plugins
+                .all()
+                .filter(|p| p.is_daemon() && p.is_background_daemon())
+                .map(|p| p.id.clone())
+                .collect();
+
+            for id in ids {
+                if !self.daemons.contains_key(&id)
+                    && let Err(e) = self.start_daemon(&id)
+                {
+                    warn!("Failed to start daemon for {}: {}", id, e);
+                }
+            }
+        }
+    }
+
     /// Process an event - updates are sent via channel
     pub async fn process(&mut self, event: CoreEvent) {
+        self.try_late_platform_init();
+
         match event {
             CoreEvent::QueryChanged { query } => {
                 self.handle_query_changed(query).await;

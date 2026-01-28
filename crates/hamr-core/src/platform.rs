@@ -3,6 +3,7 @@
 //! Detects the current platform/compositor for filtering plugins.
 
 use std::env;
+use std::path::Path;
 
 /// Supported platforms
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,9 +33,44 @@ impl Platform {
     }
 }
 
-/// Detect the current platform
+/// Fallback for processes started before compositor set env vars
+#[cfg(target_os = "linux")]
+fn niri_socket_exists() -> bool {
+    let Some(runtime_dir) = env::var("XDG_RUNTIME_DIR").ok() else {
+        return false;
+    };
+
+    if let Ok(entries) = std::fs::read_dir(&runtime_dir) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str()
+                && name.starts_with("niri.")
+                && Path::new(name).extension().is_some_and(|ext| ext.eq_ignore_ascii_case("sock"))
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[cfg(target_os = "linux")]
+fn hyprland_socket_exists() -> bool {
+    let Some(runtime_dir) = env::var("XDG_RUNTIME_DIR").ok() else {
+        return false;
+    };
+
+    let hypr_dir = Path::new(&runtime_dir).join("hypr");
+    if let Ok(entries) = std::fs::read_dir(&hypr_dir) {
+        for entry in entries.flatten() {
+            if entry.path().join(".socket.sock").exists() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 pub fn detect() -> Platform {
-    // Check OS first
     #[cfg(target_os = "macos")]
     return Platform::MacOS;
 
@@ -43,11 +79,11 @@ pub fn detect() -> Platform {
 
     #[cfg(target_os = "linux")]
     {
-        if env::var("NIRI_SOCKET").is_ok() {
+        if env::var("NIRI_SOCKET").is_ok() || niri_socket_exists() {
             return Platform::Niri;
         }
 
-        if env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok() {
+        if env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok() || hyprland_socket_exists() {
             return Platform::Hyprland;
         }
 

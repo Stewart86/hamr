@@ -20,7 +20,7 @@ mod window;
 
 use gtk4::glib;
 use gtk4::prelude::*;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 use crate::compositor::Compositor;
@@ -28,6 +28,37 @@ use crate::window::LauncherWindow;
 
 const APP_ID: &str = "org.hamr.Launcher";
 const DEV_APP_ID: &str = "org.hamr.Launcher.Dev";
+
+/// `gtk4::init()` aborts if no display is available, so we must verify connectivity first.
+/// Checking socket existence isn't enough - compositor may not be accepting connections yet.
+fn wayland_display_ready() -> bool {
+    use std::os::unix::net::UnixStream;
+
+    let runtime_dir = std::env::var("XDG_RUNTIME_DIR")
+        .unwrap_or_else(|_| format!("/run/user/{}", unsafe { libc::getuid() }));
+
+    if let Ok(display) = std::env::var("WAYLAND_DISPLAY") {
+        let socket_path = std::path::Path::new(&runtime_dir).join(&display);
+        if UnixStream::connect(&socket_path).is_ok() {
+            return true;
+        }
+    }
+
+    let runtime_path = std::path::Path::new(&runtime_dir);
+    if let Ok(entries) = std::fs::read_dir(runtime_path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                let is_lock = path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("lock"));
+                if name.starts_with("wayland-") && !is_lock && UnixStream::connect(&path).is_ok() {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
+}
 
 fn is_dev_mode() -> bool {
     std::env::current_exe()
@@ -78,19 +109,32 @@ fn main() -> glib::ExitCode {
 
     info!("Starting hamr-gtk");
 
+    let max_wait = std::time::Duration::from_secs(10);
+    let poll_interval = std::time::Duration::from_millis(100);
+    let start = std::time::Instant::now();
+
+    while !wayland_display_ready() {
+        if start.elapsed() >= max_wait {
+            error!("Wayland display not available after {}s", max_wait.as_secs());
+            return glib::ExitCode::FAILURE;
+        }
+        std::thread::sleep(poll_interval);
+    }
+
     let compositor = Compositor::detect();
     if !compositor.supports_layer_shell() {
-        error!(
-            "Layer shell not supported on this compositor. hamr-gtk requires a wlr-layer-shell compatible compositor (Hyprland, Niri, Sway, etc.)"
-        );
+        error!("Layer shell not supported. Requires wlr-layer-shell compatible compositor.");
         return glib::ExitCode::FAILURE;
     }
 
     let app_id = if is_dev_mode() { DEV_APP_ID } else { APP_ID };
     let app = gtk4::Application::builder().application_id(app_id).build();
 
+    // Prevent exit when no windows are visible
+    let hold_guard = app.hold();
+    std::mem::forget(hold_guard);
+
     app.connect_activate(move |app| {
-        debug!("Application activated");
         let window = LauncherWindow::new(app);
         window.run();
     });

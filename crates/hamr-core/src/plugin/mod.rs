@@ -241,6 +241,26 @@ impl PluginManager {
         Ok(())
     }
 
+    /// Retry platform detection if unknown at startup (compositor wasn't ready).
+    ///
+    /// # Errors
+    /// Returns an error if plugin discovery fails.
+    pub fn retry_platform_detection(&mut self) -> Result<bool> {
+        if self.platform != Platform::Unknown {
+            return Ok(false);
+        }
+
+        let new_platform = platform::detect();
+        if new_platform == Platform::Unknown {
+            return Ok(false);
+        }
+
+        info!("Platform detected on retry: {}", new_platform.as_str());
+        self.platform = new_platform;
+        self.discover()?;
+        Ok(true)
+    }
+
     /// Rescan for plugin changes.
     ///
     /// # Errors
