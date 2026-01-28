@@ -13,8 +13,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use gtk4::prelude::*;
 use gtk4::Orientation;
+use gtk4::prelude::*;
 use hamr_rpc::PluginAction;
 
 /// Callback type for simple button events (home, back, help)
