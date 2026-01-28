@@ -363,6 +363,8 @@ impl ResultGrid {
         }
 
         debug!(count = results.len(), "incremental update");
+        // Result count is bounded by UI display limits, never exceeds u32::MAX
+        #[allow(clippy::cast_possible_truncation)]
         for (i, result) in results.iter().enumerate() {
             if let Some(obj) = self.model.item(i as u32).and_downcast::<ResultObject>() {
                 obj.set_data(result.clone());

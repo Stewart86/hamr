@@ -267,7 +267,7 @@ impl Drop for PluginProcess {
     }
 }
 
-/// Invoke a plugin with Step::Match and wait for a single response.
+/// Invoke a plugin with `Step::Match` and wait for a single response.
 ///
 /// This is used for inline pattern match previews (e.g., calculator showing
 /// computed result while typing). Returns `None` on timeout or error.

@@ -1236,10 +1236,10 @@ impl HamrCore {
                 };
 
                 // Use plugin icon if item doesn't specify one
-                if result.icon.is_none() {
-                    if let Some(plugin) = self.plugins.get(plugin_id) {
-                        result.icon = plugin.manifest.icon.clone();
-                    }
+                if result.icon.is_none()
+                    && let Some(plugin) = self.plugins.get(plugin_id)
+                {
+                    result.icon.clone_from(&plugin.manifest.icon);
                 }
 
                 Some(result)
