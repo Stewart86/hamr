@@ -44,7 +44,9 @@ fn niri_socket_exists() -> bool {
         for entry in entries.flatten() {
             if let Some(name) = entry.file_name().to_str()
                 && name.starts_with("niri.")
-                && Path::new(name).extension().is_some_and(|ext| ext.eq_ignore_ascii_case("sock"))
+                && Path::new(name)
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("sock"))
             {
                 return true;
             }

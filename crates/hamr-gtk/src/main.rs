@@ -49,7 +49,9 @@ fn wayland_display_ready() -> bool {
         for entry in entries.flatten() {
             let path = entry.path();
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                let is_lock = path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("lock"));
+                let is_lock = path
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("lock"));
                 if name.starts_with("wayland-") && !is_lock && UnixStream::connect(&path).is_ok() {
                     return true;
                 }
@@ -115,7 +117,10 @@ fn main() -> glib::ExitCode {
 
     while !wayland_display_ready() {
         if start.elapsed() >= max_wait {
-            error!("Wayland display not available after {}s", max_wait.as_secs());
+            error!(
+                "Wayland display not available after {}s",
+                max_wait.as_secs()
+            );
             return glib::ExitCode::FAILURE;
         }
         std::thread::sleep(poll_interval);
