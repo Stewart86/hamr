@@ -1659,25 +1659,28 @@
 <li>Essential plugins copied to user config</li>
 </ul>
 <p>Then start the launcher:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>systemctl<span class="w"> </span>--user<span class="w"> </span>start<span class="w"> </span>hamr-gtk<span class="w">  </span><span class="c1"># Start via systemd (recommended)</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1"># or</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>hamr<span class="w">                             </span><span class="c1"># Start directly</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Option 1: Via systemd (recommended for auto-start on login)</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>systemctl<span class="w"> </span>--user<span class="w"> </span>start<span class="w"> </span>hamr-gtk
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># Option 2: Direct (works without systemd)</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>hamr
 </span></code></pre></div>
+<p><strong>Without systemd</strong>: Running <code>hamr</code> will auto-start the daemon as a background process. No additional setup needed.</p>
 <p>For full CLI documentation, see <a href="../cli/">CLI Reference</a>.</p>
 <h2 id="keybinding">Keybinding<a class="headerlink" href="#keybinding" title="Permanent link">&para;</a></h2>
 <p>Bind <code>hamr toggle</code> to a key in your compositor config.</p>
 <h3 id="hyprland">Hyprland<a class="headerlink" href="#hyprland" title="Permanent link">&para;</a></h3>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>exec-once = hamr daemon
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>exec-once = hamr
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>bind = $mainMod, SPACE, exec, hamr toggle
 </span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>bind = $mainMod, V, exec, hamr plugin clipboard
 </span></code></pre></div>
 <h3 id="niri">Niri<a class="headerlink" href="#niri" title="Permanent link">&para;</a></h3>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>// ~/.config/niri/config.kdl
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>spawn-at-startup &quot;hamr-daemon&quot;
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>spawn-at-startup &quot;hamr&quot;
 </span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
 </span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>binds {
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    Mod+Space { spawn &quot;hamr-gtk&quot; &quot;toggle&quot;; }
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    Mod+V { spawn &quot;hamr-gtk&quot; &quot;plugin&quot; &quot;clipboard&quot;; }
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    Mod+Space { spawn &quot;hamr&quot; &quot;toggle&quot;; }
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>    Mod+V { spawn &quot;hamr&quot; &quot;plugin&quot; &quot;clipboard&quot;; }
 </span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>}
 </span></code></pre></div>
 <h2 id="verify-installation">Verify Installation<a class="headerlink" href="#verify-installation" title="Permanent link">&para;</a></h2>
