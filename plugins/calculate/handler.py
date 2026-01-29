@@ -450,9 +450,6 @@ def main():
                                 "description": f"= {query}",
                                 "icon": "calculate",
                                 "verb": "Copy",
-                                "copy": result,
-                                "notify": f"Copied: {result}",
-                                "close": True,
                             }
                         ],
                         "inputMode": "realtime",

@@ -58,10 +58,11 @@
         runtimeDeps = with pkgs; [
           python3
           pulseaudio  # Provides paplay for sound notifications
+          libqalculate  # For calculator plugin (qalc command)
 
           # Fonts required for UI
-          material-symbols-variable
-          jetbrains-mono-nf
+          material-symbols
+          nerd-fonts.jetbrains-mono
         ];
 
         # Common arguments for all crane derivations
@@ -88,12 +89,15 @@
           postInstall = ''
             mkdir -p $out/share/hamr
             cp -r ${./plugins} $out/share/hamr/plugins
+            chmod -R +w $out/share/hamr/plugins
           '';
 
           # Wrap binaries with runtime dependencies
           preFixup = ''
             gappsWrapperArgs+=(
               --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps}
+              --prefix XDG_DATA_DIRS : ${pkgs.material-symbols}/share
+              --prefix XDG_DATA_DIRS : ${pkgs.nerd-fonts.jetbrains-mono}/share
             )
           '';
 
