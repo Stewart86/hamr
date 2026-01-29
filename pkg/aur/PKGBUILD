@@ -25,6 +25,8 @@ makedepends=(
     'clang'
     'go'
     'perl'       # Required by aws-lc-sys (cryptography)
+    'gtk4'       # Build-time dependency for GTK bindings
+    'gtk4-layer-shell'
 )
 optdepends=(
     'python-dbus: system dbus integration for plugins'
