@@ -1364,7 +1364,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-cli"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "anyhow",
  "clap",
@@ -1377,7 +1377,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-core"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "anyhow",
  "criterion",
@@ -1400,7 +1400,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-daemon"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1423,7 +1423,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-gtk"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -1453,7 +1453,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-rpc"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "bytes",
  "futures-util",
@@ -1468,7 +1468,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-tui"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1488,7 +1488,7 @@ dependencies = [
 
 [[package]]
 name = "hamr-types"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "proptest",
  "serde",
@@ -4641,9 +4641,9 @@ checksum = "cb8a0807f7c01457d0379ba880ba6322660448ddebc890ce29bb64da71fb40f9"
 
 [[package]]
 name = "zune-jpeg"
-version = "0.5.11"
+version = "0.5.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2959ca473aae96a14ecedf501d20b3608d2825ba280d5adb57d651721885b0c2"
+checksum = "410e9ecef634c709e3831c2cfdb8d9c32164fae1c67496d5b68fff728eec37fe"
 dependencies = [
  "zune-core",
 ]
