@@ -171,10 +171,14 @@ This creates:
 Then start the launcher:
 
 ```bash
-systemctl --user start hamr-gtk  # Start via systemd (recommended)
-# or
-hamr                             # Start directly
+# Option 1: Via systemd (recommended for auto-start on login)
+systemctl --user start hamr-gtk
+
+# Option 2: Direct (works without systemd)
+hamr
 ```
+
+**Without systemd**: Running `hamr` will auto-start the daemon as a background process. No additional setup needed.
 
 For full CLI documentation, see [CLI Reference](cli.md).
 
@@ -185,7 +189,7 @@ Bind `hamr toggle` to a key in your compositor config.
 ### Hyprland
 
 ```conf
-exec-once = hamr daemon
+exec-once = hamr
 bind = $mainMod, SPACE, exec, hamr toggle
 bind = $mainMod, V, exec, hamr plugin clipboard
 ```
@@ -194,11 +198,11 @@ bind = $mainMod, V, exec, hamr plugin clipboard
 
 ```kdl
 // ~/.config/niri/config.kdl
-spawn-at-startup "hamr-daemon"
+spawn-at-startup "hamr"
 
 binds {
-    Mod+Space { spawn "hamr-gtk" "toggle"; }
-    Mod+V { spawn "hamr-gtk" "plugin" "clipboard"; }
+    Mod+Space { spawn "hamr" "toggle"; }
+    Mod+V { spawn "hamr" "plugin" "clipboard"; }
 }
 ```
 

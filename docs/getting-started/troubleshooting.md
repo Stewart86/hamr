@@ -6,8 +6,8 @@ This guide covers common issues and their solutions.
 
 | Symptom | Cause | Solution |
 |---------|-------|----------|
-| Launcher doesn't appear | Daemon not running | Run `hamr daemon` or check `systemctl --user status hamr-daemon` |
-| "Connection refused" error | Socket not created | Ensure daemon is running: `pgrep hamr-daemon` or restart with `hamr daemon` |
+| Launcher doesn't appear | Daemon not running | Run `hamr` (auto-starts daemon) or check `systemctl --user status hamr-daemon` |
+| "Connection refused" error | Socket not created | Ensure daemon is running: `pgrep hamr-daemon` or restart with `hamr` |
 | Window appears but immediately closes | Compositor lacks layer-shell support | Verify compositor supports layer-shell (see [Compositor Support](installation.md#compositor-support-matrix)) |
 | No search results | Index not built | Run `hamr index` to rebuild the application index |
 | Plugin not responding | Plugin crashed or timeout | Check logs: `grep "plugin" /tmp/hamr-daemon.log \| tail -20` |

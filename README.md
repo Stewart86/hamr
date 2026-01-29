@@ -120,10 +120,10 @@ paru -S hamr
 ## Quick Start
 
 ```bash
-hamr daemon             # Start daemon (or use systemd)
-hamr                    # Start launcher UI
+hamr                    # Start launcher (auto-starts daemon)
 hamr toggle             # Toggle visibility
 hamr plugin clipboard   # Open specific plugin
+hamr status             # Check daemon status
 ```
 
 ### Compositor Setup
@@ -131,7 +131,7 @@ hamr plugin clipboard   # Open specific plugin
 **Hyprland** (`~/.config/hypr/hyprland.conf`):
 
 ```conf
-exec-once = hamr daemon
+exec-once = hamr
 bind = $mainMod, SPACE, exec, hamr toggle
 bind = $mainMod, V, exec, hamr plugin clipboard
 ```
@@ -139,23 +139,23 @@ bind = $mainMod, V, exec, hamr plugin clipboard
 **Niri** (`~/.config/niri/config.kdl`):
 
 ```kdl
-spawn-at-startup "hamr-daemon"
+spawn-at-startup "hamr"
 
 binds {
-    Mod+Space { spawn "hamr-gtk" "toggle"; }
-    Mod+V { spawn "hamr-gtk" "plugin" "clipboard"; }
+    Mod+Space { spawn "hamr" "toggle"; }
+    Mod+V { spawn "hamr" "plugin" "clipboard"; }
 }
 ```
 
-**Systemd** (manual setup):
+**Systemd** (optional):
 
 ```bash
-# The installer sets up the systemd service
-# You only need to start it manually:
-systemctl --user start hamr-daemon.service
+# The installer sets up systemd services (recommended for auto-start on login)
+hamr install
+systemctl --user start hamr-gtk
 
-# Or start the GTK launcher manually (auto-starts daemon)
-hamr-gtk
+# Without systemd, just run:
+hamr
 ```
 
 ## Built-in Plugins
