@@ -7,6 +7,7 @@ repo_name: stewart86/hamr
 theme:
   name: material
   logo: assets/logo.png
+  favicon: assets/logo.png
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default

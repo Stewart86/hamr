@@ -4,7 +4,7 @@
   --md-primary-fg-color: #770792;
   --md-primary-fg-color--light: #8a0aa8;
   --md-primary-fg-color--dark: #5a0670;
-  --md-accent-fg-color: #770792;
+  --md-accent-fg-color: #ff6f00;
 }
 
 .md-header {
@@ -13,4 +13,9 @@
 
 .md-tabs {
   background-color: #770792;
+}
+
+.md-header__button.md-logo img {
+  height: 2rem;
+  width: auto;
 }
