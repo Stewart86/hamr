@@ -24,6 +24,7 @@ makedepends=(
     'cmake'
     'clang'
     'go'
+    'perl'       # Required by aws-lc-sys (cryptography)
 )
 optdepends=(
     'python-dbus: system dbus integration for plugins'
