@@ -1,25 +1,18 @@
-:root,
-[data-md-color-scheme="default"],
-[data-md-color-scheme="slate"] {
+:root > * {
   --md-primary-fg-color: #fe8700;
   --md-primary-fg-color--light: #fbc58c;
   --md-primary-fg-color--dark: #fc8a00;
-  --md-accent-fg-color: #770792;
+  --md-accent-fg-color: #fc8a00;
 }
 
-.md-header {
-  background-color: #fe8700;
-}
-
-.md-tabs {
-  background-color: #fc8a00;
+[data-md-color-scheme="slate"] > * {
+  --md-primary-fg-color: #fe8700;
+  --md-primary-fg-color--light: #fbc58c;
+  --md-primary-fg-color--dark: #fc8a00;
+  --md-accent-fg-color: #fc8a00;
 }
 
 .md-header__button.md-logo img {
   height: 3rem;
   width: auto;
-}
-
-.md-nav__item--active > .md-nav__link {
-  color: #770792;
 }
