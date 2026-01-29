@@ -1,6 +1,10 @@
-# Hamr
+<p align="center">
+  <img src="assets/logo.png" alt="Hamr Logo" width="200">
+</p>
 
-A fast, extensible desktop launcher for Linux.
+<h1 align="center">Hamr</h1>
+
+<p align="center">A fast, extensible desktop launcher for Linux.</p>
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Rust](https://img.shields.io/badge/rust-1.88+-orange)
