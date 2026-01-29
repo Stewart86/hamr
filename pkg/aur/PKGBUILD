@@ -21,6 +21,9 @@ makedepends=(
     'rust'
     'cargo'
     'pkgconf'
+    'cmake'
+    'clang'
+    'go'
 )
 optdepends=(
     'python-dbus: system dbus integration for plugins'
