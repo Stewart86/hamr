@@ -564,6 +564,23 @@ async fn handle_open_plugin(ctx: &mut HandlerContext<'_>, params: Option<&Value>
 
     let plugin_id = params.plugin_id.clone();
 
+    // Toggle logic: if launcher is open with same plugin, close instead
+    let state = ctx.core.state();
+    let was_already_open = state.is_open;
+    if was_already_open
+        && let Some(ref active) = state.active_plugin
+        && active.id == plugin_id
+    {
+        debug!(
+            "[{}] Toggle: plugin already open, closing launcher",
+            plugin_id
+        );
+        // Close plugin first to clear state (prevents restore on next open)
+        ctx.core.process(CoreEvent::ClosePlugin).await;
+        ctx.core.process(CoreEvent::LauncherClosed).await;
+        return Ok(serde_json::json!({"status": "toggled", "action": "closed"}));
+    }
+
     let mut spawned_on_demand = false;
 
     if let Some(plugin) = ctx.plugin_registry.get_socket_plugin(&plugin_id)
@@ -596,8 +613,10 @@ async fn handle_open_plugin(ctx: &mut HandlerContext<'_>, params: Option<&Value>
         }
     }
 
-    // Show the launcher first, then open the plugin
-    ctx.core.process(CoreEvent::LauncherOpened).await;
+    // Show the launcher first (only if not already open), then open the plugin
+    if !was_already_open {
+        ctx.core.process(CoreEvent::LauncherOpened).await;
+    }
     ctx.core
         .process(CoreEvent::OpenPlugin {
             plugin_id: plugin_id.clone(),
