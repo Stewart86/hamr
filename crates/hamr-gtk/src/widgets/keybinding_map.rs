@@ -8,8 +8,8 @@
 
 use crate::widgets::design;
 use crate::widgets::kbd::KbdWidget;
-use gtk4::Orientation;
 use gtk4::prelude::*;
+use gtk4::Orientation;
 use hamr_core::config::ActionBarHint;
 
 /// `KeybindingMap` popup widget
@@ -208,6 +208,9 @@ impl KeybindingMap {
         Self::add_keybinding_row(&grid, 1, 2, "^Bksp", "exit plugin");
         Self::add_keybinding_row(&grid, 2, 2, "^1-6", "FAB actions");
         Self::add_keybinding_row(&grid, 3, 2, "^+T", "toggle");
+
+        Self::add_keybinding_row(&grid, 4, 0, "+Enter", "slider -");
+        Self::add_keybinding_row(&grid, 4, 2, "Enter", "slider +");
 
         section.append(&grid);
         section

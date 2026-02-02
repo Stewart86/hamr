@@ -529,4 +529,25 @@ impl ResultView {
             list.toggle_selected_switch();
         }
     }
+
+    /// Check if the selected item is a slider (List mode only)
+    pub fn selected_is_slider(&self) -> bool {
+        if let ResultViewMode::List = self.mode
+            && let Some(ref list) = self.list
+        {
+            return list.selected_is_slider();
+        }
+        false
+    }
+
+    /// Adjust the selected slider by one step (List mode only)
+    /// Returns true if the selected item was a slider and was adjusted
+    pub fn adjust_selected_slider(&self, direction: i32) -> bool {
+        if let ResultViewMode::List = self.mode
+            && let Some(ref list) = self.list
+        {
+            return list.adjust_selected_slider(direction);
+        }
+        false
+    }
 }

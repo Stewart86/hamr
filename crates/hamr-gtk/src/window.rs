@@ -2308,6 +2308,39 @@ impl LauncherWindow {
                     }
                     glib::Propagation::Proceed
                 }
+                // Enter/Shift+Enter: Adjust slider value (only when slider is selected)
+                gdk::Key::Return | gdk::Key::KP_Enter | gdk::Key::ISO_Enter => {
+                    if result_view.borrow().selected_is_slider() {
+                        let direction = if shift { -1 } else { 1 };
+                        let result = result_view.borrow().selected_result();
+                        if let Some(ref r) = result && let Some(slider) = r.slider_value() {
+                            let new_val = if shift {
+                                (slider.value - slider.step).max(slider.min)
+                            } else {
+                                (slider.value + slider.step).min(slider.max)
+                            };
+                            info!(
+                                "Adjust slider via {}Enter: {} from {} to {}",
+                                if shift { "Shift+" } else { "" },
+                                r.id,
+                                slider.value,
+                                new_val
+                            );
+                            result_view.borrow().adjust_selected_slider(direction);
+                            if let Err(e) = event_tx.send_blocking(CoreEvent::SliderChanged {
+                                id: r.id.clone(),
+                                value: new_val,
+                                plugin_id: r.plugin_id.clone(),
+                            }) {
+                                error!("Failed to send slider change: {}", e);
+                            }
+                        }
+                        return glib::Propagation::Stop;
+                    }
+                    // Not a slider, let connect_activate handle it
+                    glib::Propagation::Proceed
+                }
+
                 // In Grid mode, intercept Left/Right arrow keys for grid navigation
                 gdk::Key::Left | gdk::Key::Right => {
                     let view_mode = state.borrow().view_mode;
