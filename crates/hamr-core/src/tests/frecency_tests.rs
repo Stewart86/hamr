@@ -1,7 +1,7 @@
 //! Tests for frecency scoring, decay, and suggestions
 
 use super::fixtures::*;
-use crate::frecency::{FrecencyScorer, MatchType};
+use crate::frecency::{FrecencyScorer, MatchType, StalenessUtils};
 use crate::index::IndexStore;
 use hamr_types::Frecency;
 
@@ -343,4 +343,89 @@ fn test_suggestions_streak_bonus() {
 
     // Verify the item has streak data
     assert_eq!(item.frecency.consecutive_days, 5);
+}
+
+#[test]
+fn test_staleness_decay_factor_no_decay() {
+    // Zero half-life means no decay
+    let factor = StalenessUtils::calculate_decay_factor(10.0, 0.0);
+    assert_eq!(factor, 1.0, "Zero half-life should mean no decay");
+
+    // Zero age means no decay
+    let factor = StalenessUtils::calculate_decay_factor(0.0, 14.0);
+    assert_eq!(factor, 1.0, "Zero age should mean no decay");
+}
+
+#[test]
+fn test_staleness_decay_factor_at_half_life() {
+    // At exactly half-life, confidence should be 50%
+    let factor = StalenessUtils::calculate_decay_factor(14.0, 14.0);
+    assert!(
+        (factor - 0.5).abs() < 0.001,
+        "At half-life, factor should be 0.5, got {factor}"
+    );
+}
+
+#[test]
+fn test_staleness_decay_factor_at_double_half_life() {
+    // At 2x half-life, confidence should be 25% (0.5^2)
+    let factor = StalenessUtils::calculate_decay_factor(28.0, 14.0);
+    assert!(
+        (factor - 0.25).abs() < 0.001,
+        "At 2x half-life, factor should be 0.25, got {factor}"
+    );
+}
+
+#[test]
+fn test_staleness_max_age_disabled() {
+    // Zero max age means no max age limit
+    assert!(
+        !StalenessUtils::is_too_old(100.0, 0),
+        "Zero max age should not filter any age"
+    );
+    assert!(
+        !StalenessUtils::is_too_old(1000.0, 0),
+        "Zero max age should not filter any age"
+    );
+}
+
+#[test]
+fn test_staleness_max_age_cutoff() {
+    // 60 day max age
+    assert!(
+        !StalenessUtils::is_too_old(30.0, 60),
+        "30 days should be within 60 day limit"
+    );
+    assert!(
+        !StalenessUtils::is_too_old(60.0, 60),
+        "Exactly 60 days should be within limit"
+    );
+    assert!(
+        StalenessUtils::is_too_old(61.0, 60),
+        "61 days should exceed 60 day limit"
+    );
+    assert!(
+        StalenessUtils::is_too_old(100.0, 60),
+        "100 days should exceed 60 day limit"
+    );
+}
+
+#[test]
+fn test_staleness_age_in_days_recent() {
+    // Age of current timestamp should be 0
+    let now_ms = crate::frecency::now_millis_frecency();
+    let age = StalenessUtils::age_in_days(now_ms);
+    assert!(age < 0.001, "Current timestamp should have near-zero age");
+}
+
+#[test]
+fn test_staleness_age_in_days_old() {
+    // 30 days ago in milliseconds
+    let days_30_ms = 30.0 * 24.0 * 60.0 * 60.0 * 1000.0;
+    let old_timestamp = crate::frecency::now_millis_frecency() - days_30_ms as u64;
+    let age = StalenessUtils::age_in_days(old_timestamp);
+    assert!(
+        (age - 30.0).abs() < 0.1,
+        "Age should be approximately 30 days, got {age}"
+    );
 }

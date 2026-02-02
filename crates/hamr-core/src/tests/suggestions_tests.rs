@@ -327,7 +327,7 @@ fn test_suggestions_empty_store() {
     let store = IndexStore::new();
     let context = SuggestionContext::default();
 
-    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5);
+    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5, 0, 0);
     assert!(
         suggestions.is_empty(),
         "Empty store should give no suggestions"
@@ -344,7 +344,7 @@ fn test_suggestions_time_of_day_pattern() {
         ..Default::default()
     };
 
-    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5);
+    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5, 0, 0);
 
     // Firefox should be suggested due to time-of-day pattern
     let firefox_suggested = suggestions.iter().any(|s| s.item_id == "firefox");
@@ -377,7 +377,7 @@ fn test_suggestions_workspace_pattern() {
         ..Default::default()
     };
 
-    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5);
+    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5, 0, 0);
 
     // Check if workspace pattern is detected
     for suggestion in &suggestions {
@@ -405,7 +405,7 @@ fn test_suggestions_sequence_pattern() {
         ..Default::default()
     };
 
-    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5);
+    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5, 0, 0);
 
     // VSCode should be suggested after Firefox due to sequence pattern
     let vscode_suggested = suggestions.iter().any(|s| s.item_id == "vscode");
@@ -440,7 +440,7 @@ fn test_suggestions_session_start_pattern() {
         ..Default::default()
     };
 
-    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5);
+    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5, 0, 0);
 
     // Terminal should be suggested at session start
     let terminal_suggested = suggestions.iter().any(|s| s.item_id == "terminal");
@@ -472,7 +472,7 @@ fn test_suggestions_resume_from_idle_pattern() {
         ..Default::default()
     };
 
-    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5);
+    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5, 0, 0);
 
     // Slack should be suggested when resuming from idle
     let slack_suggested = suggestions.iter().any(|s| s.item_id == "slack");
@@ -497,7 +497,7 @@ fn test_suggestions_streak_pattern() {
         ..Default::default()
     };
 
-    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5);
+    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 5, 0, 0);
 
     // VSCode has a 7-day streak
     let vscode_suggested = suggestions.iter().any(|s| s.item_id == "vscode");
@@ -533,7 +533,7 @@ fn test_suggestions_limit_respected() {
         ..Default::default()
     };
 
-    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 2);
+    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 2, 0, 0);
     assert!(
         suggestions.len() <= 2,
         "Should respect limit of 2, got {}",
@@ -551,7 +551,7 @@ fn test_suggestions_sorted_by_score() {
         ..Default::default()
     };
 
-    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 10);
+    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 10, 0, 0);
 
     // Verify sorted by descending score
     for i in 1..suggestions.len() {
@@ -571,7 +571,7 @@ fn test_suggestions_no_duplicates() {
         ..Default::default()
     };
 
-    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 10);
+    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 10, 0, 0);
 
     let mut seen_ids = std::collections::HashSet::new();
     for suggestion in &suggestions {
@@ -672,7 +672,7 @@ fn test_streak_not_suggested_when_broken() {
     // Manually set frecency data by recording and then modifying
     // This is a workaround since we can't directly set the indexed item
     let context = SuggestionContext::default();
-    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 10);
+    let suggestions = SmartSuggestions::get_suggestions(&store, &context, 10, 0, 0);
 
     // The streak should NOT trigger because it's broken (old date)
     let has_streak_reason = suggestions.iter().any(|s| {
@@ -738,7 +738,7 @@ fn test_suggestions_exclude_broken_streaks() {
     // Get suggestions - neither should have streak reason since
     // same-day recordings don't build multi-day streaks
     let suggestion_context = SuggestionContext::default();
-    let suggestions = SmartSuggestions::get_suggestions(&store, &suggestion_context, 10);
+    let suggestions = SmartSuggestions::get_suggestions(&store, &suggestion_context, 10, 0, 0);
 
     // Count suggestions with streak reasons
     let streak_suggestions: Vec<_> = suggestions
@@ -755,5 +755,79 @@ fn test_suggestions_exclude_broken_streaks() {
     assert!(
         streak_suggestions.is_empty(),
         "Same-day recordings should not create streak suggestions"
+    );
+}
+
+#[test]
+fn test_suggestions_staleness_reduces_old_item_confidence() {
+    let mut store = IndexStore::new();
+
+    // Create an item with strong session_start pattern
+    store.update_full(
+        "apps",
+        vec![hamr_types::ResultItem {
+            id: "old_app".to_string(),
+            name: "Old App".to_string(),
+            ..Default::default()
+        }],
+    );
+
+    // Record many executions with session_start to build up strong pattern
+    let context = crate::frecency::ExecutionContext {
+        is_session_start: true,
+        ..Default::default()
+    };
+    for _ in 0..20 {
+        store.record_execution("apps", "old_app", &context, None);
+    }
+
+    // Get the item and set last_used to 30 days ago (simulating old item)
+    if let Some(item) = store.get_item_mut("apps", "old_app") {
+        let days_30_ms = 30.0 * 24.0 * 60.0 * 60.0 * 1000.0;
+        item.frecency.last_used = crate::frecency::now_millis_frecency() - days_30_ms as u64;
+    }
+
+    // Test with no staleness - should get suggestion
+    let context = SuggestionContext {
+        is_session_start: true,
+        ..Default::default()
+    };
+    let suggestions_no_staleness = SmartSuggestions::get_suggestions(&store, &context, 10, 0, 0);
+    let has_suggestion_no_staleness = suggestions_no_staleness
+        .iter()
+        .any(|s| s.item_id == "old_app");
+    assert!(
+        has_suggestion_no_staleness,
+        "Without staleness, old_app should be suggested"
+    );
+
+    // Test with 14-day half-life - should still get suggestion but with lower confidence
+    let suggestions_with_staleness = SmartSuggestions::get_suggestions(&store, &context, 10, 14, 0);
+    let old_app_staleness = suggestions_with_staleness
+        .iter()
+        .find(|s| s.item_id == "old_app");
+
+    if let Some(old_app) = old_app_staleness {
+        // Confidence should be reduced due to staleness
+        let no_staleness_score = suggestions_no_staleness
+            .iter()
+            .find(|s| s.item_id == "old_app")
+            .map(|s| s.score)
+            .unwrap_or(0.0);
+        assert!(
+            old_app.score < no_staleness_score,
+            "With staleness (14-day half-life), confidence should be lower than without. \
+             No staleness: {}, With staleness: {}",
+            no_staleness_score,
+            old_app.score
+        );
+    }
+
+    // Test with max age of 20 days - should be filtered out entirely
+    let suggestions_max_age = SmartSuggestions::get_suggestions(&store, &context, 10, 0, 20);
+    let has_suggestion_max_age = suggestions_max_age.iter().any(|s| s.item_id == "old_app");
+    assert!(
+        !has_suggestion_max_age,
+        "With max age of 20 days, 30-day old item should be filtered out"
     );
 }

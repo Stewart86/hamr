@@ -221,6 +221,54 @@ impl StatisticalUtils {
     pub const MIN_CONFIDENCE_TO_SHOW: f64 = 0.25;
 }
 
+/// Staleness utilities for time-based decay of suggestion confidence
+pub struct StalenessUtils;
+
+impl StalenessUtils {
+    /// Calculate exponential decay factor based on age.
+    /// Returns a multiplier between 0.0 and 1.0.
+    ///
+    /// Formula: decay = 0.5 ^ (age_days / half_life_days)
+    ///
+    /// - If half_life_days is 0, returns 1.0 (no decay)
+    /// - If age is 0, returns 1.0 (no decay yet)
+    pub fn calculate_decay_factor(age_days: f64, half_life_days: f64) -> f64 {
+        if half_life_days <= 0.0 || age_days <= 0.0 {
+            return 1.0;
+        }
+        0.5f64.powf(age_days / half_life_days)
+    }
+
+    /// Check if an item is too old to be suggested based on max age.
+    /// Returns true if the item should be excluded from suggestions.
+    ///
+    /// - If max_age_days is 0, returns false (no max age limit)
+    pub fn is_too_old(age_days: f64, max_age_days: u32) -> bool {
+        if max_age_days == 0 {
+            return false;
+        }
+        age_days > f64::from(max_age_days)
+    }
+
+    /// Calculate age in days from a timestamp (milliseconds since epoch).
+    pub fn age_in_days(timestamp_ms: u64) -> f64 {
+        let now_ms = now_millis_frecency();
+        if timestamp_ms >= now_ms {
+            return 0.0;
+        }
+        let age_ms = now_ms - timestamp_ms;
+        age_ms as f64 / (1000.0 * 60.0 * 60.0 * 24.0)
+    }
+}
+
+pub(crate) fn now_millis_frecency() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
 #[cfg(test)]
 #[derive(Debug, Clone, Copy)]
 pub struct SequenceMetrics {
@@ -252,10 +300,20 @@ impl SignalWeights {
 pub struct SmartSuggestions;
 
 impl SmartSuggestions {
+    /// Get smart suggestions with optional staleness decay.
+    ///
+    /// # Arguments
+    /// * `index_store` - The index store containing items with frecency data
+    /// * `context` - Current context (time, workspace, etc.)
+    /// * `limit` - Maximum number of suggestions to return
+    /// * `staleness_half_life_days` - Days for confidence to decay by 50% (0 to disable)
+    /// * `max_age_days` - Maximum age in days for an item to be suggested (0 to disable)
     pub fn get_suggestions(
         index_store: &IndexStore,
         context: &SuggestionContext,
         limit: usize,
+        staleness_half_life_days: u32,
+        max_age_days: u32,
     ) -> Vec<Suggestion> {
         let items = index_store.items_with_frecency();
         if items.is_empty() {
@@ -273,6 +331,12 @@ impl SmartSuggestions {
         let mut candidates = Vec::new();
 
         for (plugin_id, item) in &items {
+            // Check max age - skip items that are too old
+            let age_days = StalenessUtils::age_in_days(item.frecency.last_used);
+            if StalenessUtils::is_too_old(age_days, max_age_days) {
+                continue;
+            }
+
             let result = Self::calculate_item_confidence(item, context, &all_items, total_launches);
 
             if result.confidence < StatisticalUtils::MIN_CONFIDENCE_TO_SHOW
@@ -284,7 +348,13 @@ impl SmartSuggestions {
             let frecency = index_store.calculate_frecency(item);
             let normalized_frecency = frecency / max_frecency;
             let frecency_boost = 1.0 + (normalized_frecency * SignalWeights::FRECENCY_INFLUENCE);
-            let final_confidence = (result.confidence * frecency_boost).min(1.0);
+
+            // Apply staleness decay to the base confidence before frecency boost
+            let decay_factor =
+                StalenessUtils::calculate_decay_factor(age_days, f64::from(staleness_half_life_days));
+            let decayed_confidence = result.confidence * decay_factor;
+
+            let final_confidence = (decayed_confidence * frecency_boost).min(1.0);
 
             if final_confidence >= StatisticalUtils::MIN_CONFIDENCE_TO_SHOW {
                 candidates.push(Suggestion {

@@ -115,6 +115,16 @@ SETTINGS_SCHEMA: dict = {
             "type": "list",
             "description": "Action button shortcuts (Ctrl + key)",
         },
+        "suggestionStalenessHalfLifeDays": {
+            "default": 14,
+            "type": "number",
+            "description": "Days for suggestion confidence to decay by 50% (0 = no decay)",
+        },
+        "maxSuggestionAgeDays": {
+            "default": 60,
+            "type": "number",
+            "description": "Maximum age in days for smart suggestions (0 = no limit)",
+        },
     },
     "search.shellHistory": {
         "enable": {

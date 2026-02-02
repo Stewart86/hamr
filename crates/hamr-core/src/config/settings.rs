@@ -107,6 +107,12 @@ impl<'de> Deserialize<'de> for SearchConfig {
 
             #[serde(default)]
             pub plugin_ranking_bonus: HashMap<String, f64>,
+
+            #[serde(default = "default_staleness_half_life")]
+            pub suggestion_staleness_half_life_days: u32,
+
+            #[serde(default = "default_max_suggestion_age")]
+            pub max_suggestion_age_days: u32,
         }
 
         let raw: SearchConfigRaw = SearchConfigRaw::deserialize(deserializer)?;
@@ -135,6 +141,8 @@ impl<'de> Deserialize<'de> for SearchConfig {
             excluded_sites: raw.excluded_sites,
             action_bar_hints,
             plugin_ranking_bonus: raw.plugin_ranking_bonus,
+            suggestion_staleness_half_life_days: raw.suggestion_staleness_half_life_days,
+            max_suggestion_age_days: raw.max_suggestion_age_days,
         })
     }
 }
@@ -253,6 +261,18 @@ pub struct SearchConfig {
     /// Example: {"apps": 200, "settings": 150} gives apps +200 and settings +150 to their scores
     #[serde(default)]
     pub plugin_ranking_bonus: HashMap<String, f64>,
+
+    /// Half-life in days for suggestion staleness decay.
+    /// After this many days, suggestion confidence is reduced by 50%.
+    /// Default: 14 days. Set to 0 to disable staleness checking.
+    #[serde(default = "default_staleness_half_life")]
+    pub suggestion_staleness_half_life_days: u32,
+
+    /// Maximum age in days for items to be considered for suggestions.
+    /// Items older than this will not be suggested regardless of pattern strength.
+    /// Default: 60 days. Set to 0 to disable max age cutoff.
+    #[serde(default = "default_max_suggestion_age")]
+    pub max_suggestion_age_days: u32,
 }
 
 fn default_max_results() -> usize {
@@ -273,6 +293,12 @@ fn default_diversity_decay() -> f64 {
 fn default_engine_url() -> String {
     "https://www.google.com/search?q=".to_string()
 }
+fn default_staleness_half_life() -> u32 {
+    14
+}
+fn default_max_suggestion_age() -> u32 {
+    60
+}
 
 impl Default for SearchConfig {
     fn default() -> Self {
@@ -287,6 +313,8 @@ impl Default for SearchConfig {
             excluded_sites: Vec::new(),
             action_bar_hints: default_action_bar_hints(),
             plugin_ranking_bonus: HashMap::new(),
+            suggestion_staleness_half_life_days: default_staleness_half_life(),
+            max_suggestion_age_days: default_max_suggestion_age(),
         }
     }
 }
@@ -611,12 +639,10 @@ mod tests {
         }"#;
         let config: Config = serde_json::from_str(json).unwrap();
         assert_eq!(config.search.excluded_sites.len(), 2);
-        assert!(
-            config
-                .search
-                .excluded_sites
-                .contains(&"facebook.com".to_string())
-        );
+        assert!(config
+            .search
+            .excluded_sites
+            .contains(&"facebook.com".to_string()));
     }
 
     #[test]

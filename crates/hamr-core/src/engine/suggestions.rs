@@ -76,7 +76,13 @@ impl HamrCore {
         let mut results = Vec::new();
 
         let context = self.build_suggestion_context();
-        let suggestions = SmartSuggestions::get_suggestions(&self.index, &context, 2);
+        let suggestions = SmartSuggestions::get_suggestions(
+            &self.index,
+            &context,
+            2,
+            self.config.search.suggestion_staleness_half_life_days,
+            self.config.search.max_suggestion_age_days,
+        );
 
         for suggestion in suggestions {
             if let Some(item) = self
