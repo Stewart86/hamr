@@ -350,8 +350,10 @@ impl SmartSuggestions {
             let frecency_boost = 1.0 + (normalized_frecency * SignalWeights::FRECENCY_INFLUENCE);
 
             // Apply staleness decay to the base confidence before frecency boost
-            let decay_factor =
-                StalenessUtils::calculate_decay_factor(age_days, f64::from(staleness_half_life_days));
+            let decay_factor = StalenessUtils::calculate_decay_factor(
+                age_days,
+                f64::from(staleness_half_life_days),
+            );
             let decayed_confidence = result.confidence * decay_factor;
 
             let final_confidence = (decayed_confidence * frecency_boost).min(1.0);

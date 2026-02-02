@@ -8,8 +8,8 @@
 
 use crate::widgets::design;
 use crate::widgets::kbd::KbdWidget;
-use gtk4::prelude::*;
 use gtk4::Orientation;
+use gtk4::prelude::*;
 use hamr_core::config::ActionBarHint;
 
 /// `KeybindingMap` popup widget

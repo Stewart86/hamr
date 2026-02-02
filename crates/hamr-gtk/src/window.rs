@@ -2195,9 +2195,7 @@ impl LauncherWindow {
                         let current = r.slider_value().is_some_and(|v| v.value > 0.0);
                         info!(
                             "Toggle switch via Enter: {} from {} to {}",
-                            r.id,
-                            current,
-                            !current
+                            r.id, current, !current
                         );
                         result_view.borrow().toggle_selected_switch();
                         if let Err(e) = event_tx.send_blocking(CoreEvent::SwitchToggled {
@@ -2313,7 +2311,9 @@ impl LauncherWindow {
                     if result_view.borrow().selected_is_slider() {
                         let direction = if shift { -1 } else { 1 };
                         let result = result_view.borrow().selected_result();
-                        if let Some(ref r) = result && let Some(slider) = r.slider_value() {
+                        if let Some(ref r) = result
+                            && let Some(slider) = r.slider_value()
+                        {
                             let new_val = if shift {
                                 (slider.value - slider.step).max(slider.min)
                             } else {

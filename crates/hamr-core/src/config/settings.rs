@@ -639,10 +639,12 @@ mod tests {
         }"#;
         let config: Config = serde_json::from_str(json).unwrap();
         assert_eq!(config.search.excluded_sites.len(), 2);
-        assert!(config
-            .search
-            .excluded_sites
-            .contains(&"facebook.com".to_string()));
+        assert!(
+            config
+                .search
+                .excluded_sites
+                .contains(&"facebook.com".to_string())
+        );
     }
 
     #[test]
