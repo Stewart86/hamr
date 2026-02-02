@@ -510,4 +510,23 @@ impl ResultView {
             list.refresh_running_apps(compositor);
         }
     }
+
+    /// Check if the selected item is a switch (List mode only)
+    pub fn selected_is_switch(&self) -> bool {
+        if let ResultViewMode::List = self.mode
+            && let Some(ref list) = self.list
+        {
+            return list.selected_is_switch();
+        }
+        false
+    }
+
+    /// Toggle the selected switch (List mode only)
+    pub fn toggle_selected_switch(&self) {
+        if let ResultViewMode::List = self.mode
+            && let Some(ref list) = self.list
+        {
+            list.toggle_selected_switch();
+        }
+    }
 }

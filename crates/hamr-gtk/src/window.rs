@@ -2189,6 +2189,28 @@ impl LauncherWindow {
                     None
                 };
 
+                if result_view.borrow().selected_is_switch() {
+                    let result = result_view.borrow().selected_result();
+                    if let Some(ref r) = result {
+                        let current = r.slider_value().is_some_and(|v| v.value > 0.0);
+                        info!(
+                            "Toggle switch via Enter: {} from {} to {}",
+                            r.id,
+                            current,
+                            !current
+                        );
+                        result_view.borrow().toggle_selected_switch();
+                        if let Err(e) = event_tx.send_blocking(CoreEvent::SwitchToggled {
+                            id: r.id.clone(),
+                            value: !current,
+                            plugin_id: r.plugin_id.clone(),
+                        }) {
+                            error!("Failed to send switch toggle: {}", e);
+                        }
+                    }
+                    return;
+                }
+
                 let plugin_id = {
                     let mut state_mut = state.borrow_mut();
                     let result = state_mut.results.iter().find(|r| r.id == id);
