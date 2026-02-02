@@ -2735,19 +2735,6 @@ impl LauncherWindow {
                 launcher_root.queue_resize();
                 layout_fixed.queue_resize();
 
-                let result_view_widget = result_view.borrow().widget().clone();
-                let launcher_root_widget = launcher_root.clone();
-                glib::idle_add_local_once(move || {
-                    debug!(
-                        "layout after results: launcher_root(alloc={}x{}), result_view(visible={}, alloc={}x{})",
-                        launcher_root_widget.width(),
-                        launcher_root_widget.height(),
-                        result_view_widget.is_visible(),
-                        result_view_widget.width(),
-                        result_view_widget.height(),
-                    );
-                });
-
                 // Animate width based on view mode, repositioning preview during animation
                 let theme = config_watcher.theme();
                 let target_width = match view_mode {

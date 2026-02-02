@@ -40,9 +40,20 @@ from typing import Any, Callable, Optional
 
 
 def get_socket_path() -> str:
-    """Get the hamr daemon socket path."""
+    """Get the hamr daemon socket path.
+
+    Tries dev socket first (hamr-dev.sock) if it exists, otherwise falls back
+    to production socket (hamr.sock). This allows plugins to work with both
+    dev and production daemons.
+    """
     runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
-    return os.path.join(runtime_dir, "hamr.sock")
+    dev_socket = os.path.join(runtime_dir, "hamr-dev.sock")
+    prod_socket = os.path.join(runtime_dir, "hamr.sock")
+
+    # Prefer dev socket if it exists
+    if os.path.exists(dev_socket):
+        return dev_socket
+    return prod_socket
 
 
 def _is_debug_enabled() -> bool:

@@ -348,15 +348,18 @@ impl ResultView {
         theme: &Theme,
         reset_selection: bool,
     ) {
+        let has_results = !results.is_empty();
         match self.mode {
             ResultViewMode::List => {
                 if let Some(ref list) = self.list {
                     list.update_results_diff_with_selection(results, theme, reset_selection);
+                    list.widget().set_visible(has_results);
                 }
             }
             ResultViewMode::Grid => {
                 if let Some(ref grid) = self.grid {
                     grid.update_results_diff_with_selection(results, reset_selection);
+                    grid.widget().set_visible(has_results);
                 }
             }
         }

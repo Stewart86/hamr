@@ -294,11 +294,11 @@ check_systemd_services() {
 stop_services() {
     local service_type="$1"
     if [[ "$service_type" == "system" ]]; then
-        info "Stopping system hamr-daemon service..."
-        sudo systemctl stop hamr-daemon
+        info "Stopping system hamr services..."
+        sudo systemctl stop hamr-daemon hamr-gtk 2>/dev/null || true
     elif [[ "$service_type" == "user" ]]; then
-        info "Stopping user hamr-daemon service..."
-        systemctl --user stop hamr-daemon
+        info "Stopping user hamr services..."
+        systemctl --user stop hamr-daemon hamr-gtk 2>/dev/null || true
     fi
 }
 
@@ -317,12 +317,12 @@ kill_hamr_processes() {
 start_services() {
     local service_type="$1"
     if [[ "$service_type" == "system" ]]; then
-        info "Starting system hamr-daemon service..."
-        sudo systemctl start hamr-daemon
+        info "Starting system hamr services..."
+        sudo systemctl start hamr-daemon hamr-gtk 2>/dev/null || true
     elif [[ "$service_type" == "user" ]]; then
         import_user_environment
-        info "Starting user hamr-daemon service..."
-        systemctl --user start hamr-daemon
+        info "Starting user hamr services..."
+        systemctl --user start hamr-daemon hamr-gtk 2>/dev/null || true
     fi
 }
 

@@ -439,7 +439,10 @@ async fn run_hide() -> Result<()> {
 }
 
 async fn run_plugin(id: String) -> Result<()> {
-    let client = connect_and_register().await?;
+    let client = match try_connect_dev_daemon().await? {
+        Some(client) => client,
+        None => connect_and_register().await?,
+    };
 
     let _: serde_json::Value = client
         .request("open_plugin", Some(serde_json::json!({ "plugin_id": id })))
