@@ -419,6 +419,65 @@ overlay.set_measure_overlay(&overlay_widget, true);
 - **padding** is internal and doesn't affect overlay positioning
 - Prefer `padding` for spacing inside overlay children
 
+## Commit Workflow
+
+Before committing changes, always run the following to ensure code quality:
+
+```bash
+# 1. Run all tests
+cargo test -q
+
+# 2. Format code (CI will fail if not formatted)
+cargo fmt
+
+# 3. Check formatting was applied
+cargo fmt -- --check
+
+# 4. Run clippy for additional linting (optional but recommended)
+cargo clippy -- -W clippy::all
+```
+
+### Commit Message Format
+
+Use conventional commits with descriptive messages:
+
+```bash
+# Features
+feat: add staleness decay for smart suggestions
+
+# Bug fixes
+fix: correct off-by-one error in suggestion scoring
+
+# Refactoring
+refactor: extract decay calculation to StalenessUtils
+
+# Tests
+test: add staleness decay unit tests
+
+# Documentation
+docs: update AGENTS.md with commit workflow
+
+# Style/formatting
+style: run cargo fmt to fix formatting issues
+```
+
+For significant changes, include a detailed body explaining the "why":
+
+```bash
+git commit -m "feat: add staleness decay for smart suggestions
+
+Implements time-based revalidation for all smart suggestion categories
+to prevent stale favorites from persisting indefinitely.
+
+Features:
+- Exponential decay with configurable half-life (default 14 days)
+- Max age cutoff for very old items (default 60 days)
+- Applies universally to all suggestion types
+
+Resolves issue where old 'Quick launch favorite' items remained
+suggested even after switching to other items."
+```
+
 ## Release Checklist
 
 Before tagging a release:
