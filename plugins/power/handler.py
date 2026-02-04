@@ -91,12 +91,9 @@ POWER_ACTIONS = [
         "description": "Restart Hamr launcher",
         "icon": "sync",
         "command": [
-            "systemd-run",
-            "--user",
-            "--no-block",
             "bash",
             "-c",
-            "if systemctl --user is-active --quiet hamr.service; then systemctl --user restart hamr.service; else qs kill -c hamr; qs -c hamr -d; fi; for i in $(seq 1 20); do qs ipc -c hamr call hamr open 2>/dev/null && break; sleep 0.1; done; notify-send 'Hamr' 'Launcher restarted'",
+            "if command -v systemctl >/dev/null 2>&1 && systemctl --user is-enabled --quiet hamr-daemon 2>/dev/null; then systemctl --user restart hamr-daemon hamr-gtk; else pkill -x hamr-gtk 2>/dev/null || true; hamr shutdown 2>/dev/null || true; sleep 0.2; nohup hamr >/dev/null 2>&1 & fi; notify-send 'Hamr' 'Launcher restarted'",
         ],
     },
 ]
