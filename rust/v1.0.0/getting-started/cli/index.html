@@ -1292,7 +1292,7 @@
 </tr>
 <tr>
 <td><code>hamr install</code></td>
-<td>Set up systemd services and directories</td>
+<td>Optional: set up systemd services and user directories</td>
 </tr>
 </tbody>
 </table>
@@ -1322,12 +1322,13 @@
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>hamr<span class="w"> </span>plugins<span class="w"> </span>audit<span class="w">   </span><span class="c1"># Verify plugin checksums</span>
 </span></code></pre></div>
 <h2 id="installation-commands">Installation Commands<a class="headerlink" href="#installation-commands" title="Permanent link">&para;</a></h2>
+<p>Hamr works without systemd. Use <code>hamr install</code> only if you want systemd user services and the default user directories.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>hamr<span class="w"> </span>install<span class="w"> </span>--check<span class="w">  </span><span class="c1"># Preview what will be set up</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>hamr<span class="w"> </span>install<span class="w">          </span><span class="c1"># Set up systemd services and directories</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>hamr<span class="w"> </span>uninstall<span class="w">        </span><span class="c1"># Remove systemd services (keeps config)</span>
 </span></code></pre></div>
 <h2 id="systemd-integration">Systemd Integration<a class="headerlink" href="#systemd-integration" title="Permanent link">&para;</a></h2>
-<p>After running <code>hamr install</code>, systemd services are created:</p>
+<p>Systemd is opt-in. After running <code>hamr install</code>, systemd services are created:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Start services</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>systemctl<span class="w"> </span>--user<span class="w"> </span>start<span class="w"> </span>hamr-gtk<span class="w">    </span><span class="c1"># Starts both GTK and daemon</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
