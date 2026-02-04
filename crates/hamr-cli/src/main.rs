@@ -78,6 +78,7 @@ Examples:
   hamr plugins list       List installed plugins
   hamr plugins audit      Verify plugin checksums
   hamr status             Check daemon status
+  hamr restart            Restart daemon (or systemd services if enabled)
 
 Keybinding examples (Hyprland):
   exec-once = hamr        # Auto-start on login (spawns daemon + GTK)
@@ -140,6 +141,9 @@ enum Commands {
     /// Shutdown the daemon
     Shutdown,
 
+    /// Restart the daemon, or systemd user services if enabled
+    Restart,
+
     /// Reload plugins
     #[command(name = "reload-plugins")]
     ReloadPlugins,
@@ -190,6 +194,7 @@ async fn main() -> Result<()> {
         }) => run_update_status(plugin_id, status_json).await,
         Some(Commands::Status) => run_status().await,
         Some(Commands::Shutdown) => run_shutdown().await,
+        Some(Commands::Restart) => run_restart().await,
         Some(Commands::ReloadPlugins) => run_reload_plugins().await,
         Some(Commands::Install { check }) => run_install(check),
         Some(Commands::Uninstall) => run_uninstall(),
@@ -536,6 +541,39 @@ async fn run_shutdown() -> Result<()> {
         .context("Shutdown command failed")?;
 
     println!("Daemon shutting down");
+    Ok(())
+}
+
+async fn run_restart() -> Result<()> {
+    // If the user opted into systemd (`hamr install`), prefer restarting services.
+    if has_systemd_service() {
+        let status = Command::new("systemctl")
+            .args(["--user", "restart", "hamr-daemon", "hamr-gtk"])
+            .status()
+            .context("Failed to restart hamr services via systemd")?;
+
+        if !status.success() {
+            bail!("systemctl --user restart failed");
+        }
+
+        println!("Restarted systemd user services (hamr-daemon, hamr-gtk)");
+        return Ok(());
+    }
+
+    // Fallback: restart the daemon process.
+    // Best-effort shutdown if it's currently running.
+    if let Ok(client) = connect_and_register().await {
+        let _ = client.notify("shutdown", None).await;
+        sleep(Duration::from_millis(300)).await;
+    }
+
+    start_daemon_background()?;
+    if !wait_for_daemon(Duration::from_secs(5)).await {
+        bail!("Daemon failed to restart within 5 seconds");
+    }
+
+    println!("Daemon restarted");
+    println!("If you're not using systemd, run 'hamr' to (re)start the GTK UI.");
     Ok(())
 }
 
