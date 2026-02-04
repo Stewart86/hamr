@@ -24,25 +24,39 @@ Hamr learns from your usage patterns to surface what you need, when you need it.
 
 ## Installation
 
-### Quick Install (Linux x86_64)
+### Quick Install (Linux)
 
 ```bash
 curl -fsSL https://hamr.run/install.sh | bash
+
+# Or opt-in to systemd setup during install
+curl -fsSL https://hamr.run/install.sh | bash -s -- --systemd
 ```
 
-This downloads the latest release binaries, installs to `~/.local/bin`, copies essential plugins, and sets up systemd services.
+This downloads the latest release binaries (x86_64/aarch64), installs to `~/.local/bin`, and copies bundled plugins next to the binaries.
+Systemd setup is optional (opt-in) via `--systemd` or by running `hamr install` after installation.
 
 **Dependencies:** GTK4 4.20+, gtk4-layer-shell, Python 3.9+
 
 ### Manual Download
 
 ```bash
+# Pick the right archive for your CPU:
+# - x86_64:  hamr-linux-x86_64.tar.gz
+# - aarch64: hamr-linux-aarch64.tar.gz
 wget https://github.com/Stewart86/hamr/releases/latest/download/hamr-linux-x86_64.tar.gz
 tar -xzf hamr-linux-x86_64.tar.gz
 cd hamr-linux-x86_64
+mkdir -p ~/.local/bin/
 cp hamr hamr-daemon hamr-gtk hamr-tui ~/.local/bin/
 cp -r plugins ~/.local/bin/
-hamr install
+
+# Option 1: Run directly (no systemd)
+~/.local/bin/hamr
+
+# Option 2 (recommended, opt-in): systemd user services
+~/.local/bin/hamr install
+systemctl --user start hamr-gtk
 ```
 
 ### Compositor Support
@@ -63,6 +77,7 @@ hamr install
 | `--check` | Dry-run mode: show what would be installed without making changes |
 | `--yes` | Assume yes for all prompts (non-interactive mode) |
 | `--reset-user-data` | Reset user configuration and plugins (backup created) |
+| `--systemd` | Run `hamr install` after installing binaries (opt-in) |
 
 ### Build from Source
 
@@ -87,7 +102,13 @@ cd hamr
 cargo build --release
 mkdir -p ~/.local/bin
 cp target/release/{hamr,hamr-daemon,hamr-gtk,hamr-tui} ~/.local/bin/
+
+# Option 1: Run directly (no systemd)
+hamr
+
+# Option 2 (recommended, opt-in): systemd user services
 hamr install
+systemctl --user start hamr-gtk
 ```
 
 ### NixOS / Nix
@@ -120,6 +141,19 @@ paru -S hamr-bin
 # Or build from source
 paru -S hamr
 ```
+
+Run (two ways):
+
+```bash
+# Option 1: Run directly (no systemd)
+hamr
+
+# Option 2 (recommended, opt-in): systemd user services
+hamr install
+systemctl --user start hamr-gtk
+```
+
+Note: AUR packages do not auto-enable systemd services; `hamr install` is the opt-in step.
 
 ## Quick Start
 
@@ -154,7 +188,7 @@ binds {
 **Systemd** (optional):
 
 ```bash
-# The installer sets up systemd services (recommended for auto-start on login)
+# Systemd user services are recommended for auto-start on login (opt-in)
 hamr install
 systemctl --user start hamr-gtk
 

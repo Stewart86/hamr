@@ -41,7 +41,7 @@ This guide covers common issues and their solutions.
 Common causes:
 
 - **Missing GTK4**: Install GTK4 4.20+ and gtk4-layer-shell
-- **Missing plugins directory**: Run `hamr install` to set up directories
+- **Missing plugins directory**: If `~/.config/hamr/plugins` is missing, run `hamr install` to set up user directories
 - **Corrupt config**: Move `~/.config/hamr/config.json` and restart
 
 ## Plugin Issues

@@ -10,12 +10,14 @@
 #   --reset-user-data        Reset user configuration and plugins (backup created)
 #   --check                  Dry-run mode: show what would be installed without making changes
 #   --yes                    Assume yes for all prompts (non-interactive mode)
+#   --systemd                Set up systemd user services via `hamr install`
 #
 # Environment variables:
 #   HAMR_VERSION=v0.1.0    Install specific version (default: latest)
 #   HAMR_DIR=~/.local      Install directory (default: ~/.local)
 #   HAMR_NO_MODIFY_PATH=1  Don't add to PATH via shell rc
-#   HAMR_SKIP_INSTALL=1    Download only, don't run `hamr install`
+#   HAMR_SYSTEMD=1         Run `hamr install` to set up systemd services (opt-in)
+#   HAMR_SKIP_INSTALL=1    (legacy) Skip running `hamr install`
 #
 
 set -euo pipefail
@@ -35,6 +37,7 @@ BINARY_NAME="hamr"
 VERSION="${HAMR_VERSION:-}"
 INSTALL_DIR="${HAMR_DIR:-$HOME/.local}"
 NO_MODIFY_PATH="${HAMR_NO_MODIFY_PATH:-}"
+SETUP_SYSTEMD="${HAMR_SYSTEMD:-}"
 SKIP_INSTALL="${HAMR_SKIP_INSTALL:-}"
 RESET_USER_DATA=""
 DRY_RUN=""
@@ -122,6 +125,10 @@ check_file_conflicts() {
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
+            --systemd)
+                SETUP_SYSTEMD=1
+                shift
+                ;;
             --reset-user-data)
                 RESET_USER_DATA=1
                 shift
@@ -375,7 +382,7 @@ main() {
 Installation directory: $INSTALL_DIR/bin
 Build from source: yes (local repository)
 Reset user data: $([ -n "$RESET_USER_DATA" ] && echo "yes" || echo "no")
-Skip hamr install: $([ -n "$SKIP_INSTALL" ] && echo "yes" || echo "no")
+Systemd setup: $([ -n "$SETUP_SYSTEMD" ] && echo "yes" || echo "no")
 Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
             print_summary "Installation Summary" "$summary"
             
@@ -507,8 +514,8 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
             print_summary "PATH Update" "Would add $bin_dir to PATH in shell rc file"
         fi
 
-        # Run hamr install to set up config and systemd (only if not dry-run)
-        if [[ -z "$SKIP_INSTALL" ]] && [[ -z "$DRY_RUN" ]]; then
+        # Optional systemd setup via `hamr install` (opt-in)
+        if [[ -n "$SETUP_SYSTEMD" ]] && [[ -z "$SKIP_INSTALL" ]] && [[ -z "$DRY_RUN" ]]; then
             echo ""
             info "Running 'hamr install' to set up config and services..."
             echo ""
@@ -521,12 +528,8 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
             else
                 reload_user_systemd
             fi
-        elif [[ -n "$DRY_RUN" ]] && [[ -z "$SKIP_INSTALL" ]]; then
-            print_summary "Post-Install" "Would run 'hamr install' to set up config and systemd services"
-        elif [[ -n "$SKIP_INSTALL" ]]; then
-            echo ""
-            info "Skipping 'hamr install' (HAMR_SKIP_INSTALL=1)"
-            info "Run 'hamr install' manually to set up config and systemd services"
+        elif [[ -n "$DRY_RUN" ]] && [[ -n "$SETUP_SYSTEMD" ]] && [[ -z "$SKIP_INSTALL" ]]; then
+            print_summary "Post-Install" "Would run 'hamr install' to set up systemd services"
         fi
 
         echo ""
@@ -536,6 +539,10 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
         echo "  hamr                    # Start GTK launcher (auto-starts daemon)"
         echo "  hamr toggle             # Toggle visibility (bind to Super+Space)"
         echo "  hamr plugin clipboard   # Open clipboard manager"
+        echo ""
+        echo "Recommended (opt-in): systemd user services"
+        echo "  hamr install"
+        echo "  systemctl --user start hamr-gtk"
         echo ""
         echo "Keybinding examples (Hyprland):"
         echo "  exec-once = hamr        # Auto-start on login"
@@ -565,7 +572,7 @@ Version: $VERSION
 Installation directory: $INSTALL_DIR/bin
 Download from: GitHub releases
 Reset user data: $([ -n "$RESET_USER_DATA" ] && echo "yes" || echo "no")
-Skip hamr install: $([ -n "$SKIP_INSTALL" ] && echo "yes" || echo "no")
+Systemd setup: $([ -n "$SETUP_SYSTEMD" ] && echo "yes" || echo "no")
 Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
         print_summary "Installation Summary" "$summary"
         
@@ -695,8 +702,8 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
         add_to_path "$bin_dir"
     fi
 
-    # Run hamr install to set up config and systemd
-    if [[ -z "$SKIP_INSTALL" ]]; then
+    # Optional systemd setup via `hamr install` (opt-in)
+    if [[ -n "$SETUP_SYSTEMD" ]] && [[ -z "$SKIP_INSTALL" ]]; then
         echo ""
         info "Running 'hamr install' to set up config and services..."
         echo ""
@@ -709,10 +716,6 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
         else
             reload_user_systemd
         fi
-    else
-        echo ""
-        info "Skipping 'hamr install' (HAMR_SKIP_INSTALL=1)"
-        info "Run 'hamr install' manually to set up config and systemd services"
     fi
 
     echo ""
@@ -722,6 +725,10 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
     echo "  hamr                    # Start GTK launcher (auto-starts daemon)"
     echo "  hamr toggle             # Toggle visibility (bind to Super+Space)"
     echo "  hamr plugin clipboard   # Open clipboard manager"
+    echo ""
+    echo "Recommended (opt-in): systemd user services"
+    echo "  hamr install"
+    echo "  systemctl --user start hamr-gtk"
     echo ""
     echo "Keybinding examples (Hyprland):"
     echo "  exec-once = hamr        # Auto-start on login"

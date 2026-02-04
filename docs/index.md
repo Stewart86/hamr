@@ -29,10 +29,24 @@ paru -S hamr-bin  # Pre-built binary (recommended)
 paru -S hamr      # Build from source
 ```
 
+Run (two ways):
+
+```bash
+# Option 1: Run directly (no systemd)
+hamr
+
+# Option 2 (recommended, opt-in): systemd user services
+hamr install
+systemctl --user start hamr-gtk
+```
+
 Or use the quick install script:
 
 ```bash
 curl -fsSL https://hamr.run/install.sh | bash
+
+# Or opt-in to systemd setup during install
+curl -fsSL https://hamr.run/install.sh | bash -s -- --systemd
 ```
 
 Toggle the launcher with `hamr toggle` (bind this to a key in your compositor).

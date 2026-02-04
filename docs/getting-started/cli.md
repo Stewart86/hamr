@@ -10,7 +10,7 @@ Hamr provides a unified CLI (`hamr`) for controlling the launcher.
 | `hamr toggle` | Toggle launcher visibility |
 | `hamr plugin <id>` | Open a specific plugin |
 | `hamr status` | Check daemon status |
-| `hamr install` | Set up systemd services and directories |
+| `hamr install` | Optional: set up systemd services and user directories |
 
 ## Starting Hamr
 
@@ -51,6 +51,8 @@ hamr plugins audit   # Verify plugin checksums
 
 ## Installation Commands
 
+Hamr works without systemd. Use `hamr install` only if you want systemd user services and the default user directories.
+
 ```bash
 hamr install --check  # Preview what will be set up
 hamr install          # Set up systemd services and directories
@@ -59,7 +61,7 @@ hamr uninstall        # Remove systemd services (keeps config)
 
 ## Systemd Integration
 
-After running `hamr install`, systemd services are created:
+Systemd is opt-in. After running `hamr install`, systemd services are created:
 
 ```bash
 # Start services

@@ -87,9 +87,13 @@
 
           # Copy plugins to output
           postInstall = ''
-            mkdir -p $out/share/hamr
-            cp -r ${./plugins} $out/share/hamr/plugins
-            chmod -R +w $out/share/hamr/plugins
+            mkdir -p $out/share/hamr/plugins
+            cp -r ${./plugins}/* $out/share/hamr/plugins/
+
+            # hamr resolves builtin plugins relative to the executable
+            # (".../bin/plugins"), so include them there too.
+            mkdir -p $out/bin/plugins
+            cp -r ${./plugins}/* $out/bin/plugins/
           '';
 
           # Wrap binaries with runtime dependencies

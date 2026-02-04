@@ -6,7 +6,7 @@ Hamr consists of several components that work together:
 
 - **hamr-daemon**: Core service that manages plugins and search
 - **hamr-gtk**: GTK4 launcher UI (what you see when you press the hotkey)
-- **hamr-cli**: Command-line interface for testing and control
+- **hamr**: Unified CLI and default entrypoint (starts GTK; auto-starts daemon)
 - **hamr-tui**: Terminal UI for headless environments
 
 The daemon runs continuously and communicates with the UI clients via JSON-RPC.
@@ -39,6 +39,19 @@ paru -S hamr-bin
 paru -S hamr
 ```
 
+After installing:
+
+```bash
+# Option 1: Run directly (no systemd)
+hamr
+
+# Option 2 (recommended, opt-in): systemd user services
+hamr install
+systemctl --user start hamr-gtk
+```
+
+Note: AUR packages do not auto-enable systemd services; `hamr install` is the opt-in step.
+
 ## Manual Download
 
 Download pre-built binaries directly from GitHub:
@@ -56,8 +69,12 @@ mkdir -p ~/.local/bin
 cp hamr hamr-daemon hamr-gtk hamr-tui ~/.local/bin/
 cp -r plugins ~/.local/bin/
 
-# Set up systemd services
-hamr install
+# Run directly (no systemd)
+~/.local/bin/hamr
+
+# Or (recommended, opt-in): set up systemd user services
+~/.local/bin/hamr install
+systemctl --user start hamr-gtk
 ```
 
 ## NixOS / Nix
@@ -107,16 +124,17 @@ Add the flake input to your configuration:
 
 ```bash
 curl -fsSL https://hamr.run/install.sh | bash
+
+# Or opt-in to systemd setup during install
+curl -fsSL https://hamr.run/install.sh | bash -s -- --systemd
 ```
 
 The install script will:
 
-- Detect your distribution and install required dependencies (GTK4, gtk4-layer-shell)
 - Download the latest release binaries
 - Install to `~/.local/bin/`
-- Copy essential plugins to `~/.local/share/hamr/plugins/`
-- Create default configuration
-- Show compositor-specific setup instructions
+- Copy bundled plugins next to the binaries (`~/.local/bin/plugins/`)
+- Optionally run `hamr install` to set up systemd user services (opt-in)
 
 **Installer Flags:**
 
@@ -125,6 +143,7 @@ The install script will:
 | `--check` | Dry-run mode: show what would be installed without making changes |
 | `--yes` | Assume yes for all prompts (non-interactive mode) |
 | `--reset-user-data` | Reset user configuration and plugins (backup created) |
+| `--systemd` | Run `hamr install` after installing binaries (opt-in) |
 
 ### Manual Dependencies
 
@@ -155,11 +174,18 @@ sudo apt install libgtk-4-dev gtk4-layer-shell-dev python3
 
 ## Post-Installation Setup
 
-After installing binaries (via any method), run the setup command:
+You can run Hamr immediately (no systemd required):
+
+```bash
+hamr
+```
+
+To install and enable systemd user services (recommended, opt-in), run:
 
 ```bash
 hamr install --check  # Preview what will be set up
 hamr install          # Set up systemd services and directories
+systemctl --user start hamr-gtk
 ```
 
 This creates:
