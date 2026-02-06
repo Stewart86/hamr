@@ -17,7 +17,9 @@ use hamr_rpc::transport::JsonRpcCodec;
 use hamr_types::{CoreEvent, DisplayHint, SearchResult};
 use serde_json::Value;
 use tokio::net::{UnixListener, UnixStream};
+use tokio::signal::unix::SignalKind;
 use tokio::sync::{Mutex, RwLock, mpsc};
+use tokio::task::JoinHandle;
 use tokio_util::codec::Framed;
 use tracing::{debug, error, info, trace, warn};
 
@@ -405,21 +407,16 @@ async fn index_saver(state: Arc<RwLock<DaemonState>>) {
 pub async fn run(custom_socket_path: Option<PathBuf>) -> Result<()> {
     let path = custom_socket_path.unwrap_or_else(socket_path);
 
-    // Clean up stale socket if it exists
     cleanup_stale_socket(&path).await?;
 
-    // Create the socket listener
     let listener = UnixListener::bind(&path)?;
     info!("Daemon listening on {:?}", path);
 
-    // Initialize core and get update receiver
     let (core, update_rx) = HamrCore::new()?;
 
-    // Initialize daemon state (separate from update_rx)
     let state = Arc::new(RwLock::new(DaemonState::new(core)));
     let update_rx = Arc::new(Mutex::new(update_rx));
 
-    // Start the core
     {
         let mut state_guard = state.write().await;
         state_guard.core.start()?;
@@ -446,6 +443,73 @@ pub async fn run(custom_socket_path: Option<PathBuf>) -> Result<()> {
         spawn_socket_plugins(&mut state_guard.plugin_spawner, plugins_to_spawn);
     }
 
+    let _plugin_watcher = spawn_background_tasks(&state, &update_rx).await?;
+
+    let mut sigterm = tokio::signal::unix::signal(SignalKind::terminate())
+        .map_err(crate::error::DaemonError::Io)?;
+    let mut connection_handles: Vec<JoinHandle<()>> = Vec::new();
+
+    info!("Ready to accept connections");
+    loop {
+        tokio::select! {
+            result = listener.accept() => {
+                match result {
+                    Ok((stream, _addr)) => {
+                        debug!("Accepted connection");
+                        let state = state.clone();
+                        let handle = tokio::spawn(async move {
+                            if let Err(e) = handle_connection(stream, state).await {
+                                error!("Connection error: {}", e);
+                            }
+                        });
+                        connection_handles.push(handle);
+                    }
+                    Err(e) => {
+                        error!("Accept error: {}", e);
+                    }
+                }
+            }
+            _ = tokio::signal::ctrl_c() => {
+                info!("Received shutdown signal");
+                let mut state_guard = state.write().await;
+                state_guard.shutdown = true;
+                break;
+            }
+            _ = sigterm.recv() => {
+                info!("Received shutdown signal");
+                let mut state_guard = state.write().await;
+                state_guard.shutdown = true;
+                break;
+            }
+        }
+
+        {
+            let state_guard = state.read().await;
+            if state_guard.shutdown {
+                info!("Shutdown requested, stopping server");
+                break;
+            }
+        }
+    }
+
+    info!("Waiting for active connections to finish");
+    for handle in connection_handles {
+        let _ = handle.await;
+    }
+
+    if path.exists()
+        && let Err(e) = std::fs::remove_file(&path)
+    {
+        warn!("Failed to remove socket file {:?}: {}", path, e);
+    }
+
+    Ok(())
+}
+
+async fn spawn_background_tasks(
+    state: &Arc<RwLock<DaemonState>>,
+    update_rx: &Arc<Mutex<tokio::sync::mpsc::UnboundedReceiver<CoreUpdate>>>,
+) -> Result<PluginWatcher> {
     let state_clone = state.clone();
     let update_rx_clone = update_rx.clone();
     tokio::spawn(async move {
@@ -471,7 +535,6 @@ pub async fn run(custom_socket_path: Option<PathBuf>) -> Result<()> {
         index_saver(state_clone).await;
     });
 
-    // Plugin directory watcher for hot-reload
     let (plugin_reload_tx, mut plugin_reload_rx) = mpsc::unbounded_channel::<()>();
     let plugin_dirs = {
         let state_guard = state.read().await;
@@ -479,7 +542,7 @@ pub async fn run(custom_socket_path: Option<PathBuf>) -> Result<()> {
         vec![dirs.builtin_plugins.clone(), dirs.user_plugins.clone()]
     };
 
-    let _plugin_watcher = PluginWatcher::spawn(plugin_dirs, plugin_reload_tx);
+    let plugin_watcher = PluginWatcher::spawn(plugin_dirs, plugin_reload_tx);
 
     let state_clone = state.clone();
     tokio::spawn(async move {
@@ -492,39 +555,7 @@ pub async fn run(custom_socket_path: Option<PathBuf>) -> Result<()> {
         }
     });
 
-    info!("Ready to accept connections");
-    loop {
-        match listener.accept().await {
-            Ok((stream, _addr)) => {
-                debug!("Accepted connection");
-                let state = state.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = handle_connection(stream, state).await {
-                        error!("Connection error: {}", e);
-                    }
-                });
-            }
-            Err(e) => {
-                error!("Accept error: {}", e);
-            }
-        }
-
-        {
-            let state_guard = state.read().await;
-            if state_guard.shutdown {
-                info!("Shutdown requested, stopping server");
-                break;
-            }
-        }
-    }
-
-    if path.exists()
-        && let Err(e) = std::fs::remove_file(&path)
-    {
-        warn!("Failed to remove socket file {:?}: {}", path, e);
-    }
-
-    Ok(())
+    Ok(plugin_watcher)
 }
 
 async fn cleanup_stale_socket(path: &Path) -> Result<()> {
@@ -782,6 +813,24 @@ async fn handle_plugin_response(
     }
 }
 
+/// Process a list of core updates: handle Close state and forward to UI as notifications.
+async fn process_and_forward_updates(
+    updates: Vec<CoreUpdate>,
+    tx: &mpsc::UnboundedSender<Message>,
+    state: &Arc<RwLock<DaemonState>>,
+) {
+    for update in &updates {
+        if matches!(update, CoreUpdate::Close) {
+            let mut state_guard = state.write().await;
+            state_guard.core.set_open(false);
+        }
+    }
+    for update in updates {
+        let notification = core_update_to_notification(&update);
+        let _ = tx.send(Message::Notification(notification));
+    }
+}
+
 /// Forward a successful plugin result to the UI as notifications.
 async fn forward_plugin_result(
     plugin_id: &str,
@@ -804,16 +853,7 @@ async fn forward_plugin_result(
                 plugin_id
             );
             let updates = plugin_response_to_updates(plugin_id, plugin_response);
-            for update in &updates {
-                if matches!(update, CoreUpdate::Close) {
-                    let mut state_guard = state.write().await;
-                    state_guard.core.set_open(false);
-                }
-            }
-            for update in updates {
-                let notification = core_update_to_notification(&update);
-                let _ = tx.send(Message::Notification(notification));
-            }
+            process_and_forward_updates(updates, tx, state).await;
         }
         Err(e) => {
             let error_msg = format!("Plugin '{plugin_id}' returned invalid response: {e}");
@@ -828,16 +868,7 @@ async fn forward_plugin_result(
                 details: None,
             };
             let updates = plugin_response_to_updates(plugin_id, error_response);
-            for update in &updates {
-                if matches!(update, CoreUpdate::Close) {
-                    let mut state_guard = state.write().await;
-                    state_guard.core.set_open(false);
-                }
-            }
-            for update in updates {
-                let notification = core_update_to_notification(&update);
-                let _ = tx.send(Message::Notification(notification));
-            }
+            process_and_forward_updates(updates, tx, state).await;
         }
     }
 }
@@ -873,7 +904,16 @@ async fn forward_updates(
         } = &update
         {
             let items: Vec<hamr_core::plugin::IndexItem> =
-                serde_json::from_value(items.clone()).unwrap_or_default();
+                match serde_json::from_value(items.clone()) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        warn!(
+                            "Failed to deserialize index items for plugin {}: {}",
+                            plugin_id, e
+                        );
+                        Vec::new()
+                    }
+                };
             debug!(
                 "[{}] Processing IndexUpdate ({} items, mode: {:?})",
                 plugin_id,

@@ -167,7 +167,6 @@ fn migrate_v1_frecency(value: &serde_json::Value) -> Frecency {
 }
 
 impl IndexedItem {
-    /// Create from an `IndexItem`
     pub fn new(item: IndexItem) -> Self {
         Self {
             item,
@@ -176,28 +175,24 @@ impl IndexedItem {
         }
     }
 
-    /// Get the item ID
     pub fn id(&self) -> &str {
         &self.item.id
     }
 
-    /// Get the item name
     pub fn name(&self) -> &str {
         &self.item.name
     }
 
-    /// Get effective count (from unified frecency struct)
     pub fn effective_count(&self) -> u32 {
         self.frecency.count
     }
 
-    /// Get effective `last_used` (from unified frecency struct)
     pub fn effective_last_used(&self) -> u64 {
         self.frecency.last_used
     }
 }
 
-/// Cache structure for persistence
+/// Cache structure for persistence (used by `load`)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexCache {
     /// Cache format version (2 = nested frecency)
@@ -206,6 +201,15 @@ pub struct IndexCache {
     #[serde(rename = "savedAt")]
     pub saved_at: u64,
     pub indexes: HashMap<String, PluginIndex>,
+}
+
+/// Borrowing variant of `IndexCache` for zero-copy serialization in `save`
+#[derive(Serialize)]
+pub(crate) struct IndexCacheRef<'a> {
+    pub version: u32,
+    #[serde(rename = "savedAt")]
+    pub saved_at: u64,
+    pub indexes: &'a HashMap<String, PluginIndex>,
 }
 
 fn default_version() -> u32 {

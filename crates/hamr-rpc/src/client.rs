@@ -19,6 +19,7 @@ use crate::protocol::{
     Response, RpcError,
 };
 use crate::transport::{CodecError, JsonRpcCodec};
+use tracing::{debug, warn};
 
 fn runtime_dir() -> PathBuf {
     std::env::var("XDG_RUNTIME_DIR").map_or_else(|_| std::env::temp_dir(), PathBuf::from)
@@ -88,6 +89,9 @@ pub enum ClientError {
 
     #[error("Unexpected response type")]
     UnexpectedResponse,
+
+    #[error("Serialization invariant violated: {0}")]
+    SerializationInvariant(String),
 }
 
 impl From<RpcError> for ClientError {
@@ -128,6 +132,8 @@ impl RpcClient {
     ///
     /// Returns `ClientError::Io` if the socket connection fails.
     pub async fn connect_to(path: PathBuf) -> Result<Self, ClientError> {
+        const NOTIFICATION_CHANNEL_CAPACITY: usize = 64;
+
         let stream = UnixStream::connect(&path).await?;
         let framed = Framed::new(stream, JsonRpcCodec::new());
         let (sink, stream) = framed.split();
@@ -136,26 +142,27 @@ impl RpcClient {
             Arc::new(Mutex::new(HashMap::new()));
         let pending_clone = pending.clone();
 
-        let (incoming_tx, incoming_rx) = mpsc::channel(64);
+        let (incoming_tx, incoming_rx) = mpsc::channel(NOTIFICATION_CHANNEL_CAPACITY);
 
         tokio::spawn(async move {
             let mut stream = stream;
             while let Some(result) = stream.next().await {
                 match result {
-                    Ok(msg) => match &msg {
+                    Ok(msg) => match msg {
                         Message::Response(resp) => {
                             let mut pending = pending_clone.lock().await;
                             if let Some(tx) = pending.remove(&resp.id) {
-                                let _ = tx.send(Ok(resp.clone()));
+                                let _ = tx.send(Ok(resp));
                             }
                         }
-                        Message::Request(_) | Message::Notification(_) => {
+                        msg @ (Message::Request(_) | Message::Notification(_)) => {
                             if incoming_tx.send(msg).await.is_err() {
                                 break;
                             }
                         }
                     },
                     Err(e) => {
+                        warn!("RPC reader: codec error: {e}");
                         let mut pending = pending_clone.lock().await;
                         for (_, tx) in pending.drain() {
                             let _ = tx.send(Err(ClientError::Codec(CodecError::Io(
@@ -165,6 +172,12 @@ impl RpcClient {
                         break;
                     }
                 }
+            }
+
+            debug!("RPC reader: stream closed");
+            let mut pending = pending_clone.lock().await;
+            for (_, tx) in pending.drain() {
+                let _ = tx.send(Err(ClientError::ConnectionClosed));
             }
         });
 

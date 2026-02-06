@@ -4,11 +4,11 @@
 //! and spawning background listeners for plugin communication.
 
 use crate::plugin::{
-    PluginReceiver, PluginResponse, plugin_response_to_updates, process_status_data,
+    IndexMode, PluginReceiver, PluginResponse, plugin_response_to_updates, process_status_data,
 };
 use hamr_types::CoreUpdate;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::debug;
+use tracing::{debug, warn};
 
 /// Process a plugin response and return updates.
 ///
@@ -26,11 +26,23 @@ pub fn process_plugin_response(plugin_id: &str, response: PluginResponse) -> Vec
         let mut updates = vec![CoreUpdate::Busy { busy: false }];
 
         if !items.is_empty() || remove.is_some() {
-            let items_json = serde_json::to_value(items).unwrap_or_default();
+            let items_json = match serde_json::to_value(items) {
+                Ok(v) => v,
+                Err(e) => {
+                    warn!(
+                        "Failed to serialize index items for plugin {}: {}",
+                        plugin_id, e
+                    );
+                    return updates;
+                }
+            };
             updates.push(CoreUpdate::IndexUpdate {
                 plugin_id: plugin_id.to_string(),
                 items: items_json,
-                mode: mode.clone(),
+                mode: mode.as_ref().map(|m| match m {
+                    IndexMode::Full => "full".to_string(),
+                    IndexMode::Incremental => "incremental".to_string(),
+                }),
                 remove: remove.clone(),
             });
         }

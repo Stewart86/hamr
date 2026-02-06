@@ -5,9 +5,9 @@
 //! - The daemon (for socket plugins)
 
 use hamr_types::{
-    AmbientItem, CardBlock, CardData, CoreUpdate, DisplayHint, ExecuteAction, FabOverride,
-    FormData, FormField, FormFieldType, GridBrowserData, ImageBrowserData, PluginAction,
-    PluginStatus, ResultItem, ResultPatch, SearchResult, WidgetData,
+    AmbientItem, CardBlock, CardData, CoreUpdate, ExecuteAction, FabOverride, FormData, FormField,
+    GridBrowserData, ImageBrowserData, PluginAction, PluginStatus, ResultItem, ResultPatch,
+    SearchResult, WidgetData,
 };
 
 use crate::engine::{DEFAULT_PLUGIN_ICON, DEFAULT_VERB_SELECT};
@@ -138,7 +138,6 @@ pub fn plugin_response_to_updates(plugin_id: &str, response: PluginResponse) -> 
     updates
 }
 
-/// Handle `PluginResponse::Results` variant
 #[allow(clippy::too_many_arguments)]
 fn handle_results_response(
     plugin_id: &str,
@@ -152,7 +151,7 @@ fn handle_results_response(
     navigate_forward: Option<bool>,
     plugin_actions: Vec<PluginAction>,
     navigation_depth: Option<u32>,
-    display_hint: Option<String>,
+    display_hint: Option<hamr_types::DisplayHint>,
     activate: bool,
 ) {
     if activate {
@@ -189,7 +188,7 @@ fn handle_results_response(
         input_mode: None,
         context: None,
         navigate_forward,
-        display_hint: display_hint.and_then(|s| parse_display_hint(&s)),
+        display_hint,
     });
 
     if let Some(mode) = input_mode {
@@ -232,7 +231,6 @@ fn handle_results_response(
     }
 }
 
-/// Handle `PluginResponse::Execute` variant
 fn handle_execute_response(updates: &mut Vec<CoreUpdate>, data: super::protocol::ExecuteData) {
     if let Some(desktop_file) = data.launch {
         updates.push(CoreUpdate::Execute {
@@ -281,7 +279,6 @@ fn handle_execute_response(updates: &mut Vec<CoreUpdate>, data: super::protocol:
     }
 }
 
-/// Handle `PluginResponse::Card` variant
 fn handle_card_response(
     plugin_id: &str,
     updates: &mut Vec<CoreUpdate>,
@@ -330,7 +327,6 @@ fn handle_card_response(
     }
 }
 
-/// Handle `PluginResponse::Form` variant
 fn handle_form_response(
     updates: &mut Vec<CoreUpdate>,
     form: super::protocol::FormResponseData,
@@ -345,7 +341,7 @@ fn handle_form_response(
             .map(|f| FormField {
                 id: f.id,
                 label: f.label,
-                field_type: parse_field_type(f.field_type.as_deref()),
+                field_type: f.field_type.unwrap_or_default(),
                 placeholder: f.placeholder,
                 default_value: f.default_value,
                 required: f.required,
@@ -376,24 +372,6 @@ fn handle_form_response(
     }
 }
 
-/// Parse a field type string into a `FormFieldType` enum
-fn parse_field_type(field_type: Option<&str>) -> FormFieldType {
-    match field_type {
-        Some("password") => FormFieldType::Password,
-        Some("number") => FormFieldType::Number,
-        Some("textarea") => FormFieldType::TextArea,
-        Some("select") => FormFieldType::Select,
-        Some("checkbox") => FormFieldType::Checkbox,
-        Some("switch") => FormFieldType::Switch,
-        Some("slider") => FormFieldType::Slider,
-        Some("hidden") => FormFieldType::Hidden,
-        Some("date") => FormFieldType::Date,
-        Some("time") => FormFieldType::Time,
-        _ => FormFieldType::Text,
-    }
-}
-
-/// Handle `PluginResponse::Match` variant
 fn handle_match_response(
     plugin_id: &str,
     updates: &mut Vec<CoreUpdate>,
@@ -405,7 +383,6 @@ fn handle_match_response(
     updates.push(CoreUpdate::results(results));
 }
 
-/// Handle `PluginResponse::Update` variant
 fn handle_update_response(
     plugin_id: &str,
     updates: &mut Vec<CoreUpdate>,
@@ -424,7 +401,6 @@ fn handle_update_response(
     }
 }
 
-/// Handle `PluginResponse::ImageBrowser` variant
 fn handle_image_browser_response(
     updates: &mut Vec<CoreUpdate>,
     images: Vec<hamr_types::ImageItem>,
@@ -451,7 +427,6 @@ fn handle_image_browser_response(
     });
 }
 
-/// Process status data from plugin and return `CoreUpdates`
 #[must_use]
 pub fn process_status_data(plugin_id: &str, status: StatusData) -> Vec<CoreUpdate> {
     let mut updates = Vec::new();
@@ -618,17 +593,6 @@ fn convert_update_items(items: Vec<UpdateItem>) -> Vec<ResultPatch> {
             patch
         })
         .collect()
-}
-
-/// Parse a display hint string into a `DisplayHint` enum
-fn parse_display_hint(hint: &str) -> Option<DisplayHint> {
-    match hint.to_lowercase().as_str() {
-        "auto" => Some(DisplayHint::Auto),
-        "list" => Some(DisplayHint::List),
-        "grid" => Some(DisplayHint::Grid),
-        "large_grid" | "largegrid" => Some(DisplayHint::LargeGrid),
-        _ => None,
-    }
 }
 
 #[cfg(test)]

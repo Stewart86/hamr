@@ -5,7 +5,7 @@
 
 use super::{HamrCore, ID_DISMISS, InputMode, generate_session_id, process};
 use crate::Error;
-use crate::plugin::{PluginInput, PluginProcess, SelectedItem, Step};
+use crate::plugin::{ActionSource, PluginInput, PluginProcess, SelectedItem, Step};
 use hamr_types::CoreUpdate;
 use tracing::{debug, error, info, warn};
 
@@ -47,7 +47,6 @@ impl HamrCore {
             return;
         };
 
-        // Don't activate if already active
         if self.state.active_plugin.is_some() {
             debug!(
                 "Plugin already active, skipping activation for {}",
@@ -68,7 +67,6 @@ impl HamrCore {
         });
         self.state.navigation_depth = 0;
 
-        // Determine input mode
         self.state.input_mode = match plugin.manifest.input_mode {
             Some(crate::plugin::InputMode::Submit) => InputMode::Submit,
             _ => InputMode::Realtime,
@@ -91,7 +89,6 @@ impl HamrCore {
         }
     }
 
-    /// Send the initial step to a plugin.
     pub(super) async fn send_plugin_initial(&mut self, plugin_id: &str, session: &str) {
         let input = PluginInput {
             step: Step::Initial,
@@ -108,7 +105,6 @@ impl HamrCore {
         self.send_to_plugin(plugin_id, &input).await;
     }
 
-    /// Send a search query to the active plugin.
     pub(super) async fn send_plugin_search(&mut self, query: &str) {
         let Some(ref active) = self.state.active_plugin else {
             return;
@@ -136,7 +132,6 @@ impl HamrCore {
         self.send_to_plugin(&plugin_id, &input).await;
     }
 
-    /// Send an action to the active plugin.
     pub(super) async fn send_plugin_action(&mut self, item_id: &str, action: Option<String>) {
         let Some(ref mut active) = self.state.active_plugin else {
             return;
@@ -183,7 +178,6 @@ impl HamrCore {
         true
     }
 
-    /// Send a slider value change to a plugin.
     pub(super) async fn send_plugin_slider_change(
         &mut self,
         plugin_id: &str,
@@ -218,7 +212,6 @@ impl HamrCore {
         self.send_to_plugin(plugin_id, &input).await;
     }
 
-    /// Send a switch toggle to a plugin.
     pub(super) async fn send_plugin_switch_toggle(
         &mut self,
         plugin_id: &str,
@@ -274,7 +267,7 @@ impl HamrCore {
             context: None,
             value: None,
             form_data: None,
-            source: Some("ambient".to_string()),
+            source: Some(ActionSource::Ambient),
         };
 
         self.send_update(CoreUpdate::Busy { busy: true });
@@ -297,7 +290,7 @@ impl HamrCore {
             context: None,
             value: None,
             form_data: None,
-            source: Some("ambient".to_string()),
+            source: Some(ActionSource::Ambient),
         };
 
         self.send_to_plugin(&plugin_id, &input).await;

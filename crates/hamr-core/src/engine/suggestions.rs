@@ -137,21 +137,16 @@ impl HamrCore {
     }
 
     /// Build suggestion context from current time.
-    // Time math: u64 secs -> usize weekday (0-6), u32 hour (0-23)
-    #[allow(clippy::unused_self, clippy::cast_possible_truncation)]
+    #[allow(clippy::unused_self)]
     pub(super) fn build_suggestion_context(&self) -> SuggestionContext {
         use std::time::{SystemTime, UNIX_EPOCH};
 
-        let now = SystemTime::now()
+        let secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
 
-        let secs_in_day = 86400u64;
-        let days_since_epoch = now / secs_in_day;
-        let weekday = ((days_since_epoch + 3) % 7) as usize;
-        let secs_today = now % secs_in_day;
-        let hour = (secs_today / 3600) as u32;
+        let (hour, weekday) = crate::utils::time_components_from_epoch(secs);
 
         SuggestionContext {
             hour,

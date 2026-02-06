@@ -12,6 +12,7 @@ mod plugin;
 mod query;
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use hamr_core::{CoreEvent, HamrCore};
 use hamr_rpc::protocol::{
@@ -28,6 +29,12 @@ use crate::plugin_rpc;
 use crate::plugin_spawner::PluginSpawner;
 use crate::registry::PluginRegistry;
 use crate::session::{ClientInfo, ControlSession, PluginSession, Session, SessionId, UiSession};
+
+const ACTION_BACK: &str = "__back__";
+const ACTION_DISMISS: &str = "__dismiss__";
+const ACTION_PLUGIN: &str = "__plugin__";
+
+const PLUGIN_INIT_DELAY: Duration = Duration::from_millis(10);
 
 pub struct HandlerContext<'a> {
     pub core: &'a mut HamrCore,
@@ -183,7 +190,6 @@ pub async fn handle_notification(
         ctx.is_active_ui()
     );
 
-    // Route to UI or plugin notification handlers
     if let Some(result) = handle_ui_notification(ctx, notification).await {
         return result;
     }
@@ -199,7 +205,6 @@ async fn handle_ui_notification(
     ctx: &mut HandlerContext<'_>,
     notification: &Notification,
 ) -> Option<Result<()>> {
-    // Check if this is a known UI notification method
     let is_ui_method = matches!(
         notification.method.as_str(),
         "query_changed"
@@ -266,7 +271,6 @@ fn handle_plugin_notification(
     ctx: &mut HandlerContext<'_>,
     notification: &Notification,
 ) -> Option<Result<()>> {
-    // Check if this is a known plugin notification method
     let is_plugin_method = matches!(
         notification.method.as_str(),
         "plugin_results" | "plugin_status" | "plugin_index" | "plugin_execute" | "plugin_update"
@@ -276,7 +280,6 @@ fn handle_plugin_notification(
         return None;
     }
 
-    // Plugin notifications must come from plugin sessions
     if !is_plugin_session(ctx) {
         trace!("Ignoring {} - not from plugin", notification.method);
         return Some(Ok(()));
@@ -325,6 +328,37 @@ fn is_plugin_session(ctx: &HandlerContext<'_>) -> bool {
         .is_some_and(|s| matches!(s, Session::Plugin(_)))
 }
 
+/// Send status and ambient update notifications to a UI sender.
+pub(crate) fn send_status_to_ui(
+    tx: &mpsc::UnboundedSender<Message>,
+    plugin_id: &str,
+    status: &PluginStatus,
+) {
+    let notification = Notification::new(
+        "plugin_status_update",
+        Some(serde_json::json!({
+            "plugin_id": plugin_id,
+            "status": status
+        })),
+    );
+    if let Err(e) = tx.send(Message::Notification(notification)) {
+        warn!("[{}] Failed to forward status to UI: {}", plugin_id, e);
+    }
+
+    if !status.ambient.is_empty() {
+        let ambient_notification = Notification::new(
+            "ambient_update",
+            Some(serde_json::json!({
+                "plugin_id": plugin_id,
+                "items": status.ambient
+            })),
+        );
+        if let Err(e) = tx.send(Message::Notification(ambient_notification)) {
+            warn!("[{}] Failed to forward ambient to UI: {}", plugin_id, e);
+        }
+    }
+}
+
 /// Forward cached plugin statuses to a newly connected UI
 fn forward_cached_statuses(
     tx: &mpsc::UnboundedSender<Message>,
@@ -336,35 +370,7 @@ fn forward_cached_statuses(
             "Forwarding cached status for {} to new UI {}",
             plugin_id, session_id
         );
-        let notification = Notification::new(
-            "plugin_status_update",
-            Some(serde_json::json!({
-                "plugin_id": plugin_id,
-                "status": status
-            })),
-        );
-        if let Err(e) = tx.send(Message::Notification(notification)) {
-            warn!(
-                "Failed to forward cached status for {} to UI: {}",
-                plugin_id, e
-            );
-        }
-
-        if !status.ambient.is_empty() {
-            let ambient_notification = Notification::new(
-                "ambient_update",
-                Some(serde_json::json!({
-                    "plugin_id": plugin_id,
-                    "items": status.ambient
-                })),
-            );
-            if let Err(e) = tx.send(Message::Notification(ambient_notification)) {
-                warn!(
-                    "Failed to forward cached ambient for {} to UI: {}",
-                    plugin_id, e
-                );
-            }
-        }
+        send_status_to_ui(tx, plugin_id, status);
     }
 }
 
@@ -404,7 +410,7 @@ fn register_plugin_in_registry(
         let sender_clone = sender.clone();
         let pid = plugin_id.to_string();
         tokio::spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            tokio::time::sleep(PLUGIN_INIT_DELAY).await;
             if let Err(e) = plugin_rpc::send_initial(&sender_clone, &pid, None) {
                 tracing::warn!(
                     "[{}] Failed to send initial to newly connected plugin: {}",
@@ -465,7 +471,12 @@ fn handle_register(ctx: &mut HandlerContext<'_>, params: Option<&Value>) -> Resu
             session.id(),
             session.plugin_id().unwrap_or("unknown")
         ),
-        Session::Pending(_) => unreachable!("Session should not be pending after registration"),
+        Session::Pending(_) => {
+            warn!(
+                "Session {} is still pending after registration, skipping",
+                session.id()
+            );
+        }
     }
 
     let result = RegisterResult {
@@ -492,20 +503,23 @@ async fn handle_back(ctx: &mut HandlerContext<'_>) -> Result<()> {
         let pid_clone = plugin_id.clone();
 
         debug!(
-            "[{}] Forwarding __back__ action to socket plugin with context={:?}",
-            plugin_id, context
+            "[{}] Forwarding {} action to socket plugin with context={:?}",
+            plugin_id, ACTION_BACK, context
         );
 
         tokio::spawn(async move {
             if let Err(e) = plugin_rpc::send_action(
                 &sender_clone,
                 &pid_clone,
-                "__back__".to_string(),
+                ACTION_BACK.to_string(),
                 None,
                 context,
                 None,
             ) {
-                trace!("[{}] Failed to send __back__ to plugin: {}", pid_clone, e);
+                trace!(
+                    "[{}] Failed to send back action to plugin: {}",
+                    pid_clone, e
+                );
             }
         });
     }
@@ -550,7 +564,6 @@ async fn handle_launcher_closed(ctx: &mut HandlerContext<'_>) -> Result<()> {
 // Handler dispatch requires consistent Result<Value> signature
 #[allow(clippy::unnecessary_wraps)]
 fn handle_toggle(ctx: &mut HandlerContext<'_>) -> Result<Value> {
-    // Send Toggle notification to the active UI
     // The GTK client will handle this with intuitive mode logic
     // (deciding whether to close, minimize to FAB, or open based on hasUsedMinimize preference)
     let Some(ui_id) = ctx.active_ui.as_ref() else {
@@ -698,27 +711,7 @@ fn handle_update_status(ctx: &mut HandlerContext<'_>, params: Option<&Value>) ->
     if let Some(ui_id) = ctx.active_ui.as_ref()
         && let Some(tx) = ctx.client_senders.get(ui_id)
     {
-        let notification = Notification::new(
-            "plugin_status_update",
-            Some(serde_json::json!({
-                "plugin_id": plugin_id,
-                "status": status
-            })),
-        );
-        if let Err(e) = tx.send(Message::Notification(notification)) {
-            warn!("[{}] Failed to forward status to UI: {}", plugin_id, e);
-        }
-
-        let ambient_notification = Notification::new(
-            "ambient_update",
-            Some(serde_json::json!({
-                "plugin_id": plugin_id,
-                "items": status.ambient
-            })),
-        );
-        if let Err(e) = tx.send(Message::Notification(ambient_notification)) {
-            warn!("[{}] Failed to forward ambient to UI: {}", plugin_id, e);
-        }
+        send_status_to_ui(tx, &plugin_id, &status);
     }
 
     Ok(serde_json::json!({"status": "ok"}))
@@ -873,7 +866,7 @@ async fn handle_dismiss_ambient(
                 &sender_clone,
                 &pid,
                 iid,
-                Some("__dismiss__".to_string()),
+                Some(ACTION_DISMISS.to_string()),
                 None,
                 Some("ambient".to_string()), // source: ambient
             ) {
@@ -900,7 +893,6 @@ async fn handle_plugin_action_triggered(
         .ok_or_else(|| DaemonError::InvalidParams("Missing action_id".to_string()))?
         .to_string();
 
-    // For socket plugins, forward the action directly
     if let Some(active_plugin) = ctx.core.state().active_plugin.as_ref()
         && ctx.plugin_registry.is_connected(&active_plugin.id)
     {
@@ -919,7 +911,7 @@ async fn handle_plugin_action_triggered(
                 if let Err(e) = plugin_rpc::send_action(
                     &sender_clone,
                     &pid_clone,
-                    "__plugin__".to_string(),
+                    ACTION_PLUGIN.to_string(),
                     Some(action_clone),
                     None,
                     None,

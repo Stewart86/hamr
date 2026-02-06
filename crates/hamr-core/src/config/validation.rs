@@ -88,6 +88,9 @@ fn expected_core_config_keys() -> ExpectedKeys {
         "math",
         "shellCommand",
         "webSearch",
+        "file",
+        "clipboard",
+        "shellHistory",
     ]);
 
     let search_keys = ExpectedKeys::new(&[

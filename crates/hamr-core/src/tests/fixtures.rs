@@ -164,11 +164,7 @@ pub fn make_plugin_history_searchable(id: &str, term: &str) -> Searchable {
 
 /// Get current timestamp in milliseconds
 pub fn now_millis() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
+    crate::utils::now_millis()
 }
 
 /// Get timestamp for N hours ago

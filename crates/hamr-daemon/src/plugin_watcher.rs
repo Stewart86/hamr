@@ -10,10 +10,11 @@ use tracing::{debug, error, info};
 
 use crate::error::Result;
 
-const DEBOUNCE_DURATION: Duration = Duration::from_millis(500);
+const PLUGIN_DEBOUNCE_DURATION: Duration = Duration::from_millis(500);
 
 pub struct PluginWatcher {
     _watcher_thread: std::thread::JoinHandle<()>,
+    _bridge_thread: std::thread::JoinHandle<()>,
 }
 
 impl PluginWatcher {
@@ -26,7 +27,7 @@ impl PluginWatcher {
             }
         });
 
-        std::thread::spawn(move || {
+        let bridge_thread = std::thread::spawn(move || {
             for () in sync_rx {
                 debug!("Plugin change detected, sending reload notification");
                 if tx.send(()).is_err() {
@@ -37,6 +38,7 @@ impl PluginWatcher {
 
         Self {
             _watcher_thread: watcher_thread,
+            _bridge_thread: bridge_thread,
         }
     }
 }
@@ -55,7 +57,7 @@ fn watch_plugin_dirs(dirs: Vec<PathBuf>, tx: &mpsc::Sender<()>) -> Result<()> {
                         return;
                     };
                     let now = Instant::now();
-                    if now.duration_since(*last) > DEBOUNCE_DURATION {
+                    if now.duration_since(*last) > PLUGIN_DEBOUNCE_DURATION {
                         *last = now;
                         let _ = watcher_tx.send(());
                     }

@@ -29,6 +29,15 @@ pub enum RequestId {
     String(String),
 }
 
+impl std::fmt::Display for RequestId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RequestId::Number(n) => write!(f, "{n}"),
+            RequestId::String(s) => write!(f, "{s}"),
+        }
+    }
+}
+
 impl From<u64> for RequestId {
     fn from(n: u64) -> Self {
         RequestId::Number(n)

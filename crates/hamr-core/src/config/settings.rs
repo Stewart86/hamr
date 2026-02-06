@@ -2,6 +2,7 @@ use crate::Result;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
+use tracing::warn;
 
 /// Main configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,6 +21,37 @@ impl Config {
     #[must_use]
     pub fn action_bar_hints(&self) -> &[ActionBarHint] {
         &self.search.action_bar_hints
+    }
+
+    /// Validate config values, clamping out-of-range values and warning about contradictions.
+    /// Call after deserialization to ensure all values are sane.
+    pub fn validate(&mut self) {
+        let search = &mut self.search;
+
+        if search.diversity_decay < 0.0 || search.diversity_decay > 1.0 {
+            warn!(
+                "diversity_decay out of range ({}), clamping to 0.0-1.0",
+                search.diversity_decay
+            );
+            search.diversity_decay = search.diversity_decay.clamp(0.0, 1.0);
+        }
+
+        if search.max_displayed_results < 1 {
+            warn!(
+                "max_displayed_results too low ({}), setting to 1",
+                search.max_displayed_results
+            );
+            search.max_displayed_results = 1;
+        }
+
+        if search.suggestion_staleness_half_life_days > search.max_suggestion_age_days
+            && search.max_suggestion_age_days > 0
+        {
+            warn!(
+                "suggestion_staleness_half_life_days ({}) exceeds max_suggestion_age_days ({})",
+                search.suggestion_staleness_half_life_days, search.max_suggestion_age_days
+            );
+        }
     }
 }
 
@@ -210,7 +242,8 @@ impl Config {
 
         let content = std::fs::read_to_string(path)?;
         super::validation::warn_unknown_fields(&content, "config.json");
-        let config = serde_json::from_str(&content)?;
+        let mut config: Self = serde_json::from_str(&content)?;
+        config.validate();
         Ok(config)
     }
 

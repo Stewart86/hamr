@@ -13,8 +13,9 @@ pub use manifest::{
 };
 pub use process::{PluginProcess, PluginReceiver, PluginSender, invoke_match};
 pub use protocol::{
-    AmbientItemData, CardBlockData, CardResponseData, ExecuteData, FabData, ImageBrowserInner,
-    IndexItem, PluginInput, PluginResponse, SelectedItem, StatusData, Step, UpdateItem,
+    ActionSource, AmbientItemData, CardBlockData, CardResponseData, ExecuteData, FabData,
+    ImageBrowserInner, IndexItem, IndexMode, PluginInput, PluginResponse, SelectedItem, StatusData,
+    Step, UpdateItem,
 };
 
 use crate::config::Directories;
@@ -23,6 +24,9 @@ use crate::{Error, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tracing::{debug, info, warn};
+
+const MANIFEST_FILENAME: &str = "manifest.json";
+const DEFAULT_HANDLER_FILENAME: &str = "handler.py";
 
 /// A loaded plugin
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -33,6 +37,9 @@ pub struct Plugin {
     pub handler_path: PathBuf,
     /// Whether this plugin uses socket communication (handled by daemon)
     pub is_socket: bool,
+    /// Pre-compiled regex patterns from manifest match config
+    #[serde(skip)]
+    pub compiled_patterns: Vec<regex::Regex>,
 }
 
 impl Plugin {
@@ -42,10 +49,11 @@ impl Plugin {
     ///
     /// Returns an error if the manifest is missing, invalid, or the handler is missing.
     pub fn load(path: PathBuf) -> Result<Self> {
-        let manifest_path = path.join("manifest.json");
+        let manifest_path = path.join(MANIFEST_FILENAME);
         if !manifest_path.exists() {
             return Err(Error::Plugin(format!(
-                "manifest.json not found in {}",
+                "{} not found in {}",
+                MANIFEST_FILENAME,
                 path.display()
             )));
         }
@@ -62,15 +70,42 @@ impl Plugin {
         let id = path
             .file_name()
             .and_then(|n| n.to_str())
-            .unwrap_or("unknown")
+            .ok_or_else(|| Error::Plugin(format!("Invalid plugin directory: {}", path.display())))?
             .to_string();
 
-        let handler_path = path.join("handler.py");
+        let handler_path = path.join(DEFAULT_HANDLER_FILENAME);
         if !handler_path.exists() && manifest.static_index.is_none() {
             return Err(Error::Plugin(format!(
-                "handler.py not found in {} (required unless staticIndex is provided)",
+                "{} not found in {} (required unless staticIndex is provided)",
+                DEFAULT_HANDLER_FILENAME,
                 path.display()
             )));
+        }
+
+        let mut compiled_patterns = Vec::new();
+
+        if let Some(pattern) = &manifest.match_pattern {
+            match regex::Regex::new(pattern) {
+                Ok(re) => compiled_patterns.push(re),
+                Err(err) => warn!(
+                    "Plugin {}: invalid match pattern '{}': {}",
+                    id, pattern, err
+                ),
+            }
+        }
+
+        if let Some(match_config) = &manifest.match_config {
+            for pattern in &match_config.patterns {
+                match regex::Regex::new(pattern) {
+                    Ok(re) => compiled_patterns.push(re),
+                    Err(err) => {
+                        warn!(
+                            "Plugin {}: invalid match pattern '{}': {}",
+                            id, pattern, err
+                        );
+                    }
+                }
+            }
         }
 
         let is_socket = manifest.is_socket();
@@ -80,6 +115,7 @@ impl Plugin {
             manifest,
             handler_path,
             is_socket,
+            compiled_patterns,
         })
     }
 
@@ -92,20 +128,9 @@ impl Plugin {
             return Some(query[prefix.len()..].to_string());
         }
 
-        if let Some(pattern) = &self.manifest.match_pattern
-            && let Ok(re) = regex::Regex::new(pattern)
-            && re.is_match(query)
-        {
-            return Some(query.to_string());
-        }
-
-        if let Some(match_config) = &self.manifest.match_config {
-            for pattern in &match_config.patterns {
-                if let Ok(re) = regex::Regex::new(pattern)
-                    && re.is_match(query)
-                {
-                    return Some(query.to_string());
-                }
+        for re in &self.compiled_patterns {
+            if re.is_match(query) {
+                return Some(query.to_string());
             }
         }
 
@@ -172,8 +197,7 @@ pub fn diff_plugins<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         match before.get(id) {
             None => diff.added.push(id.clone()),
             Some(old)
-                if serde_json::to_string(&old.manifest).ok()
-                    != serde_json::to_string(&plugin.manifest).ok()
+                if old.manifest != plugin.manifest
                     || old.handler_path != plugin.handler_path
                     || old.is_socket != plugin.is_socket =>
             {
@@ -198,7 +222,6 @@ pub struct PluginManager {
 }
 
 impl PluginManager {
-    /// Create a new plugin manager
     pub fn new(dirs: &Directories) -> Self {
         let platform = platform::detect();
         info!("Detected platform: {}", platform.as_str());
@@ -364,13 +387,11 @@ impl PluginManager {
         Ok(())
     }
 
-    /// Get a plugin by ID
     #[must_use]
     pub fn get(&self, id: &str) -> Option<&Plugin> {
         self.plugins.get(id)
     }
 
-    /// Get all plugins
     pub fn all(&self) -> impl Iterator<Item = &Plugin> {
         self.plugin_order
             .iter()
@@ -410,7 +431,6 @@ impl PluginManager {
         best_match.map(|(plugin, remaining, _)| (plugin, remaining))
     }
 
-    /// Get all plugin IDs
     #[must_use]
     pub fn ids(&self) -> &[String] {
         &self.plugin_order
@@ -447,6 +467,7 @@ mod diff_tests {
             handler_path: PathBuf::from("/tmp/handler.py"),
             is_socket: false,
             manifest,
+            compiled_patterns: Vec::new(),
         }
     }
 

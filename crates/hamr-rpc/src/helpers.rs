@@ -35,19 +35,15 @@ pub fn notification_to_update(
 
     obj.insert("type".to_string(), json!(method));
 
-    match serde_json::from_value::<CoreUpdate>(serde_json::Value::Object(obj.clone())) {
+    match serde_json::from_value::<CoreUpdate>(serde_json::Value::Object(obj)) {
         Ok(update) => Some(update),
         Err(e) => {
-            let json = serde_json::Value::Object(obj);
-
             #[cfg(debug_assertions)]
-            panic!(
-                "Protocol mismatch - failed to deserialize '{method}':\n  Error: {e}\n  JSON: {json}"
-            );
+            panic!("Protocol mismatch - failed to deserialize '{method}':\n  Error: {e}");
 
             #[cfg(not(debug_assertions))]
             {
-                tracing::error!("Failed to deserialize '{}': {} | JSON: {}", method, e, json);
+                tracing::error!("Failed to deserialize '{}': {}", method, e);
                 None
             }
         }
@@ -64,13 +60,16 @@ pub fn notification_to_update(
 pub async fn send_event(client: &RpcClient, event: CoreEvent) -> Result<(), ClientError> {
     let event_json = serde_json::to_value(&event)?;
 
-    let obj = event_json
-        .as_object()
-        .ok_or(ClientError::UnexpectedResponse)?;
-    let method = obj
-        .get("type")
-        .and_then(|v| v.as_str())
-        .ok_or(ClientError::UnexpectedResponse)?;
+    let obj = event_json.as_object().ok_or_else(|| {
+        ClientError::SerializationInvariant(
+            "CoreEvent did not serialize to a JSON object".to_string(),
+        )
+    })?;
+    let method = obj.get("type").and_then(|v| v.as_str()).ok_or_else(|| {
+        ClientError::SerializationInvariant(
+            "CoreEvent missing 'type' field after serialization".to_string(),
+        )
+    })?;
 
     let mut params = obj.clone();
     params.remove("type");

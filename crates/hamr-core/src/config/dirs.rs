@@ -35,19 +35,19 @@ pub struct Directories {
 impl Directories {
     /// Create a new `Directories` instance with standard XDG paths.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the system's project directories cannot be determined.
-    #[must_use]
-    pub fn new() -> Self {
-        let project =
-            ProjectDirs::from("", "", "hamr").expect("Failed to determine project directories");
+    /// Returns an error if the system's project directories cannot be determined.
+    pub fn new() -> crate::Result<Self> {
+        let project = ProjectDirs::from("", "", "hamr").ok_or_else(|| {
+            crate::Error::Config("Failed to determine project directories".into())
+        })?;
 
         let config = project.config_dir().to_path_buf();
         let data = project.data_dir().to_path_buf();
         let cache = project.cache_dir().to_path_buf();
 
-        Self {
+        Ok(Self {
             user_plugins: config.join("plugins"),
             config_file: config.join("config.json"),
             state_file: data.join("state.json"),
@@ -57,7 +57,7 @@ impl Directories {
             data,
             cache,
             builtin_plugins: Self::find_builtin_plugins(),
-        }
+        })
     }
 
     #[must_use]
@@ -75,7 +75,6 @@ impl Directories {
         }
     }
 
-    /// Find builtin plugins directory
     fn find_builtin_plugins() -> PathBuf {
         if let Ok(exe_path) = std::env::current_exe() {
             let exe_dir = exe_path.parent().unwrap_or(&exe_path);
@@ -131,12 +130,6 @@ impl Directories {
     }
 }
 
-impl Default for Directories {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,23 +180,13 @@ mod tests {
 
     #[test]
     fn test_new_returns_valid_xdg_paths() {
-        let dirs = Directories::new();
+        let dirs = Directories::new().unwrap();
 
         assert!(dirs.config.to_string_lossy().contains("hamr"));
         assert!(dirs.data.to_string_lossy().contains("hamr"));
         assert!(dirs.cache.to_string_lossy().contains("hamr"));
         assert!(dirs.config_file.to_string_lossy().ends_with("config.json"));
         assert!(dirs.state_file.to_string_lossy().ends_with("state.json"));
-    }
-
-    #[test]
-    fn test_default_same_as_new() {
-        let default_dirs = Directories::default();
-        let new_dirs = Directories::new();
-
-        assert_eq!(default_dirs.config, new_dirs.config);
-        assert_eq!(default_dirs.data, new_dirs.data);
-        assert_eq!(default_dirs.config_file, new_dirs.config_file);
     }
 
     #[test]

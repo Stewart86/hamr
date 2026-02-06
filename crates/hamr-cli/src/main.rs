@@ -32,12 +32,27 @@ fn find_binary(name: &str) -> PathBuf {
     PathBuf::from(name)
 }
 
-/// Check if we're in dev mode (running from target/debug)
+/// Check if we're in dev mode (running from target/debug or target/release)
 fn is_dev_mode() -> bool {
     std::env::current_exe()
         .ok()
-        .and_then(|p| p.parent().map(|d| d.ends_with("target/debug")))
+        .and_then(|p| {
+            p.parent()
+                .map(|d| d.ends_with("target/debug") || d.ends_with("target/release"))
+        })
         .unwrap_or(false)
+}
+
+/// Run a binary in the foreground, bailing on failure
+fn run_foreground(name: &str) -> Result<()> {
+    let binary = find_binary(name);
+    let status = Command::new(&binary)
+        .status()
+        .with_context(|| format!("Failed to start {}. Is it installed?", binary.display()))?;
+    if !status.success() {
+        bail!("{name} exited with status: {status}");
+    }
+    Ok(())
 }
 
 /// Check if hamr-daemon systemd service exists and is enabled
@@ -210,59 +225,28 @@ async fn main() -> Result<()> {
 /// Start GTK UI, auto-starting daemon as background process
 async fn run_gtk_with_daemon() -> Result<()> {
     ensure_daemon_running().await?;
-
-    let gtk_binary = find_binary("hamr-gtk");
-    let status = Command::new(&gtk_binary)
-        .status()
-        .with_context(|| format!("Failed to start {}. Is it installed?", gtk_binary.display()))?;
-
-    if !status.success() {
-        bail!("hamr-gtk exited with status: {status}");
-    }
-
-    Ok(())
+    run_foreground("hamr-gtk")
 }
 
 /// Run GTK UI in foreground (for systemd `ExecStart`)
 fn run_gtk() -> Result<()> {
-    let gtk_binary = find_binary("hamr-gtk");
-    let status = Command::new(&gtk_binary)
-        .status()
-        .with_context(|| format!("Failed to start {}. Is it installed?", gtk_binary.display()))?;
-
-    if !status.success() {
-        bail!("hamr-gtk exited with status: {status}");
-    }
-
-    Ok(())
+    run_foreground("hamr-gtk")
 }
 
 /// Start TUI, auto-starting daemon if needed
 async fn run_tui_with_daemon() -> Result<()> {
     ensure_daemon_running().await?;
-
-    let tui_binary = find_binary("hamr-tui");
-    let status = Command::new(&tui_binary)
-        .status()
-        .with_context(|| format!("Failed to start {}. Is it installed?", tui_binary.display()))?;
-
-    if !status.success() {
-        bail!("hamr-tui exited with status: {status}");
-    }
-
-    Ok(())
+    run_foreground("hamr-tui")
 }
 
 /// Ensure daemon is running, starting it if needed
 async fn ensure_daemon_running() -> Result<()> {
     let socket = socket_path();
 
-    // Check if daemon is already running
     if socket.exists() && is_daemon_responsive().await {
         return Ok(());
     }
 
-    // Start daemon - use systemd in production, process in dev mode
     if is_dev_mode() {
         eprintln!("Starting daemon (dev mode)...");
         start_daemon_background()?;
@@ -328,19 +312,7 @@ async fn wait_for_daemon(timeout: Duration) -> bool {
 }
 
 fn run_daemon() -> Result<()> {
-    let daemon_binary = find_binary("hamr-daemon");
-    let status = Command::new(&daemon_binary).status().with_context(|| {
-        format!(
-            "Failed to start {}. Is it installed?",
-            daemon_binary.display()
-        )
-    })?;
-
-    if !status.success() {
-        bail!("hamr-daemon exited with status: {status}");
-    }
-
-    Ok(())
+    run_foreground("hamr-daemon")
 }
 
 async fn connect_and_register_at(socket: PathBuf) -> Result<RpcClient> {
@@ -599,10 +571,7 @@ async fn run_plugins_command(command: PluginsCommand) -> Result<()> {
     match command {
         PluginsCommand::List => run_plugins_list().await,
         PluginsCommand::Install { name } => run_plugins_install(&name),
-        PluginsCommand::Audit => {
-            run_plugins_audit();
-            Ok(())
-        }
+        PluginsCommand::Audit => run_plugins_audit(),
     }
 }
 
@@ -680,20 +649,20 @@ fn run_plugins_install(name: &str) -> Result<()> {
     );
 }
 
-fn run_plugins_audit() {
-    let dirs = Directories::new();
+fn run_plugins_audit() -> Result<()> {
+    let dirs = Directories::new().context("Failed to determine project directories")?;
     let checksums_path = dirs.builtin_plugins.join("checksums.json");
 
     let Some(checksums) = ChecksumsData::load(&checksums_path) else {
         println!("No checksums.json found at: {}", checksums_path.display());
         println!("\nChecksum verification is only available for official releases.");
         println!("To generate checksums, run: scripts/generate-plugin-checksums.sh");
-        return;
+        return Ok(());
     };
 
     if !checksums.is_available() {
         println!("checksums.json is empty - no plugins to verify.");
-        return;
+        return Ok(());
     }
 
     println!("Plugin Audit Report\n");
@@ -727,7 +696,7 @@ fn run_plugins_audit() {
                 .unwrap_or("unknown")
                 .to_string();
 
-            if plugin_id == "sdk" || plugin_id == "__pycache__" {
+            if SKIP_PLUGIN_DIRS.contains(&plugin_id.as_str()) {
                 continue;
             }
 
@@ -790,6 +759,8 @@ fn run_plugins_audit() {
         println!("\nWARNING: Modified plugins may have been tampered with.");
         println!("Review the modified files or reinstall from a trusted source.");
     }
+
+    Ok(())
 }
 
 fn generate_daemon_service() -> Result<String> {
@@ -897,6 +868,9 @@ fn get_config_dir() -> Result<PathBuf> {
         .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))
 }
 
+/// Directories to skip when iterating plugin dirs
+const SKIP_PLUGIN_DIRS: &[&str] = &["sdk", "__pycache__"];
+
 /// Essential plugins that should be copied to user config on install
 const ESSENTIAL_PLUGINS: &[&str] = &["apps", "shell", "calculate", "clipboard", "power", "sdk"];
 
@@ -952,8 +926,7 @@ fn copy_plugin_dir(src: &std::path::Path, dst: &std::path::Path) -> Result<()> {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
 
-        // Skip __pycache__ directories
-        if name_str == "__pycache__" {
+        if SKIP_PLUGIN_DIRS.contains(&name_str.as_ref()) {
             continue;
         }
 
@@ -1221,23 +1194,27 @@ fn run_uninstall(purge: bool) -> Result<()> {
 
     println!("Uninstalling hamr...\n");
 
-    // 1. Stop and disable systemd services
     println!("Systemd services:");
     if is_systemctl_available() {
         for service in &["hamr-gtk", "hamr-daemon"] {
-            let _ = Command::new("systemctl")
+            if let Err(e) = Command::new("systemctl")
                 .args(["--user", "stop", service])
-                .status();
-            let _ = Command::new("systemctl")
+                .status()
+            {
+                eprintln!("  Warning: Failed to stop {service}: {e}");
+            }
+            if let Err(e) = Command::new("systemctl")
                 .args(["--user", "disable", service])
-                .status();
+                .status()
+            {
+                eprintln!("  Warning: Failed to disable {service}: {e}");
+            }
             println!("  Stopped and disabled {service}.service");
         }
     } else {
         println!("  systemctl not available, skipping");
     }
 
-    // 2. Remove systemd service files
     println!("\nService files:");
     let systemd_dir = get_systemd_dir()?;
     for name in &["hamr-gtk.service", "hamr-daemon.service"] {
@@ -1251,13 +1228,16 @@ fn run_uninstall(purge: bool) -> Result<()> {
     }
 
     if is_systemctl_available() {
-        let _ = Command::new("systemctl")
+        if let Err(e) = Command::new("systemctl")
             .args(["--user", "daemon-reload"])
-            .status();
-        println!("  Reloaded systemd daemon");
+            .status()
+        {
+            eprintln!("  Warning: Failed to reload systemd daemon: {e}");
+        } else {
+            println!("  Reloaded systemd daemon");
+        }
     }
 
-    // 3. Remove socket file
     println!("\nSocket:");
     let socket = socket_path();
     if socket.exists() {
@@ -1272,7 +1252,6 @@ fn run_uninstall(purge: bool) -> Result<()> {
         println!("  Removed: {}", dev_sock.display());
     }
 
-    // 4. Remove binaries
     println!("\nBinaries:");
     let bin_dir = find_install_bin_dir();
     if let Some(ref bin_dir) = bin_dir {
@@ -1284,7 +1263,6 @@ fn run_uninstall(purge: bool) -> Result<()> {
             }
         }
 
-        // 5. Remove system plugins (next to binaries, installed by install.sh)
         let system_plugins = bin_dir.join("plugins");
         if system_plugins.exists() {
             fs::remove_dir_all(&system_plugins)?;
@@ -1295,7 +1273,6 @@ fn run_uninstall(purge: bool) -> Result<()> {
         println!("  Remove manually from ~/.local/bin/ or wherever you installed");
     }
 
-    // 6. Remove PATH entry from shell rc
     println!("\nShell PATH:");
     if let Some(ref bin_dir) = bin_dir {
         remove_path_from_shell_rc(bin_dir);
@@ -1303,7 +1280,6 @@ fn run_uninstall(purge: bool) -> Result<()> {
         println!("  Skipped (install directory unknown)");
     }
 
-    // 7. Config and user plugins
     let config_dir = get_config_dir()?;
     if purge {
         println!("\nUser data (--purge):");
@@ -1329,9 +1305,8 @@ fn find_install_bin_dir() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
 
-    // Skip if running from target/debug or target/release (dev build)
-    let dir_str = dir.to_string_lossy();
-    if dir_str.contains("target/debug") || dir_str.contains("target/release") {
+    // Skip if running from a dev build
+    if dir.ends_with("target/debug") || dir.ends_with("target/release") {
         return None;
     }
 
@@ -1361,7 +1336,6 @@ fn remove_path_from_shell_rc(bin_dir: &std::path::Path) {
             continue;
         }
 
-        // Remove the "# Added by hamr installer" comment and the PATH line
         let filtered: Vec<&str> = content
             .lines()
             .filter(|line| {
@@ -1372,7 +1346,6 @@ fn remove_path_from_shell_rc(bin_dir: &std::path::Path) {
             .collect();
 
         let new_content = filtered.join("\n");
-        // Preserve trailing newline
         let new_content = if content.ends_with('\n') && !new_content.ends_with('\n') {
             format!("{new_content}\n")
         } else {

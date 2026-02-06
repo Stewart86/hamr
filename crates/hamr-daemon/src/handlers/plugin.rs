@@ -14,7 +14,7 @@ use tracing::{debug, warn};
 
 use crate::error::{DaemonError, Result};
 
-use super::HandlerContext;
+use super::{HandlerContext, send_status_to_ui};
 
 /// Handle `plugin_results` notification - forward search results to active UI.
 pub(super) fn handle_plugin_results(
@@ -119,27 +119,7 @@ pub(super) fn handle_plugin_status(
 
                     if let Some(ui_id) = ctx.active_ui.as_ref() {
                         if let Some(tx) = ctx.client_senders.get(ui_id) {
-                            let notification = Notification::new(
-                                "plugin_status_update",
-                                Some(serde_json::json!({
-                                    "plugin_id": plugin_id,
-                                    "status": status
-                                })),
-                            );
-                            if let Err(e) = tx.send(Message::Notification(notification)) {
-                                warn!("[{}] Failed to forward status to UI: {}", plugin_id, e);
-                            }
-
-                            let ambient_notification = Notification::new(
-                                "ambient_update",
-                                Some(serde_json::json!({
-                                    "plugin_id": plugin_id,
-                                    "items": status.ambient
-                                })),
-                            );
-                            if let Err(e) = tx.send(Message::Notification(ambient_notification)) {
-                                warn!("[{}] Failed to forward ambient to UI: {}", plugin_id, e);
-                            }
+                            send_status_to_ui(tx, &plugin_id, &status);
                         } else {
                             debug!("[{}] Active UI {} not in client_senders", plugin_id, ui_id);
                         }

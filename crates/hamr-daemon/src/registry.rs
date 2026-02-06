@@ -295,7 +295,6 @@ mod tests {
     fn test_pending_socket_plugins() {
         let mut registry = PluginRegistry::new();
 
-        // Add a background socket plugin (not connected)
         registry.register_discovered(DiscoveredPlugin {
             id: "wifi".to_string(),
             manifest: make_manifest("wifi"),
@@ -304,7 +303,6 @@ mod tests {
             is_background: true,
         });
 
-        // Add a stdio plugin
         registry.register_discovered(DiscoveredPlugin {
             id: "calc".to_string(),
             manifest: make_manifest("calc"),
@@ -322,7 +320,6 @@ mod tests {
     fn test_pending_background_excludes_foreground() {
         let mut registry = PluginRegistry::new();
 
-        // Add a background socket plugin
         registry.register_discovered(DiscoveredPlugin {
             id: "timer".to_string(),
             manifest: make_manifest("timer"),
@@ -331,7 +328,6 @@ mod tests {
             is_background: true,
         });
 
-        // Add a foreground socket plugin (like topmem/topcpu)
         registry.register_discovered(DiscoveredPlugin {
             id: "topmem".to_string(),
             manifest: make_manifest("topmem"),
@@ -340,12 +336,10 @@ mod tests {
             is_background: false,
         });
 
-        // Only background plugins should be pending
         let pending: Vec<_> = registry.pending_background_plugins().collect();
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].id, "timer");
 
-        // But we can get the foreground plugin via get_socket_plugin
         let topmem = registry.get_socket_plugin("topmem");
         assert!(topmem.is_some());
         assert!(!topmem.unwrap().is_background);
@@ -357,7 +351,6 @@ mod tests {
         let (tx, _rx) = mpsc::unbounded_channel();
         let session_id = SessionId::new();
 
-        // Register a discovered stdio plugin
         registry.register_discovered(DiscoveredPlugin {
             id: "apps".to_string(),
             manifest: make_manifest("apps"),
@@ -366,11 +359,9 @@ mod tests {
             is_background: true,
         });
 
-        // Verify it's in discovered, not connected
         assert!(registry.get_discovered("apps").is_some());
         assert!(!registry.is_connected("apps"));
 
-        // Register a connected socket plugin with same ID
         let plugin = ConnectedPlugin {
             id: "apps".to_string(),
             session_id: session_id.clone(),
@@ -378,7 +369,6 @@ mod tests {
         };
         registry.register_connected(plugin);
 
-        // Verify it's now connected (socket overrides stdio)
         assert!(registry.is_connected("apps"));
         assert!(registry.get_connected("apps").is_some());
     }
@@ -403,11 +393,9 @@ mod tests {
             sender: tx2,
         });
 
-        // Unregister one session
         let removed = registry.unregister_session(&session_id1);
         assert_eq!(removed, Some("wifi".to_string()));
 
-        // Other should still be connected
         assert!(registry.is_connected("timer"));
         assert!(!registry.is_connected("wifi"));
     }
@@ -433,7 +421,6 @@ mod tests {
 
     #[test]
     fn test_diff_discovered_added_removed_updated() {
-        // updated manifest detection
         let mut registry = PluginRegistry::new();
 
         registry.register_discovered(DiscoveredPlugin {
@@ -464,7 +451,6 @@ mod tests {
 
     #[test]
     fn test_rescan_discovered_updates() {
-        // unchanged plugin should not be marked updated
         let mut registry = PluginRegistry::new();
         registry.register_discovered(DiscoveredPlugin {
             id: "a".to_string(),
@@ -512,6 +498,7 @@ mod tests {
                 hidden: false,
                 supported_platforms: Some(vec!["linux".to_string()]),
             },
+            compiled_patterns: Vec::new(),
         };
         let diff = registry.rescan_from_core_plugins(vec![plugin]);
         assert_eq!(diff.added, vec!["a".to_string()]);

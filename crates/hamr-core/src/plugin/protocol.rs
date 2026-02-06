@@ -1,8 +1,24 @@
 use hamr_types::{
-    Action, Badge, Chip, FormOption, GridItem, ImageItem, PluginAction,
+    Action, Badge, Chip, DisplayHint, FormFieldType, FormOption, GridItem, ImageItem, PluginAction,
     ResultItem as HamrResultItem,
 };
 use serde::{Deserialize, Serialize};
+
+/// Index mode for plugin index updates
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum IndexMode {
+    Full,
+    Incremental,
+}
+
+/// Source of an action sent to a plugin
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ActionSource {
+    Normal,
+    Ambient,
+}
 
 /// Input sent to plugin handler (stdin)
 #[derive(Debug, Clone, Serialize)]
@@ -31,9 +47,56 @@ pub struct PluginInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub form_data: Option<serde_json::Value>,
 
-    /// Source of the action (normal, ambient, fab)
+    /// Source of the action (normal, ambient)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<String>,
+    pub source: Option<ActionSource>,
+}
+
+impl Default for PluginInput {
+    fn default() -> Self {
+        Self {
+            step: Step::Initial,
+            query: None,
+            selected: None,
+            action: None,
+            session: None,
+            context: None,
+            value: None,
+            form_data: None,
+            source: None,
+        }
+    }
+}
+
+impl PluginInput {
+    #[must_use]
+    pub fn initial() -> Self {
+        Self {
+            step: Step::Initial,
+            ..Default::default()
+        }
+    }
+
+    #[must_use]
+    pub fn search(query: impl Into<String>) -> Self {
+        Self {
+            step: Step::Search,
+            query: Some(query.into()),
+            ..Default::default()
+        }
+    }
+
+    #[must_use]
+    pub fn action(item_id: impl Into<String>) -> Self {
+        Self {
+            step: Step::Action,
+            selected: Some(SelectedItem {
+                id: item_id.into(),
+                extra: None,
+            }),
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -91,8 +154,12 @@ pub enum PluginResponse {
         #[serde(default, rename = "navigationDepth")]
         navigation_depth: Option<u32>,
 
-        #[serde(default, rename = "displayHint")]
-        display_hint: Option<String>,
+        #[serde(
+            default,
+            rename = "displayHint",
+            deserialize_with = "deserialize_display_hint"
+        )]
+        display_hint: Option<DisplayHint>,
 
         /// When true, activates this plugin for multi-step flow
         /// Used when an indexed item needs to enter a search/form flow from main search
@@ -126,7 +193,7 @@ pub enum PluginResponse {
         items: Vec<HamrResultItem>,
 
         #[serde(default)]
-        mode: Option<String>,
+        mode: Option<IndexMode>,
 
         #[serde(default)]
         remove: Option<Vec<String>>,
@@ -456,8 +523,12 @@ pub struct FormField {
     pub id: String,
     pub label: String,
 
-    #[serde(default, rename = "type")]
-    pub field_type: Option<String>,
+    #[serde(
+        default,
+        rename = "type",
+        deserialize_with = "deserialize_form_field_type"
+    )]
+    pub field_type: Option<FormFieldType>,
 
     #[serde(default)]
     pub placeholder: Option<String>,
@@ -502,6 +573,57 @@ pub struct ImageBrowserInner {
     pub images: Vec<ImageItem>,
 }
 
+/// Deserialize `DisplayHint` with alias support for plugin protocol values.
+///
+/// Handles `"largegrid"` (no underscore) in addition to the standard `"large_grid"`.
+fn deserialize_display_hint<'de, D>(deserializer: D) -> Result<Option<DisplayHint>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt: Option<String> = Option::deserialize(deserializer)?;
+    match opt {
+        None => Ok(None),
+        Some(s) => match s.to_lowercase().as_str() {
+            "auto" => Ok(Some(DisplayHint::Auto)),
+            "list" => Ok(Some(DisplayHint::List)),
+            "grid" => Ok(Some(DisplayHint::Grid)),
+            "large_grid" | "largegrid" => Ok(Some(DisplayHint::LargeGrid)),
+            _ => Ok(None),
+        },
+    }
+}
+
+/// Deserialize `FormFieldType` with alias support for plugin protocol values.
+///
+/// Handles `"textarea"` (no underscore) in addition to the standard `"text_area"`,
+/// and `"toggle"` as an alias for `"switch"`.
+fn deserialize_form_field_type<'de, D>(deserializer: D) -> Result<Option<FormFieldType>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt: Option<String> = Option::deserialize(deserializer)?;
+    match opt {
+        None => Ok(None),
+        Some(s) => match s.as_str() {
+            "password" => Ok(Some(FormFieldType::Password)),
+            "number" => Ok(Some(FormFieldType::Number)),
+            "textarea" | "text_area" => Ok(Some(FormFieldType::TextArea)),
+            "select" => Ok(Some(FormFieldType::Select)),
+            "checkbox" => Ok(Some(FormFieldType::Checkbox)),
+            "switch" | "toggle" => Ok(Some(FormFieldType::Switch)),
+            "slider" => Ok(Some(FormFieldType::Slider)),
+            "hidden" => Ok(Some(FormFieldType::Hidden)),
+            "date" => Ok(Some(FormFieldType::Date)),
+            "time" => Ok(Some(FormFieldType::Time)),
+            "email" => Ok(Some(FormFieldType::Email)),
+            "url" => Ok(Some(FormFieldType::Url)),
+            "phone" => Ok(Some(FormFieldType::Phone)),
+            // "text" and unknown types default to Text
+            _ => Ok(Some(FormFieldType::Text)),
+        },
+    }
+}
+
 /// Block data for rich cards (from plugin response)
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -534,17 +656,7 @@ mod tests {
 
     #[test]
     fn test_plugin_input_serializes_camel_case() {
-        let input = PluginInput {
-            step: Step::Search,
-            query: Some("test".into()),
-            selected: None,
-            action: None,
-            session: None,
-            context: None,
-            value: None,
-            form_data: None,
-            source: None,
-        };
+        let input = PluginInput::search("test");
         let json = serde_json::to_string(&input).unwrap();
         assert!(json.contains("\"step\":\"search\""));
         assert!(json.contains("\"query\":\"test\""));
@@ -554,22 +666,48 @@ mod tests {
     #[test]
     fn test_plugin_input_with_selected_item() {
         let input = PluginInput {
-            step: Step::Action,
-            query: None,
             selected: Some(SelectedItem {
                 id: "item-1".into(),
                 extra: Some(json!({"foo": "bar"})),
             }),
             action: Some("open".into()),
-            session: None,
-            context: None,
-            value: None,
-            form_data: None,
-            source: None,
+            ..PluginInput::action("item-1")
         };
         let json = serde_json::to_string(&input).unwrap();
         assert!(json.contains("\"id\":\"item-1\""));
         assert!(json.contains("\"action\":\"open\""));
+    }
+
+    #[test]
+    fn test_plugin_input_default() {
+        let input = PluginInput::default();
+        let json = serde_json::to_string(&input).unwrap();
+        assert!(json.contains("\"step\":\"initial\""));
+        assert!(!json.contains("query"));
+        assert!(!json.contains("selected"));
+    }
+
+    #[test]
+    fn test_plugin_input_factory_initial() {
+        let input = PluginInput::initial();
+        let json = serde_json::to_string(&input).unwrap();
+        assert!(json.contains("\"step\":\"initial\""));
+    }
+
+    #[test]
+    fn test_plugin_input_factory_search() {
+        let input = PluginInput::search("hello");
+        let json = serde_json::to_string(&input).unwrap();
+        assert!(json.contains("\"step\":\"search\""));
+        assert!(json.contains("\"query\":\"hello\""));
+    }
+
+    #[test]
+    fn test_plugin_input_factory_action() {
+        let input = PluginInput::action("my-item");
+        let json = serde_json::to_string(&input).unwrap();
+        assert!(json.contains("\"step\":\"action\""));
+        assert!(json.contains("\"id\":\"my-item\""));
     }
 
     #[test]
@@ -760,7 +898,7 @@ mod tests {
                 ..
             } => {
                 assert_eq!(items.len(), 1);
-                assert_eq!(mode, Some("incremental".into()));
+                assert_eq!(mode, Some(IndexMode::Incremental));
                 assert_eq!(remove, Some(vec!["old-id".into()]));
             }
             _ => panic!("Expected Index"),
@@ -1006,7 +1144,7 @@ mod tests {
         let field: FormField = serde_json::from_value(json).unwrap();
         assert_eq!(field.id, "volume");
         assert_eq!(field.label, "Volume");
-        assert_eq!(field.field_type, Some("slider".into()));
+        assert_eq!(field.field_type, Some(FormFieldType::Slider));
         assert_eq!(field.default_value, Some("50".into()));
         assert!(field.required);
         assert_eq!(field.min, Some(0.0));

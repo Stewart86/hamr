@@ -1,4 +1,4 @@
-use super::{IndexCache, IndexedItem, PluginIndex};
+use super::{IndexCache, IndexCacheRef, IndexedItem, PluginIndex};
 use crate::Result;
 use crate::engine::{DEFAULT_PLUGIN_ICON, DEFAULT_VERB_OPEN, ID_PLUGIN_ENTRY};
 use crate::frecency::ExecutionContext;
@@ -18,7 +18,6 @@ pub struct IndexStore {
 }
 
 impl IndexStore {
-    /// Create a new empty index store
     pub fn new() -> Self {
         Self {
             indexes: HashMap::new(),
@@ -27,7 +26,6 @@ impl IndexStore {
         }
     }
 
-    /// Load indexes from cache file
     pub fn load(path: &Path) -> Result<Self> {
         if !path.exists() {
             debug!("Index cache not found at {}", path.display());
@@ -76,10 +74,10 @@ impl IndexStore {
             return Ok(());
         }
 
-        let cache = IndexCache {
+        let cache = IndexCacheRef {
             version: 2,
             saved_at: now_millis(),
-            indexes: self.indexes.clone(),
+            indexes: &self.indexes,
         };
 
         let content = serde_json::to_string(&cache)?;
@@ -88,14 +86,19 @@ impl IndexStore {
             std::fs::create_dir_all(parent)?;
         }
 
-        std::fs::write(path, content)?;
+        let tmp_path = path.with_extension("tmp");
+        std::fs::write(&tmp_path, content)?;
+        if let Err(e) = std::fs::rename(&tmp_path, path) {
+            let _ = std::fs::remove_file(&tmp_path);
+            return Err(e.into());
+        }
+
         self.dirty = false;
 
         debug!("Saved {} plugin indexes to cache", self.indexes.len());
         Ok(())
     }
 
-    /// Update index for a plugin (full replace)
     pub fn update_full(&mut self, plugin_id: &str, items: Vec<IndexItem>) {
         let existing = self.indexes.get(plugin_id);
 
@@ -127,7 +130,6 @@ impl IndexStore {
         self.mark_dirty();
     }
 
-    /// Update index incrementally
     pub fn update_incremental(
         &mut self,
         plugin_id: &str,
@@ -183,14 +185,12 @@ impl IndexStore {
             .map_or(&[], |idx| idx.items.as_slice())
     }
 
-    /// Get a specific item
     pub fn get_item(&self, plugin_id: &str, item_id: &str) -> Option<&IndexedItem> {
         self.indexes
             .get(plugin_id)
             .and_then(|idx| idx.items.iter().find(|i| i.id() == item_id))
     }
 
-    /// Get a mutable reference to an item
     pub fn get_item_mut(&mut self, plugin_id: &str, item_id: &str) -> Option<&mut IndexedItem> {
         self.mark_dirty();
         self.indexes
@@ -198,7 +198,6 @@ impl IndexStore {
             .and_then(|idx| idx.items.iter_mut().find(|i| i.id() == item_id))
     }
 
-    /// Get all indexed plugin IDs
     pub fn plugin_ids(&self) -> impl Iterator<Item = &str> {
         self.indexes.keys().map(String::as_str)
     }
@@ -243,7 +242,6 @@ impl IndexStore {
         })
     }
 
-    /// Calculate frecency score for an item
     // Time diff is u64 millis, convert to f64 hours for recency calculation
     #[allow(clippy::unused_self, clippy::cast_precision_loss)]
     pub fn calculate_frecency(&self, item: &IndexedItem) -> f64 {
@@ -253,7 +251,8 @@ impl IndexStore {
         }
 
         let now = now_millis();
-        let hours_since_use = (now - item.effective_last_used()) as f64 / (1000.0 * 60.0 * 60.0);
+        let hours_since_use =
+            now.saturating_sub(item.effective_last_used()) as f64 / (1000.0 * 60.0 * 60.0);
 
         let recency_multiplier = if hours_since_use < 1.0 {
             4.0
@@ -268,7 +267,6 @@ impl IndexStore {
         count * recency_multiplier
     }
 
-    /// Record an item execution
     /// Updates frecency fields directly on item (with underscore prefix) to match QML hamr format
     pub fn record_execution(
         &mut self,
@@ -368,7 +366,6 @@ impl IndexStore {
         );
     }
 
-    /// Update frecency fields on an item (using unified frecency struct)
     fn update_item_frecency(item: &mut IndexedItem, context: &ExecutionContext) {
         let now = now_millis();
         let frec = &mut item.frecency;
@@ -441,7 +438,6 @@ impl IndexStore {
         }
     }
 
-    /// Build searchables from all indexed items
     pub fn build_searchables(&self, _plugin_name_map: &HashMap<String, String>) -> Vec<Searchable> {
         let mut searchables = Vec::new();
 
@@ -528,7 +524,6 @@ impl SimpleDt {
     }
 }
 
-// Time calculations: u64 secs -> u32 hour, usize weekday
 #[allow(clippy::cast_possible_truncation)]
 fn chrono_lite_now() -> SimpleDt {
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -826,6 +821,25 @@ mod tests {
         assert_ne!(
             dt.date_string, yesterday,
             "Yesterday should differ from today"
+        );
+    }
+
+    #[test]
+    fn test_calculate_frecency_last_used_in_future() {
+        let store = IndexStore::new();
+        let mut item = IndexedItem::new(hamr_types::ResultItem {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            ..Default::default()
+        });
+        item.frecency.count = 5;
+        item.frecency.last_used = now_millis() + 999_999_999;
+
+        let frecency = store.calculate_frecency(&item);
+        assert!(frecency > 0.0);
+        assert!(
+            frecency <= 20.0,
+            "Future last_used should not produce an unreasonable score, got {frecency}"
         );
     }
 }

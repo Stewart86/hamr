@@ -18,7 +18,6 @@ use std::path::Path;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tracing::{debug, error, info, warn};
 
-// Magic string IDs used in the plugin protocol
 pub(crate) const ID_PLUGIN_ENTRY: &str = "__plugin__";
 pub(crate) const ID_BACK: &str = "__back__";
 pub(crate) const ID_FORM_CANCEL: &str = "__form_cancel__";
@@ -26,7 +25,6 @@ pub(crate) const PREFIX_PATTERN_MATCH: &str = "__pattern_match__:";
 pub(crate) const PREFIX_MATCH_PREVIEW: &str = "__match_preview__:";
 pub(crate) const ID_DISMISS: &str = "__dismiss__";
 
-// Default values for plugin results
 pub(crate) const DEFAULT_PLUGIN_ICON: &str = "extension";
 pub(crate) const DEFAULT_VERB_OPEN: &str = "Open";
 pub(crate) const DEFAULT_VERB_SELECT: &str = "Select";
@@ -140,7 +138,7 @@ impl HamrCore {
     /// Returns an error if directories cannot be created, config fails to load,
     /// or plugin discovery fails.
     pub fn new() -> Result<(Self, UnboundedReceiver<CoreUpdate>)> {
-        let dirs = Directories::new();
+        let dirs = Directories::new()?;
         dirs.ensure_exists()?;
 
         let config = Config::load(&dirs.config_file)?;
@@ -194,14 +192,12 @@ impl HamrCore {
             .map(|p| p.id.clone())
             .collect();
 
-        // Start background daemons
         for plugin_id in daemon_ids {
             if let Err(e) = self.start_daemon(&plugin_id) {
                 warn!("Failed to start daemon for {}: {}", plugin_id, e);
             }
         }
 
-        // Load static indexes
         self.load_static_indexes();
 
         info!("Hamr core started");
@@ -236,7 +232,6 @@ impl HamrCore {
                 self.handle_query_changed(query).await;
             }
             CoreEvent::QuerySubmitted { query, context } => {
-                // Update active plugin context if provided
                 if let Some(active) = &mut self.state.active_plugin
                     && context.is_some()
                 {
@@ -322,6 +317,23 @@ impl HamrCore {
         }
     }
 
+    fn serialize_form_data(form_data: &HashMap<String, String>) -> serde_json::Value {
+        match serde_json::to_value(form_data) {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("Failed to serialize form data: {e}");
+                serde_json::Value::default()
+            }
+        }
+    }
+
+    fn active_plugin_info(&self) -> Option<(String, String)> {
+        self.state
+            .active_plugin
+            .as_ref()
+            .map(|a| (a.id.clone(), a.session.clone()))
+    }
+
     /// Send an update to the UI
     fn send_update(&self, update: CoreUpdate) {
         if let Err(e) = self.update_tx.send(update) {
@@ -331,7 +343,6 @@ impl HamrCore {
 
     /// Send an update and cache it for state restoration
     fn send_update_cached(&mut self, update: CoreUpdate) {
-        // Cache certain updates for state restoration
         match &update {
             CoreUpdate::Results { results, .. } => {
                 self.state.last_results.clone_from(results);
@@ -380,14 +391,11 @@ impl HamrCore {
 
             self.state.query.clone_from(&query_to_use);
 
-            // Active plugin - send search to plugin
             if self.state.input_mode == InputMode::Realtime {
                 self.send_plugin_search(&query_to_use).await;
             }
         } else if self.state.plugin_management {
-            // In plugin list mode - search within plugins or exit on empty
             if query.is_empty() {
-                // Show all plugins when query is cleared
                 let results = self.get_plugin_list();
                 self.send_update_cached(CoreUpdate::Results {
                     results,
@@ -399,7 +407,6 @@ impl HamrCore {
                     display_hint: None,
                 });
             } else {
-                // Filter plugins by query
                 let results = self.perform_main_search(&query).await;
                 self.send_update_cached(CoreUpdate::Results {
                     results,
@@ -419,7 +426,6 @@ impl HamrCore {
                 return;
             }
 
-            // Check for action_bar_hints exact prefix match (e.g., ";" -> clipboard)
             if let Some(plugin_id) = self.find_action_bar_hint_match(&query) {
                 debug!(
                     "Action bar hint match: '{}' -> plugin '{}'",
@@ -431,8 +437,6 @@ impl HamrCore {
                 return;
             }
 
-            // Check for plugin manifest prefix exact match (e.g., "~" -> files, "=" -> calculate)
-            // Auto-activate plugin when query exactly matches its prefix
             if let Some((plugin, remaining)) = self.plugins.find_matching(&query)
                 && remaining.is_empty()
             {
@@ -447,7 +451,6 @@ impl HamrCore {
                 return;
             }
 
-            // Main search
             let results = self.perform_main_search(&query).await;
             debug!("handle_query_changed: produced {} results", results.len());
             self.send_update_cached(CoreUpdate::results(results));
@@ -538,10 +541,7 @@ impl HamrCore {
             return;
         }
 
-        // Main search: handle based on item type
-        // Check if it's a plugin
         if self.plugins.get(&id).is_some() {
-            // Record plugin open for frecency (plugin-level tracking)
             self.record_plugin_open(&id);
             self.handle_open_plugin(id).await;
             return;
@@ -590,7 +590,6 @@ impl HamrCore {
             return;
         }
 
-        // Find and execute indexed item
         if self
             .handle_indexed_item_selected(&id, action, event_plugin_id.as_deref())
             .await
@@ -751,7 +750,6 @@ impl HamrCore {
             let frecency_mode = self.get_frecency_mode(plugin_id);
             let context = ExecutionContext::default();
 
-            // Find item in last_results to auto-index if not already indexed
             let fallback_item = self
                 .state
                 .last_results
@@ -767,7 +765,6 @@ impl HamrCore {
                 fallback_item.as_ref(),
             );
 
-            // Invalidate cache so it gets rebuilt on launcher close
             self.invalidate_recent_cache();
 
             self.control_throttle.last_control_key = Some(control_key);
@@ -784,21 +781,12 @@ impl HamrCore {
             .get(plugin_id)
             .and_then(|p| p.manifest.frecency.as_ref());
 
-        // Only record plugin open for plugin-level frecency
         // Item-level plugins track frecency on individual items
         if !matches!(frecency_mode, Some(crate::plugin::FrecencyMode::Plugin)) {
             return;
         }
 
-        let context = ExecutionContext {
-            search_term: if self.state.query.is_empty() {
-                None
-            } else {
-                Some(self.state.query.clone())
-            },
-            launch_from_empty: self.state.query.is_empty(),
-            ..Default::default()
-        };
+        let context = self.build_execution_context();
 
         self.index.record_execution(
             plugin_id,
@@ -807,12 +795,10 @@ impl HamrCore {
             Some(&FrecencyMode::Plugin),
         );
 
-        // Invalidate cache so it gets rebuilt on launcher close
         self.invalidate_recent_cache();
     }
 
     async fn handle_back(&mut self) {
-        // In plugin list mode, back exits to main search
         if self.state.plugin_management {
             self.exit_plugin_management();
             self.state.query.clear();
@@ -869,25 +855,20 @@ impl HamrCore {
 
     fn handle_launcher_closed(&mut self) {
         self.state.is_open = false;
-        // Exit plugin list mode if active
         self.exit_plugin_management();
-        // Record close time for state restoration window
         self.state.last_close_time = Some(std::time::Instant::now());
         // Rebuild recent list in background so it's ready for next open
         self.rebuild_recent_cache();
-        // Tell UI to close
         self.send_update(CoreUpdate::Close);
     }
 
     async fn handle_cancel(&mut self) {
-        // Exit plugin list mode if active
         self.exit_plugin_management();
         self.handle_close_plugin().await;
         self.send_update(CoreUpdate::Close);
     }
 
     async fn handle_open_plugin(&mut self, id: String) {
-        // Exit plugin list mode if active
         self.exit_plugin_management();
 
         let Some(plugin) = self.plugins.get(&id) else {
@@ -910,7 +891,6 @@ impl HamrCore {
         self.state.navigation_depth = 0;
         self.state.query.clear();
 
-        // Determine input mode
         self.state.input_mode = match plugin.manifest.input_mode {
             Some(crate::plugin::InputMode::Submit) => InputMode::Submit,
             _ => InputMode::Realtime,
@@ -977,20 +957,11 @@ impl HamrCore {
         form_data: std::collections::HashMap<String, String>,
         context: Option<String>,
     ) {
-        let Some(ref active) = self.state.active_plugin else {
+        let Some((plugin_id, session)) = self.active_plugin_info() else {
             return;
         };
 
-        let plugin_id = active.id.clone();
-        let session = active.session.clone();
-
-        let form_data_json = match serde_json::to_value(&form_data) {
-            Ok(v) => v,
-            Err(e) => {
-                warn!("Failed to serialize form data: {e}");
-                serde_json::Value::default()
-            }
-        };
+        let form_data_json = Self::serialize_form_data(&form_data);
 
         let input = PluginInput {
             step: Step::Form,
@@ -1009,12 +980,9 @@ impl HamrCore {
     }
 
     async fn handle_form_cancelled(&mut self) {
-        let Some(ref active) = self.state.active_plugin else {
+        let Some((plugin_id, session)) = self.active_plugin_info() else {
             return;
         };
-
-        let plugin_id = active.id.clone();
-        let session = active.session.clone();
 
         let input = PluginInput {
             step: Step::Action,
@@ -1043,23 +1011,12 @@ impl HamrCore {
         form_data: std::collections::HashMap<String, String>,
         context: Option<String>,
     ) {
-        let Some(ref active) = self.state.active_plugin else {
+        let Some((plugin_id, session)) = self.active_plugin_info() else {
             return;
         };
 
-        let plugin_id = active.id.clone();
-        let session = active.session.clone();
+        let form_data_json = Self::serialize_form_data(&form_data);
 
-        // Convert HashMap to serde_json::Value
-        let form_data_json = match serde_json::to_value(&form_data) {
-            Ok(v) => v,
-            Err(e) => {
-                warn!("Failed to serialize form data: {e}");
-                serde_json::Value::default()
-            }
-        };
-
-        // Send as form step with live update - plugin decides how to handle
         let input = PluginInput {
             step: Step::Form,
             query: Some(self.state.query.clone()),
@@ -1077,12 +1034,15 @@ impl HamrCore {
     }
 
     async fn handle_plugin_action(&mut self, action_id: String) {
-        let Some(ref active) = self.state.active_plugin else {
+        let Some((plugin_id, session)) = self.active_plugin_info() else {
             return;
         };
 
-        let plugin_id = active.id.clone();
-        let session = active.session.clone();
+        let context = self
+            .state
+            .active_plugin
+            .as_ref()
+            .and_then(|a| a.context.clone());
 
         let input = PluginInput {
             step: Step::Action,
@@ -1093,7 +1053,7 @@ impl HamrCore {
             }),
             action: Some(action_id),
             session: Some(session),
-            context: active.context.clone(),
+            context,
             value: None,
             form_data: None,
             source: None,
@@ -1104,7 +1064,6 @@ impl HamrCore {
     }
 
     async fn perform_main_search(&mut self, query: &str) -> Vec<SearchResult> {
-        // In plugin list mode with empty query, show all plugins sorted by frecency
         if query.is_empty() && self.state.plugin_management {
             return self.get_plugin_list();
         }
@@ -1294,7 +1253,6 @@ impl HamrCore {
         }
     }
 
-    /// Build all searchables from index and plugins
     fn build_all_searchables(&self, query: &str) -> Vec<Searchable> {
         let plugin_names: HashMap<_, _> = self
             .plugins
@@ -1336,7 +1294,6 @@ impl HamrCore {
             }
         }
 
-        // In plugin list mode, filter to only show plugin entries
         if self.state.plugin_management {
             all_searchables.retain(|s| matches!(s.source, SearchableSource::Plugin { .. }));
             debug!(
@@ -1431,7 +1388,6 @@ impl HamrCore {
         }
     }
 
-    /// Get the current state
     #[must_use]
     pub fn state(&self) -> &LauncherState {
         &self.state
@@ -1481,8 +1437,6 @@ impl HamrCore {
         }
     }
 
-    /// Save index cache.
-    ///
     /// # Errors
     ///
     /// Returns an error if serialization fails or the file cannot be written.
@@ -1490,19 +1444,16 @@ impl HamrCore {
         self.index.save(&self.dirs.index_cache)
     }
 
-    /// Check if index has unsaved changes
     #[must_use]
     pub fn is_index_dirty(&self) -> bool {
         self.index.is_dirty()
     }
 
-    /// Get timestamp (ms) when index was last modified
     #[must_use]
     pub fn last_index_dirty_at(&self) -> u64 {
         self.index.last_dirty_at()
     }
 
-    /// Get index statistics
     #[must_use]
     pub fn index_stats(&self) -> IndexStats {
         self.index.stats()
@@ -1591,10 +1542,9 @@ pub struct IndexStats {
 }
 
 fn generate_session_id() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
-    format!("session_{now}")
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SESSION_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    let id = SESSION_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("session_{id}")
 }

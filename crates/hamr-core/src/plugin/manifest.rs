@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Plugin manifest (manifest.json)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Manifest {
     pub name: String,
@@ -46,7 +46,7 @@ pub struct Manifest {
 }
 
 /// Handler type for plugin communication
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum HandlerType {
     /// Standard input/output communication
@@ -57,7 +57,7 @@ pub enum HandlerType {
 }
 
 /// Handler configuration for plugin execution
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Handler {
     /// Type of handler (stdio or socket)
@@ -73,7 +73,7 @@ pub struct Handler {
     pub command: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DaemonConfig {
     #[serde(default)]
@@ -90,7 +90,7 @@ pub struct DaemonConfig {
 }
 
 /// Frecency tracking mode
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum FrecencyMode {
     /// Track individual item usage
@@ -103,7 +103,7 @@ pub enum FrecencyMode {
 }
 
 /// Input mode for search
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum InputMode {
     /// Search on every keystroke
@@ -114,7 +114,7 @@ pub enum InputMode {
 }
 
 /// Match configuration for pattern-based plugin activation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MatchConfig {
     #[serde(default)]
     pub patterns: Vec<String>,
@@ -124,7 +124,7 @@ pub struct MatchConfig {
 }
 
 /// Static index item (defined in manifest)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StaticIndexItem {
     pub id: String,

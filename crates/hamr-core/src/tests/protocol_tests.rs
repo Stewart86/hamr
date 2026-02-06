@@ -96,7 +96,7 @@ fn test_parse_index_incremental_mode() {
 
     match response {
         PluginResponse::Index { mode, remove, .. } => {
-            assert_eq!(mode, Some("incremental".to_string()));
+            assert_eq!(mode, Some(crate::plugin::IndexMode::Incremental));
             let remove = remove.unwrap();
             assert_eq!(remove.len(), 2);
             assert!(remove.contains(&"old1".to_string()));
@@ -489,13 +489,19 @@ fn test_parse_form_response_notes_plugin_format() {
 
             // Title field
             assert_eq!(form.fields[0].id, "title");
-            assert_eq!(form.fields[0].field_type, Some("text".to_string()));
+            assert_eq!(
+                form.fields[0].field_type,
+                Some(hamr_types::FormFieldType::Text)
+            );
             assert!(form.fields[0].required);
             assert_eq!(form.fields[0].default_value, Some("test_value".to_string()));
 
             // Content field
             assert_eq!(form.fields[1].id, "content");
-            assert_eq!(form.fields[1].field_type, Some("textarea".to_string()));
+            assert_eq!(
+                form.fields[1].field_type,
+                Some(hamr_types::FormFieldType::TextArea)
+            );
             assert_eq!(form.fields[1].rows, Some(6));
 
             // Context
@@ -1225,44 +1231,77 @@ fn test_parse_form_all_field_types() {
             assert!(form.live_update);
 
             // Text field
-            assert_eq!(form.fields[0].field_type, Some("text".to_string()));
+            assert_eq!(
+                form.fields[0].field_type,
+                Some(hamr_types::FormFieldType::Text)
+            );
 
             // Password field
-            assert_eq!(form.fields[1].field_type, Some("password".to_string()));
+            assert_eq!(
+                form.fields[1].field_type,
+                Some(hamr_types::FormFieldType::Password)
+            );
 
             // Number field
-            assert_eq!(form.fields[2].field_type, Some("number".to_string()));
+            assert_eq!(
+                form.fields[2].field_type,
+                Some(hamr_types::FormFieldType::Number)
+            );
 
             // Textarea with rows
-            assert_eq!(form.fields[3].field_type, Some("textarea".to_string()));
+            assert_eq!(
+                form.fields[3].field_type,
+                Some(hamr_types::FormFieldType::TextArea)
+            );
             assert_eq!(form.fields[3].rows, Some(4));
 
             // Select with options
-            assert_eq!(form.fields[4].field_type, Some("select".to_string()));
+            assert_eq!(
+                form.fields[4].field_type,
+                Some(hamr_types::FormFieldType::Select)
+            );
             assert_eq!(form.fields[4].options.len(), 2);
             assert_eq!(form.fields[4].options[0].value, "us");
 
             // Checkbox
-            assert_eq!(form.fields[5].field_type, Some("checkbox".to_string()));
+            assert_eq!(
+                form.fields[5].field_type,
+                Some(hamr_types::FormFieldType::Checkbox)
+            );
 
             // Switch
-            assert_eq!(form.fields[6].field_type, Some("switch".to_string()));
+            assert_eq!(
+                form.fields[6].field_type,
+                Some(hamr_types::FormFieldType::Switch)
+            );
 
             // Slider with min/max/step
-            assert_eq!(form.fields[7].field_type, Some("slider".to_string()));
+            assert_eq!(
+                form.fields[7].field_type,
+                Some(hamr_types::FormFieldType::Slider)
+            );
             assert_eq!(form.fields[7].min, Some(0.0));
             assert_eq!(form.fields[7].max, Some(100.0));
             assert_eq!(form.fields[7].step, Some(5.0));
 
             // Hidden with default
-            assert_eq!(form.fields[8].field_type, Some("hidden".to_string()));
+            assert_eq!(
+                form.fields[8].field_type,
+                Some(hamr_types::FormFieldType::Hidden)
+            );
             assert_eq!(form.fields[8].default_value, Some("secret123".to_string()));
 
             // Date
-            assert_eq!(form.fields[9].field_type, Some("date".to_string()));
+            assert_eq!(
+                form.fields[9].field_type,
+                Some(hamr_types::FormFieldType::Date)
+            );
 
             // Time
-            assert_eq!(form.fields[10].field_type, Some("time".to_string()));
+            assert_eq!(
+                form.fields[10].field_type,
+                Some(hamr_types::FormFieldType::Time)
+            );
         }
         _ => panic!("Expected Form response"),
     }

@@ -5,7 +5,6 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::path::PathBuf;
 
 /// Deserialize a Vec that may be null or missing (both become empty vec)
@@ -19,7 +18,7 @@ where
 }
 
 /// Events sent from UI to core
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CoreEvent {
     /// Query text changed (realtime search)
@@ -119,7 +118,7 @@ pub enum CoreEvent {
 }
 
 /// Updates sent from core to UI
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CoreUpdate {
     /// Search results to display (full replacement)
@@ -282,10 +281,27 @@ impl CoreUpdate {
             display_hint: None,
         }
     }
+
+    /// Create a `Results` update with results and an optional placeholder.
+    #[must_use]
+    pub fn results_with_placeholder(
+        results: Vec<SearchResult>,
+        placeholder: Option<String>,
+    ) -> Self {
+        Self::Results {
+            results,
+            placeholder,
+            clear_input: None,
+            input_mode: None,
+            context: None,
+            navigate_forward: None,
+            display_hint: None,
+        }
+    }
 }
 
 /// Partial update to a result item - only specified fields are updated
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ResultPatch {
     /// ID of the item to update (required)
@@ -347,7 +363,7 @@ pub struct ResultPatch {
 /// All fields use serde defaults for flexible deserialization from plugins.
 /// Deserialization is handled via `ResultItemRaw` to support both modern `widget`
 /// field and legacy flat fields (value/min/max/step/gauge/progress/graph).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", try_from = "ResultItemRaw")]
 pub struct ResultItem {
     pub id: String,
@@ -520,9 +536,9 @@ fn build_widget_from_flat(
     match result_type {
         ResultType::Slider => value.map(|v| WidgetData::Slider {
             value: v,
-            min: min.unwrap_or(0.0),
-            max: max.unwrap_or(100.0),
-            step: step.unwrap_or(1.0),
+            min: min.unwrap_or(DEFAULT_SLIDER_MIN),
+            max: max.unwrap_or(DEFAULT_SLIDER_MAX),
+            step: step.unwrap_or(DEFAULT_SLIDER_STEP),
             display_value,
         }),
         ResultType::Switch => value.map(|v| WidgetData::Switch { value: v != 0.0 }),
@@ -882,7 +898,7 @@ pub type SearchResult = ResultItem;
 ///
 /// For wire format, use `SearchResult.icon` (`String`) + `SearchResult.icon_type` (`Option<String>`).
 /// This enum is used internally by TUI and other UIs to convert from the simple protocol format.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IconSpec {
     /// Freedesktop/system icon name
     System(String),
@@ -1084,11 +1100,15 @@ pub struct SliderValue {
     pub display_value: Option<String>,
 }
 
+pub const DEFAULT_SLIDER_MIN: f64 = 0.0;
+pub const DEFAULT_SLIDER_MAX: f64 = 100.0;
+pub const DEFAULT_SLIDER_STEP: f64 = 1.0;
+
 fn default_max() -> f64 {
-    100.0
+    DEFAULT_SLIDER_MAX
 }
 fn default_step() -> f64 {
-    1.0
+    DEFAULT_SLIDER_STEP
 }
 
 /// Interactive and display widgets for result items.
@@ -1321,7 +1341,7 @@ where
         None => Ok(None),
         Some(serde_json::Value::Number(n)) => Ok(Some(ProgressData {
             value: n.as_f64().unwrap_or(0.0),
-            max: 100.0,
+            max: DEFAULT_SLIDER_MAX,
             label: None,
             color: None,
         })),
@@ -1501,7 +1521,7 @@ pub struct FormOption {
 }
 
 /// Execute action from core
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ExecuteAction {
     /// Launch a desktop application (via gio launch on Linux, open -a on macOS)
@@ -1592,7 +1612,7 @@ pub struct FabOverride {
 }
 
 /// Plugin status update - badges/chips/description for plugin entry in main list
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct PluginStatus {
     #[serde(
         default,

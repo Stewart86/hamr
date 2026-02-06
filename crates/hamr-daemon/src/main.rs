@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use tracing::info;
+use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 mod config_watcher;
@@ -32,7 +33,7 @@ struct Args {
 /// Set up logging with file output for debugging.
 /// In debug builds, defaults to debug level and logs to timestamped file.
 /// In release builds, defaults to info level and logs to stderr.
-fn setup_logging() {
+fn setup_logging() -> Option<WorkerGuard> {
     let default_level = if cfg!(debug_assertions) {
         "debug"
     } else {
@@ -58,8 +59,6 @@ fn setup_logging() {
         let file_appender = tracing_appender::rolling::never(&temp_dir, &log_filename);
         let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
-        std::mem::forget(guard);
-
         let file_layer = fmt::layer()
             .with_writer(non_blocking)
             .with_ansi(false)
@@ -79,11 +78,13 @@ fn setup_logging() {
             .init();
 
         eprintln!("Logging to: {} (and stderr)", log_path.display());
+        Some(guard)
     } else {
         tracing_subscriber::registry()
             .with(fmt::layer())
             .with(filter)
             .init();
+        None
     }
 }
 
@@ -91,7 +92,7 @@ fn setup_logging() {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    setup_logging();
+    let _guard = setup_logging();
 
     info!("Starting hamr daemon...");
 

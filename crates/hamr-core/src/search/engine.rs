@@ -3,6 +3,9 @@ use nucleo_matcher::pattern::{AtomKind, CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Config, Matcher, Utf32Str};
 use tracing::debug;
 
+const EXACT_MATCH_BONUS: f64 = 500.0;
+const PREFIX_MATCH_BASE: f64 = 250.0;
+
 /// Fuzzy search engine using nucleo
 pub struct SearchEngine {
     matcher: Matcher,
@@ -159,16 +162,20 @@ impl SearchEngine {
     #[must_use]
     #[allow(clippy::cast_precision_loss)]
     pub fn name_match_bonus(query: &str, name: &str) -> f64 {
+        if query.is_empty() {
+            return 0.0;
+        }
+
         let query_lower = query.to_lowercase();
         let name_lower = name.to_lowercase();
 
         if query_lower == name_lower {
-            return 500.0;
+            return EXACT_MATCH_BONUS;
         }
 
         if name_lower.starts_with(&query_lower) {
             let coverage = query.len() as f64 / name.len() as f64;
-            return 250.0 + (coverage * 250.0);
+            return PREFIX_MATCH_BASE + (coverage * PREFIX_MATCH_BASE);
         }
 
         0.0
@@ -300,10 +307,7 @@ mod tests {
     #[test]
     fn test_name_match_bonus_empty_query() {
         let bonus = SearchEngine::name_match_bonus("", "Firefox");
-        assert_eq!(
-            bonus, 250.0,
-            "Empty query gives min prefix bonus (coverage=0)"
-        );
+        assert_eq!(bonus, 0.0, "Empty query should give no bonus");
     }
 
     #[test]
@@ -315,7 +319,7 @@ mod tests {
     #[test]
     fn test_name_match_bonus_both_empty() {
         let bonus = SearchEngine::name_match_bonus("", "");
-        assert_eq!(bonus, 500.0, "Both empty strings are an exact match");
+        assert_eq!(bonus, 0.0, "Empty query returns early with no bonus");
     }
 
     #[test]

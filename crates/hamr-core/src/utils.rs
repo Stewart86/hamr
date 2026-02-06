@@ -1,5 +1,8 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub(crate) const SECS_PER_DAY: u64 = 86_400;
+pub(crate) const SECS_PER_HOUR: u64 = 3_600;
+
 /// Get current timestamp in milliseconds.
 // u128 millis fits in u64 for realistic timestamps (until year 584942417)
 #[allow(clippy::cast_possible_truncation)]
@@ -10,11 +13,22 @@ pub(crate) fn now_millis() -> u64 {
         .unwrap_or(0)
 }
 
+/// Extract hour (0-23) and weekday (0=Mon, 6=Sun) from epoch seconds.
+// Time math: u64 secs -> u32 hour, usize weekday
+#[allow(clippy::cast_possible_truncation)]
+pub(crate) fn time_components_from_epoch(epoch_secs: u64) -> (u32, usize) {
+    let days_since_epoch = epoch_secs / SECS_PER_DAY;
+    let weekday = ((days_since_epoch + 3) % 7) as usize; // 0=Mon, 6=Sun (epoch was Thursday)
+    let secs_today = epoch_secs % SECS_PER_DAY;
+    let hour = (secs_today / SECS_PER_HOUR) as u32;
+    (hour, weekday)
+}
+
 /// Convert epoch seconds to a date string "YYYY-MM-DD".
 // u64 days since epoch fits in i64 for date calculations
 #[allow(clippy::cast_possible_wrap)]
 pub(crate) fn date_string_from_epoch(secs: u64) -> String {
-    let days = secs / 86400;
+    let days = secs / SECS_PER_DAY;
     let mut days = days as i64;
     let mut year = 1970i32;
 
@@ -68,6 +82,6 @@ pub(crate) fn yesterday_string() -> String {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
-        .saturating_sub(86400);
+        .saturating_sub(SECS_PER_DAY);
     date_string_from_epoch(secs)
 }

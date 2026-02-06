@@ -63,17 +63,31 @@ impl ChecksumsData {
             return None;
         }
 
-        let plugins_obj = json.get("plugins")?.as_object()?;
+        let Some(plugins_obj) = json.get("plugins").and_then(|v| v.as_object()) else {
+            warn!("checksums.json missing or invalid 'plugins' field");
+            return None;
+        };
         let mut plugins = HashMap::new();
 
         for (plugin_id, files_value) in plugins_obj {
-            let files_obj = files_value.as_object()?;
+            let Some(files_obj) = files_value.as_object() else {
+                warn!(
+                    "Malformed checksum entry for plugin '{}', skipping",
+                    plugin_id
+                );
+                continue;
+            };
             let mut files = HashMap::new();
 
             for (filename, hash_value) in files_obj {
-                if let Some(hash) = hash_value.as_str() {
-                    files.insert(filename.clone(), hash.to_string());
-                }
+                let Some(hash) = hash_value.as_str() else {
+                    warn!(
+                        "Malformed checksum hash for '{}' in plugin '{}', skipping",
+                        filename, plugin_id
+                    );
+                    continue;
+                };
+                files.insert(filename.clone(), hash.to_string());
             }
 
             plugins.insert(plugin_id.clone(), files);
@@ -131,12 +145,32 @@ impl ChecksumsData {
 
 /// Compute SHA256 hash of a file, returning hex string
 fn compute_file_hash(path: &Path) -> Option<String> {
-    let mut file = fs::File::open(path).ok()?;
+    let mut file = match fs::File::open(path) {
+        Ok(f) => f,
+        Err(e) => {
+            warn!(
+                "Failed to open file for checksum: {}: {}",
+                path.display(),
+                e
+            );
+            return None;
+        }
+    };
     let mut hasher = Sha256::new();
     let mut buffer = [0u8; 8192];
 
     loop {
-        let bytes_read = file.read(&mut buffer).ok()?;
+        let bytes_read = match file.read(&mut buffer) {
+            Ok(n) => n,
+            Err(e) => {
+                warn!(
+                    "Failed to read file for checksum: {}: {}",
+                    path.display(),
+                    e
+                );
+                return None;
+            }
+        };
         if bytes_read == 0 {
             break;
         }

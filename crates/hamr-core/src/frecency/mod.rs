@@ -3,6 +3,12 @@ use crate::index::{IndexStore, IndexedItem};
 use crate::utils::{date_string_from_epoch, is_leap_year};
 use crate::utils::{now_millis, today_string, yesterday_string};
 
+const FRECENCY_MULTIPLIER: f64 = 10.0;
+const MAX_FRECENCY_BOOST: f64 = 300.0;
+const HISTORY_BOOST: f64 = 200.0;
+const MIN_SEQUENCE_CONFIDENCE: f64 = 0.1;
+const MIN_RUNNING_APPS_SCORE: f64 = 0.1;
+
 /// Match type for scoring
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MatchType {
@@ -22,10 +28,10 @@ impl FrecencyScorer {
     /// - `frecency_boost`: 0-300 based on usage frequency x recency
     /// - `history_boost`: +200 when query matches a learned search term (`MatchType::Exact`)
     pub fn composite_score(match_type: MatchType, fuzzy_score: f64, frecency: f64) -> f64 {
-        let frecency_boost = (frecency * 10.0).min(300.0);
+        let frecency_boost = (frecency * FRECENCY_MULTIPLIER).clamp(0.0, MAX_FRECENCY_BOOST);
 
         let history_boost = if match_type == MatchType::Exact {
-            200.0
+            HISTORY_BOOST
         } else {
             0.0
         };
@@ -506,7 +512,7 @@ impl SmartSuggestions {
             acc.min_events,
         );
 
-        if seq_confidence > 0.1 {
+        if seq_confidence > MIN_SEQUENCE_CONFIDENCE {
             acc.add_score(
                 seq_confidence,
                 SignalWeights::SEQUENCE,
@@ -543,7 +549,7 @@ impl SmartSuggestions {
             }
         }
 
-        if best_score > 0.1 {
+        if best_score > MIN_RUNNING_APPS_SCORE {
             acc.add_score(
                 best_score,
                 SignalWeights::RUNNING_APPS,
@@ -832,7 +838,10 @@ mod tests {
     #[test]
     fn test_composite_score_negative_frecency() {
         let score = FrecencyScorer::composite_score(MatchType::Fuzzy, 100.0, -10.0);
-        assert!(score < 100.0, "Negative frecency should reduce total");
+        assert_eq!(
+            score, 100.0,
+            "Negative frecency is clamped to 0, so score equals fuzzy_score"
+        );
     }
 
     #[test]

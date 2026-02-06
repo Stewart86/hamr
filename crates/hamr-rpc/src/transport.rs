@@ -48,6 +48,10 @@ impl Decoder for JsonRpcCodec {
 
             let len = src.get_u32() as usize;
 
+            if len == 0 {
+                return Err(CodecError::EmptyMessage);
+            }
+
             if len > MAX_MESSAGE_SIZE {
                 return Err(CodecError::MessageTooLarge(len));
             }
@@ -109,6 +113,9 @@ pub enum CodecError {
 
     #[error("Message too large: {0} bytes (max: {MAX_MESSAGE_SIZE})")]
     MessageTooLarge(usize),
+
+    #[error("Empty message frame")]
+    EmptyMessage,
 }
 
 #[cfg(test)]
@@ -126,13 +133,10 @@ mod tests {
         let request = Request::new("test", Some(serde_json::json!({"key": "value"})), 1.into());
         let msg = Message::Request(request);
 
-        // Encode
         codec.encode(msg.clone(), &mut buf).unwrap();
 
-        // Decode
         let decoded = codec.decode(&mut buf).unwrap().unwrap();
 
-        // Compare
         if let (Message::Request(orig), Message::Request(dec)) = (msg, decoded) {
             assert_eq!(orig.method, dec.method);
             assert_eq!(orig.id, dec.id);
@@ -215,21 +219,17 @@ mod tests {
         let msg = Message::Request(request);
         codec.encode(msg, &mut buf).unwrap();
 
-        // Save the full buffer
         let full_buf = buf.clone();
 
-        // Try decoding with only partial data
         let mut partial = BytesMut::new();
         partial.extend_from_slice(&full_buf[..2]); // Only 2 bytes of length prefix
 
         assert!(codec.decode(&mut partial).unwrap().is_none());
 
-        // Add more data
-        partial.extend_from_slice(&full_buf[2..6]); // Rest of prefix + some payload
+        partial.extend_from_slice(&full_buf[2..6]);
 
         assert!(codec.decode(&mut partial).unwrap().is_none());
 
-        // Add remaining data
         partial.extend_from_slice(&full_buf[6..]);
 
         let decoded = codec.decode(&mut partial).unwrap();
@@ -265,14 +265,12 @@ mod tests {
         let mut codec = JsonRpcCodec::new();
         let mut buf = BytesMut::new();
 
-        // Encode two messages
         let msg1 = Message::Request(Request::new("first", None, 1.into()));
         let msg2 = Message::Request(Request::new("second", None, 2.into()));
 
         codec.encode(msg1, &mut buf).unwrap();
         codec.encode(msg2, &mut buf).unwrap();
 
-        // Decode first
         let decoded1 = codec.decode(&mut buf).unwrap().unwrap();
         if let Message::Request(req) = decoded1 {
             assert_eq!(req.method, "first");
@@ -280,7 +278,6 @@ mod tests {
             panic!("Expected Request");
         }
 
-        // Decode second
         let decoded2 = codec.decode(&mut buf).unwrap().unwrap();
         if let Message::Request(req) = decoded2 {
             assert_eq!(req.method, "second");
@@ -288,7 +285,6 @@ mod tests {
             panic!("Expected Request");
         }
 
-        // Buffer should be empty now
         assert!(buf.is_empty());
     }
 
@@ -297,7 +293,6 @@ mod tests {
         let mut codec = JsonRpcCodec::new();
         let mut buf = BytesMut::new();
 
-        // Write a length prefix that exceeds the limit
         buf.put_u32((MAX_MESSAGE_SIZE + 1) as u32);
 
         let result = codec.decode(&mut buf);
@@ -309,7 +304,6 @@ mod tests {
         let mut codec = JsonRpcCodec::new();
         let mut buf = BytesMut::new();
 
-        // Write length prefix
         let invalid_json = b"not valid json";
         buf.put_u32(invalid_json.len() as u32);
         buf.extend_from_slice(invalid_json);
@@ -323,7 +317,6 @@ mod tests {
         let mut codec = JsonRpcCodec::new();
         let mut buf = BytesMut::new();
 
-        // Write length prefix and invalid UTF-8
         let invalid_utf8 = [0xff, 0xfe, 0x00, 0x01];
         buf.put_u32(invalid_utf8.len() as u32);
         buf.extend_from_slice(&invalid_utf8);
@@ -397,6 +390,17 @@ mod tests {
     }
 
     #[test]
+    fn test_decode_empty_message_frame() {
+        let mut codec = JsonRpcCodec::new();
+        let mut buf = BytesMut::new();
+
+        buf.put_u32(0);
+
+        let result = codec.decode(&mut buf);
+        assert!(matches!(result, Err(CodecError::EmptyMessage)));
+    }
+
+    #[test]
     fn test_length_prefix_format() {
         let mut codec = JsonRpcCodec::new();
         let mut buf = BytesMut::new();
@@ -406,10 +410,8 @@ mod tests {
 
         codec.encode(msg, &mut buf).unwrap();
 
-        // First 4 bytes should be length prefix (big-endian)
         let length = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
 
-        // Length should match remaining bytes
         assert_eq!(length, buf.len() - 4);
     }
 }

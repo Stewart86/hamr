@@ -1,6 +1,6 @@
 //! Configuration file watcher for hot-reload support.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
 use std::sync::mpsc;
@@ -13,18 +13,27 @@ use tracing::{debug, error, info};
 use crate::error::Result;
 
 const RELOAD_SETTLE_DELAY: Duration = Duration::from_millis(100);
-const DEBOUNCE_DURATION: Duration = Duration::from_millis(500);
+const CONFIG_DEBOUNCE_DURATION: Duration = Duration::from_millis(500);
+const CONFIG_FILENAME: &str = "config.json";
 
-pub fn spawn_config_watcher(config_path: PathBuf, tx: tokio_mpsc::UnboundedSender<()>) {
+pub struct ConfigWatcher {
+    _watcher_thread: std::thread::JoinHandle<()>,
+    _bridge_thread: std::thread::JoinHandle<()>,
+}
+
+pub fn spawn_config_watcher(
+    config_path: PathBuf,
+    tx: tokio_mpsc::UnboundedSender<()>,
+) -> ConfigWatcher {
     let (sync_tx, sync_rx) = mpsc::channel::<()>();
 
-    std::thread::spawn(move || {
+    let watcher_thread = std::thread::spawn(move || {
         if let Err(e) = watch_config_file(&config_path, &sync_tx) {
             error!("Config watcher error: {e}");
         }
     });
 
-    std::thread::spawn(move || {
+    let bridge_thread = std::thread::spawn(move || {
         loop {
             if let Ok(()) = sync_rx.recv() {
                 debug!("Config file changed, sending reload notification");
@@ -39,9 +48,14 @@ pub fn spawn_config_watcher(config_path: PathBuf, tx: tokio_mpsc::UnboundedSende
             }
         }
     });
+
+    ConfigWatcher {
+        _watcher_thread: watcher_thread,
+        _bridge_thread: bridge_thread,
+    }
 }
 
-fn watch_config_file(config_path: &PathBuf, tx: &mpsc::Sender<()>) -> Result<()> {
+fn watch_config_file(config_path: &Path, tx: &mpsc::Sender<()>) -> Result<()> {
     let debounce = Arc::new(StdMutex::new(std::time::Instant::now()));
 
     let config_path_for_closure = config_path.to_owned();
@@ -54,14 +68,14 @@ fn watch_config_file(config_path: &PathBuf, tx: &mpsc::Sender<()>) -> Result<()>
                 notify::EventKind::Modify(_) | notify::EventKind::Create(_) => {
                     if event.paths.iter().any(|p| {
                         p.file_name() == config_path_for_closure.file_name()
-                            || p.ends_with("config.json")
+                            || p.ends_with(CONFIG_FILENAME)
                     }) {
                         let Ok(mut last_event) = debounce.lock() else {
                             error!("[config_watcher] Debounce mutex poisoned, skipping event");
                             return;
                         };
                         let now = std::time::Instant::now();
-                        if now.duration_since(*last_event) > DEBOUNCE_DURATION {
+                        if now.duration_since(*last_event) > CONFIG_DEBOUNCE_DURATION {
                             *last_event = now;
                             let _ = watcher_tx.send(());
                         }
