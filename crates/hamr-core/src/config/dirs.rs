@@ -79,9 +79,17 @@ impl Directories {
     fn find_builtin_plugins() -> PathBuf {
         if let Ok(exe_path) = std::env::current_exe() {
             let exe_dir = exe_path.parent().unwrap_or(&exe_path);
+
+            // Check next to the binary first (e.g. bin/plugins)
             let plugins_dir = exe_dir.join("plugins");
             if plugins_dir.exists() {
                 return plugins_dir;
+            }
+
+            // Check FHS-style share path relative to binary (e.g. Nix: ../share/hamr/plugins)
+            let share_plugins = exe_dir.join("../share/hamr/plugins");
+            if share_plugins.exists() {
+                return share_plugins.canonicalize().unwrap_or(share_plugins);
             }
         }
 

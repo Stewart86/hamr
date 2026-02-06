@@ -902,17 +902,23 @@ const ESSENTIAL_PLUGINS: &[&str] = &["apps", "shell", "calculate", "clipboard", 
 
 /// Find the source plugins directory (same logic as hamr-core's `Directories::find_builtin_plugins`)
 fn find_source_plugins() -> Option<PathBuf> {
-    // Priority 1: Next to current executable (release/GitHub download)
     if let Ok(exe_path) = std::env::current_exe()
         && let Some(exe_dir) = exe_path.parent()
     {
+        // Priority 1: Next to current executable (release/GitHub download)
         let plugins_dir = exe_dir.join("plugins");
         if plugins_dir.exists() {
             return Some(plugins_dir);
         }
+
+        // Priority 2: FHS-style share path relative to binary (e.g. Nix: ../share/hamr/plugins)
+        let share_plugins = exe_dir.join("../share/hamr/plugins");
+        if share_plugins.exists() {
+            return share_plugins.canonicalize().ok();
+        }
     }
 
-    // Priority 2: Development paths
+    // Priority 3: Development paths
     let dev_paths: [PathBuf; 2] = [PathBuf::from("plugins"), PathBuf::from("../hamr/plugins")];
 
     for path in dev_paths {
@@ -921,7 +927,7 @@ fn find_source_plugins() -> Option<PathBuf> {
         }
     }
 
-    // Priority 3: System-wide location
+    // Priority 4: System-wide location
     #[cfg(target_os = "macos")]
     let system_path = PathBuf::from("/Library/Application Support/hamr/plugins");
     #[cfg(not(target_os = "macos"))]

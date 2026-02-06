@@ -85,15 +85,11 @@
           inherit cargoArtifacts;
           pname = "hamr";
 
-          # Copy plugins to output
+          # Copy plugins to output (FHS-style share path)
+          # The binary resolves plugins via ../share/hamr/plugins relative to the executable
           postInstall = ''
             mkdir -p $out/share/hamr/plugins
             cp -r ${./plugins}/* $out/share/hamr/plugins/
-
-            # hamr resolves builtin plugins relative to the executable
-            # (".../bin/plugins"), so include them there too.
-            mkdir -p $out/bin/plugins
-            cp -r ${./plugins}/* $out/bin/plugins/
           '';
 
           # Wrap binaries with runtime dependencies
