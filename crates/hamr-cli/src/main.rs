@@ -79,6 +79,8 @@ Examples:
   hamr plugins audit      Verify plugin checksums
   hamr status             Check daemon status
   hamr restart            Restart daemon (or systemd services if enabled)
+  hamr uninstall          Remove binaries and services (preserves config)
+  hamr uninstall --purge  Remove everything including user config
 
 Keybinding examples (Hyprland):
   exec-once = hamr        # Auto-start on login (spawns daemon + GTK)
@@ -155,8 +157,12 @@ enum Commands {
         check: bool,
     },
 
-    /// Uninstall hamr (removes systemd service, preserves config)
-    Uninstall,
+    /// Uninstall hamr (removes binaries, systemd services, preserves config by default)
+    Uninstall {
+        /// Also remove user config and plugins (~/.config/hamr)
+        #[arg(long)]
+        purge: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -197,7 +203,7 @@ async fn main() -> Result<()> {
         Some(Commands::Restart) => run_restart().await,
         Some(Commands::ReloadPlugins) => run_reload_plugins().await,
         Some(Commands::Install { check }) => run_install(check),
-        Some(Commands::Uninstall) => run_uninstall(),
+        Some(Commands::Uninstall { purge }) => run_uninstall(purge),
     }
 }
 
@@ -1204,59 +1210,175 @@ fn run_install(check: bool) -> Result<()> {
     Ok(())
 }
 
-fn run_uninstall() -> Result<()> {
+fn run_uninstall(purge: bool) -> Result<()> {
     use std::fs;
 
     println!("Uninstalling hamr...\n");
 
-    // 1. Stop and disable systemd services (GTK first, then daemon)
-    println!("Stopping systemd services...");
-
-    let _ = Command::new("systemctl")
-        .args(["--user", "stop", "hamr-gtk"])
-        .status();
-
-    let _ = Command::new("systemctl")
-        .args(["--user", "disable", "hamr-gtk"])
-        .status();
-
-    println!("  Stopped and disabled hamr-gtk.service");
-
-    let _ = Command::new("systemctl")
-        .args(["--user", "stop", "hamr-daemon"])
-        .status();
-
-    let _ = Command::new("systemctl")
-        .args(["--user", "disable", "hamr-daemon"])
-        .status();
-
-    println!("  Stopped and disabled hamr-daemon.service");
+    // 1. Stop and disable systemd services
+    println!("Systemd services:");
+    if is_systemctl_available() {
+        for service in &["hamr-gtk", "hamr-daemon"] {
+            let _ = Command::new("systemctl")
+                .args(["--user", "stop", service])
+                .status();
+            let _ = Command::new("systemctl")
+                .args(["--user", "disable", service])
+                .status();
+            println!("  Stopped and disabled {service}.service");
+        }
+    } else {
+        println!("  systemctl not available, skipping");
+    }
 
     // 2. Remove systemd service files
+    println!("\nService files:");
     let systemd_dir = get_systemd_dir()?;
-
-    let gtk_service_file = systemd_dir.join("hamr-gtk.service");
-    if gtk_service_file.exists() {
-        fs::remove_file(&gtk_service_file)?;
-        println!("  Removed: {}", gtk_service_file.display());
+    for name in &["hamr-gtk.service", "hamr-daemon.service"] {
+        let path = systemd_dir.join(name);
+        if path.exists() {
+            fs::remove_file(&path)?;
+            println!("  Removed: {}", path.display());
+        } else {
+            println!("  Not found: {}", path.display());
+        }
     }
 
-    let daemon_service_file = systemd_dir.join("hamr-daemon.service");
-    if daemon_service_file.exists() {
-        fs::remove_file(&daemon_service_file)?;
-        println!("  Removed: {}", daemon_service_file.display());
+    if is_systemctl_available() {
+        let _ = Command::new("systemctl")
+            .args(["--user", "daemon-reload"])
+            .status();
+        println!("  Reloaded systemd daemon");
     }
 
-    // Reload systemd
-    let _ = Command::new("systemctl")
-        .args(["--user", "daemon-reload"])
-        .status();
+    // 3. Remove socket file
+    println!("\nSocket:");
+    let socket = socket_path();
+    if socket.exists() {
+        fs::remove_file(&socket)?;
+        println!("  Removed: {}", socket.display());
+    } else {
+        println!("  Not found (daemon was not running)");
+    }
+    let dev_sock = dev_socket_path();
+    if dev_sock.exists() {
+        fs::remove_file(&dev_sock)?;
+        println!("  Removed: {}", dev_sock.display());
+    }
+
+    // 4. Remove binaries
+    println!("\nBinaries:");
+    let bin_dir = find_install_bin_dir();
+    if let Some(ref bin_dir) = bin_dir {
+        for name in &["hamr", "hamr-daemon", "hamr-gtk", "hamr-tui"] {
+            let path = bin_dir.join(name);
+            if path.exists() {
+                fs::remove_file(&path)?;
+                println!("  Removed: {}", path.display());
+            }
+        }
+
+        // 5. Remove system plugins (next to binaries, installed by install.sh)
+        let system_plugins = bin_dir.join("plugins");
+        if system_plugins.exists() {
+            fs::remove_dir_all(&system_plugins)?;
+            println!("  Removed: {}", system_plugins.display());
+        }
+    } else {
+        println!("  Could not determine install directory, skipping binary removal");
+        println!("  Remove manually from ~/.local/bin/ or wherever you installed");
+    }
+
+    // 6. Remove PATH entry from shell rc
+    println!("\nShell PATH:");
+    if let Some(ref bin_dir) = bin_dir {
+        remove_path_from_shell_rc(bin_dir);
+    } else {
+        println!("  Skipped (install directory unknown)");
+    }
+
+    // 7. Config and user plugins
+    let config_dir = get_config_dir()?;
+    if purge {
+        println!("\nUser data (--purge):");
+        if config_dir.exists() {
+            fs::remove_dir_all(&config_dir)?;
+            println!("  Removed: {}", config_dir.display());
+        } else {
+            println!("  Not found: {}", config_dir.display());
+        }
+    } else {
+        println!("\nUser data:");
+        println!("  Preserved: {}", config_dir.display());
+        println!("  To remove: rm -rf {}", config_dir.display());
+        println!("  Or re-run: hamr uninstall --purge");
+    }
 
     println!("\nUninstall complete!");
-    println!("\nNote: Config and plugins were preserved at:");
-    let config_dir = get_config_dir()?;
-    println!("  {}", config_dir.display());
-    println!("\nTo remove config: rm -rf {}", config_dir.display());
-
     Ok(())
+}
+
+/// Determine where binaries were installed (the bin directory containing the current exe)
+fn find_install_bin_dir() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?;
+
+    // Skip if running from target/debug or target/release (dev build)
+    let dir_str = dir.to_string_lossy();
+    if dir_str.contains("target/debug") || dir_str.contains("target/release") {
+        return None;
+    }
+
+    Some(dir.to_path_buf())
+}
+
+/// Remove the hamr PATH entry from shell rc files
+fn remove_path_from_shell_rc(bin_dir: &std::path::Path) {
+    let bin_str = bin_dir.to_string_lossy();
+
+    let rc_files: Vec<PathBuf> = [".bashrc", ".zshrc"]
+        .iter()
+        .filter_map(|name| dirs::home_dir().map(|h| h.join(name)))
+        .chain(dirs::config_dir().map(|d| d.join("fish/config.fish")))
+        .collect();
+
+    for rc_file in rc_files {
+        if !rc_file.exists() {
+            continue;
+        }
+
+        let Ok(content) = std::fs::read_to_string(&rc_file) else {
+            continue;
+        };
+
+        if !content.contains(&*bin_str) {
+            continue;
+        }
+
+        // Remove the "# Added by hamr installer" comment and the PATH line
+        let filtered: Vec<&str> = content
+            .lines()
+            .filter(|line| {
+                !line.contains("# Added by hamr installer")
+                    && !(line.contains(&*bin_str)
+                        && (line.contains("export PATH") || line.contains("set -gx PATH")))
+            })
+            .collect();
+
+        let new_content = filtered.join("\n");
+        // Preserve trailing newline
+        let new_content = if content.ends_with('\n') && !new_content.ends_with('\n') {
+            format!("{new_content}\n")
+        } else {
+            new_content
+        };
+
+        if new_content != content {
+            if std::fs::write(&rc_file, &new_content).is_ok() {
+                println!("  Cleaned PATH from: {}", rc_file.display());
+            } else {
+                println!("  Warning: Could not update {}", rc_file.display());
+            }
+        }
+    }
 }

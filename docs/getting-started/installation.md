@@ -273,21 +273,50 @@ curl -fsSL https://hamr.run/install.sh | bash
 
 ## Uninstall
 
-Arch Linux (AUR):
+The recommended way to uninstall depends on how you installed Hamr.
+
+### Using the CLI (recommended)
 
 ```bash
-systemctl --user disable --now hamr-daemon
-paru -R hamr  # or hamr-bin
+hamr uninstall          # Remove binaries, services, socket (preserves config)
+hamr uninstall --purge  # Remove everything including ~/.config/hamr
 ```
 
-Other distributions:
+This will:
+
+- Stop and disable systemd user services
+- Remove service files
+- Remove binaries (hamr, hamr-daemon, hamr-gtk, hamr-tui)
+- Remove system plugins next to binaries
+- Remove socket files
+- Clean PATH entries from shell rc files
+- Preserve user config by default (use `--purge` to remove)
+
+### Using the uninstall script
+
+If the `hamr` binary is already removed or broken:
 
 ```bash
-# Remove binaries and config
-rm -f ~/.local/bin/{hamr,hamr-cli,hamr-daemon,hamr-gtk,hamr-tui}
-rm -rf ~/.local/share/hamr
-rm -rf ~/.config/hamr
+curl -fsSL https://hamr.run/uninstall.sh | bash
 
-# Disable systemd service if enabled
-systemctl --user disable --now hamr-daemon 2>/dev/null || true
+# Or remove everything including config
+curl -fsSL https://hamr.run/uninstall.sh | bash -s -- --purge
+
+# Non-interactive mode
+curl -fsSL https://hamr.run/uninstall.sh | bash -s -- --yes
 ```
+
+### Arch Linux (AUR)
+
+```bash
+hamr uninstall          # Remove systemd services first
+paru -R hamr            # or hamr-bin
+```
+
+### NixOS / Nix
+
+```bash
+nix profile remove hamr
+```
+
+Or remove the flake input from your NixOS/Home Manager configuration.

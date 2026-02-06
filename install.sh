@@ -12,6 +12,11 @@
 #   --yes                    Assume yes for all prompts (non-interactive mode)
 #   --systemd                Set up systemd user services via `hamr install`
 #
+# Uninstall:
+#   hamr uninstall            Remove binaries, services (preserves config)
+#   hamr uninstall --purge    Remove everything including config
+#   curl -fsSL https://hamr.run/uninstall.sh | bash   # If hamr binary is gone
+#
 # Environment variables:
 #   HAMR_VERSION=v0.1.0    Install specific version (default: latest)
 #   HAMR_DIR=~/.local      Install directory (default: ~/.local)
@@ -548,6 +553,10 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
         echo "  exec-once = hamr        # Auto-start on login"
         echo "  bind = SUPER, Space, exec, hamr toggle"
         echo ""
+        echo "To uninstall:"
+        echo "  hamr uninstall          # Preserves config"
+        echo "  hamr uninstall --purge  # Removes everything"
+        echo ""
         echo "For more info: https://github.com/${REPO}"
         return 0
     fi
@@ -733,6 +742,10 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
     echo "Keybinding examples (Hyprland):"
     echo "  exec-once = hamr        # Auto-start on login"
     echo "  bind = SUPER, Space, exec, hamr toggle"
+    echo ""
+    echo "To uninstall:"
+    echo "  hamr uninstall          # Preserves config"
+    echo "  hamr uninstall --purge  # Removes everything"
     echo ""
     echo "For more info: https://github.com/${REPO}"
 }
