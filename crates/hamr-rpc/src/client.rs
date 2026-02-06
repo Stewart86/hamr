@@ -109,6 +109,7 @@ pub struct RpcClient {
     pending: Arc<Mutex<HashMap<RequestId, PendingRequest>>>,
     next_id: AtomicU64,
     session_id: Option<String>,
+    request_timeout: Duration,
 }
 
 impl RpcClient {
@@ -173,6 +174,7 @@ impl RpcClient {
             pending,
             next_id: AtomicU64::new(1),
             session_id: None,
+            request_timeout: Duration::from_secs(30),
         })
     }
 
@@ -193,6 +195,10 @@ impl RpcClient {
 
     pub fn session_id(&self) -> Option<&str> {
         self.session_id.as_deref()
+    }
+
+    pub fn set_request_timeout(&mut self, timeout: Duration) {
+        self.request_timeout = timeout;
     }
 
     /// Send an RPC request and wait for a response.
@@ -219,7 +225,7 @@ impl RpcClient {
             sender.send(Message::Request(request)).await?;
         }
 
-        let response = tokio::time::timeout(Duration::from_secs(30), rx)
+        let response = tokio::time::timeout(self.request_timeout, rx)
             .await
             .map_err(|_| ClientError::Timeout)?
             .map_err(|_| ClientError::ConnectionClosed)??;

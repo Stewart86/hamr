@@ -2,7 +2,7 @@ use super::{IndexCache, IndexedItem, PluginIndex};
 use crate::Result;
 use crate::engine::ID_PLUGIN_ENTRY;
 use crate::frecency::ExecutionContext;
-use crate::plugin::IndexItem;
+use crate::plugin::{FrecencyMode, IndexItem};
 use crate::search::{Searchable, SearchableSource};
 use crate::utils::{date_string_from_epoch, now_millis, yesterday_string};
 use std::collections::HashMap;
@@ -270,13 +270,12 @@ impl IndexStore {
 
     /// Record an item execution
     /// Updates frecency fields directly on item (with underscore prefix) to match QML hamr format
-    /// `frecency_mode`: "item" (default), "plugin", or "none"
     pub fn record_execution(
         &mut self,
         plugin_id: &str,
         item_id: &str,
         context: &ExecutionContext,
-        frecency_mode: Option<&str>,
+        frecency_mode: Option<&FrecencyMode>,
     ) {
         self.record_execution_with_item(plugin_id, item_id, context, frecency_mode, None);
     }
@@ -289,18 +288,18 @@ impl IndexStore {
         plugin_id: &str,
         item_id: &str,
         context: &ExecutionContext,
-        frecency_mode: Option<&str>,
+        frecency_mode: Option<&FrecencyMode>,
         fallback_item: Option<&hamr_types::ResultItem>,
     ) {
-        let mode = frecency_mode.unwrap_or("item");
+        let mode = frecency_mode.unwrap_or(&FrecencyMode::Item);
 
-        if mode == "none" {
-            return;
-        }
-
-        if mode == "plugin" {
-            self.record_plugin_execution(plugin_id, context);
-            return;
+        match mode {
+            FrecencyMode::None => return,
+            FrecencyMode::Plugin => {
+                self.record_plugin_execution(plugin_id, context);
+                return;
+            }
+            FrecencyMode::Item => {}
         }
 
         if item_id == ID_PLUGIN_ENTRY {
@@ -687,7 +686,12 @@ mod tests {
             }],
         );
         let initial_count = store.get_item("plugin", "item").unwrap().frecency.count;
-        store.record_execution("plugin", "item", &ExecutionContext::default(), Some("none"));
+        store.record_execution(
+            "plugin",
+            "item",
+            &ExecutionContext::default(),
+            Some(&FrecencyMode::None),
+        );
         let final_count = store.get_item("plugin", "item").unwrap().frecency.count;
         assert_eq!(initial_count, final_count, "mode=none should not update");
     }
@@ -699,7 +703,7 @@ mod tests {
             "plugin",
             "any_item",
             &ExecutionContext::default(),
-            Some("plugin"),
+            Some(&FrecencyMode::Plugin),
         );
         assert!(
             store.get_item("plugin", ID_PLUGIN_ENTRY).is_some(),
@@ -774,7 +778,7 @@ mod tests {
             "plugin",
             "ignored",
             &ExecutionContext::default(),
-            Some("plugin"),
+            Some(&FrecencyMode::Plugin),
         );
         let searchables = store.build_searchables(&HashMap::new());
         assert!(

@@ -167,6 +167,20 @@ impl HamrCore {
         self.send_to_plugin(&plugin_id, &input).await;
     }
 
+    /// Ensure a daemon plugin is started. Returns `false` if the daemon
+    /// was needed but failed to start (caller should return early).
+    fn ensure_daemon_started(&mut self, plugin_id: &str) -> bool {
+        if let Some(plugin) = self.plugins.get(plugin_id)
+            && plugin.is_daemon()
+            && !self.daemons.contains_key(plugin_id)
+            && let Err(e) = self.start_daemon(plugin_id)
+        {
+            error!("Failed to start daemon for {}: {}", plugin_id, e);
+            return false;
+        }
+        true
+    }
+
     /// Send a slider value change to a plugin.
     pub(super) async fn send_plugin_slider_change(
         &mut self,
@@ -174,12 +188,7 @@ impl HamrCore {
         item_id: &str,
         value: f64,
     ) {
-        if let Some(plugin) = self.plugins.get(plugin_id)
-            && plugin.is_daemon()
-            && !self.daemons.contains_key(plugin_id)
-            && let Err(e) = self.start_daemon(plugin_id)
-        {
-            error!("Failed to start daemon for {}: {}", plugin_id, e);
+        if !self.ensure_daemon_started(plugin_id) {
             return;
         }
 
@@ -214,12 +223,7 @@ impl HamrCore {
         item_id: &str,
         value: bool,
     ) {
-        if let Some(plugin) = self.plugins.get(plugin_id)
-            && plugin.is_daemon()
-            && !self.daemons.contains_key(plugin_id)
-            && let Err(e) = self.start_daemon(plugin_id)
-        {
-            error!("Failed to start daemon for {}: {}", plugin_id, e);
+        if !self.ensure_daemon_started(plugin_id) {
             return;
         }
 

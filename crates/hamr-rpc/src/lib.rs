@@ -11,14 +11,14 @@
 //! - [`protocol`]: JSON-RPC 2.0 message types (Request, Response, Notification)
 //! - [`transport`]: Length-prefixed codec for message framing
 //! - [`client`]: RPC client helper for connecting to the daemon
-//! - [`error`]: Unified error types
+//! - [`error`]: Result type alias
 //!
 //! # Example
 //!
 //! ```no_run
 //! use hamr_rpc::{RpcClient, ClientRole};
 //!
-//! # async fn example() -> Result<(), hamr_rpc::Error> {
+//! # async fn example() -> Result<(), hamr_rpc::ClientError> {
 //! // Connect to the daemon
 //! let mut client = RpcClient::connect().await?;
 //!
@@ -45,7 +45,7 @@ pub use client::{ClientError, RpcClient, dev_socket_path, socket_path};
 pub use helpers::{notification_to_update, send_event};
 
 // Re-export error types
-pub use error::{Error, Result};
+pub use error::Result;
 
 // Re-export protocol types
 pub use protocol::{

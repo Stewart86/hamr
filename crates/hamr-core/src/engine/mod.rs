@@ -12,7 +12,7 @@ use crate::plugin::{
 };
 use crate::search::{SearchEngine, SearchMatch, Searchable, SearchableSource};
 use crate::utils::now_millis;
-use hamr_types::{Action, CoreEvent, CoreUpdate, ResultType, SearchResult};
+use hamr_types::{CoreEvent, CoreUpdate, ResultType, SearchResult};
 use std::collections::HashMap;
 use std::path::Path;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
@@ -444,15 +444,7 @@ impl HamrCore {
             // Main search
             let results = self.perform_main_search(&query).await;
             debug!("handle_query_changed: produced {} results", results.len());
-            self.send_update_cached(CoreUpdate::Results {
-                results,
-                placeholder: None,
-                clear_input: None,
-                input_mode: None,
-                context: None,
-                navigate_forward: None,
-                display_hint: None,
-            });
+            self.send_update_cached(CoreUpdate::results(results));
         }
     }
 
@@ -502,16 +494,11 @@ impl HamrCore {
         }
     }
 
-    /// Convert a plugin's frecency mode to the string format expected by `IndexStore`.
-    fn get_frecency_mode_str(&self, plugin_id: &str) -> Option<&'static str> {
+    /// Get a plugin's frecency mode from its manifest.
+    fn get_frecency_mode(&self, plugin_id: &str) -> Option<FrecencyMode> {
         self.plugins
             .get(plugin_id)
-            .and_then(|p| p.manifest.frecency.as_ref())
-            .map(|m| match m {
-                FrecencyMode::Item => "item",
-                FrecencyMode::Plugin => "plugin",
-                FrecencyMode::None => "none",
-            })
+            .and_then(|p| p.manifest.frecency.clone())
     }
 
     /// Build an `ExecutionContext` from the current query state.
@@ -615,7 +602,7 @@ impl HamrCore {
         id: String,
         action: Option<String>,
     ) {
-        let frecency_mode = self.get_frecency_mode_str(&plugin_id);
+        let frecency_mode = self.get_frecency_mode(&plugin_id);
         let context = self.build_execution_context();
 
         let fallback_item = self.state.last_results.iter().find(|r| r.id == id).cloned();
@@ -624,7 +611,7 @@ impl HamrCore {
             &plugin_id,
             &id,
             &context,
-            frecency_mode,
+            frecency_mode.as_ref(),
             fallback_item.as_ref(),
         );
 
@@ -661,10 +648,10 @@ impl HamrCore {
             return false;
         };
 
-        let frecency_mode = self.get_frecency_mode_str(&plugin_id);
+        let frecency_mode = self.get_frecency_mode(&plugin_id);
         let context = self.build_execution_context();
         self.index
-            .record_execution(&plugin_id, id, &context, frecency_mode);
+            .record_execution(&plugin_id, id, &context, frecency_mode.as_ref());
         self.invalidate_recent_cache();
 
         if let Some(entry_point) = entry_point {
@@ -755,7 +742,7 @@ impl HamrCore {
         };
 
         if should_record {
-            let frecency_mode = self.get_frecency_mode_str(plugin_id);
+            let frecency_mode = self.get_frecency_mode(plugin_id);
             let context = ExecutionContext::default();
 
             // Find item in last_results to auto-index if not already indexed
@@ -770,7 +757,7 @@ impl HamrCore {
                 plugin_id,
                 item_id,
                 &context,
-                frecency_mode,
+                frecency_mode.as_ref(),
                 fallback_item.as_ref(),
             );
 
@@ -807,8 +794,12 @@ impl HamrCore {
             ..Default::default()
         };
 
-        self.index
-            .record_execution(plugin_id, ID_PLUGIN_ENTRY, &context, Some("plugin"));
+        self.index.record_execution(
+            plugin_id,
+            ID_PLUGIN_ENTRY,
+            &context,
+            Some(&FrecencyMode::Plugin),
+        );
 
         // Invalidate cache so it gets rebuilt on launcher close
         self.invalidate_recent_cache();
@@ -820,15 +811,7 @@ impl HamrCore {
             self.exit_plugin_management();
             self.state.query.clear();
             let results = self.perform_main_search("").await;
-            self.send_update_cached(CoreUpdate::Results {
-                results,
-                placeholder: None,
-                clear_input: None,
-                input_mode: None,
-                context: None,
-                navigate_forward: None,
-                display_hint: None,
-            });
+            self.send_update_cached(CoreUpdate::results(results));
             return;
         }
 
@@ -976,15 +959,7 @@ impl HamrCore {
             debug!("Restoring main search after plugin close");
             let results = self.perform_main_search("").await;
             debug!("Got {} results for main search", results.len());
-            self.send_update_cached(CoreUpdate::Results {
-                results,
-                placeholder: None,
-                clear_input: None,
-                input_mode: None,
-                context: None,
-                navigate_forward: None,
-                display_hint: None,
-            });
+            self.send_update_cached(CoreUpdate::results(results));
             debug!("Main search results sent");
         }
     }
@@ -1387,17 +1362,7 @@ impl HamrCore {
                     },
                 );
 
-                let actions: Vec<Action> = item
-                    .actions
-                    .iter()
-                    .map(|a| Action {
-                        id: a.id.clone(),
-                        name: a.name.clone(),
-                        icon: a.icon.clone(),
-                        icon_type: a.icon_type.clone(),
-                        keep_open: a.keep_open,
-                    })
-                    .collect();
+                let actions = item.actions.clone();
 
                 let result_type = ResultType::IndexedItem;
 
@@ -1568,15 +1533,7 @@ impl HamrCore {
         }
 
         if !self.state.last_results.is_empty() {
-            self.send_update(CoreUpdate::Results {
-                results: self.state.last_results.clone(),
-                placeholder: None,
-                clear_input: None,
-                input_mode: None,
-                context: None,
-                navigate_forward: None,
-                display_hint: None,
-            });
+            self.send_update(CoreUpdate::results(self.state.last_results.clone()));
         }
 
         let mode = match self.state.input_mode {

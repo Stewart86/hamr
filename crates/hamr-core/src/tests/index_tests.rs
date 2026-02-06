@@ -10,6 +10,7 @@
 use super::fixtures::*;
 use crate::frecency::ExecutionContext;
 use crate::index::IndexStore;
+use crate::plugin::FrecencyMode;
 use crate::search::SearchableSource;
 use std::collections::HashMap;
 use tempfile::NamedTempFile;
@@ -526,7 +527,7 @@ fn test_record_execution_frecency_none() {
     store.update_full("apps", vec![make_index_item("app1", "App")]);
 
     let context = ExecutionContext::default();
-    store.record_execution("apps", "app1", &context, Some("none"));
+    store.record_execution("apps", "app1", &context, Some(&FrecencyMode::None));
 
     let item = store.get_item("apps", "app1").unwrap();
     assert_eq!(item.frecency.count, 0, "frecency: none should not record");
@@ -538,7 +539,7 @@ fn test_record_execution_frecency_plugin() {
     store.update_full("notes", vec![make_index_item("note1", "Note")]);
 
     let context = ExecutionContext::default();
-    store.record_execution("notes", "note1", &context, Some("plugin"));
+    store.record_execution("notes", "note1", &context, Some(&FrecencyMode::Plugin));
 
     let plugin_entry = store.get_item("notes", "__plugin__");
     assert!(plugin_entry.is_some(), "Should create __plugin__ entry");
@@ -557,7 +558,7 @@ fn test_record_execution_plugin_entry_skipped_for_item_mode() {
     store.update_full("apps", vec![make_index_item("app1", "App")]);
 
     let context = ExecutionContext::default();
-    store.record_execution("apps", "__plugin__", &context, Some("item"));
+    store.record_execution("apps", "__plugin__", &context, Some(&FrecencyMode::Item));
 
     let plugin_entry = store.get_item("apps", "__plugin__");
     assert!(plugin_entry.is_none());
@@ -711,7 +712,7 @@ fn test_build_searchables_skips_plugin_entry() {
     store.update_full("notes", vec![make_index_item("note1", "Note")]);
 
     let context = ExecutionContext::default();
-    store.record_execution("notes", "note1", &context, Some("plugin"));
+    store.record_execution("notes", "note1", &context, Some(&FrecencyMode::Plugin));
 
     let plugin_names = HashMap::new();
     let searchables = store.build_searchables(&plugin_names);
@@ -796,7 +797,7 @@ fn test_all_items_skips_plugin_entries() {
     store.update_full("notes", vec![make_index_item("note1", "Note")]);
 
     let context = ExecutionContext::default();
-    store.record_execution("notes", "note1", &context, Some("plugin"));
+    store.record_execution("notes", "note1", &context, Some(&FrecencyMode::Plugin));
 
     let items: Vec<_> = store.all_items().collect();
 
@@ -813,7 +814,12 @@ fn test_items_with_frecency_includes_plugin_entries() {
 
     // Record execution in plugin mode - creates __plugin__ entry
     let context = ExecutionContext::default();
-    store.record_execution("settings", "setting1", &context, Some("plugin"));
+    store.record_execution(
+        "settings",
+        "setting1",
+        &context,
+        Some(&FrecencyMode::Plugin),
+    );
 
     // Also create a regular item with frecency
     store.update_full("apps", vec![make_index_item("app1", "App 1")]);
@@ -847,7 +853,7 @@ fn test_items_with_frecency_plugin_entry_has_correct_plugin_id() {
     store.update_full("todo", vec![make_index_item("task1", "Task 1")]);
 
     let context = ExecutionContext::default();
-    store.record_execution("todo", "task1", &context, Some("plugin"));
+    store.record_execution("todo", "task1", &context, Some(&FrecencyMode::Plugin));
 
     let items = store.items_with_frecency();
 
@@ -870,8 +876,8 @@ fn test_items_with_frecency_mixed_modes() {
     // Plugin with frecency: "plugin" mode
     store.update_full("notes", vec![make_index_item("note1", "Note 1")]);
     let context = ExecutionContext::default();
-    store.record_execution("notes", "note1", &context, Some("plugin"));
-    store.record_execution("notes", "note1", &context, Some("plugin"));
+    store.record_execution("notes", "note1", &context, Some(&FrecencyMode::Plugin));
+    store.record_execution("notes", "note1", &context, Some(&FrecencyMode::Plugin));
 
     // Plugin with frecency: "item" mode (default)
     store.update_full(

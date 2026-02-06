@@ -5,7 +5,7 @@
 //! - The daemon (for socket plugins)
 
 use hamr_types::{
-    Action, AmbientItem, CardBlock, CardData, CoreUpdate, DisplayHint, ExecuteAction, FabOverride,
+    AmbientItem, CardBlock, CardData, CoreUpdate, DisplayHint, ExecuteAction, FabOverride,
     FormData, FormField, FormFieldType, GridBrowserData, ImageBrowserData, PluginAction,
     PluginStatus, ResultItem, ResultPatch, SearchResult, WidgetData,
 };
@@ -311,17 +311,7 @@ fn handle_card_response(
             title: card.title,
             content: card.content,
             markdown: markdown_content,
-            actions: card
-                .actions
-                .into_iter()
-                .map(|a| Action {
-                    id: a.id,
-                    name: a.name,
-                    icon: a.icon,
-                    icon_type: a.icon_type,
-                    keep_open: a.keep_open,
-                })
-                .collect(),
+            actions: card.actions,
             kind: card.kind,
             blocks: card
                 .blocks
@@ -419,15 +409,7 @@ fn handle_match_response(
     let results = result.map_or_else(Vec::new, |item| {
         convert_plugin_results(plugin_id, vec![item])
     });
-    updates.push(CoreUpdate::Results {
-        results,
-        placeholder: None,
-        clear_input: None,
-        input_mode: None,
-        context: None,
-        navigate_forward: None,
-        display_hint: None,
-    });
+    updates.push(CoreUpdate::results(results));
 }
 
 /// Handle `PluginResponse::Update` variant
@@ -535,17 +517,7 @@ fn convert_ambient_item(plugin_id: &str, item: AmbientItemData) -> AmbientItem {
         icon: item.icon,
         badges: item.badges,
         chips: item.chips,
-        actions: item
-            .actions
-            .into_iter()
-            .map(|a| Action {
-                id: a.id,
-                name: a.name,
-                icon: a.icon,
-                icon_type: a.icon_type,
-                keep_open: a.keep_open,
-            })
-            .collect(),
+        actions: item.actions,
         duration: item.duration,
         plugin_id: Some(plugin_id.to_string()),
     }

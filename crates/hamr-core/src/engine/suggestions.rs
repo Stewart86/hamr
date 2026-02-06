@@ -5,7 +5,7 @@
 use crate::frecency::{SmartSuggestions, SuggestionContext};
 use crate::index::IndexedItem;
 use crate::plugin::Manifest;
-use hamr_types::{Action, ResultType, SearchResult};
+use hamr_types::{ResultType, SearchResult};
 use tracing::debug;
 
 use super::{HamrCore, ID_PLUGIN_ENTRY};
@@ -171,18 +171,7 @@ pub(super) fn indexed_item_to_search_result(
 ) -> SearchResult {
     let result_type = default_result_type;
 
-    let actions: Vec<Action> = item
-        .item
-        .actions
-        .iter()
-        .map(|a| Action {
-            id: a.id.clone(),
-            name: a.name.clone(),
-            icon: a.icon.clone(),
-            icon_type: a.icon_type.clone(),
-            keep_open: a.keep_open,
-        })
-        .collect();
+    let actions = item.item.actions.clone();
 
     SearchResult {
         id: item.id().to_string(),

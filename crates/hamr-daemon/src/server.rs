@@ -1079,15 +1079,7 @@ mod tests {
 
     #[test]
     fn test_core_update_to_notification_results_minimal() {
-        let update = CoreUpdate::Results {
-            results: vec![],
-            placeholder: None,
-            clear_input: None,
-            input_mode: None,
-            context: None,
-            navigate_forward: None,
-            display_hint: None,
-        };
+        let update = CoreUpdate::results(vec![]);
         let notification = core_update_to_notification(&update);
         assert_eq!(notification.method, "results");
         let params = notification.params.unwrap();

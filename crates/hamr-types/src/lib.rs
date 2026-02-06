@@ -268,6 +268,22 @@ pub enum CoreUpdate {
     },
 }
 
+impl CoreUpdate {
+    /// Create a `Results` update with only results, all other fields defaulted to `None`.
+    #[must_use]
+    pub fn results(results: Vec<SearchResult>) -> Self {
+        Self::Results {
+            results,
+            placeholder: None,
+            clear_input: None,
+            input_mode: None,
+            context: None,
+            navigate_forward: None,
+            display_hint: None,
+        }
+    }
+}
+
 /// Partial update to a result item - only specified fields are updated
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -1957,15 +1973,7 @@ mod icon_spec_tests {
 
     #[test]
     fn test_results_update_without_optional_fields() {
-        let update = CoreUpdate::Results {
-            results: vec![],
-            placeholder: None,
-            clear_input: None,
-            input_mode: None,
-            context: None,
-            navigate_forward: None,
-            display_hint: None,
-        };
+        let update = CoreUpdate::results(vec![]);
 
         let json = serde_json::to_value(&update).expect("Failed to serialize");
         assert_eq!(json["type"], "results");
