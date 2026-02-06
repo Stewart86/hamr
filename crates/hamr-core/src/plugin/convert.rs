@@ -10,7 +10,10 @@ use hamr_types::{
     PluginStatus, ResultItem, ResultPatch, SearchResult, WidgetData,
 };
 
+use crate::engine::{DEFAULT_PLUGIN_ICON, DEFAULT_VERB_SELECT};
+
 use super::protocol::{AmbientItemData, CardBlockData, PluginResponse, StatusData, UpdateItem};
+use tracing::debug;
 
 /// Convert a `PluginResponse` to a list of `CoreUpdates`.
 ///
@@ -216,17 +219,7 @@ fn handle_results_response(
 
     if !plugin_actions.is_empty() {
         updates.push(CoreUpdate::PluginActionsUpdate {
-            actions: plugin_actions
-                .into_iter()
-                .map(|a| PluginAction {
-                    id: a.id,
-                    name: a.name,
-                    icon: a.icon,
-                    shortcut: a.shortcut,
-                    confirm: a.confirm,
-                    active: a.active,
-                })
-                .collect(),
+            actions: plugin_actions,
         });
     }
 
@@ -534,16 +527,27 @@ fn convert_plugin_results(plugin_id: &str, items: Vec<ResultItem>) -> Vec<Search
             item.plugin_id = Some(plugin_id.to_string());
 
             if item.icon.is_none() {
-                item.icon = Some("extension".to_string());
+                item.icon = Some(DEFAULT_PLUGIN_ICON.to_string());
             }
 
             if item.verb.is_none() {
-                item.verb = Some("Select".to_string());
+                item.verb = Some(DEFAULT_VERB_SELECT.to_string());
             }
 
             item
         })
         .collect()
+}
+
+fn deserialize_field<T: serde::de::DeserializeOwned>(
+    fields: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Option<T> {
+    fields.get(key).and_then(|v| {
+        serde_json::from_value(v.clone())
+            .inspect_err(|e| debug!("Failed to deserialize update field '{key}': {e}"))
+            .ok()
+    })
 }
 
 fn convert_update_items(items: Vec<UpdateItem>) -> Vec<ResultPatch> {
@@ -568,21 +572,11 @@ fn convert_update_items(items: Vec<UpdateItem>) -> Vec<ResultPatch> {
                     .get("icon")
                     .and_then(|v| v.as_str())
                     .map(String::from);
-                patch.badges = fields
-                    .get("badges")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok());
-                patch.chips = fields
-                    .get("chips")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok());
-                patch.value = fields
-                    .get("value")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok());
-                patch.gauge = fields
-                    .get("gauge")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok());
-                patch.progress = fields
-                    .get("progress")
-                    .and_then(|v| serde_json::from_value(v.clone()).ok());
+                patch.badges = deserialize_field(&fields, "badges");
+                patch.chips = deserialize_field(&fields, "chips");
+                patch.value = deserialize_field(&fields, "value");
+                patch.gauge = deserialize_field(&fields, "gauge");
+                patch.progress = deserialize_field(&fields, "progress");
 
                 // Build widget from flat fields (populate both for backward compatibility)
                 if let Some(ref slider_val) = patch.value {

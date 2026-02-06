@@ -42,6 +42,11 @@ pub(crate) fn date_string_from_epoch(secs: u64) -> String {
         days -= d;
     }
 
+    // If the loop exhausted all months without breaking, we're in December
+    if month == 0 {
+        month = 12;
+    }
+
     let day = days + 1;
     format!("{year:04}-{month:02}-{day:02}")
 }

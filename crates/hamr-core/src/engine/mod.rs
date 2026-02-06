@@ -26,6 +26,12 @@ pub(crate) const PREFIX_PATTERN_MATCH: &str = "__pattern_match__:";
 pub(crate) const PREFIX_MATCH_PREVIEW: &str = "__match_preview__:";
 pub(crate) const ID_DISMISS: &str = "__dismiss__";
 
+// Default values for plugin results
+pub(crate) const DEFAULT_PLUGIN_ICON: &str = "extension";
+pub(crate) const DEFAULT_VERB_OPEN: &str = "Open";
+pub(crate) const DEFAULT_VERB_SELECT: &str = "Select";
+pub(crate) const DEFAULT_ICON_TYPE: &str = "material";
+
 /// Core hamr engine
 pub struct HamrCore {
     dirs: Directories,
@@ -944,8 +950,10 @@ impl HamrCore {
             self.state.active_plugin.as_ref().map(|p| &p.id)
         );
         if self.state.active_plugin.is_some() {
-            if let Some((mut process, _)) = self.active_process.take() {
-                let _ = process.kill().await;
+            if let Some((mut process, _)) = self.active_process.take()
+                && let Err(e) = process.kill().await
+            {
+                warn!("Failed to kill plugin process: {e}");
             }
 
             self.state.active_plugin = None;
@@ -976,7 +984,13 @@ impl HamrCore {
         let plugin_id = active.id.clone();
         let session = active.session.clone();
 
-        let form_data_json = serde_json::to_value(&form_data).unwrap_or_default();
+        let form_data_json = match serde_json::to_value(&form_data) {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("Failed to serialize form data: {e}");
+                serde_json::Value::default()
+            }
+        };
 
         let input = PluginInput {
             step: Step::Form,
@@ -1037,7 +1051,13 @@ impl HamrCore {
         let session = active.session.clone();
 
         // Convert HashMap to serde_json::Value
-        let form_data_json = serde_json::to_value(&form_data).unwrap_or_default();
+        let form_data_json = match serde_json::to_value(&form_data) {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("Failed to serialize form data: {e}");
+                serde_json::Value::default()
+            }
+        };
 
         // Send as form step with live update - plugin decides how to handle
         let input = PluginInput {
@@ -1263,7 +1283,7 @@ impl HamrCore {
                     .manifest
                     .icon
                     .clone()
-                    .unwrap_or_else(|| "extension".to_string()),
+                    .unwrap_or_else(|| DEFAULT_PLUGIN_ICON.to_string()),
             ),
             icon_type: None,
             verb: Some(plugin.manifest.name.clone()),
@@ -1341,10 +1361,10 @@ impl HamrCore {
                         plugin
                             .and_then(|p| p.manifest.icon.as_ref())
                             .cloned()
-                            .unwrap_or_else(|| "extension".to_string()),
+                            .unwrap_or_else(|| DEFAULT_PLUGIN_ICON.to_string()),
                     ),
                     icon_type: None,
-                    verb: Some("Open".to_string()),
+                    verb: Some(DEFAULT_VERB_OPEN.to_string()),
                     result_type: ResultType::Plugin,
                     composite_score: score,
                     ..Default::default()
@@ -1352,7 +1372,7 @@ impl HamrCore {
             }
             SearchableSource::IndexedItem { plugin_id, item } => {
                 let (icon, icon_type) = item.icon.as_ref().map_or_else(
-                    || ("extension".to_string(), None),
+                    || (DEFAULT_PLUGIN_ICON.to_string(), None),
                     |i| {
                         let effective_type = item.icon_type.as_deref();
                         (
@@ -1574,7 +1594,7 @@ fn generate_session_id() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_millis();
     format!("session_{now}")
 }

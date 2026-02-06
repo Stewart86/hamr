@@ -7,7 +7,7 @@ use super::{HamrCore, ID_DISMISS, InputMode, generate_session_id, process};
 use crate::Error;
 use crate::plugin::{PluginInput, PluginProcess, SelectedItem, Step};
 use hamr_types::CoreUpdate;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 impl HamrCore {
     /// Start a background daemon for a plugin.
@@ -26,7 +26,9 @@ impl HamrCore {
         let mut process = PluginProcess::spawn(plugin_id, &plugin.handler_path, &plugin.path)?;
 
         let sender = process.sender();
-        let receiver = process.take_receiver().expect("Receiver should exist");
+        let receiver = process
+            .take_receiver()
+            .ok_or_else(|| Error::Process("Plugin receiver already taken".to_string()))?;
 
         self.daemons
             .insert(plugin_id.to_string(), (process, sender));
@@ -346,8 +348,10 @@ impl HamrCore {
             return;
         }
 
-        if let Some((mut process, _)) = self.active_process.take() {
-            let _ = process.kill().await;
+        if let Some((mut process, _)) = self.active_process.take()
+            && let Err(e) = process.kill().await
+        {
+            warn!("Failed to kill plugin process: {e}");
         }
 
         if let Some(plugin) = self.plugins.get(plugin_id) {

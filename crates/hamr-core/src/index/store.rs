@@ -1,13 +1,13 @@
 use super::{IndexCache, IndexedItem, PluginIndex};
 use crate::Result;
-use crate::engine::ID_PLUGIN_ENTRY;
+use crate::engine::{DEFAULT_PLUGIN_ICON, DEFAULT_VERB_OPEN, ID_PLUGIN_ENTRY};
 use crate::frecency::ExecutionContext;
 use crate::plugin::{FrecencyMode, IndexItem};
 use crate::search::{Searchable, SearchableSource};
 use crate::utils::{date_string_from_epoch, now_millis, yesterday_string};
 use std::collections::HashMap;
 use std::path::Path;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Stores and manages plugin indexes
 pub struct IndexStore {
@@ -321,7 +321,13 @@ impl IndexStore {
             }
         }
 
-        let item = self.get_item_mut(plugin_id, item_id).unwrap();
+        let Some(item) = self.get_item_mut(plugin_id, item_id) else {
+            error!(
+                "Item unexpectedly missing after insertion: {}/{}",
+                plugin_id, item_id
+            );
+            return;
+        };
         Self::update_item_frecency(item, context);
         let count = item.frecency.count;
         self.mark_dirty();
@@ -344,8 +350,8 @@ impl IndexStore {
             let mut new_item = IndexedItem::new(hamr_types::ResultItem {
                 id: ID_PLUGIN_ENTRY.to_string(),
                 name: plugin_id.to_string(),
-                icon: Some("extension".to_string()),
-                verb: Some("Open".to_string()),
+                icon: Some(DEFAULT_PLUGIN_ICON.to_string()),
+                verb: Some(DEFAULT_VERB_OPEN.to_string()),
                 ..Default::default()
             });
             new_item.is_plugin_entry = true;

@@ -8,7 +8,7 @@ use crate::plugin::Manifest;
 use hamr_types::{ResultType, SearchResult};
 use tracing::debug;
 
-use super::{HamrCore, ID_PLUGIN_ENTRY};
+use super::{DEFAULT_ICON_TYPE, DEFAULT_PLUGIN_ICON, DEFAULT_VERB_OPEN, HamrCore, ID_PLUGIN_ENTRY};
 
 impl HamrCore {
     /// Get recent items and smart suggestions (uses cache if available).
@@ -41,10 +41,10 @@ impl HamrCore {
                             .manifest
                             .icon
                             .clone()
-                            .unwrap_or_else(|| "extension".to_string()),
+                            .unwrap_or_else(|| DEFAULT_PLUGIN_ICON.to_string()),
                     ),
                     icon_type: None,
-                    verb: Some("Open".to_string()),
+                    verb: Some(DEFAULT_VERB_OPEN.to_string()),
                     result_type: ResultType::Plugin,
                     plugin_id: Some(plugin.id.clone()),
                     ..Default::default()
@@ -101,7 +101,7 @@ impl HamrCore {
                     ResultType::Suggestion,
                     Some(reason),
                 );
-                result.verb = Some("Open".to_string());
+                result.verb = Some(DEFAULT_VERB_OPEN.to_string());
                 results.push(result);
             }
         }
@@ -181,7 +181,7 @@ pub(super) fn indexed_item_to_search_result(
             item.item
                 .icon
                 .clone()
-                .unwrap_or_else(|| "extension".to_string()),
+                .unwrap_or_else(|| DEFAULT_PLUGIN_ICON.to_string()),
         ),
         icon_type: item.item.icon_type.clone(),
         thumbnail: item.item.thumbnail.clone(),
@@ -210,10 +210,10 @@ pub(super) fn plugin_to_search_result(plugin_id: &str, manifest: &Manifest) -> S
             manifest
                 .icon
                 .clone()
-                .unwrap_or_else(|| "extension".to_string()),
+                .unwrap_or_else(|| DEFAULT_PLUGIN_ICON.to_string()),
         ),
-        icon_type: Some("material".to_string()),
-        verb: Some("Open".to_string()),
+        icon_type: Some(DEFAULT_ICON_TYPE.to_string()),
+        verb: Some(DEFAULT_VERB_OPEN.to_string()),
         result_type: ResultType::Recent,
         plugin_id: Some(plugin_id.to_string()),
         ..Default::default()

@@ -21,7 +21,7 @@ use crate::config::Directories;
 use crate::platform::{self, Platform};
 use crate::{Error, Result};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::{debug, info, warn};
 
 /// A loaded plugin
@@ -73,12 +73,13 @@ impl Plugin {
             )));
         }
 
+        let is_socket = manifest.is_socket();
         Ok(Self {
             id,
             path,
-            manifest: manifest.clone(),
+            manifest,
             handler_path,
-            is_socket: manifest.is_socket(),
+            is_socket,
         })
     }
 
@@ -301,15 +302,6 @@ impl PluginManager {
         Ok((diff, self.snapshot()))
     }
 
-    /// Rescan and return diff with snapshot map keyed by plugin id.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if plugin discovery fails.
-    pub fn rescan_and_snapshot_map(&mut self) -> Result<(PluginDiff, HashMap<String, Plugin>)> {
-        self.rescan_and_snapshot()
-    }
-
     #[cfg(test)]
     pub fn insert_for_test(&mut self, plugin: Plugin) {
         if !self.plugins.contains_key(&plugin.id) {
@@ -329,13 +321,7 @@ impl PluginManager {
         self.plugins.clone()
     }
 
-    /// Snapshot plugins keyed by id (for daemon rescan)
-    #[must_use]
-    pub fn snapshot_map(&self) -> HashMap<String, Plugin> {
-        self.plugins.clone()
-    }
-
-    fn load_plugins_from(&mut self, path: &PathBuf) -> Result<()> {
+    fn load_plugins_from(&mut self, path: &Path) -> Result<()> {
         let entries = std::fs::read_dir(path)?;
         let platform_str = self.platform.as_str();
 
@@ -394,11 +380,6 @@ impl PluginManager {
     #[must_use]
     pub fn all_owned(&self) -> Vec<Plugin> {
         self.all().cloned().collect()
-    }
-
-    #[must_use]
-    pub fn snapshot_plugins(&self) -> Vec<Plugin> {
-        self.all_owned()
     }
 
     /// Get plugins that should start as background daemons
