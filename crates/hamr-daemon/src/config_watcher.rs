@@ -12,6 +12,9 @@ use tracing::{debug, error, info};
 
 use crate::error::Result;
 
+const RELOAD_SETTLE_DELAY: Duration = Duration::from_millis(100);
+const DEBOUNCE_DURATION: Duration = Duration::from_millis(500);
+
 pub fn spawn_config_watcher(config_path: PathBuf, tx: tokio_mpsc::UnboundedSender<()>) {
     let (sync_tx, sync_rx) = mpsc::channel::<()>();
 
@@ -25,7 +28,7 @@ pub fn spawn_config_watcher(config_path: PathBuf, tx: tokio_mpsc::UnboundedSende
         loop {
             if let Ok(()) = sync_rx.recv() {
                 debug!("Config file changed, sending reload notification");
-                std::thread::sleep(Duration::from_millis(100));
+                std::thread::sleep(RELOAD_SETTLE_DELAY);
                 if tx.send(()).is_err() {
                     debug!("Config reload receiver dropped, stopping watcher");
                     break;
@@ -40,7 +43,6 @@ pub fn spawn_config_watcher(config_path: PathBuf, tx: tokio_mpsc::UnboundedSende
 
 fn watch_config_file(config_path: &PathBuf, tx: &mpsc::Sender<()>) -> Result<()> {
     let debounce = Arc::new(StdMutex::new(std::time::Instant::now()));
-    let debounce_duration = Duration::from_millis(500);
 
     let config_path_for_closure = config_path.to_owned();
 
@@ -54,9 +56,12 @@ fn watch_config_file(config_path: &PathBuf, tx: &mpsc::Sender<()>) -> Result<()>
                         p.file_name() == config_path_for_closure.file_name()
                             || p.ends_with("config.json")
                     }) {
-                        let mut last_event = debounce.lock().unwrap();
+                        let Ok(mut last_event) = debounce.lock() else {
+                            error!("[config_watcher] Debounce mutex poisoned, skipping event");
+                            return;
+                        };
                         let now = std::time::Instant::now();
-                        if now.duration_since(*last_event) > debounce_duration {
+                        if now.duration_since(*last_event) > DEBOUNCE_DURATION {
                             *last_event = now;
                             let _ = watcher_tx.send(());
                         }

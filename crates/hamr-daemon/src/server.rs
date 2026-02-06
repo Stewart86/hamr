@@ -21,6 +21,10 @@ use tokio::sync::{Mutex, RwLock, mpsc};
 use tokio_util::codec::Framed;
 use tracing::{debug, error, info, trace, warn};
 
+const HEALTH_CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+const INDEX_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
+const CONFIG_RELOAD_LOCK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
 use crate::config_watcher::spawn_config_watcher;
 use crate::error::Result;
 use crate::handlers::{HandlerContext, handle_notification, handle_request};
@@ -282,8 +286,7 @@ async fn spawn_config_watcher_task(config_path: PathBuf, state: Arc<RwLock<Daemo
         debug!("Config reload event received");
 
         {
-            let state_guard =
-                tokio::time::timeout(std::time::Duration::from_secs(5), state.write()).await;
+            let state_guard = tokio::time::timeout(CONFIG_RELOAD_LOCK_TIMEOUT, state.write()).await;
 
             let Ok(mut state_guard) = state_guard else {
                 error!("Config reload timed out waiting for write lock");
@@ -312,7 +315,7 @@ async fn spawn_config_watcher_task(config_path: PathBuf, state: Arc<RwLock<Daemo
 }
 
 async fn plugin_health_monitor(state: Arc<RwLock<DaemonState>>) {
-    let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+    let mut interval = tokio::time::interval(HEALTH_CHECK_INTERVAL);
 
     loop {
         interval.tick().await;
@@ -346,7 +349,7 @@ async fn plugin_health_monitor(state: Arc<RwLock<DaemonState>>) {
 #[allow(clippy::cast_possible_truncation)]
 async fn index_saver(state: Arc<RwLock<DaemonState>>) {
     const DEBOUNCE_MS: u64 = 1000;
-    let mut interval = tokio::time::interval(std::time::Duration::from_millis(100));
+    let mut interval = tokio::time::interval(INDEX_POLL_INTERVAL);
 
     loop {
         interval.tick().await;
@@ -515,8 +518,10 @@ pub async fn run(custom_socket_path: Option<PathBuf>) -> Result<()> {
         }
     }
 
-    if path.exists() {
-        let _ = std::fs::remove_file(&path);
+    if path.exists()
+        && let Err(e) = std::fs::remove_file(&path)
+    {
+        warn!("Failed to remove socket file {:?}: {}", path, e);
     }
 
     Ok(())

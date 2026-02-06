@@ -1031,7 +1031,7 @@ pub enum DisplayHint {
 }
 
 /// Badge on a result
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Badge {
     #[serde(default)]
     pub text: Option<String>,
@@ -1042,7 +1042,7 @@ pub struct Badge {
 }
 
 /// Chip (similar to badge but different styling)
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Chip {
     /// Text to display (accepts both "text" and "label" from JSON)
     #[serde(alias = "label", default)]
@@ -1054,7 +1054,7 @@ pub struct Chip {
     pub color: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SliderValue {
     pub value: f64,
@@ -1321,7 +1321,7 @@ where
 }
 
 /// Preview data for side panel
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PreviewData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -1338,7 +1338,7 @@ pub struct PreviewData {
 }
 
 /// Metadata key-value pair
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MetadataItem {
     pub label: String,
     pub value: String,
@@ -1347,7 +1347,7 @@ pub struct MetadataItem {
 }
 
 /// Action on a result
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Action {
     pub id: String,
@@ -1361,7 +1361,7 @@ pub struct Action {
 }
 
 /// Plugin action for toolbar (Ctrl+1-6 shortcuts)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginAction {
     pub id: String,
@@ -1380,7 +1380,7 @@ pub struct PluginAction {
 }
 
 /// Card data for display
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CardData {
     #[serde(default)]
     pub title: String,
@@ -1408,7 +1408,7 @@ pub struct CardData {
 }
 
 /// Form data for input
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FormData {
     pub title: String,
     pub fields: Vec<FormField>,
@@ -1427,7 +1427,7 @@ fn default_submit_label() -> String {
     "Submit".to_string()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FormField {
     pub id: String,
     pub label: String,
@@ -1478,7 +1478,7 @@ pub enum FormFieldType {
     Phone,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FormOption {
     pub value: String,
     pub label: String,
@@ -1518,7 +1518,7 @@ pub enum ExecuteAction {
 }
 
 /// Ambient item - persistent status items shown in action bar
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AmbientItem {
     pub id: String,
     pub name: String,
@@ -1553,7 +1553,7 @@ pub struct AmbientItem {
 }
 
 /// FAB (Floating Action Button) override data
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FabOverride {
     #[serde(
         default,
@@ -1626,7 +1626,7 @@ pub struct GraphData {
 }
 
 /// Image browser data for displaying image grids
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImageBrowserData {
     /// Directory path being browsed
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1640,7 +1640,7 @@ pub struct ImageBrowserData {
 }
 
 /// Single image item in image browser
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImageItem {
     /// File path to the image
     pub path: String,
@@ -1653,7 +1653,7 @@ pub struct ImageItem {
 }
 
 /// Grid browser data for displaying item grids
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GridBrowserData {
     /// Items to display in the grid
     pub items: Vec<GridItem>,
@@ -1669,7 +1669,7 @@ pub struct GridBrowserData {
 }
 
 /// Single item in grid browser
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GridItem {
     /// Unique identifier
     pub id: String,
@@ -1687,7 +1687,7 @@ pub struct GridItem {
 }
 
 /// Block type for rich cards
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "block_type", rename_all = "lowercase")]
 pub enum CardBlock {
     /// Pill/badge separator (e.g., date markers)
@@ -1706,7 +1706,7 @@ pub enum CardBlock {
 }
 
 /// Plugin manifest for registration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PluginManifest {
     pub id: String,
     pub name: String,

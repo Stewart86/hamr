@@ -55,13 +55,7 @@ pub enum DaemonError {
 
     /// File watcher error
     #[error("Watcher error: {0}")]
-    Watcher(String),
-}
-
-impl From<notify::Error> for DaemonError {
-    fn from(err: notify::Error) -> Self {
-        DaemonError::Watcher(err.to_string())
-    }
+    Watcher(#[from] notify::Error),
 }
 
 impl From<DaemonError> for RpcError {
@@ -82,7 +76,7 @@ impl From<DaemonError> for RpcError {
                 hamr_rpc::protocol::METHOD_NOT_FOUND,
                 format!("Method not found: {name}"),
             ),
-            DaemonError::Watcher(msg) => RpcError::internal_error(msg),
+            DaemonError::Watcher(ref e) => RpcError::internal_error(e.to_string()),
         }
     }
 }
@@ -409,8 +403,10 @@ mod tests {
 
     #[test]
     fn test_daemon_error_display_watcher() {
-        let err = DaemonError::Watcher("file not found".to_string());
-        assert_eq!(err.to_string(), "Watcher error: file not found");
+        let notify_err = notify::Error::generic("file not found");
+        let err = DaemonError::Watcher(notify_err);
+        assert!(err.to_string().contains("Watcher error"));
+        assert!(err.to_string().contains("file not found"));
     }
 
     #[test]
@@ -452,10 +448,11 @@ mod tests {
 
     #[test]
     fn test_daemon_error_to_rpc_error_watcher() {
-        let daemon_err = DaemonError::Watcher("watch failed".to_string());
+        let notify_err = notify::Error::generic("watch failed");
+        let daemon_err = DaemonError::Watcher(notify_err);
         let rpc_err: RpcError = daemon_err.into();
         assert_eq!(rpc_err.code, protocol::INTERNAL_ERROR);
-        assert_eq!(rpc_err.message, "watch failed");
+        assert!(rpc_err.message.contains("watch failed"));
     }
 
     #[test]

@@ -10,6 +10,8 @@ use tracing::{debug, error, info};
 
 use crate::error::Result;
 
+const DEBOUNCE_DURATION: Duration = Duration::from_millis(500);
+
 pub struct PluginWatcher {
     _watcher_thread: std::thread::JoinHandle<()>,
 }
@@ -41,7 +43,6 @@ impl PluginWatcher {
 
 fn watch_plugin_dirs(dirs: Vec<PathBuf>, tx: &mpsc::Sender<()>) -> Result<()> {
     let debounce = Arc::new(StdMutex::new(Instant::now()));
-    let debounce_duration = Duration::from_millis(500);
 
     let (watcher_tx, watcher_rx) = mpsc::channel();
 
@@ -49,9 +50,12 @@ fn watch_plugin_dirs(dirs: Vec<PathBuf>, tx: &mpsc::Sender<()>) -> Result<()> {
         notify::recommended_watcher(move |result: notify::Result<notify::Event>| match result {
             Ok(event) => match event.kind {
                 EventKind::Modify(_) | EventKind::Create(_) | EventKind::Remove(_) => {
-                    let mut last = debounce.lock().unwrap();
+                    let Ok(mut last) = debounce.lock() else {
+                        error!("[plugin_watcher] Debounce mutex poisoned, skipping event");
+                        return;
+                    };
                     let now = Instant::now();
-                    if now.duration_since(*last) > debounce_duration {
+                    if now.duration_since(*last) > DEBOUNCE_DURATION {
                         *last = now;
                         let _ = watcher_tx.send(());
                     }

@@ -55,8 +55,9 @@ impl Decoder for JsonRpcCodec {
             self.current_length = Some(len);
         }
 
-        // SAFETY: current_length is guaranteed Some by the block above
-        let length = self.current_length.expect("set above if None");
+        let Some(length) = self.current_length else {
+            return Ok(None);
+        };
 
         if src.len() < length {
             src.reserve(length - src.len());
