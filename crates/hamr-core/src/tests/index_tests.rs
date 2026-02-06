@@ -647,8 +647,7 @@ fn test_build_searchables_basic() {
         ],
     );
 
-    let plugin_names = HashMap::new();
-    let searchables = store.build_searchables(&plugin_names);
+    let searchables = store.build_searchables();
 
     assert_eq!(searchables.len(), 2);
     assert!(searchables.iter().any(|s| s.id == "firefox"));
@@ -663,8 +662,7 @@ fn test_build_searchables_with_keywords() {
     item.keywords = Some(vec!["browser".to_string(), "web".to_string()]);
     store.update_full("apps", vec![item]);
 
-    let plugin_names = HashMap::new();
-    let searchables = store.build_searchables(&plugin_names);
+    let searchables = store.build_searchables();
 
     let firefox = searchables.iter().find(|s| s.id == "firefox").unwrap();
     assert!(firefox.keywords.contains(&"browser".to_string()));
@@ -688,8 +686,7 @@ fn test_build_searchables_history_terms() {
     };
     store.record_execution("apps", "firefox", &context2, None);
 
-    let plugin_names = HashMap::new();
-    let searchables = store.build_searchables(&plugin_names);
+    let searchables = store.build_searchables();
 
     assert_eq!(searchables.len(), 3);
 
@@ -714,8 +711,7 @@ fn test_build_searchables_skips_plugin_entry() {
     let context = ExecutionContext::default();
     store.record_execution("notes", "note1", &context, Some(&FrecencyMode::Plugin));
 
-    let plugin_names = HashMap::new();
-    let searchables = store.build_searchables(&plugin_names);
+    let searchables = store.build_searchables();
 
     assert!(
         !searchables.iter().any(|s| s.id == "__plugin__"),
@@ -728,8 +724,7 @@ fn test_build_searchables_source_has_plugin_id() {
     let mut store = IndexStore::new();
     store.update_full("apps", vec![make_index_item("app1", "App")]);
 
-    let plugin_names = HashMap::new();
-    let searchables = store.build_searchables(&plugin_names);
+    let searchables = store.build_searchables();
 
     let app = searchables.iter().find(|s| s.id == "app1").unwrap();
     match &app.source {

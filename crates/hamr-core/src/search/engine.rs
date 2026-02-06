@@ -89,11 +89,7 @@ impl SearchEngine {
 
         debug!("Search found {} matches before sort/filter", match_count);
 
-        results.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        results.sort_by(|a, b| b.score.total_cmp(&a.score));
 
         results.truncate(self.config.limit);
 

@@ -1,6 +1,6 @@
 use hamr_types::{
-    Action, Badge, Chip, DisplayHint, FormFieldType, FormOption, GridItem, ImageItem, PluginAction,
-    ResultItem as HamrResultItem,
+    Action, Badge, Chip, DisplayHint, FormFieldType, FormOption, GridItem, ImageItem, InputMode,
+    PluginAction, ResultItem as HamrResultItem,
 };
 use serde::{Deserialize, Serialize};
 
@@ -97,6 +97,15 @@ impl PluginInput {
             ..Default::default()
         }
     }
+
+    #[must_use]
+    pub fn match_query(query: impl Into<String>) -> Self {
+        Self {
+            step: Step::Match,
+            query: Some(query.into()),
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -131,7 +140,7 @@ pub enum PluginResponse {
         prepend: bool,
 
         #[serde(default, rename = "inputMode")]
-        input_mode: Option<String>,
+        input_mode: Option<InputMode>,
 
         #[serde(default)]
         status: Option<StatusData>,

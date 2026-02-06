@@ -73,7 +73,7 @@ pub(super) async fn handle_form_submitted(
         );
     }
 
-    Ok(serde_json::json!({"status": "ok"}))
+    Ok(super::ok_response())
 }
 
 /// Handle form cancellation from UI.

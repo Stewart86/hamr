@@ -1,4 +1,4 @@
-use super::protocol::{PluginInput, PluginResponse, Step};
+use super::protocol::{PluginInput, PluginResponse};
 use crate::{Error, Result};
 use std::path::Path;
 use std::process::Stdio;
@@ -38,7 +38,6 @@ impl PluginProcess {
     /// # Errors
     ///
     /// Returns an error if the process fails to spawn or I/O setup fails.
-    #[allow(clippy::too_many_lines)]
     pub fn spawn(plugin_id: &str, handler_path: &Path, working_dir: &Path) -> Result<Self> {
         let mut child = Command::new(handler_path)
             .current_dir(working_dir)
@@ -64,85 +63,19 @@ impl PluginProcess {
             .take()
             .ok_or_else(|| Error::Process("Failed to get stderr handle".to_string()))?;
 
-        let (stdin_tx, mut stdin_rx) = mpsc::channel::<String>(32);
+        let (stdin_tx, stdin_rx) = mpsc::channel::<String>(32);
         let (response_tx, response_rx) = mpsc::channel::<PluginResponse>(32);
         let stdin_close_signal = Arc::new(AtomicBool::new(false));
 
         let pid = plugin_id.to_string();
 
-        let mut stdin_writer = stdin;
-        let close_signal = stdin_close_signal.clone();
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    line = stdin_rx.recv() => {
-                        match line {
-                            Some(line) => {
-                                if let Err(e) = stdin_writer.write_all(line.as_bytes()).await {
-                                    error!("Failed to write to plugin stdin: {}", e);
-                                    break;
-                                }
-                                if let Err(e) = stdin_writer.flush().await {
-                                    error!("Failed to flush plugin stdin: {}", e);
-                                    break;
-                                }
-                                if close_signal.load(Ordering::SeqCst) {
-                                    debug!("Closing plugin stdin after write");
-                                    drop(stdin_writer);
-                                    break;
-                                }
-                            }
-                            None => break,
-                        }
-                    }
-                }
-            }
-        });
-
-        let plugin_id_clone = pid.clone();
-        tokio::spawn(async move {
-            let reader = BufReader::new(stdout);
-            let mut lines = reader.lines();
-
-            while let Ok(Some(line)) = lines.next_line().await {
-                if line.trim().is_empty() {
-                    continue;
-                }
-
-                match serde_json::from_str::<PluginResponse>(&line) {
-                    Ok(response) => {
-                        if response_tx.send(response).await.is_err() {
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        let error_msg =
-                            format!("Plugin '{plugin_id_clone}' returned invalid JSON: {e}");
-                        warn!("{error_msg} - Raw: {line}");
-                        if response_tx
-                            .send(PluginResponse::Error {
-                                message: error_msg,
-                                details: Some(line),
-                            })
-                            .await
-                            .is_err()
-                        {
-                            break;
-                        }
-                    }
-                }
-            }
-        });
-
-        let plugin_id_clone = pid.clone();
-        tokio::spawn(async move {
-            let reader = BufReader::new(stderr);
-            let mut lines = reader.lines();
-
-            while let Ok(Some(line)) = lines.next_line().await {
-                warn!("[{}] stderr: {}", plugin_id_clone, line);
-            }
-        });
+        tokio::spawn(stdin_writer_task(
+            stdin,
+            stdin_rx,
+            stdin_close_signal.clone(),
+        ));
+        tokio::spawn(stdout_reader_task(stdout, response_tx, pid.clone()));
+        tokio::spawn(stderr_reader_task(stderr, pid.clone()));
 
         let sender = PluginSender {
             stdin_tx,
@@ -267,6 +200,74 @@ impl Drop for PluginProcess {
     }
 }
 
+async fn stdin_writer_task(
+    mut stdin_writer: tokio::process::ChildStdin,
+    mut stdin_rx: mpsc::Receiver<String>,
+    close_signal: Arc<AtomicBool>,
+) {
+    while let Some(line) = stdin_rx.recv().await {
+        if let Err(e) = stdin_writer.write_all(line.as_bytes()).await {
+            error!("Failed to write to plugin stdin: {}", e);
+            break;
+        }
+        if let Err(e) = stdin_writer.flush().await {
+            error!("Failed to flush plugin stdin: {}", e);
+            break;
+        }
+        if close_signal.load(Ordering::SeqCst) {
+            debug!("Closing plugin stdin after write");
+            drop(stdin_writer);
+            return;
+        }
+    }
+}
+
+async fn stdout_reader_task(
+    stdout: tokio::process::ChildStdout,
+    response_tx: mpsc::Sender<PluginResponse>,
+    plugin_id: String,
+) {
+    let reader = BufReader::new(stdout);
+    let mut lines = reader.lines();
+
+    while let Ok(Some(line)) = lines.next_line().await {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        match serde_json::from_str::<PluginResponse>(&line) {
+            Ok(response) => {
+                if response_tx.send(response).await.is_err() {
+                    break;
+                }
+            }
+            Err(e) => {
+                let error_msg = format!("Plugin '{plugin_id}' returned invalid JSON: {e}");
+                warn!("{error_msg} - Raw: {line}");
+                if response_tx
+                    .send(PluginResponse::Error {
+                        message: error_msg,
+                        details: Some(line),
+                    })
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        }
+    }
+}
+
+async fn stderr_reader_task(stderr: tokio::process::ChildStderr, plugin_id: String) {
+    let reader = BufReader::new(stderr);
+    let mut lines = reader.lines();
+
+    while let Ok(Some(line)) = lines.next_line().await {
+        warn!("[{}] stderr: {}", plugin_id, line);
+    }
+}
+
 /// Invoke a plugin with `Step::Match` and wait for a single response.
 ///
 /// This is used for inline pattern match previews (e.g., calculator showing
@@ -286,17 +287,7 @@ pub async fn invoke_match(
         }
     };
 
-    let input = PluginInput {
-        step: Step::Match,
-        query: Some(query.to_string()),
-        selected: None,
-        action: None,
-        session: None,
-        context: None,
-        value: None,
-        form_data: None,
-        source: None,
-    };
+    let input = PluginInput::match_query(query);
 
     if let Err(e) = process.send_and_close(&input).await {
         trace!("[{}] Failed to send match input: {}", plugin_id, e);

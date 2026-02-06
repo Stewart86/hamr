@@ -34,7 +34,7 @@ fn is_dev_socket() -> bool {
         return false;
     };
 
-    if !parent.ends_with("target/debug") {
+    if !parent.ends_with("target/debug") && !parent.ends_with("target/release") {
         return false;
     }
 
@@ -105,6 +105,8 @@ impl From<RpcError> for ClientError {
 
 /// Pending request waiting for a response
 type PendingRequest = oneshot::Sender<Result<Response, ClientError>>;
+
+const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// RPC client for communicating with the hamr daemon
 pub struct RpcClient {
@@ -187,7 +189,7 @@ impl RpcClient {
             pending,
             next_id: AtomicU64::new(1),
             session_id: None,
-            request_timeout: Duration::from_secs(30),
+            request_timeout: DEFAULT_REQUEST_TIMEOUT,
         })
     }
 
@@ -228,6 +230,7 @@ impl RpcClient {
         let request = Request::new(method, params, id.clone());
 
         let (tx, rx) = oneshot::channel();
+        let id_for_cleanup = id.clone();
         {
             let mut pending = self.pending.lock().await;
             pending.insert(id, tx);
@@ -235,7 +238,10 @@ impl RpcClient {
 
         {
             let mut sender = self.sender.lock().await;
-            sender.send(Message::Request(request)).await?;
+            if let Err(e) = sender.send(Message::Request(request)).await {
+                self.pending.lock().await.remove(&id_for_cleanup);
+                return Err(e.into());
+            }
         }
 
         let response = tokio::time::timeout(self.request_timeout, rx)

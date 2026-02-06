@@ -64,7 +64,7 @@ pub(super) async fn handle_query_submitted(
         });
     }
 
-    Ok(serde_json::json!({"status": "ok"}))
+    Ok(super::ok_response())
 }
 
 /// Handle `query_changed` - user typing in search box.

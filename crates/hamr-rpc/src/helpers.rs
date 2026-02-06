@@ -58,21 +58,19 @@ pub fn notification_to_update(
 ///
 /// Returns an error if serialization fails or the RPC notification cannot be sent.
 pub async fn send_event(client: &RpcClient, event: CoreEvent) -> Result<(), ClientError> {
-    let event_json = serde_json::to_value(&event)?;
+    let event_json = serde_json::to_value(event)?;
 
-    let obj = event_json.as_object().ok_or_else(|| {
-        ClientError::SerializationInvariant(
+    let serde_json::Value::Object(mut params) = event_json else {
+        return Err(ClientError::SerializationInvariant(
             "CoreEvent did not serialize to a JSON object".to_string(),
-        )
-    })?;
-    let method = obj.get("type").and_then(|v| v.as_str()).ok_or_else(|| {
-        ClientError::SerializationInvariant(
-            "CoreEvent missing 'type' field after serialization".to_string(),
-        )
-    })?;
+        ));
+    };
 
-    let mut params = obj.clone();
-    params.remove("type");
+    let Some(serde_json::Value::String(method)) = params.remove("type") else {
+        return Err(ClientError::SerializationInvariant(
+            "CoreEvent missing 'type' field after serialization".to_string(),
+        ));
+    };
 
     let params_value = if params.is_empty() {
         None
@@ -85,7 +83,7 @@ pub async fn send_event(client: &RpcClient, event: CoreEvent) -> Result<(), Clie
         method,
         params_value
     );
-    client.notify(method, params_value).await?;
+    client.notify(&method, params_value).await?;
     Ok(())
 }
 

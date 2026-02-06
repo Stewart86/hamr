@@ -1,7 +1,7 @@
 use crate::index::{IndexStore, IndexedItem};
 #[cfg(test)]
 use crate::utils::{date_string_from_epoch, is_leap_year};
-use crate::utils::{now_millis, today_string, yesterday_string};
+use crate::utils::{MILLIS_PER_DAY, now_millis, today_string, yesterday_string};
 
 const FRECENCY_MULTIPLIER: f64 = 10.0;
 const MAX_FRECENCY_BOOST: f64 = 300.0;
@@ -46,9 +46,7 @@ impl FrecencyScorer {
     ) -> std::cmp::Ordering {
         let score_a = Self::composite_score(a.0, a.1, a.2);
         let score_b = Self::composite_score(b.0, b.1, b.2);
-        score_b
-            .partial_cmp(&score_a)
-            .unwrap_or(std::cmp::Ordering::Equal)
+        score_b.total_cmp(&score_a)
     }
 
     /// Apply diversity decay to search results.
@@ -91,7 +89,7 @@ impl FrecencyScorer {
             *position += 1;
         }
 
-        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| b.1.total_cmp(&a.1));
 
         if max_per_source > 0 {
             let mut plugin_counts: HashMap<String, usize> = HashMap::new();
@@ -267,7 +265,7 @@ impl StalenessUtils {
             return 0.0;
         }
         let age_ms = now_ms - timestamp_ms;
-        age_ms as f64 / (1000.0 * 60.0 * 60.0 * 24.0)
+        age_ms as f64 / MILLIS_PER_DAY
     }
 }
 
@@ -328,7 +326,9 @@ impl SmartSuggestions {
             .fold(1.0_f64, f64::max);
 
         let all_items: Vec<_> = items.iter().map(|(_, item)| *item).collect();
-        let total_launches: u32 = all_items.iter().map(|i| i.frecency.count).sum();
+        let total_launches: u32 = all_items
+            .iter()
+            .fold(0u32, |acc, i| acc.saturating_add(i.frecency.count));
 
         let mut candidates = Vec::new();
 
@@ -370,11 +370,7 @@ impl SmartSuggestions {
             }
         }
 
-        candidates.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        candidates.sort_by(|a, b| b.score.total_cmp(&a.score));
 
         Self::deduplicate_suggestions(candidates)
             .into_iter()

@@ -3,10 +3,12 @@
 //! Handles sending messages to plugins (initial, search, action, slider, switch)
 //! and managing plugin communication lifecycle.
 
-use super::{HamrCore, ID_DISMISS, InputMode, generate_session_id, process};
+use super::{
+    ACTION_SLIDER, ACTION_SWITCH, HamrCore, ID_DISMISS, generate_session_id, process,
+};
 use crate::Error;
 use crate::plugin::{ActionSource, PluginInput, PluginProcess, SelectedItem, Step};
-use hamr_types::CoreUpdate;
+use hamr_types::{CoreUpdate, InputMode};
 use tracing::{debug, error, info, warn};
 
 impl HamrCore {
@@ -67,10 +69,10 @@ impl HamrCore {
         });
         self.state.navigation_depth = 0;
 
-        self.state.input_mode = match plugin.manifest.input_mode {
-            Some(crate::plugin::InputMode::Submit) => InputMode::Submit,
-            _ => InputMode::Realtime,
-        };
+        self.state.input_mode = plugin
+            .manifest
+            .input_mode
+            .map_or(InputMode::Realtime, Into::into);
 
         debug!("Activated plugin {} for multi-step flow", plugin_id);
 
@@ -201,7 +203,7 @@ impl HamrCore {
                 id: item_id.to_string(),
                 extra: None,
             }),
-            action: Some("slider".to_string()),
+            action: Some(ACTION_SLIDER.to_string()),
             session: Some(session),
             context: None,
             value: Some(value),
@@ -235,7 +237,7 @@ impl HamrCore {
                 id: item_id.to_string(),
                 extra: None,
             }),
-            action: Some("switch".to_string()),
+            action: Some(ACTION_SWITCH.to_string()),
             session: Some(session),
             context: None,
             value: Some(if value { 1.0 } else { 0.0 }),
@@ -373,6 +375,9 @@ impl HamrCore {
                     });
                 }
             }
+        } else {
+            warn!("Plugin not found in any registry: {}", plugin_id);
+            self.send_update(CoreUpdate::Busy { busy: false });
         }
     }
 }

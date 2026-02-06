@@ -6,7 +6,7 @@ use crate::render::{
     render_ambient_bar, render_preview_panel, render_progress_bar, render_slider_spans,
 };
 use crate::widgets;
-use hamr_rpc::{ResultType, SearchResult, WidgetData};
+use hamr_rpc::{InputMode, ResultType, SearchResult, WidgetData};
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
@@ -85,7 +85,7 @@ pub fn render_results_ui(f: &mut Frame, app: &mut App) {
         " Hamr ".to_string()
     };
 
-    let mode_indicator = if app.active_plugin.is_some() && app.input_mode == "submit" {
+    let mode_indicator = if app.active_plugin.is_some() && app.input_mode == InputMode::Submit {
         " [Submit] "
     } else {
         ""

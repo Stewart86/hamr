@@ -62,7 +62,7 @@ pub use transport::{CodecError, JsonRpcCodec};
 pub use hamr_types::{
     Action, ActionSource, AmbientItem, Badge, CardBlock, CardData, Chip, CoreEvent, CoreUpdate,
     ExecuteAction, FabOverride, FormData, FormField, FormFieldType, FormOption, GaugeData,
-    GraphData, GridBrowserData, GridItem, IconSpec, ImageBrowserData, ImageItem, MetadataItem,
-    PluginAction, PluginManifest, PluginStatus, PreviewData, ProgressData, ResultPatch, ResultType,
-    SearchResult, SliderValue, WidgetData,
+    GraphData, GridBrowserData, GridItem, IconSpec, ImageBrowserData, ImageItem, InputMode,
+    MetadataItem, PluginAction, PluginManifest, PluginStatus, PreviewData, ProgressData,
+    ResultPatch, ResultType, SearchResult, SliderValue, WidgetData,
 };

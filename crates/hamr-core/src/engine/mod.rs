@@ -12,7 +12,7 @@ use crate::plugin::{
 };
 use crate::search::{SearchEngine, SearchMatch, Searchable, SearchableSource};
 use crate::utils::now_millis;
-use hamr_types::{CoreEvent, CoreUpdate, ResultType, SearchResult};
+use hamr_types::{CoreEvent, CoreUpdate, InputMode, ResultType, SearchResult};
 use std::collections::HashMap;
 use std::path::Path;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
@@ -29,6 +29,14 @@ pub(crate) const DEFAULT_PLUGIN_ICON: &str = "extension";
 pub(crate) const DEFAULT_VERB_OPEN: &str = "Open";
 pub(crate) const DEFAULT_VERB_SELECT: &str = "Select";
 pub(crate) const DEFAULT_ICON_TYPE: &str = "material";
+
+pub(crate) const PLACEHOLDER_SEARCH_PLUGINS: &str = "Search plugins...";
+pub(crate) const PLUGIN_ENTRY_BONUS: f64 = 150.0;
+pub(crate) const ACTION_SLIDER: &str = "slider";
+pub(crate) const ACTION_SWITCH: &str = "switch";
+
+/// Timeout for invoking a plugin's match handler (e.g., calculator inline preview)
+const MATCH_TIMEOUT_MS: u64 = 150;
 
 /// Core hamr engine
 pub struct HamrCore {
@@ -120,13 +128,6 @@ pub struct ActivePlugin {
     pub session: String,
     pub last_selected_item: Option<String>,
     pub context: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum InputMode {
-    #[default]
-    Realtime,
-    Submit,
 }
 
 impl HamrCore {
@@ -397,26 +398,16 @@ impl HamrCore {
         } else if self.state.plugin_management {
             if query.is_empty() {
                 let results = self.get_plugin_list();
-                self.send_update_cached(CoreUpdate::Results {
+                self.send_update_cached(CoreUpdate::results_with_placeholder(
                     results,
-                    placeholder: Some("Search plugins...".to_string()),
-                    clear_input: None,
-                    input_mode: None,
-                    context: None,
-                    navigate_forward: None,
-                    display_hint: None,
-                });
+                    Some(PLACEHOLDER_SEARCH_PLUGINS.to_string()),
+                ));
             } else {
                 let results = self.perform_main_search(&query).await;
-                self.send_update_cached(CoreUpdate::Results {
+                self.send_update_cached(CoreUpdate::results_with_placeholder(
                     results,
-                    placeholder: Some("Search plugins...".to_string()),
-                    clear_input: None,
-                    input_mode: None,
-                    context: None,
-                    navigate_forward: None,
-                    display_hint: None,
-                });
+                    Some(PLACEHOLDER_SEARCH_PLUGINS.to_string()),
+                ));
             }
         } else {
             // Reserved "/" prefix for plugin list mode (non-configurable)
@@ -476,15 +467,10 @@ impl HamrCore {
 
         // Perform search filtered to plugins only
         let results = self.perform_main_search("").await;
-        self.send_update_cached(CoreUpdate::Results {
+        self.send_update_cached(CoreUpdate::results_with_placeholder(
             results,
-            placeholder: Some("Search plugins...".to_string()),
-            clear_input: None,
-            input_mode: None,
-            context: None,
-            navigate_forward: None,
-            display_hint: None,
-        });
+            Some(PLACEHOLDER_SEARCH_PLUGINS.to_string()),
+        ));
     }
 
     /// Exit plugin management mode
@@ -891,10 +877,10 @@ impl HamrCore {
         self.state.navigation_depth = 0;
         self.state.query.clear();
 
-        self.state.input_mode = match plugin.manifest.input_mode {
-            Some(crate::plugin::InputMode::Submit) => InputMode::Submit,
-            _ => InputMode::Realtime,
-        };
+        self.state.input_mode = plugin
+            .manifest
+            .input_mode
+            .map_or(InputMode::Realtime, Into::into);
 
         self.send_update(CoreUpdate::PluginActivated {
             id: id.clone(),
@@ -1122,7 +1108,7 @@ impl HamrCore {
                 // Plugin entries (entry points) get a bonus over indexed items
                 // This ensures "Settings" plugin ranks above "seat" emoji when typing "se"
                 let plugin_entry_bonus = match &m.searchable.source {
-                    SearchableSource::Plugin { .. } => 150.0,
+                    SearchableSource::Plugin { .. } => PLUGIN_ENTRY_BONUS,
                     SearchableSource::IndexedItem { .. } => 0.0,
                 };
 
@@ -1177,8 +1163,6 @@ impl HamrCore {
         working_dir: &Path,
         query: &str,
     ) -> Option<SearchResult> {
-        const MATCH_TIMEOUT_MS: u64 = 150;
-
         let response = invoke_match(
             plugin_id,
             handler_path,
@@ -1254,13 +1238,7 @@ impl HamrCore {
     }
 
     fn build_all_searchables(&self, query: &str) -> Vec<Searchable> {
-        let plugin_names: HashMap<_, _> = self
-            .plugins
-            .all()
-            .map(|p| (p.id.clone(), p.manifest.name.clone()))
-            .collect();
-
-        let searchables = self.index.build_searchables(&plugin_names);
+        let searchables = self.index.build_searchables();
         debug!(
             "Built {} searchables from index, query: '{}'",
             searchables.len(),
@@ -1507,12 +1485,8 @@ impl HamrCore {
             self.send_update(CoreUpdate::results(self.state.last_results.clone()));
         }
 
-        let mode = match self.state.input_mode {
-            InputMode::Realtime => "realtime",
-            InputMode::Submit => "submit",
-        };
         self.send_update(CoreUpdate::InputModeChanged {
-            mode: mode.to_string(),
+            mode: self.state.input_mode,
         });
 
         if self.state.last_context.is_some() {

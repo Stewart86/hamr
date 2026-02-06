@@ -8,7 +8,9 @@ use crate::plugin::Manifest;
 use hamr_types::{ResultType, SearchResult};
 use tracing::debug;
 
-use super::{DEFAULT_ICON_TYPE, DEFAULT_PLUGIN_ICON, DEFAULT_VERB_OPEN, HamrCore, ID_PLUGIN_ENTRY};
+use super::{HamrCore, DEFAULT_ICON_TYPE, DEFAULT_PLUGIN_ICON, DEFAULT_VERB_OPEN, ID_PLUGIN_ENTRY};
+
+const MAX_SUGGESTIONS_PER_CATEGORY: usize = 2;
 
 impl HamrCore {
     /// Get recent items and smart suggestions (uses cache if available).
@@ -79,7 +81,7 @@ impl HamrCore {
         let suggestions = SmartSuggestions::get_suggestions(
             &self.index,
             &context,
-            2,
+            MAX_SUGGESTIONS_PER_CATEGORY,
             self.config.search.suggestion_staleness_half_life_days,
             self.config.search.max_suggestion_age_days,
         );

@@ -16,7 +16,8 @@ use crossterm::{
 };
 use futures_util::StreamExt;
 use hamr_rpc::{
-    ClientRole, CoreEvent, CoreUpdate, FormFieldType, Message, ResultType, RpcClient, WidgetData,
+    ClientRole, CoreEvent, CoreUpdate, FormFieldType, InputMode, Message, ResultType, RpcClient,
+    WidgetData,
 };
 use ratatui::{Frame, Terminal, backend::CrosstermBackend};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
@@ -172,7 +173,7 @@ async fn handle_enter_key(client: &RpcClient, app: &mut App) -> Result<()> {
     }
 
     tracing::debug!(
-        "Enter pressed: input_mode={}, active_plugin={:?}, results.len={}, input={}",
+        "Enter pressed: input_mode={:?}, active_plugin={:?}, results.len={}, input={}",
         app.input_mode,
         app.active_plugin,
         app.results.len(),
@@ -186,7 +187,7 @@ async fn handle_enter_key(client: &RpcClient, app: &mut App) -> Result<()> {
     }
 
     // Submit mode with either an active plugin or a plugin context (e.g., edit mode)
-    if app.input_mode == "submit" && (app.active_plugin.is_some() || app.plugin_context.is_some()) {
+    if app.input_mode == InputMode::Submit && (app.active_plugin.is_some() || app.plugin_context.is_some()) {
         let query = app.input.clone();
         let context = app.plugin_context.clone();
         tracing::debug!(
@@ -926,7 +927,7 @@ async fn handle_results_mode_key(
                 navigate_back_or_close(client, app).await?;
             } else {
                 app.delete_char();
-                if app.input_mode == "realtime" {
+                if app.input_mode == InputMode::Realtime {
                     send_event(
                         client,
                         CoreEvent::QueryChanged {
@@ -1082,7 +1083,7 @@ async fn handle_results_mode_key(
                 alt
             );
             app.enter_char(c);
-            if app.input_mode == "realtime" {
+            if app.input_mode == InputMode::Realtime {
                 send_event(
                     client,
                     CoreEvent::QueryChanged {

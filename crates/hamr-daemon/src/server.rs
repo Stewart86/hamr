@@ -14,18 +14,19 @@ use hamr_rpc::PluginManifest;
 use hamr_rpc::client::socket_path;
 use hamr_rpc::protocol::{Message, Notification, Response};
 use hamr_rpc::transport::JsonRpcCodec;
-use hamr_types::{CoreEvent, DisplayHint, SearchResult};
+use hamr_types::{CoreEvent, DisplayHint, InputMode, SearchResult};
 use serde_json::Value;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::signal::unix::SignalKind;
 use tokio::sync::{Mutex, RwLock, mpsc};
-use tokio::task::JoinHandle;
+use tokio::task::JoinSet;
 use tokio_util::codec::Framed;
 use tracing::{debug, error, info, trace, warn};
 
 const HEALTH_CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
 const INDEX_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
 const CONFIG_RELOAD_LOCK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const CHECKSUMS_FILENAME: &str = "checksums.json";
 
 use crate::config_watcher::spawn_config_watcher;
 use crate::error::Result;
@@ -99,7 +100,7 @@ impl DaemonState {
 // Sequential plugin discovery with checksum verification - splitting would fragment the logic
 #[allow(clippy::too_many_lines)]
 fn discover_plugins(builtin_dir: &Path, user_dir: &Path, registry: &mut PluginRegistry) {
-    let checksums_path = builtin_dir.join("checksums.json");
+    let checksums_path = builtin_dir.join(CHECKSUMS_FILENAME);
     let checksums = ChecksumsData::load(&checksums_path);
 
     if let Some(ref cs) = checksums {
@@ -133,7 +134,14 @@ fn discover_plugins(builtin_dir: &Path, user_dir: &Path, registry: &mut PluginRe
             }
         };
 
-        for entry in entries.flatten() {
+        for entry_result in entries {
+            let entry = match entry_result {
+                Ok(e) => e,
+                Err(e) => {
+                    warn!("Failed to read directory entry in {:?}: {}", plugin_base, e);
+                    continue;
+                }
+            };
             let plugin_path = entry.path();
             if !plugin_path.is_dir() {
                 continue;
@@ -282,7 +290,7 @@ fn spawn_socket_plugins(
 async fn spawn_config_watcher_task(config_path: PathBuf, state: Arc<RwLock<DaemonState>>) {
     let (reload_tx, mut reload_rx) = mpsc::unbounded_channel::<()>();
 
-    spawn_config_watcher(config_path, reload_tx);
+    let _watcher = spawn_config_watcher(config_path, reload_tx);
 
     while reload_rx.recv().await.is_some() {
         debug!("Config reload event received");
@@ -447,7 +455,7 @@ pub async fn run(custom_socket_path: Option<PathBuf>) -> Result<()> {
 
     let mut sigterm = tokio::signal::unix::signal(SignalKind::terminate())
         .map_err(crate::error::DaemonError::Io)?;
-    let mut connection_handles: Vec<JoinHandle<()>> = Vec::new();
+    let mut connection_set = JoinSet::new();
 
     info!("Ready to accept connections");
     loop {
@@ -457,12 +465,11 @@ pub async fn run(custom_socket_path: Option<PathBuf>) -> Result<()> {
                     Ok((stream, _addr)) => {
                         debug!("Accepted connection");
                         let state = state.clone();
-                        let handle = tokio::spawn(async move {
+                        connection_set.spawn(async move {
                             if let Err(e) = handle_connection(stream, state).await {
                                 error!("Connection error: {}", e);
                             }
                         });
-                        connection_handles.push(handle);
                     }
                     Err(e) => {
                         error!("Accept error: {}", e);
@@ -493,9 +500,7 @@ pub async fn run(custom_socket_path: Option<PathBuf>) -> Result<()> {
     }
 
     info!("Waiting for active connections to finish");
-    for handle in connection_handles {
-        let _ = handle.await;
-    }
+    connection_set.shutdown().await;
 
     if path.exists()
         && let Err(e) = std::fs::remove_file(&path)
@@ -974,7 +979,7 @@ fn build_results_json(
     results: &[SearchResult],
     placeholder: Option<&String>,
     clear_input: Option<bool>,
-    input_mode: Option<&String>,
+    input_mode: Option<&InputMode>,
     context: Option<&String>,
     navigate_forward: Option<bool>,
     display_hint: Option<&DisplayHint>,
@@ -1113,8 +1118,8 @@ mod tests {
     use super::*;
     use hamr_types::{
         AmbientItem, CardData, DisplayHint, ExecuteAction, FabOverride, FormData, FormField,
-        FormFieldType, GridBrowserData, ImageBrowserData, ImageItem, PluginAction, PluginStatus,
-        ResultPatch, SearchResult,
+        FormFieldType, GridBrowserData, ImageBrowserData, ImageItem, InputMode, PluginAction,
+        PluginStatus, ResultPatch, SearchResult,
     };
 
     #[test]
@@ -1138,7 +1143,7 @@ mod tests {
             }],
             placeholder: Some("Search...".to_string()),
             clear_input: Some(true),
-            input_mode: Some("search".to_string()),
+            input_mode: Some(InputMode::Submit),
             context: Some("test-context".to_string()),
             navigate_forward: Some(true),
             display_hint: Some(DisplayHint::List),
@@ -1147,7 +1152,7 @@ mod tests {
         let params = notification.params.unwrap();
         assert_eq!(params["placeholder"], "Search...");
         assert_eq!(params["clearInput"], true);
-        assert_eq!(params["inputMode"], "search");
+        assert_eq!(params["inputMode"], "submit");
         assert_eq!(params["context"], "test-context");
         assert_eq!(params["navigateForward"], true);
         assert_eq!(params["displayHint"], "list");
@@ -1335,11 +1340,11 @@ mod tests {
     #[test]
     fn test_core_update_to_notification_input_mode_changed() {
         let update = CoreUpdate::InputModeChanged {
-            mode: "password".to_string(),
+            mode: InputMode::Submit,
         };
         let notification = core_update_to_notification(&update);
         assert_eq!(notification.method, "input_mode_changed");
-        assert_eq!(notification.params.unwrap()["mode"], "password");
+        assert_eq!(notification.params.unwrap()["mode"], "submit");
     }
 
     #[test]

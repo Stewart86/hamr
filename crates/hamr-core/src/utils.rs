@@ -2,6 +2,18 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) const SECS_PER_DAY: u64 = 86_400;
 pub(crate) const SECS_PER_HOUR: u64 = 3_600;
+#[allow(clippy::cast_precision_loss)]
+pub(crate) const MILLIS_PER_HOUR: f64 = SECS_PER_HOUR as f64 * 1000.0;
+#[allow(clippy::cast_precision_loss)]
+pub(crate) const MILLIS_PER_DAY: f64 = SECS_PER_DAY as f64 * 1000.0;
+
+/// Get current timestamp in seconds.
+pub(crate) fn now_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 /// Get current timestamp in milliseconds.
 // u128 millis fits in u64 for realistic timestamps (until year 584942417)

@@ -21,7 +21,7 @@ use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use hamr_rpc::{
     CardData, CoreEvent, CoreUpdate, FormData, PluginAction, PluginStatus, ResultType, SearchResult,
 };
-use hamr_types::{AmbientItem, DisplayHint, WidgetData};
+use hamr_types::{AmbientItem, DisplayHint, InputMode, WidgetData};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -112,7 +112,7 @@ struct AppState {
     results: Vec<SearchResult>,
     placeholder: String,
     active_plugin: Option<(String, String)>,
-    input_mode: String,
+    input_mode: InputMode,
     navigation_depth: usize,
     pending_back: bool,
     plugin_actions: Vec<PluginAction>,
@@ -166,7 +166,7 @@ impl Default for AppState {
             results: Vec::new(),
             placeholder: DEFAULT_PLACEHOLDER.to_string(),
             active_plugin: None,
-            input_mode: "realtime".to_string(),
+            input_mode: InputMode::Realtime,
             navigation_depth: 0,
             pending_back: false,
             plugin_actions: Vec::new(),
@@ -2131,7 +2131,7 @@ impl LauncherWindow {
         self.search_entry.connect_changed(move |entry| {
             let query = entry.text().to_string();
             let state = state.borrow();
-            if state.input_mode == "realtime"
+            if state.input_mode == InputMode::Realtime
                 && let Err(e) = event_tx.send_blocking(CoreEvent::QueryChanged { query })
             {
                 error!("Failed to send query: {}", e);
@@ -2154,7 +2154,7 @@ impl LauncherWindow {
                 )
             };
 
-            if input_mode == "submit" {
+            if input_mode == InputMode::Submit {
                 let query = entry.text().to_string();
                 info!("Submit query: {}", query);
                 if let Err(e) = event_tx.send_blocking(CoreEvent::QuerySubmitted {
@@ -2487,7 +2487,7 @@ impl LauncherWindow {
             let mut state_mut = state.borrow_mut();
             state_mut.results.clear();
             state_mut.active_plugin = None;
-            state_mut.input_mode = "realtime".to_string();
+            state_mut.input_mode = InputMode::Realtime;
             state_mut.navigation_depth = 0;
             state_mut.pending_back = false;
             state_mut.plugin_actions.clear();
@@ -2909,7 +2909,7 @@ impl LauncherWindow {
                 Self::show_form(&form, ctx);
             }
             CoreUpdate::InputModeChanged { mode } => {
-                debug!("Input mode changed: {}", mode);
+                debug!("Input mode changed: {:?}", mode);
                 state.borrow_mut().input_mode = mode;
             }
             CoreUpdate::ContextChanged { context } => {
@@ -2958,7 +2958,7 @@ impl LauncherWindow {
                 let (view_mode, compact_mode, empty_query) = {
                     let mut state_mut = state.borrow_mut();
                     state_mut.active_plugin = None;
-                    state_mut.input_mode = "realtime".to_string();
+                    state_mut.input_mode = InputMode::Realtime;
                     state_mut.navigation_depth = 0;
                     state_mut.plugin_actions.clear();
                     state_mut.placeholder = DEFAULT_PLACEHOLDER.to_string();

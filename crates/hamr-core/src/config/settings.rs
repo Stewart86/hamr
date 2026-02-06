@@ -28,6 +28,14 @@ impl Config {
     pub fn validate(&mut self) {
         let search = &mut self.search;
 
+        if search.diversity_decay.is_nan() || search.diversity_decay.is_infinite() {
+            warn!(
+                "diversity_decay is {:?}, resetting to default",
+                search.diversity_decay
+            );
+            search.diversity_decay = default_diversity_decay();
+        }
+
         if search.diversity_decay < 0.0 || search.diversity_decay > 1.0 {
             warn!(
                 "diversity_decay out of range ({}), clamping to 0.0-1.0",
@@ -36,12 +44,32 @@ impl Config {
             search.diversity_decay = search.diversity_decay.clamp(0.0, 1.0);
         }
 
+        search.plugin_ranking_bonus.retain(|key, value| {
+            if value.is_nan() || value.is_infinite() {
+                warn!(
+                    "Invalid plugin ranking bonus for '{}': {}, removing",
+                    key, value
+                );
+                false
+            } else {
+                true
+            }
+        });
+
         if search.max_displayed_results < 1 {
             warn!(
                 "max_displayed_results too low ({}), setting to 1",
                 search.max_displayed_results
             );
             search.max_displayed_results = 1;
+        }
+
+        if search.max_displayed_results > 1000 {
+            warn!(
+                "max_displayed_results too high ({}), clamping to 1000",
+                search.max_displayed_results
+            );
+            search.max_displayed_results = 1000;
         }
 
         if search.suggestion_staleness_half_life_days > search.max_suggestion_age_days

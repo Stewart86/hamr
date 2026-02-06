@@ -294,8 +294,7 @@ impl PluginManager {
         debug!("Rescanning plugins for changes");
         let before = self.plugins.clone();
         self.discover()?;
-        let after = self.plugins.clone();
-        Ok(diff_plugins(&before, &after))
+        Ok(diff_plugins(&before, &self.plugins))
     }
 
     #[cfg(test)]
@@ -348,7 +347,14 @@ impl PluginManager {
         let entries = std::fs::read_dir(path)?;
         let platform_str = self.platform.as_str();
 
-        for entry in entries.flatten() {
+        for entry in entries {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(e) => {
+                    warn!("Failed to read entry in {}: {}", path.display(), e);
+                    continue;
+                }
+            };
             let plugin_path = entry.path();
             if !plugin_path.is_dir() {
                 continue;

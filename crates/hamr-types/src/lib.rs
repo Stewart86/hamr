@@ -132,7 +132,7 @@ pub enum CoreUpdate {
         clear_input: Option<bool>,
         /// Optional input mode (realtime/submit)
         #[serde(rename = "inputMode", skip_serializing_if = "Option::is_none")]
-        input_mode: Option<String>,
+        input_mode: Option<InputMode>,
         /// Optional context for multi-step flows
         #[serde(skip_serializing_if = "Option::is_none")]
         context: Option<String>,
@@ -205,7 +205,7 @@ pub enum CoreUpdate {
     ClearInput,
 
     /// Input mode changed (realtime/submit)
-    InputModeChanged { mode: String },
+    InputModeChanged { mode: InputMode },
 
     /// Context changed for multi-step plugin flows
     ContextChanged {
@@ -663,14 +663,13 @@ struct ResultItemRaw {
     should_close: Option<bool>,
 }
 
-/// Parsed slider/switch value data tuple.
-type ParsedValueData = (
-    Option<f64>,
-    Option<f64>,
-    Option<f64>,
-    Option<f64>,
-    Option<String>,
-);
+struct ParsedValueData {
+    value: Option<f64>,
+    min: Option<f64>,
+    max: Option<f64>,
+    step: Option<f64>,
+    display_value: Option<String>,
+}
 
 /// Parse the `value` field which can be a number, boolean, or `SliderValue` object.
 fn parse_value_field(
@@ -690,18 +689,24 @@ fn parse_value_field(
                 step: None,
                 display_value: None,
             });
-        Ok((
-            slider_val.value,
-            slider_val.min.or(min),
-            slider_val.max.or(max),
-            slider_val.step.or(step),
-            slider_val.display_value.or(display_value),
-        ))
+        Ok(ParsedValueData {
+            value: slider_val.value,
+            min: slider_val.min.or(min),
+            max: slider_val.max.or(max),
+            step: slider_val.step.or(step),
+            display_value: slider_val.display_value.or(display_value),
+        })
     } else if value.is_number() {
         let num = value
             .as_f64()
             .ok_or_else(|| "expected f64 for value".to_string())?;
-        Ok((Some(num), min, max, step, display_value))
+        Ok(ParsedValueData {
+            value: Some(num),
+            min,
+            max,
+            step,
+            display_value,
+        })
     } else if value.is_boolean() {
         if result_type != Some(ResultType::Switch) {
             return Err("boolean value is only valid for switch type, not slider".to_string());
@@ -711,9 +716,21 @@ fn parse_value_field(
         } else {
             0.0
         };
-        Ok((Some(num), min, max, step, display_value))
+        Ok(ParsedValueData {
+            value: Some(num),
+            min,
+            max,
+            step,
+            display_value,
+        })
     } else if value.is_null() {
-        Ok((None, min, max, step, display_value))
+        Ok(ParsedValueData {
+            value: None,
+            min,
+            max,
+            step,
+            display_value,
+        })
     } else {
         Err("value must be a number, boolean, or SliderValue object".to_string())
     }
@@ -723,7 +740,7 @@ impl TryFrom<ResultItemRaw> for ResultItem {
     type Error = String;
 
     fn try_from(raw: ResultItemRaw) -> Result<Self, Self::Error> {
-        let (value, min, max, step, display_value) = parse_value_field(
+        let parsed = parse_value_field(
             raw.value,
             raw.result_type,
             raw.min,
@@ -737,11 +754,11 @@ impl TryFrom<ResultItemRaw> for ResultItem {
         let widget = raw.widget.or_else(|| {
             build_widget_from_flat(
                 result_type,
-                value,
-                min,
-                max,
-                step,
-                display_value,
+                parsed.value,
+                parsed.min,
+                parsed.max,
+                parsed.step,
+                parsed.display_value,
                 raw.gauge.as_ref(),
                 raw.progress.as_ref(),
                 raw.graph.as_ref(),
@@ -1043,6 +1060,15 @@ pub enum ResultType {
     PatternMatch,
 }
 
+/// Input mode for plugin interactions
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InputMode {
+    #[default]
+    Realtime,
+    Submit,
+}
+
 /// Display hint for result rendering
 ///
 /// Plugins can provide a hint about the preferred view mode for their results.
@@ -1213,7 +1239,7 @@ pub struct Frecency {
     #[serde(default, skip_serializing_if = "is_zero_array_24")]
     pub hour_slot_counts: [u32; 24],
 
-    /// Usage count per day of week (0=Sunday, 6=Saturday)
+    /// Usage count per day of week (0=Monday, 6=Sunday)
     #[serde(default, skip_serializing_if = "is_zero_array_7")]
     pub day_of_week_counts: [u32; 7],
 
@@ -1760,7 +1786,8 @@ pub struct PluginManifest {
 #[allow(clippy::float_cmp)] // Exact float comparisons are intentional in tests
 mod icon_spec_tests {
     use super::{
-        CoreEvent, CoreUpdate, IconSpec, ResultItem, ResultType, SearchResult, WidgetData,
+        CoreEvent, CoreUpdate, IconSpec, InputMode, ResultItem, ResultType, SearchResult,
+        WidgetData,
     };
     use serde_json::json;
 
@@ -1975,7 +2002,7 @@ mod icon_spec_tests {
             }],
             placeholder: Some("Edit task...".to_string()),
             clear_input: Some(true),
-            input_mode: Some("submit".to_string()),
+            input_mode: Some(InputMode::Submit),
             context: Some("__edit__:0".to_string()),
             navigate_forward: Some(true),
             display_hint: None,
@@ -2031,7 +2058,7 @@ mod icon_spec_tests {
                 assert_eq!(results.len(), 1);
                 assert_eq!(placeholder, Some("Search...".to_string()));
                 assert_eq!(clear_input, Some(true));
-                assert_eq!(input_mode, Some("realtime".to_string()));
+                assert_eq!(input_mode, Some(InputMode::Realtime));
                 assert_eq!(context, Some("__add_mode__".to_string()));
                 assert!(navigate_forward.is_none());
             }

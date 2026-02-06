@@ -6,8 +6,8 @@ use crate::state::{
     WindowPickerState,
 };
 use hamr_rpc::{
-    AmbientItem, CoreUpdate, ExecuteAction, PluginAction, PluginStatus, PreviewData, ResultPatch,
-    ResultType, SearchResult, WidgetData,
+    AmbientItem, CoreUpdate, ExecuteAction, InputMode, PluginAction, PluginStatus, PreviewData,
+    ResultPatch, ResultType, SearchResult, WidgetData,
 };
 use ratatui::widgets::ListState;
 use std::collections::HashMap;
@@ -69,8 +69,8 @@ pub struct App {
     pub view_mode: ViewMode,
     pub show_preview: bool,
     pub preview_scroll: usize,
-    /// Input mode: "realtime" or "submit"
-    pub input_mode: String,
+    /// Input mode: Realtime or Submit
+    pub input_mode: InputMode,
     /// Plugin context for multi-step flows (edit mode, etc.)
     pub plugin_context: Option<String>,
     /// App ID of the item being executed
@@ -110,7 +110,7 @@ impl App {
             view_mode: ViewMode::default(),
             show_preview: false,
             preview_scroll: 0,
-            input_mode: "realtime".to_string(),
+            input_mode: InputMode::Realtime,
             plugin_context: None,
             pending_app_id: None,
             pending_app_name: None,
@@ -290,7 +290,7 @@ impl App {
                 self.active_plugin = None;
                 self.input.clear();
                 self.cursor_position = 0;
-                self.input_mode = "realtime".to_string();
+                self.input_mode = InputMode::Realtime;
                 self.plugin_context = None;
                 self.plugin_actions.clear();
                 self.navigation_depth = 0;
@@ -410,7 +410,7 @@ impl App {
         mut results: Vec<SearchResult>,
         placeholder: Option<String>,
         clear_input: Option<bool>,
-        input_mode: Option<String>,
+        input_mode: Option<InputMode>,
         context: Option<String>,
         navigate_forward: Option<bool>,
     ) {

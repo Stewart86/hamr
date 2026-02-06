@@ -103,7 +103,7 @@ pub enum FrecencyMode {
 }
 
 /// Input mode for search
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum InputMode {
     /// Search on every keystroke
@@ -111,6 +111,15 @@ pub enum InputMode {
     Realtime,
     /// Search only on submit
     Submit,
+}
+
+impl From<InputMode> for hamr_types::InputMode {
+    fn from(mode: InputMode) -> Self {
+        match mode {
+            InputMode::Realtime => hamr_types::InputMode::Realtime,
+            InputMode::Submit => hamr_types::InputMode::Submit,
+        }
+    }
 }
 
 /// Match configuration for pattern-based plugin activation

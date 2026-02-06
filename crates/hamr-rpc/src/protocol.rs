@@ -229,6 +229,14 @@ impl RpcError {
     }
 }
 
+impl std::fmt::Display for RpcError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "RPC error {}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for RpcError {}
+
 /// Incoming message that could be a request, response, or notification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]

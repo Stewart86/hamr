@@ -51,38 +51,43 @@ pub(super) fn handle_plugin_results(
         return Ok(());
     }
 
-    if let Some(params) = params {
-        if let Some(results_value) = params.get("results").and_then(|v| v.as_array()) {
-            debug!(
-                "[{}] Forwarding {} results to active UI",
-                plugin_id,
-                results_value.len()
-            );
+    let Some(params) = params else {
+        return Ok(());
+    };
 
-            if let Ok(results) = serde_json::from_value::<Vec<hamr_types::SearchResult>>(
-                serde_json::json!(results_value),
-            ) {
-                ctx.core.cache_plugin_results(results);
-            }
+    let Some(results_value) = params.get("results").and_then(|v| v.as_array()) else {
+        debug!("[{}] Results params missing 'results' array", plugin_id);
+        return Ok(());
+    };
 
-            if let Some(ui_id) = ctx.active_ui.as_ref() {
-                if let Some(tx) = ctx.client_senders.get(ui_id) {
-                    let notification = Notification::new(
-                        "results",
-                        Some(serde_json::json!({ "results": results_value })),
-                    );
-                    if let Err(e) = tx.send(Message::Notification(notification)) {
-                        warn!("[{}] Failed to forward results to UI: {}", plugin_id, e);
-                    }
-                } else {
-                    debug!("[{}] Active UI {} not in client_senders", plugin_id, ui_id);
-                }
-            } else {
-                debug!("[{}] No active UI to forward results to", plugin_id);
-            }
-        } else {
-            debug!("[{}] Results params missing 'results' array", plugin_id);
-        }
+    debug!(
+        "[{}] Forwarding {} results to active UI",
+        plugin_id,
+        results_value.len()
+    );
+
+    if let Ok(results) =
+        serde_json::from_value::<Vec<hamr_types::SearchResult>>(serde_json::json!(results_value))
+    {
+        ctx.core.cache_plugin_results(results);
+    }
+
+    let Some(ui_id) = ctx.active_ui.as_ref() else {
+        debug!("[{}] No active UI to forward results to", plugin_id);
+        return Ok(());
+    };
+
+    let Some(tx) = ctx.client_senders.get(ui_id) else {
+        debug!("[{}] Active UI {} not in client_senders", plugin_id, ui_id);
+        return Ok(());
+    };
+
+    let notification = Notification::new(
+        "results",
+        Some(serde_json::json!({ "results": results_value })),
+    );
+    if let Err(e) = tx.send(Message::Notification(notification)) {
+        warn!("[{}] Failed to forward results to UI: {}", plugin_id, e);
     }
 
     Ok(())
@@ -154,10 +159,16 @@ pub(super) fn handle_plugin_index(
         return Ok(());
     };
 
-    let items: Vec<hamr_core::plugin::IndexItem> = params
-        .get("items")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default();
+    let items: Vec<hamr_core::plugin::IndexItem> = match params.get("items") {
+        Some(v) => match serde_json::from_value(v.clone()) {
+            Ok(items) => items,
+            Err(e) => {
+                warn!("[{}] Failed to deserialize index items: {}", plugin_id, e);
+                Vec::new()
+            }
+        },
+        None => Vec::new(),
+    };
 
     let mode = params.get("mode").and_then(|v| v.as_str());
     let remove: Option<Vec<String>> = params
@@ -191,55 +202,58 @@ pub(super) fn handle_plugin_execute(
 
     debug!("[{}] Received plugin_execute", plugin_id);
 
-    if let Some(params) = params {
-        if let Some(action_value) = params.get("action") {
-            let action_str = serde_json::to_string(action_value).unwrap_or_else(|e| {
+    let Some(params) = params else {
+        return Ok(());
+    };
+
+    let Some(action_value) = params.get("action") else {
+        debug!("[{}] Execute params missing 'action' field", plugin_id);
+        return Ok(());
+    };
+
+    let action_str = serde_json::to_string(action_value).unwrap_or_else(|e| {
+        warn!(
+            "[{}] Failed to serialize action for logging: {}",
+            plugin_id, e
+        );
+        format!("<invalid: {e}>")
+    });
+    debug!("[{}] Execute action: {:?}", plugin_id, action_str);
+
+    let Some(ui_id) = ctx.active_ui.as_ref() else {
+        debug!("[{}] No active UI to forward execute to", plugin_id);
+        return Ok(());
+    };
+
+    let Some(tx) = ctx.client_senders.get(ui_id) else {
+        debug!("[{}] Active UI {} not in client_senders", plugin_id, ui_id);
+        return Ok(());
+    };
+
+    let notification = Notification::new(
+        "execute",
+        Some(serde_json::json!({ "action": action_value })),
+    );
+    if let Err(e) = tx.send(Message::Notification(notification)) {
+        warn!("[{}] Failed to forward execute to UI: {}", plugin_id, e);
+    }
+
+    if let Some(obj) = action_value.as_object()
+        && let Some(sound) = obj.get("sound").and_then(|v| v.as_str())
+    {
+        let action_type = obj.get("type").and_then(|v| v.as_str());
+        if action_type != Some("sound") {
+            debug!("[{}] Sending separate PlaySound for: {}", plugin_id, sound);
+            let sound_notification = Notification::new(
+                "execute",
+                Some(serde_json::json!({ "action": { "type": "sound", "sound": sound } })),
+            );
+            if let Err(e) = tx.send(Message::Notification(sound_notification)) {
                 warn!(
-                    "[{}] Failed to serialize action for logging: {}",
+                    "[{}] Failed to forward sound execute to UI: {}",
                     plugin_id, e
                 );
-                format!("<invalid: {e}>")
-            });
-            debug!("[{}] Execute action: {:?}", plugin_id, action_str);
-
-            if let Some(ui_id) = ctx.active_ui.as_ref() {
-                if let Some(tx) = ctx.client_senders.get(ui_id) {
-                    let notification = Notification::new(
-                        "execute",
-                        Some(serde_json::json!({ "action": action_value })),
-                    );
-                    if let Err(e) = tx.send(Message::Notification(notification)) {
-                        warn!("[{}] Failed to forward execute to UI: {}", plugin_id, e);
-                    }
-
-                    if let Some(obj) = action_value.as_object()
-                        && let Some(sound) = obj.get("sound").and_then(|v| v.as_str())
-                    {
-                        let action_type = obj.get("type").and_then(|v| v.as_str());
-                        if action_type != Some("sound") {
-                            debug!("[{}] Sending separate PlaySound for: {}", plugin_id, sound);
-                            let sound_notification = Notification::new(
-                                "execute",
-                                Some(
-                                    serde_json::json!({ "action": { "type": "sound", "sound": sound } }),
-                                ),
-                            );
-                            if let Err(e) = tx.send(Message::Notification(sound_notification)) {
-                                warn!(
-                                    "[{}] Failed to forward sound execute to UI: {}",
-                                    plugin_id, e
-                                );
-                            }
-                        }
-                    }
-                } else {
-                    debug!("[{}] Active UI {} not in client_senders", plugin_id, ui_id);
-                }
-            } else {
-                debug!("[{}] No active UI to forward execute to", plugin_id);
             }
-        } else {
-            debug!("[{}] Execute params missing 'action' field", plugin_id);
         }
     }
 
@@ -259,32 +273,37 @@ pub(super) fn handle_plugin_update(
 
     debug!("[{}] Received plugin_update", plugin_id);
 
-    if let Some(params) = params {
-        if let Some(patches) = params.get("patches").and_then(|v| v.as_array()) {
-            debug!(
-                "[{}] Forwarding {} patches to active UI",
-                plugin_id,
-                patches.len()
-            );
+    let Some(params) = params else {
+        return Ok(());
+    };
 
-            if let Some(ui_id) = ctx.active_ui.as_ref() {
-                if let Some(tx) = ctx.client_senders.get(ui_id) {
-                    let notification = Notification::new(
-                        "results_update",
-                        Some(serde_json::json!({ "patches": patches })),
-                    );
-                    if let Err(e) = tx.send(Message::Notification(notification)) {
-                        warn!("[{}] Failed to forward update to UI: {}", plugin_id, e);
-                    }
-                } else {
-                    debug!("[{}] Active UI {} not in client_senders", plugin_id, ui_id);
-                }
-            } else {
-                debug!("[{}] No active UI to forward update to", plugin_id);
-            }
-        } else {
-            debug!("[{}] Update params missing 'patches' array", plugin_id);
-        }
+    let Some(patches) = params.get("patches").and_then(|v| v.as_array()) else {
+        debug!("[{}] Update params missing 'patches' array", plugin_id);
+        return Ok(());
+    };
+
+    debug!(
+        "[{}] Forwarding {} patches to active UI",
+        plugin_id,
+        patches.len()
+    );
+
+    let Some(ui_id) = ctx.active_ui.as_ref() else {
+        debug!("[{}] No active UI to forward update to", plugin_id);
+        return Ok(());
+    };
+
+    let Some(tx) = ctx.client_senders.get(ui_id) else {
+        debug!("[{}] Active UI {} not in client_senders", plugin_id, ui_id);
+        return Ok(());
+    };
+
+    let notification = Notification::new(
+        "results_update",
+        Some(serde_json::json!({ "patches": patches })),
+    );
+    if let Err(e) = tx.send(Message::Notification(notification)) {
+        warn!("[{}] Failed to forward update to UI: {}", plugin_id, e);
     }
 
     Ok(())

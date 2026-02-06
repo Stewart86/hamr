@@ -36,6 +36,10 @@ const ACTION_PLUGIN: &str = "__plugin__";
 
 const PLUGIN_INIT_DELAY: Duration = Duration::from_millis(10);
 
+pub(crate) fn ok_response() -> serde_json::Value {
+    serde_json::json!({"status": "ok"})
+}
+
 pub struct HandlerContext<'a> {
     pub core: &'a mut HamrCore,
     pub clients: &'a mut HashMap<SessionId, Session>,
@@ -592,17 +596,17 @@ fn handle_toggle(ctx: &mut HandlerContext<'_>) -> Result<Value> {
     }
 
     debug!("Toggle notification sent to UI {}", ui_id);
-    Ok(serde_json::json!({"status": "ok"}))
+    Ok(ok_response())
 }
 
 async fn handle_show(ctx: &mut HandlerContext<'_>) -> Result<Value> {
     ctx.core.process(CoreEvent::LauncherOpened).await;
-    Ok(serde_json::json!({"status": "ok"}))
+    Ok(ok_response())
 }
 
 async fn handle_hide(ctx: &mut HandlerContext<'_>) -> Result<Value> {
     ctx.core.process(CoreEvent::LauncherClosed).await;
-    Ok(serde_json::json!({"status": "ok"}))
+    Ok(ok_response())
 }
 
 async fn handle_open_plugin(ctx: &mut HandlerContext<'_>, params: Option<&Value>) -> Result<Value> {
@@ -649,7 +653,7 @@ async fn handle_open_plugin(ctx: &mut HandlerContext<'_>, params: Option<&Value>
                         plugin_id: plugin_id.clone(),
                     })
                     .await;
-                return Ok(serde_json::json!({"status": "ok"}));
+                return Ok(ok_response());
             }
             Err(e) => {
                 warn!("[{plugin_id}] Failed to spawn on-demand plugin: {e}");
@@ -679,7 +683,7 @@ async fn handle_open_plugin(ctx: &mut HandlerContext<'_>, params: Option<&Value>
         });
     }
 
-    Ok(serde_json::json!({"status": "ok"}))
+    Ok(ok_response())
 }
 
 fn handle_update_status(ctx: &mut HandlerContext<'_>, params: Option<&Value>) -> Result<Value> {
@@ -714,7 +718,7 @@ fn handle_update_status(ctx: &mut HandlerContext<'_>, params: Option<&Value>) ->
         send_status_to_ui(tx, &plugin_id, &status);
     }
 
-    Ok(serde_json::json!({"status": "ok"}))
+    Ok(ok_response())
 }
 
 // Handler dispatch requires consistent Result<Value> signature
@@ -746,7 +750,7 @@ fn handle_shutdown(_ctx: &mut HandlerContext<'_>) -> Result<Value> {
 fn handle_reload_plugins(ctx: &mut HandlerContext<'_>) -> Result<Value> {
     debug!("Reload plugins requested");
     ctx.core.reload_plugins()?;
-    Ok(serde_json::json!({"status": "ok"}))
+    Ok(ok_response())
 }
 
 async fn handle_ambient_action(
@@ -817,7 +821,7 @@ async fn handle_ambient_action(
         );
     }
 
-    Ok(serde_json::json!({"status": "ok"}))
+    Ok(ok_response())
 }
 
 async fn handle_dismiss_ambient(

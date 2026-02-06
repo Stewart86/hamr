@@ -141,11 +141,11 @@ pub(super) async fn handle_item_selected(
         debug!("[{}] Plugin opened", pid);
 
         if try_spawn_on_demand_plugin(ctx, pid) {
-            return Ok(serde_json::json!({"status": "ok"}));
+            return Ok(super::ok_response());
         }
 
         if try_send_initial_to_plugin(ctx, pid) {
-            return Ok(serde_json::json!({"status": "ok"}));
+            return Ok(super::ok_response());
         }
 
         debug!(
@@ -173,7 +173,7 @@ pub(super) async fn handle_item_selected(
         debug!("NOT forwarding action (no plugin_id)");
     }
 
-    Ok(serde_json::json!({"status": "ok"}))
+    Ok(super::ok_response())
 }
 
 pub(super) async fn handle_slider_changed(

@@ -6,14 +6,25 @@
 
 use hamr_types::{
     AmbientItem, CardBlock, CardData, CoreUpdate, ExecuteAction, FabOverride, FormData, FormField,
-    GridBrowserData, ImageBrowserData, PluginAction, PluginStatus, ResultItem, ResultPatch,
-    SearchResult, WidgetData,
+    GridBrowserData, ImageBrowserData, InputMode, PluginAction, PluginStatus, ResultItem,
+    ResultPatch, SearchResult, WidgetData,
 };
 
 use crate::engine::{DEFAULT_PLUGIN_ICON, DEFAULT_VERB_SELECT};
 
 use super::protocol::{AmbientItemData, CardBlockData, PluginResponse, StatusData, UpdateItem};
 use tracing::debug;
+
+impl From<CardBlockData> for CardBlock {
+    fn from(block: CardBlockData) -> Self {
+        match block {
+            CardBlockData::Pill { text } => CardBlock::Pill { text },
+            CardBlockData::Separator => CardBlock::Separator,
+            CardBlockData::Message { role, content } => CardBlock::Message { role, content },
+            CardBlockData::Note { content } => CardBlock::Note { content },
+        }
+    }
+}
 
 /// Convert a `PluginResponse` to a list of `CoreUpdates`.
 ///
@@ -143,7 +154,7 @@ fn handle_results_response(
     plugin_id: &str,
     updates: &mut Vec<CoreUpdate>,
     items: Vec<ResultItem>,
-    input_mode: Option<String>,
+    input_mode: Option<InputMode>,
     status: Option<StatusData>,
     context: Option<String>,
     placeholder: Option<String>,
@@ -192,14 +203,7 @@ fn handle_results_response(
     });
 
     if let Some(mode) = input_mode {
-        updates.push(CoreUpdate::InputModeChanged {
-            mode: if mode == "submit" {
-                "submit"
-            } else {
-                "realtime"
-            }
-            .to_string(),
-        });
+        updates.push(CoreUpdate::InputModeChanged { mode });
     }
 
     if context.is_some() {
@@ -303,18 +307,7 @@ fn handle_card_response(
             markdown: markdown_content,
             actions: card.actions,
             kind: card.kind,
-            blocks: card
-                .blocks
-                .into_iter()
-                .map(|b| match b {
-                    CardBlockData::Pill { text } => CardBlock::Pill { text },
-                    CardBlockData::Separator => CardBlock::Separator,
-                    CardBlockData::Message { role, content } => {
-                        CardBlock::Message { role, content }
-                    }
-                    CardBlockData::Note { content } => CardBlock::Note { content },
-                })
-                .collect(),
+            blocks: card.blocks.into_iter().map(CardBlock::from).collect(),
             max_height: card.max_height,
             show_details: card.show_details,
             allow_toggle_details: card.allow_toggle_details,
@@ -431,46 +424,72 @@ fn handle_image_browser_response(
 pub fn process_status_data(plugin_id: &str, status: StatusData) -> Vec<CoreUpdate> {
     let mut updates = Vec::new();
 
-    let plugin_status = PluginStatus {
-        badges: status.badges,
-        chips: status.chips,
-        description: status.description,
-        fab: status.fab.map(|f| FabOverride {
-            badges: f.badges,
-            chips: f.chips,
-            priority: f.priority,
-            show_fab: f.show_fab,
-        }),
-        ambient: status
-            .ambient
-            .as_ref()
-            .map(|items| {
-                items
-                    .iter()
-                    .map(|item| convert_ambient_item(plugin_id, item.clone()))
-                    .collect()
-            })
-            .unwrap_or_default(),
-    };
+    let StatusData {
+        badges,
+        chips,
+        description,
+        fab,
+        ambient,
+    } = status;
 
-    if !plugin_status.badges.is_empty()
-        || !plugin_status.chips.is_empty()
-        || plugin_status.description.is_some()
-    {
-        updates.push(CoreUpdate::PluginStatusUpdate {
-            plugin_id: plugin_id.to_string(),
-            status: plugin_status.clone(),
-        });
+    let fab = fab.map(|f| FabOverride {
+        badges: f.badges,
+        chips: f.chips,
+        priority: f.priority,
+        show_fab: f.show_fab,
+    });
+
+    let has_ambient = ambient.is_some();
+    let ambient_items: Vec<AmbientItem> = ambient
+        .map(|items| {
+            items
+                .into_iter()
+                .map(|item| convert_ambient_item(plugin_id, item))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let needs_status = !badges.is_empty() || !chips.is_empty() || description.is_some();
+
+    match (needs_status, has_ambient) {
+        (true, true) => {
+            updates.push(CoreUpdate::PluginStatusUpdate {
+                plugin_id: plugin_id.to_string(),
+                status: PluginStatus {
+                    badges,
+                    chips,
+                    description,
+                    fab: fab.clone(),
+                    ambient: ambient_items.clone(),
+                },
+            });
+            updates.push(CoreUpdate::AmbientUpdate {
+                plugin_id: plugin_id.to_string(),
+                items: ambient_items,
+            });
+        }
+        (true, false) => {
+            updates.push(CoreUpdate::PluginStatusUpdate {
+                plugin_id: plugin_id.to_string(),
+                status: PluginStatus {
+                    badges,
+                    chips,
+                    description,
+                    fab: fab.clone(),
+                    ambient: ambient_items,
+                },
+            });
+        }
+        (false, true) => {
+            updates.push(CoreUpdate::AmbientUpdate {
+                plugin_id: plugin_id.to_string(),
+                items: ambient_items,
+            });
+        }
+        (false, false) => {}
     }
 
-    if status.ambient.is_some() {
-        updates.push(CoreUpdate::AmbientUpdate {
-            plugin_id: plugin_id.to_string(),
-            items: plugin_status.ambient.clone(),
-        });
-    }
-
-    if let Some(fab) = plugin_status.fab {
+    if let Some(fab) = fab {
         updates.push(CoreUpdate::FabUpdate { fab: Some(fab) });
     }
 
@@ -581,12 +600,12 @@ fn convert_update_items(items: Vec<UpdateItem>) -> Vec<ResultPatch> {
                     && let Ok(graph_data) =
                         serde_json::from_value::<hamr_types::GraphData>(graph.clone())
                 {
-                    patch.graph = Some(graph_data.clone());
                     patch.widget = Some(WidgetData::Graph {
-                        data: graph_data.data,
+                        data: graph_data.data.clone(),
                         min: graph_data.min,
                         max: graph_data.max,
                     });
+                    patch.graph = Some(graph_data);
                 }
             }
 

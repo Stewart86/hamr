@@ -4,10 +4,18 @@ use crate::engine::{DEFAULT_PLUGIN_ICON, DEFAULT_VERB_OPEN, ID_PLUGIN_ENTRY};
 use crate::frecency::ExecutionContext;
 use crate::plugin::{FrecencyMode, IndexItem};
 use crate::search::{Searchable, SearchableSource};
-use crate::utils::{date_string_from_epoch, now_millis, yesterday_string};
+use crate::utils::{MILLIS_PER_HOUR, now_millis, yesterday_string};
 use std::collections::HashMap;
 use std::path::Path;
 use tracing::{debug, error, info, warn};
+
+const RECENCY_TIER_1H: f64 = 1.0;
+const RECENCY_TIER_1D: f64 = 24.0;
+const RECENCY_TIER_1W: f64 = 168.0;
+const RECENCY_MULT_RECENT: f64 = 4.0;
+const RECENCY_MULT_TODAY: f64 = 2.0;
+const RECENCY_MULT_WEEK: f64 = 1.0;
+const RECENCY_MULT_OLD: f64 = 0.5;
 
 /// Stores and manages plugin indexes
 pub struct IndexStore {
@@ -252,16 +260,16 @@ impl IndexStore {
 
         let now = now_millis();
         let hours_since_use =
-            now.saturating_sub(item.effective_last_used()) as f64 / (1000.0 * 60.0 * 60.0);
+            now.saturating_sub(item.effective_last_used()) as f64 / MILLIS_PER_HOUR;
 
-        let recency_multiplier = if hours_since_use < 1.0 {
-            4.0
-        } else if hours_since_use < 24.0 {
-            2.0
-        } else if hours_since_use < 168.0 {
-            1.0
+        let recency_multiplier = if hours_since_use < RECENCY_TIER_1H {
+            RECENCY_MULT_RECENT
+        } else if hours_since_use < RECENCY_TIER_1D {
+            RECENCY_MULT_TODAY
+        } else if hours_since_use < RECENCY_TIER_1W {
+            RECENCY_MULT_WEEK
         } else {
-            0.5
+            RECENCY_MULT_OLD
         };
 
         count * recency_multiplier
@@ -370,7 +378,7 @@ impl IndexStore {
         let now = now_millis();
         let frec = &mut item.frecency;
 
-        frec.count += 1;
+        frec.count = frec.count.saturating_add(1);
         frec.last_used = now;
 
         if let Some(ref term) = context.search_term
@@ -427,18 +435,18 @@ impl IndexStore {
         }
 
         let today = now_dt.date_string();
-        if frec.last_consecutive_date.as_deref() != Some(&today) {
+        if frec.last_consecutive_date.as_deref() != Some(today) {
             let yesterday = yesterday_string();
             if frec.last_consecutive_date.as_deref() == Some(&yesterday) {
                 frec.consecutive_days += 1;
             } else {
                 frec.consecutive_days = 1;
             }
-            frec.last_consecutive_date = Some(today);
+            frec.last_consecutive_date = Some(today.to_string());
         }
     }
 
-    pub fn build_searchables(&self, _plugin_name_map: &HashMap<String, String>) -> Vec<Searchable> {
+    pub fn build_searchables(&self) -> Vec<Searchable> {
         let mut searchables = Vec::new();
 
         for (plugin_id, index) in &self.indexes {
@@ -519,24 +527,16 @@ struct SimpleDt {
 }
 
 impl SimpleDt {
-    fn date_string(&self) -> String {
-        self.date_string.clone()
+    fn date_string(&self) -> &str {
+        &self.date_string
     }
 }
 
-#[allow(clippy::cast_possible_truncation)]
 fn chrono_lite_now() -> SimpleDt {
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use crate::utils::{date_string_from_epoch, now_secs, time_components_from_epoch};
 
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    let seconds_today = now % 86400;
-    let hour = (seconds_today / 3600) as u32;
-    let days_since_epoch = now / 86400;
-    let weekday = ((days_since_epoch + 3) % 7) as usize;
+    let now = now_secs();
+    let (hour, weekday) = time_components_from_epoch(now);
     let date_string = date_string_from_epoch(now);
 
     SimpleDt {
@@ -768,7 +768,7 @@ mod tests {
     #[test]
     fn test_build_searchables_empty() {
         let store = IndexStore::new();
-        let searchables = store.build_searchables(&HashMap::new());
+        let searchables = store.build_searchables();
         assert!(searchables.is_empty());
     }
 
@@ -781,7 +781,7 @@ mod tests {
             &ExecutionContext::default(),
             Some(&FrecencyMode::Plugin),
         );
-        let searchables = store.build_searchables(&HashMap::new());
+        let searchables = store.build_searchables();
         assert!(
             !searchables.iter().any(|s| s.id == ID_PLUGIN_ENTRY),
             "Should exclude ID_PLUGIN_ENTRY entries"
