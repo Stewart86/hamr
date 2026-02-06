@@ -91,36 +91,21 @@ pub(super) async fn handle_query_changed(
         })
         .await;
 
-    // Check if there's an active socket plugin that needs to be spawned
-    // This handles state restoration where the plugin was stopped on launcher close
+    // State restoration: plugin was stopped when launcher closed
     if let Some(active) = ctx.core.state().active_plugin.as_ref() {
         let plugin_id = active.id.clone();
 
-        if let Some(plugin) = ctx.plugin_registry.get_socket_plugin(&plugin_id)
-            && !plugin.is_background
-            && !ctx.plugin_registry.is_connected(&plugin_id)
-            && !ctx.plugin_spawner.is_spawned(&plugin_id)
-        {
-            debug!(
-                "[{}] Spawning on demand (state restored, plugin not running)",
-                plugin_id
-            );
+        if let Some(plugin) = ctx.needs_on_demand_spawn(&plugin_id) {
+            let plugin = plugin.clone();
+            debug!("[{plugin_id}] Spawning on demand (state restored, plugin not running)");
 
-            let dirs = ctx.core.dirs();
-            let working_dir = if dirs.builtin_plugins.join(&plugin_id).exists() {
-                dirs.builtin_plugins.join(&plugin_id)
-            } else if dirs.user_plugins.join(&plugin_id).exists() {
-                dirs.user_plugins.join(&plugin_id)
-            } else {
-                warn!("[{}] Plugin directory not found, skipping spawn", plugin_id);
-                return Ok(());
-            };
-
-            let plugin_clone = plugin.clone();
-            if let Err(e) = ctx.plugin_spawner.spawn_in_dir(&plugin_clone, &working_dir) {
-                warn!("[{}] Failed to spawn on-demand plugin: {}", plugin_id, e);
+            match ctx.resolve_and_spawn(&plugin_id, &plugin) {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    warn!("[{plugin_id}] Failed to spawn on-demand plugin: {e}");
+                    return Ok(());
+                }
             }
-            return Ok(());
         }
 
         if ctx.plugin_registry.is_connected(&plugin_id)

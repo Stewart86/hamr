@@ -56,6 +56,46 @@ impl HandlerContext<'_> {
             .as_ref()
             .is_some_and(|id| id == self.client_id)
     }
+
+    /// Check if a plugin needs on-demand spawning.
+    /// Returns `Some(&DiscoveredPlugin)` if the plugin is a non-background socket
+    /// plugin that is neither connected nor already spawned.
+    pub(crate) fn needs_on_demand_spawn(
+        &self,
+        plugin_id: &str,
+    ) -> Option<&crate::registry::DiscoveredPlugin> {
+        let plugin = self.plugin_registry.get_socket_plugin(plugin_id)?;
+        if plugin.is_background
+            || self.plugin_spawner.is_spawned(plugin_id)
+            || self.plugin_registry.is_connected(plugin_id)
+        {
+            return None;
+        }
+        Some(plugin)
+    }
+
+    /// Resolve the plugin working directory and spawn it.
+    /// Returns `true` if spawned successfully, `false` if the plugin directory
+    /// was not found.
+    pub(crate) fn resolve_and_spawn(
+        &mut self,
+        plugin_id: &str,
+        plugin: &crate::registry::DiscoveredPlugin,
+    ) -> std::result::Result<bool, String> {
+        let dirs = self.core.dirs();
+        let working_dir = if dirs.builtin_plugins.join(plugin_id).exists() {
+            dirs.builtin_plugins.join(plugin_id)
+        } else if dirs.user_plugins.join(plugin_id).exists() {
+            dirs.user_plugins.join(plugin_id)
+        } else {
+            warn!("[{plugin_id}] Plugin directory not found, skipping spawn");
+            return Ok(false);
+        };
+        let plugin_clone = plugin.clone();
+        self.plugin_spawner
+            .spawn_in_dir(&plugin_clone, &working_dir)?;
+        Ok(true)
+    }
 }
 
 pub async fn handle_request(
@@ -583,37 +623,27 @@ async fn handle_open_plugin(ctx: &mut HandlerContext<'_>, params: Option<&Value>
 
     let mut spawned_on_demand = false;
 
-    if let Some(plugin) = ctx.plugin_registry.get_socket_plugin(&plugin_id)
-        && !plugin.is_background
-        && !ctx.plugin_spawner.is_spawned(&plugin_id)
-        && !ctx.plugin_registry.is_connected(&plugin_id)
-    {
-        debug!("[{}] Spawning on demand", plugin_id);
+    if let Some(plugin) = ctx.needs_on_demand_spawn(&plugin_id) {
+        let plugin = plugin.clone();
+        debug!("[{plugin_id}] Spawning on demand");
 
-        let dirs = ctx.core.dirs();
-        let working_dir = if dirs.builtin_plugins.join(&plugin_id).exists() {
-            dirs.builtin_plugins.join(&plugin_id)
-        } else if dirs.user_plugins.join(&plugin_id).exists() {
-            dirs.user_plugins.join(&plugin_id)
-        } else {
-            warn!("[{}] Plugin directory not found, skipping spawn", plugin_id);
-            ctx.core
-                .process(CoreEvent::OpenPlugin {
-                    plugin_id: plugin_id.clone(),
-                })
-                .await;
-            return Ok(serde_json::json!({"status": "ok"}));
-        };
-
-        let plugin_clone = plugin.clone();
-        if let Err(e) = ctx.plugin_spawner.spawn_in_dir(&plugin_clone, &working_dir) {
-            warn!("[{}] Failed to spawn on-demand plugin: {}", plugin_id, e);
-        } else {
-            spawned_on_demand = true;
+        match ctx.resolve_and_spawn(&plugin_id, &plugin) {
+            Ok(true) => spawned_on_demand = true,
+            Ok(false) => {
+                // Directory not found — still open the plugin UI
+                ctx.core
+                    .process(CoreEvent::OpenPlugin {
+                        plugin_id: plugin_id.clone(),
+                    })
+                    .await;
+                return Ok(serde_json::json!({"status": "ok"}));
+            }
+            Err(e) => {
+                warn!("[{plugin_id}] Failed to spawn on-demand plugin: {e}");
+            }
         }
     }
 
-    // Show the launcher first (only if not already open), then open the plugin
     if !was_already_open {
         ctx.core.process(CoreEvent::LauncherOpened).await;
     }
@@ -954,4 +984,148 @@ fn handle_list_plugins(ctx: &mut HandlerContext<'_>) -> Result<Value> {
         .collect();
 
     Ok(serde_json::json!({ "plugins": plugins }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::plugin_spawner::PluginSpawner;
+    use crate::registry::{DiscoveredPlugin, PluginRegistry};
+    use hamr_types::PluginManifest;
+
+    fn make_discovered(id: &str, is_background: bool) -> DiscoveredPlugin {
+        DiscoveredPlugin {
+            id: id.to_string(),
+            manifest: PluginManifest {
+                id: id.to_string(),
+                name: id.to_string(),
+                description: None,
+                icon: None,
+                prefix: None,
+                priority: 0,
+            },
+            is_socket: true,
+            spawn_command: Some("sleep 10".to_string()),
+            is_background,
+        }
+    }
+
+    fn make_non_socket(id: &str) -> DiscoveredPlugin {
+        DiscoveredPlugin {
+            is_socket: false,
+            ..make_discovered(id, false)
+        }
+    }
+
+    /// Test harness providing `PluginRegistry` and `PluginSpawner`
+    /// for spawn-related tests without requiring `HamrCore`.
+    struct TestHarness {
+        registry: PluginRegistry,
+        spawner: PluginSpawner,
+    }
+
+    impl TestHarness {
+        fn new() -> Self {
+            Self {
+                registry: PluginRegistry::new(),
+                spawner: PluginSpawner::new(),
+            }
+        }
+
+        fn register(&mut self, plugin: DiscoveredPlugin) {
+            self.registry.register_discovered(plugin);
+        }
+    }
+
+    #[test]
+    fn test_needs_spawn_returns_some_for_unconnected_socket_plugin() {
+        let mut harness = TestHarness::new();
+        harness.register(make_discovered("my-plugin", false));
+
+        assert!(
+            harness.registry.get_socket_plugin("my-plugin").is_some(),
+            "plugin should be discovered as socket"
+        );
+        assert!(
+            !harness.registry.is_connected("my-plugin"),
+            "plugin should not be connected"
+        );
+        assert!(
+            !harness.spawner.is_spawned("my-plugin"),
+            "plugin should not be spawned"
+        );
+
+        let plugin = harness.registry.get_socket_plugin("my-plugin").unwrap();
+        assert!(!plugin.is_background);
+        assert!(!harness.spawner.is_spawned("my-plugin"));
+        assert!(!harness.registry.is_connected("my-plugin"));
+    }
+
+    #[test]
+    fn test_needs_spawn_returns_none_for_background_plugin() {
+        let mut harness = TestHarness::new();
+        harness.register(make_discovered("bg-plugin", true));
+
+        let plugin = harness.registry.get_socket_plugin("bg-plugin").unwrap();
+        assert!(
+            plugin.is_background,
+            "background plugins should not need on-demand spawn"
+        );
+    }
+
+    #[test]
+    fn test_needs_spawn_returns_none_for_non_socket_plugin() {
+        let mut harness = TestHarness::new();
+        harness.register(make_non_socket("stdio-plugin"));
+
+        assert!(
+            harness.registry.get_socket_plugin("stdio-plugin").is_none(),
+            "non-socket plugins should not appear in get_socket_plugin"
+        );
+    }
+
+    #[test]
+    fn test_needs_spawn_returns_none_for_unknown_plugin() {
+        let harness = TestHarness::new();
+
+        assert!(
+            harness.registry.get_socket_plugin("nonexistent").is_none(),
+            "unknown plugin should return None"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_needs_spawn_returns_none_when_already_spawned() {
+        let mut harness = TestHarness::new();
+        let plugin = make_discovered("my-plugin", false);
+        harness.register(plugin.clone());
+
+        harness.spawner.spawn(&plugin).unwrap();
+        assert!(
+            harness.spawner.is_spawned("my-plugin"),
+            "already-spawned plugins should not need on-demand spawn"
+        );
+
+        harness.spawner.stop_all().await;
+    }
+
+    #[test]
+    fn test_needs_spawn_returns_none_when_connected() {
+        let mut harness = TestHarness::new();
+        harness.register(make_discovered("my-plugin", false));
+
+        let (tx, _rx) = mpsc::unbounded_channel();
+        harness
+            .registry
+            .register_connected(crate::registry::ConnectedPlugin {
+                id: "my-plugin".to_string(),
+                session_id: "sess-1".into(),
+                sender: tx,
+            });
+
+        assert!(
+            harness.registry.is_connected("my-plugin"),
+            "connected plugins should not need on-demand spawn"
+        );
+    }
 }

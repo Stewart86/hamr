@@ -15,37 +15,23 @@ use super::HandlerContext;
 /// Try to spawn an on-demand plugin if it exists but isn't running.
 /// Returns true if spawning was attempted (regardless of success).
 pub(super) fn try_spawn_on_demand_plugin(ctx: &mut HandlerContext<'_>, pid: &str) -> bool {
-    let Some(plugin) = ctx.plugin_registry.get_socket_plugin(pid) else {
+    let Some(plugin) = ctx.needs_on_demand_spawn(pid) else {
         return false;
     };
-
-    if plugin.is_background
-        || ctx.plugin_spawner.is_spawned(pid)
-        || ctx.plugin_registry.is_connected(pid)
-    {
-        return false;
-    }
+    let plugin = plugin.clone();
 
     debug!(
         "[{}] Spawning on demand (non-background socket plugin)",
         pid
     );
 
-    let dirs = ctx.core.dirs();
-    let working_dir = if dirs.builtin_plugins.join(pid).exists() {
-        dirs.builtin_plugins.join(pid)
-    } else if dirs.user_plugins.join(pid).exists() {
-        dirs.user_plugins.join(pid)
-    } else {
-        warn!("[{}] Plugin directory not found, skipping spawn", pid);
-        return true;
-    };
-
-    let plugin_clone = plugin.clone();
-    if let Err(e) = ctx.plugin_spawner.spawn_in_dir(&plugin_clone, &working_dir) {
-        warn!("[{}] Failed to spawn on-demand plugin: {}", pid, e);
+    match ctx.resolve_and_spawn(pid, &plugin) {
+        Ok(_) => true,
+        Err(e) => {
+            warn!("[{pid}] Failed to spawn on-demand plugin: {e}");
+            true
+        }
     }
-    true
 }
 
 /// Send initial message to a connected plugin.
