@@ -1,11 +1,12 @@
 use super::{IndexCache, IndexedItem, PluginIndex};
 use crate::Result;
+use crate::engine::ID_PLUGIN_ENTRY;
 use crate::frecency::ExecutionContext;
 use crate::plugin::IndexItem;
 use crate::search::{Searchable, SearchableSource};
+use crate::utils::{date_string_from_epoch, now_millis, yesterday_string};
 use std::collections::HashMap;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{debug, info, warn};
 
 /// Stores and manages plugin indexes
@@ -208,13 +209,13 @@ impl IndexStore {
             index
                 .items
                 .iter()
-                .filter(|item| item.id() != "__plugin__")
+                .filter(|item| item.id() != ID_PLUGIN_ENTRY)
                 .map(move |item| (plugin_id.as_str(), item))
         })
     }
 
     /// Get items with frecency data (sorted by frecency)
-    /// Includes both regular items AND __plugin__ entries (for plugins with frecency: "plugin")
+    /// Includes both regular items AND `ID_PLUGIN_ENTRY` entries (for plugins with frecency: "plugin")
     pub fn items_with_frecency(&self) -> Vec<(&str, &IndexedItem)> {
         let mut items: Vec<_> = self
             .all_items_including_plugins()
@@ -232,7 +233,7 @@ impl IndexStore {
         items
     }
 
-    /// Get all items including __plugin__ entries (for frecency listing)
+    /// Get all items including `ID_PLUGIN_ENTRY` entries (for frecency listing)
     fn all_items_including_plugins(&self) -> impl Iterator<Item = (&str, &IndexedItem)> {
         self.indexes.iter().flat_map(|(plugin_id, index)| {
             index
@@ -302,7 +303,7 @@ impl IndexStore {
             return;
         }
 
-        if item_id == "__plugin__" {
+        if item_id == ID_PLUGIN_ENTRY {
             return;
         }
 
@@ -335,14 +336,14 @@ impl IndexStore {
     fn record_plugin_execution(&mut self, plugin_id: &str, context: &ExecutionContext) {
         let index = self.indexes.entry(plugin_id.to_string()).or_default();
 
-        let plugin_entry = index.items.iter_mut().find(|i| i.id() == "__plugin__");
+        let plugin_entry = index.items.iter_mut().find(|i| i.id() == ID_PLUGIN_ENTRY);
 
         let count = if let Some(item) = plugin_entry {
             Self::update_item_frecency(item, context);
             item.frecency.count
         } else {
             let mut new_item = IndexedItem::new(hamr_types::ResultItem {
-                id: "__plugin__".to_string(),
+                id: ID_PLUGIN_ENTRY.to_string(),
                 name: plugin_id.to_string(),
                 icon: Some("extension".to_string()),
                 verb: Some("Open".to_string()),
@@ -357,8 +358,8 @@ impl IndexStore {
 
         self.mark_dirty();
         debug!(
-            "Recorded execution: {}/__plugin__ (count={}, mode=plugin)",
-            plugin_id, count
+            "Recorded execution: {}/{} (count={}, mode=plugin)",
+            plugin_id, ID_PLUGIN_ENTRY, count
         );
     }
 
@@ -441,7 +442,7 @@ impl IndexStore {
 
         for (plugin_id, index) in &self.indexes {
             for item in &index.items {
-                if item.id() == "__plugin__" {
+                if item.id() == ID_PLUGIN_ENTRY {
                     continue;
                 }
 
@@ -510,15 +511,6 @@ impl Default for IndexStore {
     }
 }
 
-// u128 millis fits in u64 for realistic timestamps (until year 584942417)
-#[allow(clippy::cast_possible_truncation)]
-fn now_millis() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
-
 struct SimpleDt {
     hour: u32,
     weekday: usize,
@@ -531,104 +523,27 @@ impl SimpleDt {
     }
 }
 
-// Time calculations: u64 secs -> u32 hour, usize weekday, i64 days
-#[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+// Time calculations: u64 secs -> u32 hour, usize weekday
+#[allow(clippy::cast_possible_truncation)]
 fn chrono_lite_now() -> SimpleDt {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_secs();
 
-    let days_since_epoch = now / 86400;
     let seconds_today = now % 86400;
     let hour = (seconds_today / 3600) as u32;
-
-    // Thursday was day 0 (1970-01-01), so we adjust
-    let weekday = ((days_since_epoch + 3) % 7) as usize; // 0=Mon, 6=Sun
-
-    // Calculate date string (simplified, doesn't handle leap seconds perfectly)
-    let mut days = days_since_epoch as i64;
-    let mut year = 1970i32;
-
-    loop {
-        let days_in_year = if is_leap_year(year) { 366 } else { 365 };
-        if days < days_in_year {
-            break;
-        }
-        days -= days_in_year;
-        year += 1;
-    }
-
-    let days_in_months: [i64; 12] = if is_leap_year(year) {
-        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-
-    let mut month = 0;
-    for (i, &d) in days_in_months.iter().enumerate() {
-        if days < d {
-            month = i + 1;
-            break;
-        }
-        days -= d;
-    }
-
-    let day = days + 1;
-    let date_string = format!("{year:04}-{month:02}-{day:02}");
+    let days_since_epoch = now / 86400;
+    let weekday = ((days_since_epoch + 3) % 7) as usize;
+    let date_string = date_string_from_epoch(now);
 
     SimpleDt {
         hour,
         weekday,
         date_string,
     }
-}
-
-fn is_leap_year(year: i32) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
-}
-
-// u64 days since epoch fits in i64 for date calculations
-#[allow(clippy::cast_possible_wrap)]
-fn yesterday_string() -> String {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let yesterday = now - 86400;
-
-    let days = yesterday / 86400;
-    let mut days = days as i64;
-    let mut year = 1970i32;
-
-    loop {
-        let days_in_year = if is_leap_year(year) { 366 } else { 365 };
-        if days < days_in_year {
-            break;
-        }
-        days -= days_in_year;
-        year += 1;
-    }
-
-    let days_in_months: [i64; 12] = if is_leap_year(year) {
-        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-
-    let mut month = 0;
-    for (i, &d) in days_in_months.iter().enumerate() {
-        if days < d {
-            month = i + 1;
-            break;
-        }
-        days -= d;
-    }
-
-    let day = days + 1;
-    format!("{year:04}-{month:02}-{day:02}")
 }
 
 #[cfg(test)]
@@ -787,8 +702,8 @@ mod tests {
             Some("plugin"),
         );
         assert!(
-            store.get_item("plugin", "__plugin__").is_some(),
-            "plugin mode should create __plugin__ entry"
+            store.get_item("plugin", ID_PLUGIN_ENTRY).is_some(),
+            "plugin mode should create ID_PLUGIN_ENTRY entry"
         );
     }
 
@@ -863,8 +778,8 @@ mod tests {
         );
         let searchables = store.build_searchables(&HashMap::new());
         assert!(
-            !searchables.iter().any(|s| s.id == "__plugin__"),
-            "Should exclude __plugin__ entries"
+            !searchables.iter().any(|s| s.id == ID_PLUGIN_ENTRY),
+            "Should exclude ID_PLUGIN_ENTRY entries"
         );
     }
 

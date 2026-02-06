@@ -19,7 +19,6 @@ notify.workspace = true
 notify-debouncer-mini.workspace = true
 directories.workspace = true
 thiserror.workspace = true
-anyhow.workspace = true
 tracing.workspace = true
 regex.workspace = true
 sha2 = "0.10"

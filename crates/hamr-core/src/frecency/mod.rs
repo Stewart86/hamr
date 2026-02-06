@@ -1,4 +1,7 @@
 use crate::index::{IndexStore, IndexedItem};
+#[cfg(test)]
+use crate::utils::{date_string_from_epoch, is_leap_year};
+use crate::utils::{now_millis, today_string, yesterday_string};
 
 /// Match type for scoring
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -228,9 +231,9 @@ impl StalenessUtils {
     /// Calculate exponential decay factor based on age.
     /// Returns a multiplier between 0.0 and 1.0.
     ///
-    /// Formula: decay = 0.5 ^ (age_days / half_life_days)
+    /// Formula: decay = 0.5 ^ (`age_days` / `half_life_days`)
     ///
-    /// - If half_life_days is 0, returns 1.0 (no decay)
+    /// - If `half_life_days` is 0, returns 1.0 (no decay)
     /// - If age is 0, returns 1.0 (no decay yet)
     pub fn calculate_decay_factor(age_days: f64, half_life_days: f64) -> f64 {
         if half_life_days <= 0.0 || age_days <= 0.0 {
@@ -242,7 +245,7 @@ impl StalenessUtils {
     /// Check if an item is too old to be suggested based on max age.
     /// Returns true if the item should be excluded from suggestions.
     ///
-    /// - If max_age_days is 0, returns false (no max age limit)
+    /// - If `max_age_days` is 0, returns false (no max age limit)
     pub fn is_too_old(age_days: f64, max_age_days: u32) -> bool {
         if max_age_days == 0 {
             return false;
@@ -251,22 +254,15 @@ impl StalenessUtils {
     }
 
     /// Calculate age in days from a timestamp (milliseconds since epoch).
+    #[allow(clippy::cast_precision_loss)]
     pub fn age_in_days(timestamp_ms: u64) -> f64 {
-        let now_ms = now_millis_frecency();
+        let now_ms = now_millis();
         if timestamp_ms >= now_ms {
             return 0.0;
         }
         let age_ms = now_ms - timestamp_ms;
         age_ms as f64 / (1000.0 * 60.0 * 60.0 * 24.0)
     }
-}
-
-pub(crate) fn now_millis_frecency() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -814,65 +810,6 @@ pub enum SuggestionReason {
     UsedWithApp(String),
     DisplayCount(u32),
     SessionDuration(u8),
-}
-
-fn today_string() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    date_string_from_epoch(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs(),
-    )
-}
-
-fn yesterday_string() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let yesterday = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        - 86400;
-    date_string_from_epoch(yesterday)
-}
-
-// u64 days since epoch fits in i64 for date calculations
-#[allow(clippy::cast_possible_wrap)]
-fn date_string_from_epoch(secs: u64) -> String {
-    let days = secs / 86400;
-    let mut days = days as i64;
-    let mut year = 1970i32;
-
-    loop {
-        let days_in_year = if is_leap_year(year) { 366 } else { 365 };
-        if days < days_in_year {
-            break;
-        }
-        days -= days_in_year;
-        year += 1;
-    }
-
-    let days_in_months: [i64; 12] = if is_leap_year(year) {
-        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-
-    let mut month = 0;
-    for (i, &d) in days_in_months.iter().enumerate() {
-        if days < d {
-            month = i + 1;
-            break;
-        }
-        days -= d;
-    }
-
-    let day = days + 1;
-    format!("{year:04}-{month:02}-{day:02}")
-}
-
-fn is_leap_year(year: i32) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
 #[cfg(test)]

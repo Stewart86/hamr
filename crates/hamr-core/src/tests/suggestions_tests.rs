@@ -784,7 +784,9 @@ fn test_suggestions_staleness_reduces_old_item_confidence() {
     // Get the item and set last_used to 30 days ago (simulating old item)
     if let Some(item) = store.get_item_mut("apps", "old_app") {
         let days_30_ms = 30.0 * 24.0 * 60.0 * 60.0 * 1000.0;
-        item.frecency.last_used = crate::frecency::now_millis_frecency() - days_30_ms as u64;
+        #[allow(clippy::cast_sign_loss)]
+        let days_30_ms_u64 = days_30_ms as u64;
+        item.frecency.last_used = crate::utils::now_millis() - days_30_ms_u64;
     }
 
     // Test with no staleness - should get suggestion
@@ -812,8 +814,7 @@ fn test_suggestions_staleness_reduces_old_item_confidence() {
         let no_staleness_score = suggestions_no_staleness
             .iter()
             .find(|s| s.item_id == "old_app")
-            .map(|s| s.score)
-            .unwrap_or(0.0);
+            .map_or(0.0, |s| s.score);
         assert!(
             old_app.score < no_staleness_score,
             "With staleness (14-day half-life), confidence should be lower than without. \

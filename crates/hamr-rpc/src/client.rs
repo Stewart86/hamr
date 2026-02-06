@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::UnixStream;
@@ -218,7 +219,10 @@ impl RpcClient {
             sender.send(Message::Request(request)).await?;
         }
 
-        let response = rx.await.map_err(|_| ClientError::ConnectionClosed)??;
+        let response = tokio::time::timeout(Duration::from_secs(30), rx)
+            .await
+            .map_err(|_| ClientError::Timeout)?
+            .map_err(|_| ClientError::ConnectionClosed)??;
 
         if let Some(error) = response.error {
             return Err(error.into());

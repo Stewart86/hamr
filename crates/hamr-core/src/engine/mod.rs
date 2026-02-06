@@ -11,22 +11,20 @@ use crate::plugin::{
     SelectedItem, Step, invoke_match,
 };
 use crate::search::{SearchEngine, SearchMatch, Searchable, SearchableSource};
+use crate::utils::now_millis;
 use hamr_types::{Action, CoreEvent, CoreUpdate, ResultType, SearchResult};
 use std::collections::HashMap;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tracing::{debug, error, info, warn};
 
-/// Get current timestamp in milliseconds
-// u128 millis fits in u64 for realistic timestamps (until year 584942417)
-#[allow(clippy::cast_possible_truncation)]
-fn now_millis_engine() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
+// Magic string IDs used in the plugin protocol
+pub(crate) const ID_PLUGIN_ENTRY: &str = "__plugin__";
+pub(crate) const ID_BACK: &str = "__back__";
+pub(crate) const ID_FORM_CANCEL: &str = "__form_cancel__";
+pub(crate) const PREFIX_PATTERN_MATCH: &str = "__pattern_match__:";
+pub(crate) const PREFIX_MATCH_PREVIEW: &str = "__match_preview__:";
+pub(crate) const ID_DISMISS: &str = "__dismiss__";
 
 /// Core hamr engine
 pub struct HamrCore {
@@ -337,7 +335,7 @@ impl HamrCore {
             }
             CoreUpdate::ContextChanged { context } => {
                 self.state.last_context.clone_from(context);
-                // Also update active plugin's context so __back__ uses the correct context
+                // Also update active plugin's context so ID_BACK uses the correct context
                 if let Some(ref mut active) = self.state.active_plugin {
                     active.context.clone_from(context);
                 }
@@ -557,7 +555,7 @@ impl HamrCore {
         }
 
         // Handle __plugin__ entries (smart suggestions/recent items that represent opening a plugin)
-        if id == "__plugin__" {
+        if id == ID_PLUGIN_ENTRY {
             if let Some(plugin_id) = event_plugin_id
                 && self.plugins.get(&plugin_id).is_some()
             {
@@ -565,12 +563,12 @@ impl HamrCore {
                 self.handle_open_plugin(plugin_id).await;
                 return;
             }
-            debug!("__plugin__ entry without valid plugin_id");
+            debug!("{} entry without valid plugin_id", ID_PLUGIN_ENTRY);
             return;
         }
 
         // Handle __pattern_match__ entries (prefix-triggered plugin activation)
-        if let Some(plugin_id) = id.strip_prefix("__pattern_match__:") {
+        if let Some(plugin_id) = id.strip_prefix(PREFIX_PATTERN_MATCH) {
             if self.plugins.get(plugin_id).is_some() {
                 self.record_plugin_open(plugin_id);
 
@@ -746,7 +744,7 @@ impl HamrCore {
     /// Only records once per control until `CONTROL_IDLE_THRESHOLD_MS` of inactivity.
     fn record_control_execution(&mut self, plugin_id: &str, item_id: &str) {
         let control_key = format!("{plugin_id}/{item_id}");
-        let now = now_millis_engine();
+        let now = now_millis();
 
         let should_record = match &self.control_throttle.last_control_key {
             Some(last_key) if last_key == &control_key => {
@@ -810,7 +808,7 @@ impl HamrCore {
         };
 
         self.index
-            .record_execution(plugin_id, "__plugin__", &context, Some("plugin"));
+            .record_execution(plugin_id, ID_PLUGIN_ENTRY, &context, Some("plugin"));
 
         // Invalidate cache so it gets rebuilt on launcher close
         self.invalidate_recent_cache();
@@ -835,7 +833,7 @@ impl HamrCore {
         }
 
         if self.state.active_plugin.is_some() {
-            self.send_plugin_action("__back__", None).await;
+            self.send_plugin_action(ID_BACK, None).await;
         }
     }
 
@@ -1033,7 +1031,7 @@ impl HamrCore {
             step: Step::Action,
             query: Some(self.state.query.clone()),
             selected: Some(SelectedItem {
-                id: "__form_cancel__".to_string(),
+                id: ID_FORM_CANCEL.to_string(),
                 extra: None,
             }),
             action: None,
@@ -1095,7 +1093,7 @@ impl HamrCore {
             step: Step::Action,
             query: Some(self.state.query.clone()),
             selected: Some(SelectedItem {
-                id: "__plugin__".to_string(),
+                id: ID_PLUGIN_ENTRY.to_string(),
                 extra: None,
             }),
             action: Some(action_id),
@@ -1155,7 +1153,7 @@ impl HamrCore {
                         .map_or(0.0, |i| self.index.calculate_frecency(i)),
                     SearchableSource::Plugin { id } => self
                         .index
-                        .get_item(id, "__plugin__")
+                        .get_item(id, ID_PLUGIN_ENTRY)
                         .map_or(0.0, |i| self.index.calculate_frecency(i)),
                 };
 
@@ -1240,7 +1238,7 @@ impl HamrCore {
             PluginResponse::Match { result: Some(item) } => {
                 // Convert ResultItem to SearchResult with plugin context
                 let mut result = SearchResult {
-                    id: format!("__match_preview__:{}:{}", plugin_id, item.id),
+                    id: format!("{PREFIX_MATCH_PREVIEW}{}:{}", plugin_id, item.id),
                     name: item.name,
                     description: item.description,
                     icon: item.icon,
@@ -1282,7 +1280,7 @@ impl HamrCore {
         };
 
         SearchResult {
-            id: format!("__pattern_match__:{}", plugin.id),
+            id: format!("{PREFIX_PATTERN_MATCH}{}", plugin.id),
             name: query.to_string(),
             description: Some(format!("Run with {}", plugin.manifest.name)),
             icon: Some(
@@ -1327,8 +1325,8 @@ impl HamrCore {
                 plugin.manifest.description.as_deref(),
             ));
 
-            // Add history term searchables from __plugin__ entry (for frecency: "plugin" mode)
-            if let Some(plugin_entry) = self.index.get_item(&plugin.id, "__plugin__") {
+            // Add history term searchables from ID_PLUGIN_ENTRY (for frecency: "plugin" mode)
+            if let Some(plugin_entry) = self.index.get_item(&plugin.id, ID_PLUGIN_ENTRY) {
                 for term in &plugin_entry.frecency.recent_search_terms {
                     all_searchables.push(Searchable {
                         id: plugin.id.clone(),

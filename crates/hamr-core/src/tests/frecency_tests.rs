@@ -413,7 +413,7 @@ fn test_staleness_max_age_cutoff() {
 #[test]
 fn test_staleness_age_in_days_recent() {
     // Age of current timestamp should be 0
-    let now_ms = crate::frecency::now_millis_frecency();
+    let now_ms = crate::utils::now_millis();
     let age = StalenessUtils::age_in_days(now_ms);
     assert!(age < 0.001, "Current timestamp should have near-zero age");
 }
@@ -422,7 +422,8 @@ fn test_staleness_age_in_days_recent() {
 fn test_staleness_age_in_days_old() {
     // 30 days ago in milliseconds
     let days_30_ms = 30.0 * 24.0 * 60.0 * 60.0 * 1000.0;
-    let old_timestamp = crate::frecency::now_millis_frecency() - days_30_ms as u64;
+    #[allow(clippy::cast_sign_loss)]
+    let old_timestamp = crate::utils::now_millis() - days_30_ms as u64;
     let age = StalenessUtils::age_in_days(old_timestamp);
     assert!(
         (age - 30.0).abs() < 0.1,

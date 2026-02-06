@@ -78,7 +78,10 @@ impl From<DaemonError> for RpcError {
             DaemonError::Core(e) => RpcError::internal_error(e.to_string()),
             DaemonError::Codec(e) => RpcError::internal_error(e.to_string()),
             DaemonError::InvalidParams(msg) => RpcError::invalid_params(msg),
-            DaemonError::MethodNotFound(_) => RpcError::method_not_found(),
+            DaemonError::MethodNotFound(name) => RpcError::new(
+                hamr_rpc::protocol::METHOD_NOT_FOUND,
+                format!("Method not found: {name}"),
+            ),
             DaemonError::Watcher(msg) => RpcError::internal_error(msg),
         }
     }

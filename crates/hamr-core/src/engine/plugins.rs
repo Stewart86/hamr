@@ -3,7 +3,7 @@
 //! Handles sending messages to plugins (initial, search, action, slider, switch)
 //! and managing plugin communication lifecycle.
 
-use super::{HamrCore, InputMode, generate_session_id, process};
+use super::{HamrCore, ID_DISMISS, InputMode, generate_session_id, process};
 use crate::Error;
 use crate::plugin::{PluginInput, PluginProcess, SelectedItem, Step};
 use hamr_types::CoreUpdate;
@@ -286,7 +286,7 @@ impl HamrCore {
                 id: item_id,
                 extra: None,
             }),
-            action: Some("__dismiss__".to_string()),
+            action: Some(ID_DISMISS.to_string()),
             session: Some(session),
             context: None,
             value: None,

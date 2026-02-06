@@ -8,7 +8,7 @@ use crate::plugin::Manifest;
 use hamr_types::{Action, ResultType, SearchResult};
 use tracing::debug;
 
-use super::HamrCore;
+use super::{HamrCore, ID_PLUGIN_ENTRY};
 
 impl HamrCore {
     /// Get recent items and smart suggestions (uses cache if available).
@@ -29,7 +29,7 @@ impl HamrCore {
             .map(|plugin| {
                 let frecency_score = self
                     .index
-                    .get_item(&plugin.id, "__plugin__")
+                    .get_item(&plugin.id, ID_PLUGIN_ENTRY)
                     .map_or(0, |item| item.frecency.count);
 
                 let result = SearchResult {
@@ -144,7 +144,7 @@ impl HamrCore {
 
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
 
         let secs_in_day = 86400u64;

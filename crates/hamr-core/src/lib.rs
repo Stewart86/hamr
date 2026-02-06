@@ -11,6 +11,7 @@ pub(crate) mod platform;
 
 mod engine;
 mod error;
+mod utils;
 
 #[cfg(test)]
 mod tests;

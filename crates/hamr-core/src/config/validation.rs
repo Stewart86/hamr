@@ -101,6 +101,8 @@ fn expected_core_config_keys() -> ExpectedKeys {
         "actionBarHints",
         "actionBarHintsJson",
         "pluginRankingBonus",
+        "suggestionStalenessHalfLifeDays",
+        "maxSuggestionAgeDays",
     ])
     .with_nested("prefix", prefix_keys);
 

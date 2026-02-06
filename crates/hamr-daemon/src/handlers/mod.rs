@@ -216,7 +216,7 @@ async fn handle_ui_notification(
         "open_plugin" => handle_open_plugin(ctx, params).await.map(|_| ()),
         "query_submitted" => query::handle_query_submitted(ctx, params).await.map(|_| ()),
         "item_selected" => item::handle_item_selected(ctx, params).await.map(|_| ()),
-        _ => unreachable!(),
+        method => Err(DaemonError::MethodNotFound(method.to_string())),
     };
 
     Some(result)
@@ -249,7 +249,7 @@ fn handle_plugin_notification(
         "plugin_index" => plugin::handle_plugin_index(ctx, params),
         "plugin_execute" => plugin::handle_plugin_execute(ctx, params),
         "plugin_update" => plugin::handle_plugin_update(ctx, params),
-        _ => unreachable!(),
+        method => Err(DaemonError::MethodNotFound(method.to_string())),
     };
 
     Some(result)
