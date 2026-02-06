@@ -649,6 +649,56 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Uninstall">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-the-cli-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using the CLI (recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-the-uninstall-script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using the uninstall script
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arch-linux-aur_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arch Linux (AUR)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nixos-nix_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NixOS / Nix
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -1431,6 +1481,56 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Uninstall">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-the-cli-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using the CLI (recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-the-uninstall-script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using the uninstall script
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arch-linux-aur_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Arch Linux (AUR)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nixos-nix_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NixOS / Nix
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -1729,19 +1829,39 @@
 </span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://hamr.run/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
 </span></code></pre></div>
 <h2 id="uninstall">Uninstall<a class="headerlink" href="#uninstall" title="Permanent link">&para;</a></h2>
-<p>Arch Linux (AUR):</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>systemctl<span class="w"> </span>--user<span class="w"> </span>disable<span class="w"> </span>--now<span class="w"> </span>hamr-daemon
-</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>paru<span class="w"> </span>-R<span class="w"> </span>hamr<span class="w">  </span><span class="c1"># or hamr-bin</span>
+<p>The recommended way to uninstall depends on how you installed Hamr.</p>
+<h3 id="using-the-cli-recommended">Using the CLI (recommended)<a class="headerlink" href="#using-the-cli-recommended" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>hamr<span class="w"> </span>uninstall<span class="w">          </span><span class="c1"># Remove binaries, services, socket (preserves config)</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>hamr<span class="w"> </span>uninstall<span class="w"> </span>--purge<span class="w">  </span><span class="c1"># Remove everything including ~/.config/hamr</span>
 </span></code></pre></div>
-<p>Other distributions:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># Remove binaries and config</span>
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>rm<span class="w"> </span>-f<span class="w"> </span>~/.local/bin/<span class="o">{</span>hamr,hamr-cli,hamr-daemon,hamr-gtk,hamr-tui<span class="o">}</span>
-</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>rm<span class="w"> </span>-rf<span class="w"> </span>~/.local/share/hamr
-</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>rm<span class="w"> </span>-rf<span class="w"> </span>~/.config/hamr
+<p>This will:</p>
+<ul>
+<li>Stop and disable systemd user services</li>
+<li>Remove service files</li>
+<li>Remove binaries (hamr, hamr-daemon, hamr-gtk, hamr-tui)</li>
+<li>Remove system plugins next to binaries</li>
+<li>Remove socket files</li>
+<li>Clean PATH entries from shell rc files</li>
+<li>Preserve user config by default (use <code>--purge</code> to remove)</li>
+</ul>
+<h3 id="using-the-uninstall-script">Using the uninstall script<a class="headerlink" href="#using-the-uninstall-script" title="Permanent link">&para;</a></h3>
+<p>If the <code>hamr</code> binary is already removed or broken:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://hamr.run/uninstall.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="c1"># Or remove everything including config</span>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://hamr.run/uninstall.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--purge
 </span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>
-</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="c1"># Disable systemd service if enabled</span>
-</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>systemctl<span class="w"> </span>--user<span class="w"> </span>disable<span class="w"> </span>--now<span class="w"> </span>hamr-daemon<span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">true</span>
+</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="c1"># Non-interactive mode</span>
+</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://hamr.run/uninstall.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--yes
 </span></code></pre></div>
+<h3 id="arch-linux-aur_1">Arch Linux (AUR)<a class="headerlink" href="#arch-linux-aur_1" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>hamr<span class="w"> </span>uninstall<span class="w">          </span><span class="c1"># Remove systemd services first</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>paru<span class="w"> </span>-R<span class="w"> </span>hamr<span class="w">            </span><span class="c1"># or hamr-bin</span>
+</span></code></pre></div>
+<h3 id="nixos-nix_1">NixOS / Nix<a class="headerlink" href="#nixos-nix_1" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>nix<span class="w"> </span>profile<span class="w"> </span>remove<span class="w"> </span>hamr
+</span></code></pre></div>
+<p>Or remove the flake input from your NixOS/Home Manager configuration.</p>
 
 
 
