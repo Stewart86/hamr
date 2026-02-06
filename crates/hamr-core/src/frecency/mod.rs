@@ -1,7 +1,7 @@
 use crate::index::{IndexStore, IndexedItem};
+use crate::utils::{MILLIS_PER_DAY, now_millis, today_string, yesterday_string};
 #[cfg(test)]
 use crate::utils::{date_string_from_epoch, is_leap_year};
-use crate::utils::{MILLIS_PER_DAY, now_millis, today_string, yesterday_string};
 
 const FRECENCY_MULTIPLIER: f64 = 10.0;
 const MAX_FRECENCY_BOOST: f64 = 300.0;

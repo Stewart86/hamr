@@ -8,7 +8,7 @@ use crate::plugin::Manifest;
 use hamr_types::{ResultType, SearchResult};
 use tracing::debug;
 
-use super::{HamrCore, DEFAULT_ICON_TYPE, DEFAULT_PLUGIN_ICON, DEFAULT_VERB_OPEN, ID_PLUGIN_ENTRY};
+use super::{DEFAULT_ICON_TYPE, DEFAULT_PLUGIN_ICON, DEFAULT_VERB_OPEN, HamrCore, ID_PLUGIN_ENTRY};
 
 const MAX_SUGGESTIONS_PER_CATEGORY: usize = 2;
 

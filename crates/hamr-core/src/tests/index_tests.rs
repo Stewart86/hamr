@@ -12,7 +12,6 @@ use crate::frecency::ExecutionContext;
 use crate::index::IndexStore;
 use crate::plugin::FrecencyMode;
 use crate::search::SearchableSource;
-use std::collections::HashMap;
 use tempfile::NamedTempFile;
 
 #[test]

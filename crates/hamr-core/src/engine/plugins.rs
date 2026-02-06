@@ -3,9 +3,7 @@
 //! Handles sending messages to plugins (initial, search, action, slider, switch)
 //! and managing plugin communication lifecycle.
 
-use super::{
-    ACTION_SLIDER, ACTION_SWITCH, HamrCore, ID_DISMISS, generate_session_id, process,
-};
+use super::{ACTION_SLIDER, ACTION_SWITCH, HamrCore, ID_DISMISS, generate_session_id, process};
 use crate::Error;
 use crate::plugin::{ActionSource, PluginInput, PluginProcess, SelectedItem, Step};
 use hamr_types::{CoreUpdate, InputMode};

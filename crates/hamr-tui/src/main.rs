@@ -187,7 +187,9 @@ async fn handle_enter_key(client: &RpcClient, app: &mut App) -> Result<()> {
     }
 
     // Submit mode with either an active plugin or a plugin context (e.g., edit mode)
-    if app.input_mode == InputMode::Submit && (app.active_plugin.is_some() || app.plugin_context.is_some()) {
+    if app.input_mode == InputMode::Submit
+        && (app.active_plugin.is_some() || app.plugin_context.is_some())
+    {
         let query = app.input.clone();
         let context = app.plugin_context.clone();
         tracing::debug!(
