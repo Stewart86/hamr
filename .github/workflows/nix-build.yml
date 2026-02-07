@@ -1,0 +1,64 @@
+name: Nix Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  nix-build:
+    name: Build with Nix
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v30
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build package
+        run: nix build --no-write-lock-file
+
+      - name: Verify package structure
+        run: |
+          echo "=== Binaries ==="
+          ls -la result/bin/
+          
+          echo "=== Plugins ==="
+          ls -la result/share/hamr/plugins/
+          
+          echo "=== Checking binaries exist ==="
+          test -f result/bin/hamr
+          test -f result/bin/hamr-daemon
+          test -f result/bin/hamr-gtk
+          test -f result/bin/hamr-tui
+          echo "All binaries found!"
+          
+          echo "=== Checking plugins exist ==="
+          test -d result/share/hamr/plugins/applications
+          test -d result/share/hamr/plugins/calculate
+          test -d result/share/hamr/plugins/shell
+          echo "All plugin directories found!"
+
+      - name: Test nix run (help command)
+        run: nix run --no-write-lock-file -- --help
+
+  nix-flake-check:
+    name: Nix Flake Check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v30
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Run nix flake check
+        run: nix flake check --no-write-lock-file

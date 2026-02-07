@@ -24,13 +24,13 @@
 
         craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
-        # Filter source to only include Rust and plugin files
+        # Filter source to only include Rust files (no plugins)
         src = pkgs.lib.cleanSourceWith {
           src = craneLib.path ./.;
           filter = path: type:
             (craneLib.filterCargoSources path type)
-            || (builtins.match ".*\.py$" path != null)
-            || (builtins.match ".*\.json$" path != null)
+            || (builtins.match ".*\\.py$" path != null)
+            || (builtins.match ".*\\.json$" path != null)
             || (builtins.match ".*/plugins/.*" path != null);
         };
 
@@ -80,25 +80,52 @@
           pname = "hamr-deps";
         });
 
-        # Build the complete package
-        hamr = craneLib.buildPackage (commonArgs // {
+        # Read version from Cargo.toml
+        version = (pkgs.lib.importTOML ./Cargo.toml).workspace.package.version;
+
+        # Separate derivation for plugins (no Rust toolchain hooks)
+        hamr-plugins = pkgs.stdenv.mkDerivation {
+          pname = "hamr-plugins";
+          inherit version;
+          
+          src = ./plugins;
+          
+          installPhase = ''
+            mkdir -p $out/share/hamr/plugins
+            cp -r $src/* $out/share/hamr/plugins/
+          '';
+        };
+
+        # Build only the Rust binaries (no plugins here)
+        hamr-bin = craneLib.buildPackage (commonArgs // {
           inherit cargoArtifacts;
           pname = "hamr";
+          # No postInstall - plugins are in separate derivation
+        });
 
-          # Copy plugins to output (FHS-style share path)
-          # The binary resolves plugins via ../share/hamr/plugins relative to the executable
-          postInstall = ''
-            mkdir -p $out/share/hamr/plugins
-            cp -r ${./plugins}/* $out/share/hamr/plugins/
-          '';
-
+        # Combined package with binaries and plugins
+        hamr = pkgs.symlinkJoin {
+          name = "hamr";
+          paths = [ hamr-bin hamr-plugins ];
+          nativeBuildInputs = [ pkgs.wrapGAppsHook4 ];
+          
           # Wrap binaries with runtime dependencies
-          preFixup = ''
-            gappsWrapperArgs+=(
-              --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps}
-              --prefix XDG_DATA_DIRS : ${pkgs.material-symbols}/share
+          postBuild = ''
+            wrapProgram $out/bin/hamr \
+              --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
+              --prefix XDG_DATA_DIRS : ${pkgs.material-symbols}/share \
               --prefix XDG_DATA_DIRS : ${pkgs.nerd-fonts.jetbrains-mono}/share
-            )
+            
+            wrapProgram $out/bin/hamr-daemon \
+              --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps}
+            
+            wrapProgram $out/bin/hamr-gtk \
+              --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
+              --prefix XDG_DATA_DIRS : ${pkgs.material-symbols}/share \
+              --prefix XDG_DATA_DIRS : ${pkgs.nerd-fonts.jetbrains-mono}/share
+            
+            wrapProgram $out/bin/hamr-tui \
+              --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps}
           '';
 
           meta = with pkgs.lib; {
@@ -109,7 +136,7 @@
             platforms = platforms.linux;
             mainProgram = "hamr";
           };
-        });
+        };
 
         # Clippy check derivation
         hamrClippy = craneLib.cargoClippy (commonArgs // {
@@ -126,7 +153,7 @@
         # Packages
         packages = {
           default = hamr;
-          inherit hamr;
+          inherit hamr hamr-bin hamr-plugins;
         };
 
         # Checks run by `nix flake check`
