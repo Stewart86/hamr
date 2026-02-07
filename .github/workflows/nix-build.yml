@@ -39,7 +39,7 @@ jobs:
           echo "All binaries found!"
           
           echo "=== Checking plugins exist ==="
-          test -d result/share/hamr/plugins/applications
+          test -d result/share/hamr/plugins/apps
           test -d result/share/hamr/plugins/calculate
           test -d result/share/hamr/plugins/shell
           echo "All plugin directories found!"
