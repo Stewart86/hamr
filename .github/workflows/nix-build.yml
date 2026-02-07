@@ -21,7 +21,7 @@ jobs:
             experimental-features = nix-command flakes
 
       - name: Build package
-        run: nix build --no-write-lock-file
+        run: nix build . --no-write-lock-file
 
       - name: Verify package structure
         run: |
@@ -45,7 +45,7 @@ jobs:
           echo "All plugin directories found!"
 
       - name: Test nix run (help command)
-        run: nix run --no-write-lock-file -- --help
+        run: nix run . --no-write-lock-file -- --help
 
   nix-flake-check:
     name: Nix Flake Check
