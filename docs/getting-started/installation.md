@@ -82,8 +82,8 @@ systemctl --user start hamr-gtk
 ### Quick install
 
 ```bash
-# Try without installing
-nix run github:Stewart86/hamr -- --help
+# Try without installing (recommended)
+nix run github:Stewart86/hamr --no-write-lock-file -- --help
 
 # Install to your profile
 nix profile install github:Stewart86/hamr
@@ -103,22 +103,24 @@ Add the flake input to your configuration:
   outputs = { self, nixpkgs, hamr, ... }: {
     # NixOS
     nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux"; # or your system
       modules = [{
-        nixpkgs.overlays = [ hamr.overlays.default ];
-        environment.systemPackages = [ pkgs.hamr ];
+        environment.systemPackages = [ hamr.packages.x86_64-linux.default ];
       }];
     };
 
     # Or Home Manager
     homeConfigurations.myuser = home-manager.lib.homeManagerConfiguration {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
       modules = [{
-        nixpkgs.overlays = [ hamr.overlays.default ];
-        home.packages = [ pkgs.hamr ];
+        home.packages = [ hamr.packages.x86_64-linux.default ];
       }];
     };
   };
 }
 ```
+
+**Note:** The Nix build uses separate derivations for binaries and plugins, preventing Rust toolchain stripping issues with Python plugin files.
 
 ## Quick Install (All Distributions)
 
