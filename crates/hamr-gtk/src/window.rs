@@ -2148,7 +2148,7 @@ impl LauncherWindow {
             let (input_mode, selected_action_index, is_window_picker) = {
                 let state_ref = state.borrow();
                 (
-                    state_ref.input_mode.clone(),
+                    state_ref.input_mode,
                     state_ref.selected_action_index,
                     state_ref.show_window_picker,
                 )
