@@ -482,15 +482,16 @@ suggested even after switching to other items."
 
 Before tagging a release:
 
-1. **Update `Cargo.lock`**: Run `cargo update` to ensure lock file is current
-2. **Verify build**: Run `cargo build --locked` to confirm AUR/reproducible builds work
-3. **Run tests**: `cargo test -q`
-4. **Bump version**: Update `version` in root `Cargo.toml` (workspace members inherit it)
-5. **Commit**: `git add Cargo.toml Cargo.lock && git commit -m "chore: release vX.Y.Z"`
-6. **Tag**: `git tag -a vX.Y.Z -m "vX.Y.Z"`
-7. **Push**: `git push && git push --tags`
+1. **Update workspace packages in `Cargo.lock`**: Run `cargo update -w` after bumping version to ensure workspace member versions are current
+2. **Update all dependencies**: Run `cargo update` to update external crate dependencies
+3. **Verify build**: Run `cargo build --locked` to confirm AUR/reproducible builds work
+4. **Run tests**: `cargo test -q`
+5. **Bump version**: Update `version` in root `Cargo.toml` (workspace members inherit it)
+6. **Commit**: `git add Cargo.toml Cargo.lock && git commit -m "chore: release vX.Y.Z"`
+7. **Tag**: `git tag -a vX.Y.Z -m "vX.Y.Z"`
+8. **Push**: `git push && git push --tags`
 
-**Why this matters**: AUR packages build with `--locked` for reproducibility. If `Cargo.lock` is stale, the build fails with "lock file needs to be updated" errors.
+**Why this matters**: AUR packages build with `--locked` for reproducibility. If `Cargo.lock` is stale (especially after version bump), the build fails with "lock file needs to be updated" errors.
 
 ## Dependencies (Key Crates)
 
