@@ -1575,14 +1575,21 @@ impl LauncherWindow {
         let form_container = self.form_container.clone();
         let preview_window = self.preview_window.window.clone();
         let preview_revealer = self.preview_window.revealer.clone();
-
         self.fab_window.connect_clicked(move || {
             info!("FAB clicked, restoring launcher");
             let visibility_state = state_manager.visibility_state();
             let theme = config_watcher.theme();
             let restore_window_ms = theme.config.behavior.state_restore_window_ms;
 
-            let restored_session = visibility_state.take_session_if_restorable(restore_window_ms);
+            // Check for reload marker - if present, skip session restoration
+            let no_restore_marker = std::path::Path::new("/tmp/hamr-no-restore");
+            let restored_session = if no_restore_marker.exists() {
+                info!("Reload marker found, skipping session restoration");
+                let _ = std::fs::remove_file(no_restore_marker);
+                None
+            } else {
+                visibility_state.take_session_if_restorable(restore_window_ms)
+            };
             visibility_state.open();
 
             fab_window.hide();

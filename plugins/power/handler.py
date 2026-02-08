@@ -93,7 +93,18 @@ POWER_ACTIONS = [
         "command": [
             "bash",
             "-c",
-            "if command -v systemctl >/dev/null 2>&1 && systemctl --user is-enabled --quiet hamr-daemon 2>/dev/null; then systemctl --user restart hamr-daemon hamr-gtk; else pkill -x hamr-gtk 2>/dev/null || true; hamr shutdown 2>/dev/null || true; sleep 0.2; nohup hamr >/dev/null 2>&1 & fi; notify-send 'Hamr' 'Launcher restarted'",
+            # Create marker to prevent session restoration on restart
+            "touch /tmp/hamr-no-restore && "
+            "if command -v systemctl >/dev/null 2>&1 && systemctl --user is-enabled --quiet hamr-daemon 2>/dev/null; then "
+            "systemctl --user restart hamr-daemon hamr-gtk; "
+            "else "
+            "pkill -x hamr-gtk 2>/dev/null || true; "
+            "hamr shutdown 2>/dev/null || true; "
+            "sleep 0.2; "
+            "nohup hamr >/dev/null 2>&1 & "
+            "fi; "
+            "rm -f /tmp/hamr-no-restore; "
+            "notify-send 'Hamr' 'Launcher restarted'",
         ],
     },
 ]

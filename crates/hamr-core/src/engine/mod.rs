@@ -646,9 +646,16 @@ impl HamrCore {
         self.invalidate_recent_cache();
 
         if let Some(entry_point) = entry_point {
-            self.replay_from_entry_point(&plugin_id, &entry_point, action)
+            let replayed = self
+                .replay_from_entry_point(&plugin_id, &entry_point, action.clone())
                 .await;
-            return true;
+            if replayed {
+                return true;
+            }
+            debug!(
+                "Failed to replay entry_point for {}, falling back to item id",
+                id
+            );
         }
 
         debug!(
@@ -670,14 +677,15 @@ impl HamrCore {
     }
 
     /// Replay an action from a stored `entry_point`.
+    /// Returns true if the replay was successfully sent to a plugin.
     async fn replay_from_entry_point(
         &mut self,
         plugin_id: &str,
         entry_point: &serde_json::Value,
         action: Option<String>,
-    ) {
+    ) -> bool {
         let Some(obj) = entry_point.as_object() else {
-            return;
+            return false;
         };
 
         let step = obj.get("step").and_then(|v| v.as_str());
@@ -695,7 +703,10 @@ impl HamrCore {
                 effective_action.map(std::string::ToString::to_string),
             )
             .await;
+            return true;
         }
+
+        false
     }
 
     async fn handle_slider_changed(&mut self, id: String, value: f64, plugin_id: Option<String>) {

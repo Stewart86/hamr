@@ -2,6 +2,7 @@
   "name": "Default Apps",
   "description": "Configure default apps via XDG",
   "icon": "settings_applications",
+  "frecency": "none",
   "handler": {
     "type": "stdio",
     "command": "python3 handler.py"
