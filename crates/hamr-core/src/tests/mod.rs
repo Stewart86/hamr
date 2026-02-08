@@ -15,6 +15,7 @@
 
 mod config_reload_tests;
 mod config_tests;
+mod daemon_tests;
 mod fixtures;
 mod frecency_tests;
 mod index_tests;

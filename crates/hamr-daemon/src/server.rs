@@ -789,91 +789,62 @@ async fn handle_plugin_response(
             .core
             .process(CoreEvent::SetContext { context })
             .await;
+        drop(state_guard);
     }
 
-    let Some(tx) = ui_sender else {
-        debug!("[{}] No active UI to forward plugin response", plugin_id);
-        return;
-    };
-
     if let Some(result) = &resp.result {
-        forward_plugin_result(&plugin_id, result, &tx, state).await;
+        match serde_json::from_value::<PluginResponse>(result.clone()) {
+            Ok(plugin_response) => {
+                debug!(
+                    "[{}] Processing daemon plugin response through core",
+                    plugin_id
+                );
+                let mut state_guard = state.write().await;
+                if let Err(e) = state_guard
+                    .core
+                    .process_daemon_response(&plugin_id, plugin_response)
+                {
+                    warn!(
+                        "[{}] Failed to process daemon response in core: {}",
+                        plugin_id, e
+                    );
+                }
+            }
+            Err(e) => {
+                let error_msg = format!("Plugin '{plugin_id}' returned invalid response: {e}");
+                warn!("[{}] {}. Raw: {}", plugin_id, error_msg, result);
+                // Send error to UI directly since we can't process through core
+                if let Some(ref tx) = ui_sender {
+                    let error_response = PluginResponse::Error {
+                        message: error_msg,
+                        details: None,
+                    };
+                    let updates = plugin_response_to_updates(&plugin_id, error_response);
+                    for update in updates {
+                        let notification = core_update_to_notification(&update);
+                        let _ = tx.send(Message::Notification(notification));
+                    }
+                }
+            }
+        }
     } else if let Some(error) = &resp.error {
         debug!(
             "[{}] Plugin returned error: {} ({})",
             plugin_id, error.message, error.code
         );
-        let notification = Notification::new(
-            "plugin_error",
-            Some(serde_json::json!({
-                "plugin_id": plugin_id,
-                "error": {
-                    "code": error.code,
-                    "message": error.message,
-                    "data": error.data
-                }
-            })),
-        );
-        let _ = tx.send(Message::Notification(notification));
-    }
-}
-
-/// Process a list of core updates: handle Close state and forward to UI as notifications.
-async fn process_and_forward_updates(
-    updates: Vec<CoreUpdate>,
-    tx: &mpsc::UnboundedSender<Message>,
-    state: &Arc<RwLock<DaemonState>>,
-) {
-    for update in &updates {
-        if matches!(update, CoreUpdate::Close) {
-            let mut state_guard = state.write().await;
-            state_guard.core.set_open(false);
-        }
-    }
-    for update in updates {
-        let notification = core_update_to_notification(&update);
-        let _ = tx.send(Message::Notification(notification));
-    }
-}
-
-/// Forward a successful plugin result to the UI as notifications.
-async fn forward_plugin_result(
-    plugin_id: &str,
-    result: &Value,
-    tx: &mpsc::UnboundedSender<Message>,
-    state: &Arc<RwLock<DaemonState>>,
-) {
-    if result.get("type").and_then(|v| v.as_str()) == Some("form") {
-        debug!(
-            "[{}] Raw form JSON: {}",
-            plugin_id,
-            serde_json::to_string(result).unwrap_or_default()
-        );
-    }
-
-    match serde_json::from_value::<PluginResponse>(result.clone()) {
-        Ok(plugin_response) => {
-            debug!(
-                "[{}] Deserialized plugin response, forwarding to UI",
-                plugin_id
+        if let Some(ref tx) = ui_sender {
+            let notification = Notification::new(
+                "plugin_error",
+                Some(serde_json::json!({
+                    "plugin_id": plugin_id,
+                    "error": {
+                        "code": error.code,
+                        "message": error.message,
+                        "data": error.data
+                    }
+                })),
             );
-            let updates = plugin_response_to_updates(plugin_id, plugin_response);
-            process_and_forward_updates(updates, tx, state).await;
-        }
-        Err(e) => {
-            let error_msg = format!("Plugin '{plugin_id}' returned invalid response: {e}");
-            warn!(
-                "[{}] {}. Raw: {}",
-                plugin_id,
-                error_msg,
-                serde_json::to_string(result).unwrap_or_default()
-            );
-            let error_response = PluginResponse::Error {
-                message: error_msg,
-                details: None,
-            };
-            let updates = plugin_response_to_updates(plugin_id, error_response);
-            process_and_forward_updates(updates, tx, state).await;
+            let _ = tx.send(Message::Notification(notification));
         }
     }
 }

@@ -1,5 +1,5 @@
 mod plugins;
-mod process;
+pub(crate) mod process;
 mod suggestions;
 
 use crate::Result;
@@ -1374,6 +1374,29 @@ impl HamrCore {
     /// Set the open state (used when plugin requests close)
     pub fn set_open(&mut self, open: bool) {
         self.state.is_open = open;
+    }
+
+    /// Process a plugin response from a daemon plugin.
+    ///
+    /// Converts the response to `CoreUpdate`s and sends through the update channel.
+    /// This ensures daemon plugins have the same state management as stdio plugins,
+    /// including proper `last_results` caching for frecency tracking.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if processing fails (e.g., invalid response data).
+    pub fn process_daemon_response(
+        &mut self,
+        plugin_id: &str,
+        response: PluginResponse,
+    ) -> Result<()> {
+        let updates = process::process_plugin_response(plugin_id, response);
+
+        for update in updates {
+            self.send_update_cached(update);
+        }
+
+        Ok(())
     }
 
     #[must_use]
