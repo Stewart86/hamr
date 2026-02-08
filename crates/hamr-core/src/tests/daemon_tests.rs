@@ -1,7 +1,7 @@
 //! Tests for daemon plugin response processing
 //!
 //! These tests verify the `process_plugin_response` function correctly converts
-//! plugin responses to CoreUpdates, which is the foundation of the daemon plugin
+//! plugin responses to `CoreUpdate`s, which is the foundation of the daemon plugin
 //! core integration feature.
 
 use crate::engine::process::process_plugin_response;
