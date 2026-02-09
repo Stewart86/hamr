@@ -6,6 +6,8 @@
 
 <p align="center">A fast, extensible desktop launcher for Linux.</p>
 
+![Hamr Screenshot](docs/plugins/images/results-basic.png)
+
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Rust](https://img.shields.io/badge/rust-1.88+-orange)
 ![Platform](<https://img.shields.io/badge/platform-Linux%20(Wayland)-green>)
