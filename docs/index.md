@@ -6,7 +6,7 @@
 
 <p align="center">A standalone search bar / launcher built with Rust and GTK4.</p>
 
-![Hamr Screenshot](plugins/images/results-basic.png)
+![Hamr Screenshot](assets/main-view-v1.png)
 
 > **Migration Notice**: This documentation covers the Rust/GTK4 rewrite of Hamr. For the legacy QML/Quickshell version, see the [legacy-qml branch](https://github.com/stewart86/hamr/tree/legacy-qml).
 
