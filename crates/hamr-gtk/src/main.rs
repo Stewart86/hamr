@@ -65,7 +65,11 @@ fn wayland_display_ready() -> bool {
 fn is_dev_mode() -> bool {
     std::env::current_exe()
         .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.ends_with("target/debug")))
+        .and_then(|exe| {
+            exe.parent().map(|dir| {
+                dir.ends_with("target/debug") || dir.ends_with("target/release")
+            })
+        })
         .unwrap_or(false)
 }
 
