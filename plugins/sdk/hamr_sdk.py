@@ -42,17 +42,27 @@ from typing import Any, Callable, Optional
 def get_socket_path() -> str:
     """Get the hamr daemon socket path.
 
-    Tries dev socket first (hamr-dev.sock) if it exists, otherwise falls back
-    to production socket (hamr.sock). This allows plugins to work with both
-    dev and production daemons.
+    Uses the same detection logic as the Rust daemon: checks if we're running
+    from a cargo build directory (target/debug or target/release) to determine
+    dev mode. This avoids issues with stale socket files.
     """
     runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
     dev_socket = os.path.join(runtime_dir, "hamr-dev.sock")
     prod_socket = os.path.join(runtime_dir, "hamr.sock")
 
-    # Prefer dev socket if it exists
-    if os.path.exists(dev_socket):
-        return dev_socket
+    # Check if we're in dev mode by looking at the executable path
+    # This mirrors the Rust daemon's is_dev_socket() logic
+    exe_path = sys.executable
+    exe_dir = os.path.dirname(exe_path)
+    parent_dir = os.path.basename(exe_dir)
+
+    # If running from target/debug or target/release, use dev socket
+    if parent_dir in ("debug", "release"):
+        parent_parent = os.path.basename(os.path.dirname(exe_dir))
+        if parent_parent == "target":
+            return dev_socket
+
+    # Otherwise, use production socket (ignore stale dev socket files)
     return prod_socket
 
 
