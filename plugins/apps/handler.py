@@ -457,7 +457,7 @@ def handle_request(request: dict, all_apps: list[dict]) -> None:
                 ]
 
             results = [
-                app_to_result(a, show_category=(category == "All")) for a in apps[:50]
+                app_to_result(a, show_category=(category == "All")) for a in apps
             ]
 
             if not results:
@@ -494,7 +494,7 @@ def handle_request(request: dict, all_apps: list[dict]) -> None:
                 or fuzzy_match(query, a.get("keywords", ""))
             ]
 
-            results = [app_to_result(a, show_category=True) for a in apps[:50]]
+            results = [app_to_result(a, show_category=True) for a in apps]
 
             if not results:
                 results = [
@@ -626,7 +626,7 @@ def handle_request(request: dict, all_apps: list[dict]) -> None:
                 apps = [a for a in all_apps if a.get("display_category") == category]
 
             results = [
-                app_to_result(a, show_category=(category == "All")) for a in apps[:50]
+                app_to_result(a, show_category=(category == "All")) for a in apps
             ]
 
             response = HamrPlugin.results(
