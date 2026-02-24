@@ -945,6 +945,8 @@ fn copy_plugin_dir(src: &std::path::Path, dst: &std::path::Path) -> Result<()> {
 
 /// Install essential plugins from source to user config
 fn install_essential_plugins(user_plugins_dir: &std::path::Path, check: bool) -> Result<()> {
+    use std::fs;
+
     let Some(source_dir) = find_source_plugins() else {
         println!("  Warning: Could not find source plugins directory");
         return Ok(());
@@ -962,7 +964,14 @@ fn install_essential_plugins(user_plugins_dir: &std::path::Path, check: bool) ->
         }
 
         if dst.exists() {
-            println!("  Exists:  {plugin_name}");
+            if check {
+                println!("  Update:  {plugin_name}");
+            } else {
+                // Update essential plugins by removing and re-copying
+                println!("  Updating: {plugin_name}");
+                fs::remove_dir_all(&dst)?;
+                copy_plugin_dir(&src, &dst)?;
+            }
         } else if check {
             println!("  Copy:    {plugin_name}");
         } else {

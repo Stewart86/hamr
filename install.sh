@@ -472,22 +472,46 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
                 for plugin_dir in plugins/*/; do
                     if [[ -d "$plugin_dir" ]]; then
                         local plugin_name=$(basename "$plugin_dir")
-                        plugin_summary="${plugin_summary}System plugin: $plugin_name\n"
+                        if [[ -d "$HOME/.config/hamr/plugins/$plugin_name" ]]; then
+                            plugin_summary="${plugin_summary}Update built-in: $plugin_name\n"
+                        else
+                            plugin_summary="${plugin_summary}Install built-in: $plugin_name\n"
+                        fi
                     fi
                 done
-                if [[ -n "$RESET_USER_DATA" ]] || [[ ! -d "$HOME/.config/hamr/plugins" ]]; then
-                    plugin_summary="${plugin_summary}User plugins: would copy to ~/.config/hamr/plugins/"
+                # List user-created plugins that will be preserved
+                if [[ -d "$HOME/.config/hamr/plugins" ]]; then
+                    for user_plugin in "$HOME/.config/hamr/plugins"/*/; do
+                        if [[ -d "$user_plugin" ]]; then
+                            local user_plugin_name=$(basename "$user_plugin")
+                            # Check if it's not a built-in plugin
+                            if [[ ! -d "plugins/$user_plugin_name" ]]; then
+                                plugin_summary="${plugin_summary}Preserve user plugin: $user_plugin_name\n"
+                            fi
+                        fi
+                    done
                 fi
                 print_summary "Plugin Installation" "$plugin_summary"
             else
                 # Install system plugins (always update these)
                 cp -r "plugins" "$bin_dir/"
                 
-                # Only copy plugins to user config if they don't exist or if --reset-user-data
-                if [[ -n "$RESET_USER_DATA" ]] || [[ ! -d "$HOME/.config/hamr/plugins" ]]; then
-                    mkdir -p "$HOME/.config/hamr/plugins"
-                    cp -r "plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
-                fi
+                # Update built-in plugins in user config (but preserve user-created plugins)
+                mkdir -p "$HOME/.config/hamr/plugins"
+                info "Updating built-in plugins..."
+                for plugin_dir in plugins/*/; do
+                    if [[ -d "$plugin_dir" ]]; then
+                        local plugin_name=$(basename "$plugin_dir")
+                        # Always update built-in plugins, whether they exist or not
+                        if [[ -d "$HOME/.config/hamr/plugins/$plugin_name" ]]; then
+                            info "  Updating built-in plugin: $plugin_name"
+                            rm -rf "$HOME/.config/hamr/plugins/$plugin_name"
+                        else
+                            info "  Installing built-in plugin: $plugin_name"
+                        fi
+                        cp -r "$plugin_dir" "$HOME/.config/hamr/plugins/"
+                    fi
+                done
             fi
             
             # Make handler scripts executable based on manifest (only if not dry-run)
@@ -680,11 +704,22 @@ Modify PATH: $([ -n "$NO_MODIFY_PATH" ] && echo "no" || echo "yes")"
         # Install system plugins (always update these)
         cp -r "$extract_dir/plugins" "$bin_dir/"
         
-        # Only copy plugins to user config if they don't exist or if --reset-user-data
-        if [[ -n "$RESET_USER_DATA" ]] || [[ ! -d "$HOME/.config/hamr/plugins" ]]; then
-            mkdir -p "$HOME/.config/hamr/plugins"
-            cp -r "$extract_dir/plugins"/* "$HOME/.config/hamr/plugins/" 2>/dev/null || true
-        fi
+        # Update built-in plugins in user config (but preserve user-created plugins)
+        mkdir -p "$HOME/.config/hamr/plugins"
+        info "Updating built-in plugins..."
+        for plugin_dir in "$extract_dir/plugins"/*/; do
+            if [[ -d "$plugin_dir" ]]; then
+                local plugin_name=$(basename "$plugin_dir")
+                # Always update built-in plugins, whether they exist or not
+                if [[ -d "$HOME/.config/hamr/plugins/$plugin_name" ]]; then
+                    info "  Updating built-in plugin: $plugin_name"
+                    rm -rf "$HOME/.config/hamr/plugins/$plugin_name"
+                else
+                    info "  Installing built-in plugin: $plugin_name"
+                fi
+                cp -r "$plugin_dir" "$HOME/.config/hamr/plugins/"
+            fi
+        done
         
         # Make handler scripts executable based on manifest
         for manifest in "$bin_dir/plugins"/*/manifest.json; do
