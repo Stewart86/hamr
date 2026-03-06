@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../assets/logo.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.2">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
       
@@ -1386,6 +1386,7 @@
 <ul>
 <li>[ ] Update version in <code>Cargo.toml</code> (workspace level)</li>
 <li>[ ] Update version in child crate <code>Cargo.toml</code> files if needed</li>
+<li>[ ] Update <code>pkg/aur/PKGBUILD</code>, <code>pkg/aur/.SRCINFO</code>, <code>pkg/aur-bin/PKGBUILD</code>, and <code>pkg/aur-bin/.SRCINFO</code></li>
 <li>[ ] Update <code>CHANGELOG.md</code> with release notes</li>
 <li>[ ] Commit version bump: <code>git commit -m "chore: bump version to vX.Y.Z"</code></li>
 <li>[ ] Create and push tag: <code>git tag vX.Y.Z &amp;&amp; git push origin vX.Y.Z</code></li>
@@ -1399,7 +1400,7 @@
 <li><code>hamr-linux-aarch64.tar.gz</code></li>
 <li><code>checksums.txt</code></li>
 <li>Download and extract a tarball, verify binaries run</li>
-<li>If using AUR: verify PKGBUILD was updated</li>
+<li>If using AUR: verify the AUR publish job succeeded, or publish <code>pkg/aur</code> and <code>pkg/aur-bin</code> manually</li>
 <li>Publish the draft release</li>
 </ol>
 <h2 id="rollback-procedure">Rollback Procedure<a class="headerlink" href="#rollback-procedure" title="Permanent link">&para;</a></h2>
@@ -1432,8 +1433,8 @@
 </tr>
 <tr>
 <td>AUR update fails</td>
-<td>Version format issue</td>
-<td>Ensure tag format is <code>vX.Y.Z</code></td>
+<td>Version mismatch, branch rules, or AUR SSH issue</td>
+<td>Verify tracked AUR files match the tag, then retry or publish manually</td>
 </tr>
 <tr>
 <td>Artifacts missing</td>
