@@ -1382,14 +1382,29 @@
 </span></code></pre></div>
 <p><strong>Expected</strong>: Configuration changes are reflected after daemon restart.</p>
 <h2 id="version-bump-checklist">Version Bump Checklist<a class="headerlink" href="#version-bump-checklist" title="Permanent link">&para;</a></h2>
-<p>Before tagging a release:</p>
+<p>Preferred release flow:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>./scripts/release.sh<span class="w"> </span>X.Y.Z
+</span></code></pre></div>
+<p>The release script should be the single entrypoint for preparing a release commit and annotated tag. The release tag <code>vX.Y.Z</code> is the publish trigger, but the tagged source must already contain the matching version in <code>Cargo.toml</code> so Cargo and Nix builds stay reproducible.</p>
+<p>The script should also regenerate the checked-in AUR metadata from templates before committing, while the release workflow renders the same metadata from the tag for publication.</p>
+<p>Before tagging a release manually:</p>
 <ul>
 <li>[ ] Update version in <code>Cargo.toml</code> (workspace level)</li>
 <li>[ ] Update version in child crate <code>Cargo.toml</code> files if needed</li>
-<li>[ ] Update <code>pkg/aur/PKGBUILD</code>, <code>pkg/aur/.SRCINFO</code>, <code>pkg/aur-bin/PKGBUILD</code>, and <code>pkg/aur-bin/.SRCINFO</code></li>
+<li>[ ] Run <code>cargo update -w</code></li>
+<li>[ ] Run <code>cargo update</code> if intentionally refreshing dependencies</li>
 <li>[ ] Update <code>CHANGELOG.md</code> with release notes</li>
-<li>[ ] Commit version bump: <code>git commit -m "chore: bump version to vX.Y.Z"</code></li>
-<li>[ ] Create and push tag: <code>git tag vX.Y.Z &amp;&amp; git push origin vX.Y.Z</code></li>
+<li>[ ] Run <code>cargo build --locked</code></li>
+<li>[ ] Run <code>cargo test -q</code></li>
+<li>[ ] Commit version bump: <code>git commit -m "chore: release vX.Y.Z"</code></li>
+<li>[ ] Create annotated tag: <code>git tag -a vX.Y.Z -m "vX.Y.Z"</code></li>
+<li>[ ] Push commit and tag: <code>git push &amp;&amp; git push --tags</code></li>
+</ul>
+<p>Notes:</p>
+<ul>
+<li><code>flake.nix</code> reads <code>workspace.package.version</code> from <code>Cargo.toml</code>, so release tags and <code>Cargo.toml</code> must match exactly.</li>
+<li>AUR metadata templates live alongside the package files in <code>pkg/aur/</code> and <code>pkg/aur-bin/</code>; <code>scripts/release.sh</code> refreshes the checked-in files and CI renders the publish payload from the tag.</li>
+<li>CI should not commit generated AUR version updates back to <code>main</code>.</li>
 </ul>
 <h2 id="post-release-verification">Post-Release Verification<a class="headerlink" href="#post-release-verification" title="Permanent link">&para;</a></h2>
 <p>After the release workflow completes:</p>
@@ -1400,7 +1415,7 @@
 <li><code>hamr-linux-aarch64.tar.gz</code></li>
 <li><code>checksums.txt</code></li>
 <li>Download and extract a tarball, verify binaries run</li>
-<li>If using AUR: verify the AUR publish job succeeded, or publish <code>pkg/aur</code> and <code>pkg/aur-bin</code> manually</li>
+<li>If using AUR: verify the AUR publish job succeeded, or publish the rendered AUR metadata manually</li>
 <li>Publish the draft release</li>
 </ol>
 <h2 id="rollback-procedure">Rollback Procedure<a class="headerlink" href="#rollback-procedure" title="Permanent link">&para;</a></h2>
@@ -1433,8 +1448,8 @@
 </tr>
 <tr>
 <td>AUR update fails</td>
-<td>Version mismatch, branch rules, or AUR SSH issue</td>
-<td>Verify tracked AUR files match the tag, then retry or publish manually</td>
+<td>Release rendering mismatch or AUR SSH issue</td>
+<td>Verify the tag matches <code>Cargo.toml</code>, then retry or publish manually</td>
 </tr>
 <tr>
 <td>Artifacts missing</td>
