@@ -114,6 +114,7 @@ Before tagging a release:
 
 - [ ] Update version in `Cargo.toml` (workspace level)
 - [ ] Update version in child crate `Cargo.toml` files if needed
+- [ ] Update `pkg/aur/PKGBUILD`, `pkg/aur/.SRCINFO`, `pkg/aur-bin/PKGBUILD`, and `pkg/aur-bin/.SRCINFO`
 - [ ] Update `CHANGELOG.md` with release notes
 - [ ] Commit version bump: `git commit -m "chore: bump version to vX.Y.Z"`
 - [ ] Create and push tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
@@ -128,7 +129,7 @@ After the release workflow completes:
    - `hamr-linux-aarch64.tar.gz`
    - `checksums.txt`
 3. Download and extract a tarball, verify binaries run
-4. If using AUR: verify PKGBUILD was updated
+4. If using AUR: verify the AUR publish job succeeded, or publish `pkg/aur` and `pkg/aur-bin` manually
 5. Publish the draft release
 
 ## Rollback Procedure
@@ -146,5 +147,5 @@ If critical issues are found after release:
 |-------|-------|----------|
 | Workflow fails at build | Missing dependency | Check system deps in workflow |
 | Checksums mismatch | Plugin files modified | Re-run `./scripts/generate-plugin-checksums.sh` |
-| AUR update fails | Version format issue | Ensure tag format is `vX.Y.Z` |
+| AUR update fails | Version mismatch, branch rules, or AUR SSH issue | Verify tracked AUR files match the tag, then retry or publish manually |
 | Artifacts missing | Build step failed | Check workflow logs for errors |
