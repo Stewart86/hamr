@@ -5,7 +5,7 @@
 #
 # This workflow is triggered by:
 # - Pushing a tag matching 'v*' (e.g., v0.1.0)
-# - Manual dispatch with optional tag input
+# - Manual dispatch with an explicit tag input
 
 name: Release
 
@@ -17,7 +17,7 @@ on:
     inputs:
       tag:
         description: 'Release tag (e.g., v0.1.0)'
-        required: false
+        required: true
         type: string
 
 permissions:
@@ -28,8 +28,68 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      ref: ${{ steps.release.outputs.ref }}
+    steps:
+      - name: Resolve release tag
+        id: release
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+
+          if [ -z "$TAG" ]; then
+            echo "::error::release tag is required"
+            exit 1
+          fi
+
+          case "$TAG" in
+            v*) ;;
+            *)
+              echo "::error::release tag must start with v"
+              exit 1
+              ;;
+          esac
+
+          VERSION="${TAG#v}"
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "ref=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.ref }}
+
+      - name: Verify Cargo.toml matches release tag
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          release_version = os.environ["RELEASE_VERSION"]
+          cargo_version = tomllib.loads(Path("Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
+          if cargo_version != release_version:
+              raise SystemExit(
+                  f"Cargo.toml version {cargo_version} does not match release tag version {release_version}"
+              )
+          print(f"verified Cargo.toml version {cargo_version} matches tag")
+          PY
+
   build-linux-x86_64:
     name: Build Linux x86_64
+    needs: [prepare-release]
     runs-on: ubuntu-24.04
     container:
       image: archlinux:base
@@ -46,9 +106,11 @@ jobs:
             pkgconf
 
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.ref }}
 
       - name: Build release binaries
-        run: cargo build --release
+        run: cargo build --release --locked
 
       - name: Generate plugin checksums
         run: ./scripts/generate-plugin-checksums.sh
@@ -72,24 +134,14 @@ jobs:
 
   release:
     name: Create Release
-    needs: [build-linux-x86_64]
+    needs: [prepare-release, build-linux-x86_64]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.tag != ''
     steps:
       - name: Download x86_64 artifact
         uses: actions/download-artifact@v4
         with:
           name: hamr-linux-x86_64
           path: dist
-
-      - name: Get release tag
-        id: tag
-        run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
 
       - name: Create checksums
         working-directory: dist
@@ -99,8 +151,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-           tag_name: ${{ steps.tag.outputs.tag }}
-           name: Hamr ${{ steps.tag.outputs.tag }}
+           tag_name: ${{ needs.prepare-release.outputs.tag }}
+           name: Hamr ${{ needs.prepare-release.outputs.tag }}
            draft: false
            generate_release_notes: true
            files: |
@@ -109,42 +161,17 @@ jobs:
 
   update-aur:
     name: Update AUR Package
-    needs: [build-linux-x86_64]
+    needs: [prepare-release, build-linux-x86_64]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.tag != ''
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: main  # Checkout main branch, not the tag (detached HEAD)
-          fetch-depth: 0
+          ref: ${{ needs.prepare-release.outputs.ref }}
 
-      - name: Get release tag
-        id: tag
+      - name: Render AUR metadata from release version
         run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Extract version from tag
-        id: version
-        run: |
-          TAG=${{ steps.tag.outputs.tag }}
-          VERSION=${TAG#v}  # Remove 'v' prefix
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Extracted version: $VERSION from tag: $TAG"
-
-      - name: Verify tracked AUR package versions
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          grep -Fxq "pkgver=$VERSION" pkg/aur/PKGBUILD
-          grep -Fxq "$(printf '\tpkgver = %s' "$VERSION")" pkg/aur/.SRCINFO
-          grep -Fxq "$(printf '\tsource = hamr-%s::git+https://github.com/Stewart86/hamr.git#tag=v%s' "$VERSION" "$VERSION")" pkg/aur/.SRCINFO
-          grep -Fxq "pkgver=$VERSION" pkg/aur-bin/PKGBUILD
-          grep -Fxq "$(printf '\tpkgver = %s' "$VERSION")" pkg/aur-bin/.SRCINFO
-          grep -Fxq "$(printf '\tsource = hamr-bin-%s.tar.gz::https://github.com/Stewart86/hamr/releases/download/v%s/hamr-linux-x86_64.tar.gz' "$VERSION" "$VERSION")" pkg/aur-bin/.SRCINFO
+          python3 ./scripts/render-aur-metadata.py --version "${{ needs.prepare-release.outputs.version }}" --output-dir rendered-aur
 
       - name: Install SSH key for AUR
         env:
@@ -165,14 +192,14 @@ jobs:
         id: publish_hamr
         continue-on-error: true
         run: |
-          VERSION=${{ steps.version.outputs.version }}
+          VERSION=${{ needs.prepare-release.outputs.version }}
           git clone ssh://aur@aur.archlinux.org/hamr.git aur-repo
           cd aur-repo
           # Ensure we're on master branch (AUR requirement)
           git checkout master 2>/dev/null || git checkout -b master
           git config user.email "siwei.wong@gmail.com"
           git config user.name "Stewart Wong"
-          cp ../pkg/aur/PKGBUILD ../pkg/aur/.SRCINFO ../pkg/aur/hamr.install .
+          cp ../rendered-aur/hamr/PKGBUILD ../rendered-aur/hamr/.SRCINFO ../rendered-aur/hamr/hamr.install .
           git add PKGBUILD .SRCINFO hamr.install
           git diff --cached --quiet || git commit -m "Update to v$VERSION"
           git push origin master || echo "AUR push failed - may need manual intervention"
@@ -181,7 +208,7 @@ jobs:
         id: publish_hamr_bin
         continue-on-error: true
         run: |
-          VERSION=${{ steps.version.outputs.version }}
+          VERSION=${{ needs.prepare-release.outputs.version }}
           git clone ssh://aur@aur.archlinux.org/hamr-bin.git aur-bin-repo || {
             # If clone fails, init new repo
             mkdir -p aur-bin-repo
@@ -194,7 +221,7 @@ jobs:
           git checkout master 2>/dev/null || git checkout -b master
           git config user.email "siwei.wong@gmail.com"
           git config user.name "Stewart Wong"
-          cp ../pkg/aur-bin/PKGBUILD ../pkg/aur-bin/.SRCINFO ../pkg/aur-bin/hamr.install .
+          cp ../rendered-aur/hamr-bin/PKGBUILD ../rendered-aur/hamr-bin/.SRCINFO ../rendered-aur/hamr-bin/hamr.install .
           git add PKGBUILD .SRCINFO hamr.install
           git diff --cached --quiet || git commit -m "Update to v$VERSION"
           git push -u origin master || echo "AUR hamr-bin push failed - may need manual intervention"

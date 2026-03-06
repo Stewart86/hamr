@@ -1,19 +1,11 @@
-pkgbase = hamr
-	pkgdesc = A fast, extensible desktop launcher for Linux
-	pkgver = 1.0.18
+pkgbase = hamr-bin
+	pkgdesc = A fast, extensible desktop launcher for Linux (pre-built binaries)
+	pkgver = @VERSION@
 	pkgrel = 1
 	url = https://github.com/Stewart86/hamr
+	install = hamr.install
 	arch = x86_64
 	license = MIT
-	makedepends = rust
-	makedepends = cargo
-	makedepends = pkgconf
-	makedepends = cmake
-	makedepends = clang
-	makedepends = go
-	makedepends = perl
-	makedepends = gtk4
-	makedepends = gtk4-layer-shell
 	depends = gtk4
 	depends = gtk4-layer-shell
 	depends = python
@@ -31,9 +23,10 @@ pkgbase = hamr
 	optdepends = awww: wallpaper management
 	optdepends = playerctl: media player control (player plugin)
 	optdepends = bitwarden-cli: Bitwarden password manager integration
+	provides = hamr
+	conflicts = hamr
 	replaces = hamr-qml
-	install = hamr.install
-	source = hamr-1.0.18::git+https://github.com/Stewart86/hamr.git#tag=v1.0.18
+	source = hamr-bin-@VERSION@.tar.gz::https://github.com/Stewart86/hamr/releases/download/v@VERSION@/hamr-linux-x86_64.tar.gz
 	sha256sums = SKIP
 
-pkgname = hamr
+pkgname = hamr-bin

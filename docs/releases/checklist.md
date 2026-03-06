@@ -110,14 +110,34 @@ cat ~/.config/hamr/config.json
 
 ## Version Bump Checklist
 
-Before tagging a release:
+Preferred release flow:
+
+```bash
+./scripts/release.sh X.Y.Z
+```
+
+The release script should be the single entrypoint for preparing a release commit and annotated tag. The release tag `vX.Y.Z` is the publish trigger, but the tagged source must already contain the matching version in `Cargo.toml` so Cargo and Nix builds stay reproducible.
+
+The script should also regenerate the checked-in AUR metadata from templates before committing, while the release workflow renders the same metadata from the tag for publication.
+
+Before tagging a release manually:
 
 - [ ] Update version in `Cargo.toml` (workspace level)
 - [ ] Update version in child crate `Cargo.toml` files if needed
-- [ ] Update `pkg/aur/PKGBUILD`, `pkg/aur/.SRCINFO`, `pkg/aur-bin/PKGBUILD`, and `pkg/aur-bin/.SRCINFO`
+- [ ] Run `cargo update -w`
+- [ ] Run `cargo update` if intentionally refreshing dependencies
 - [ ] Update `CHANGELOG.md` with release notes
-- [ ] Commit version bump: `git commit -m "chore: bump version to vX.Y.Z"`
-- [ ] Create and push tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
+- [ ] Run `cargo build --locked`
+- [ ] Run `cargo test -q`
+- [ ] Commit version bump: `git commit -m "chore: release vX.Y.Z"`
+- [ ] Create annotated tag: `git tag -a vX.Y.Z -m "vX.Y.Z"`
+- [ ] Push commit and tag: `git push && git push --tags`
+
+Notes:
+
+- `flake.nix` reads `workspace.package.version` from `Cargo.toml`, so release tags and `Cargo.toml` must match exactly.
+- AUR metadata templates live alongside the package files in `pkg/aur/` and `pkg/aur-bin/`; `scripts/release.sh` refreshes the checked-in files and CI renders the publish payload from the tag.
+- CI should not commit generated AUR version updates back to `main`.
 
 ## Post-Release Verification
 
@@ -129,7 +149,7 @@ After the release workflow completes:
    - `hamr-linux-aarch64.tar.gz`
    - `checksums.txt`
 3. Download and extract a tarball, verify binaries run
-4. If using AUR: verify the AUR publish job succeeded, or publish `pkg/aur` and `pkg/aur-bin` manually
+4. If using AUR: verify the AUR publish job succeeded, or publish the rendered AUR metadata manually
 5. Publish the draft release
 
 ## Rollback Procedure
@@ -147,5 +167,5 @@ If critical issues are found after release:
 |-------|-------|----------|
 | Workflow fails at build | Missing dependency | Check system deps in workflow |
 | Checksums mismatch | Plugin files modified | Re-run `./scripts/generate-plugin-checksums.sh` |
-| AUR update fails | Version mismatch, branch rules, or AUR SSH issue | Verify tracked AUR files match the tag, then retry or publish manually |
+| AUR update fails | Release rendering mismatch or AUR SSH issue | Verify the tag matches `Cargo.toml`, then retry or publish manually |
 | Artifacts missing | Build step failed | Check workflow logs for errors |

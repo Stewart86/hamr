@@ -150,15 +150,15 @@ overlay.set_measure_overlay(&overlay_widget, true);
 
 ## Release Checklist
 
-Before tagging a release:
+Release workflow policy:
 
-1. **Update workspace packages in `Cargo.lock`**: Run `cargo update -w` after bumping version to ensure workspace member versions are current
-2. **Update all dependencies**: Run `cargo update` to update external crate dependencies
-3. **Verify build**: Run `cargo build --locked` to confirm AUR/reproducible builds work
-4. **Run tests**: `cargo test -q`
-5. **Bump version**: Update `version` in root `Cargo.toml` (workspace members inherit it)
-6. **Commit**: `git add Cargo.toml Cargo.lock && git commit -m "chore: release vX.Y.Z"`
-7. **Tag**: `git tag -a vX.Y.Z -m "vX.Y.Z"`
-8. **Push**: `git push && git push --tags`
+1. **Use a release script**: Preferred flow is a single `scripts/release.sh X.Y.Z` entrypoint that bumps `Cargo.toml`, regenerates AUR metadata, validates the tree, and creates the release commit and tag
+2. **Treat the git tag as release truth**: `vX.Y.Z` is the publish trigger for GitHub Releases and AUR publication
+3. **Keep `Cargo.toml` aligned with the tag**: `flake.nix` reads `workspace.package.version` from `Cargo.toml`, so Nix and Cargo builds must match the tagged version
+4. **Refresh the lockfile**: Run `cargo update -w` after bumping the version, and `cargo update` when intentionally refreshing dependencies
+5. **Verify reproducible builds**: Run `cargo build --locked` and `cargo test -q` before tagging
+6. **Avoid writing release metadata back to `main` from CI**: release automation should render AUR metadata from templates and the tag during publish, but must not commit generated release-version changes back to the protected branch
+7. **Create the release commit and tag**: Commit the versioned source state first, then create annotated tag `vX.Y.Z`
+8. **Push commit and tag**: `git push && git push --tags`
 
-**Why this matters**: AUR packages build with `--locked` for reproducibility. If `Cargo.lock` is stale (especially after version bump), the build fails with "lock file needs to be updated" errors.
+**Why this matters**: AUR packages build with `--locked` for reproducibility, Nix builds read the version from `Cargo.toml`, and release publishing should be derived from the tagged source state without CI mutating `main`.
