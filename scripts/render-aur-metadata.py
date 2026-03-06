@@ -76,7 +76,10 @@ def render_package(
         )
         write_text(destination / output_name, rendered)
 
-    shutil.copy2(template_dir / "hamr.install", destination / "hamr.install")
+    install_source = template_dir / "hamr.install"
+    install_destination = destination / "hamr.install"
+    if install_source.resolve() != install_destination.resolve():
+        shutil.copy2(install_source, install_destination)
     print(f"rendered {package_name} metadata to {destination}")
 
 
