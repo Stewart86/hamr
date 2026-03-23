@@ -21,6 +21,7 @@ pkgbase = hamr
 	depends = ttf-jetbrains-mono-nerd
 	optdepends = python-dbus: system dbus integration for plugins
 	optdepends = python-gobject: GObject introspection for plugins
+	optdepends = libqalculate: calculator plugin backend (qalc)
 	optdepends = wl-clipboard: clipboard operations in plugins
 	optdepends = xdg-utils: desktop integration (xdg-open)
 	optdepends = glib2: file operations (gio trash)

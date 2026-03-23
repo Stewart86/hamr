@@ -15,6 +15,7 @@ Supports:
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +24,10 @@ from pathlib import Path
 CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "hamr"
 CALC_HISTORY_FILE = CACHE_DIR / "calc-history.json"
 MAX_HISTORY_ITEMS = 10
+QALC_MISSING_MESSAGE = (
+    "Install `qalc` (provided by `libqalculate` on many systems) "
+    "to enable calculator expressions."
+)
 
 
 def load_calc_history() -> list[dict]:
@@ -71,6 +76,22 @@ def clear_calc_history() -> None:
             CALC_HISTORY_FILE.unlink()
         except OSError:
             pass
+
+
+def build_status_result(name: str, description: str) -> dict[str, str]:
+    """Build a non-actionable status row."""
+    return {
+        "id": "__error__",
+        "name": name,
+        "description": description,
+        "icon": "error",
+        "verb": "Unavailable",
+    }
+
+
+def find_qalc() -> str | None:
+    """Return the qalc executable path when available."""
+    return shutil.which("qalc")
 
 
 CURRENCY_SYMBOL_MAP = {
@@ -313,16 +334,20 @@ def preprocess_expression(query: str, math_prefix: str = "=") -> str:
     return expr
 
 
-def calculate(expr: str) -> str | None:
-    """Run qalc and return result, or None on error."""
+def calculate(expr: str) -> tuple[str | None, bool]:
+    """Run qalc and return result plus missing-backend state."""
     # Try hex/binary conversion first (doesn't need qalc)
     hex_bin_result = convert_hex_binary(expr)
     if hex_bin_result:
-        return hex_bin_result
+        return hex_bin_result, False
+
+    qalc = find_qalc()
+    if not qalc:
+        return None, True
 
     try:
         result = subprocess.run(
-            ["qalc", "-t", expr],
+            [qalc, "-t", expr],
             capture_output=True,
             text=True,
             timeout=5,
@@ -331,17 +356,19 @@ def calculate(expr: str) -> str | None:
 
         # Validate result
         if not output:
-            return None
+            return None, False
         if output == expr:
-            return None
+            return None, False
         if output.startswith("error:"):
-            return None
+            return None, False
         if "was not found" in output:
-            return None
+            return None, False
 
-        return output
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None
+        return output, False
+    except subprocess.TimeoutExpired:
+        return None, False
+    except FileNotFoundError:
+        return None, True
 
 
 def main():
@@ -358,7 +385,7 @@ def main():
 
         # Preprocess and calculate
         expr = preprocess_expression(query)
-        result = calculate(expr)
+        result, missing_qalc = calculate(expr)
 
         if result:
             print(
@@ -375,6 +402,18 @@ def main():
                             "notify": f"Copied: {result}",
                             "priority": 100,
                         },
+                    }
+                )
+            )
+        elif missing_qalc:
+            print(
+                json.dumps(
+                    {
+                        "type": "match",
+                        "result": build_status_result(
+                            "Calculator backend unavailable",
+                            QALC_MISSING_MESSAGE,
+                        ),
                     }
                 )
             )
@@ -436,7 +475,7 @@ def main():
             return
 
         expr = preprocess_expression(query)
-        result = calculate(expr)
+        result, missing_qalc = calculate(expr)
 
         if result:
             print(
@@ -456,19 +495,28 @@ def main():
                     }
                 )
             )
-        else:
+        elif missing_qalc:
             print(
                 json.dumps(
                     {
                         "type": "results",
                         "results": [
-                            {
-                                "id": "error",
-                                "name": "Invalid expression",
-                                "description": query,
-                                "icon": "error",
-                            }
+                            build_status_result(
+                                "Calculator backend unavailable",
+                                QALC_MISSING_MESSAGE,
+                            )
                         ],
+                        "inputMode": "realtime",
+                        "placeholder": "Install qalc to enable calculator expressions...",
+                    }
+                )
+            )
+        else:
+            print(
+                json.dumps(
+                    {
+                        "type": "results",
+                        "results": [build_status_result("Invalid expression", query)],
                         "inputMode": "realtime",
                     }
                 )
@@ -477,6 +525,10 @@ def main():
 
     if step == "action":
         item_id = selected.get("id", "")
+
+        if item_id == "__error__":
+            print(json.dumps({"type": "noop"}))
+            return
 
         # Plugin action: clear history
         if item_id == "__plugin__" and action == "clear_history":
@@ -495,7 +547,7 @@ def main():
         if item_id.startswith("history:"):
             original_query = item_id[8:]  # Remove "history:" prefix
             expr = preprocess_expression(original_query)
-            result = calculate(expr)
+            result, missing_qalc = calculate(expr)
             if result:
                 print(
                     json.dumps(
@@ -507,6 +559,8 @@ def main():
                         }
                     )
                 )
+            elif missing_qalc:
+                print(json.dumps({"type": "error", "message": QALC_MISSING_MESSAGE}))
             else:
                 print(json.dumps({"type": "error", "message": "Could not calculate"}))
             return
@@ -514,7 +568,7 @@ def main():
         if item_id == "calc_result":
             # Re-calculate to get current result
             expr = preprocess_expression(query)
-            result = calculate(expr)
+            result, missing_qalc = calculate(expr)
 
             if result:
                 save_calc_history(query, result)
@@ -528,6 +582,8 @@ def main():
                         }
                     )
                 )
+            elif missing_qalc:
+                print(json.dumps({"type": "error", "message": QALC_MISSING_MESSAGE}))
             else:
                 print(json.dumps({"type": "error", "message": "Could not calculate"}))
             return

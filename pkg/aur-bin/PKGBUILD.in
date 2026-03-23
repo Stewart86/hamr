@@ -20,6 +20,7 @@ depends=(
 optdepends=(
     'python-dbus: system dbus integration for plugins'
     'python-gobject: GObject introspection for plugins'
+    'libqalculate: calculator plugin backend (qalc)'
 
     # Desktop integration tools for plugins
     'wl-clipboard: clipboard operations in plugins'
