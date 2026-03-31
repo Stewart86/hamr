@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/logo.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -1313,6 +1313,10 @@
 <td>Check daemon status</td>
 </tr>
 <tr>
+<td><code>hamr restart</code></td>
+<td>Restart the daemon or systemd services</td>
+</tr>
+<tr>
 <td><code>hamr install</code></td>
 <td>Optional: set up systemd services and user directories</td>
 </tr>
@@ -1344,8 +1348,9 @@
 </span></code></pre></div>
 <h2 id="daemon-management">Daemon Management<a class="headerlink" href="#daemon-management" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>hamr<span class="w"> </span>status<span class="w">          </span><span class="c1"># Check if daemon is running</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>hamr<span class="w"> </span>shutdown<span class="w">        </span><span class="c1"># Stop the daemon</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>hamr<span class="w"> </span>reload-plugins<span class="w">  </span><span class="c1"># Reload plugins without restart</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>hamr<span class="w"> </span>restart<span class="w">         </span><span class="c1"># Restart daemon or systemd services after an update</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>hamr<span class="w"> </span>shutdown<span class="w">        </span><span class="c1"># Stop the daemon</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>hamr<span class="w"> </span>reload-plugins<span class="w">  </span><span class="c1"># Reload plugins without restart</span>
 </span></code></pre></div>
 <h2 id="plugin-management">Plugin Management<a class="headerlink" href="#plugin-management" title="Permanent link">&para;</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>hamr<span class="w"> </span>plugins<span class="w"> </span>list<span class="w">    </span><span class="c1"># List installed plugins</span>
