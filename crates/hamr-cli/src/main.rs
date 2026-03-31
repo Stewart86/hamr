@@ -17,18 +17,42 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 use tokio::time::sleep;
 
-/// Find a binary, preferring the dev build in target/debug if it exists
-fn find_binary(name: &str) -> PathBuf {
-    // Check if we're running from target/debug (dev mode)
+fn sibling_binary(name: &str) -> Option<PathBuf> {
     if let Ok(exe) = std::env::current_exe()
         && let Some(dir) = exe.parent()
     {
-        let dev_binary = dir.join(name);
-        if dev_binary.exists() {
-            return dev_binary;
+        let sibling = dir.join(name);
+        if sibling.exists() {
+            return Some(sibling);
         }
     }
-    // Fall back to PATH lookup
+    None
+}
+
+fn xdg_data_plugins_dir() -> Option<PathBuf> {
+    let xdg_data_dirs = std::env::var_os("XDG_DATA_DIRS")?;
+
+    std::env::split_paths(&xdg_data_dirs)
+        .map(|dir| dir.join("hamr/plugins"))
+        .find(|path| path.exists())
+        .map(|path| path.canonicalize().unwrap_or(path))
+}
+
+fn packaged_plugins_dir() -> Option<PathBuf> {
+    let plugin_dir = std::env::var_os("HAMR_PLUGIN_DIR")?;
+    let path = PathBuf::from(plugin_dir);
+    path.exists().then(|| path.canonicalize().unwrap_or(path))
+}
+
+/// Find a binary, preferring the dev build in target/debug if it exists.
+/// Outside dev mode, rely on PATH so wrapper scripts stay intact.
+fn find_binary(name: &str) -> PathBuf {
+    if is_dev_mode()
+        && let Some(binary) = sibling_binary(name)
+    {
+        return binary;
+    }
+
     PathBuf::from(name)
 }
 
@@ -816,18 +840,14 @@ WantedBy=graphical-session.target
 
 /// Find a hamr binary by name
 fn which_binary(name: &str) -> Result<PathBuf> {
-    // Priority 1: Same directory as current executable
-    // This ensures /usr/bin/hamr finds /usr/bin/hamr-daemon, not ~/.local/bin/hamr-daemon
-    if let Ok(exe) = std::env::current_exe()
-        && let Some(dir) = exe.parent()
+    // Priority 1: Dev mode should use sibling binaries from target/debug or target/release.
+    if is_dev_mode()
+        && let Some(binary) = sibling_binary(name)
     {
-        let binary = dir.join(name);
-        if binary.exists() {
-            return Ok(binary.canonicalize()?);
-        }
+        return Ok(binary);
     }
 
-    // Priority 2: Check PATH (respects user's PATH order)
+    // Priority 2: Check PATH so packaged wrapper scripts remain intact.
     if let Ok(output) = Command::new("which").arg(name).output()
         && output.status.success()
     {
@@ -837,11 +857,16 @@ fn which_binary(name: &str) -> Result<PathBuf> {
         }
     }
 
-    // Priority 3: Check ~/.local/bin (fallback for user installs)
+    // Priority 3: Same directory as current executable for non-dev local installs.
+    if let Some(binary) = sibling_binary(name) {
+        return Ok(binary);
+    }
+
+    // Priority 4: Check ~/.local/bin (fallback for user installs)
     if let Some(home) = dirs::home_dir() {
         let local_bin = home.join(format!(".local/bin/{name}"));
         if local_bin.exists() {
-            return Ok(local_bin.canonicalize()?);
+            return Ok(local_bin);
         }
     }
 
@@ -876,6 +901,10 @@ const ESSENTIAL_PLUGINS: &[&str] = &["apps", "shell", "calculate", "clipboard", 
 
 /// Find the source plugins directory (same logic as hamr-core's `Directories::find_builtin_plugins`)
 fn find_source_plugins() -> Option<PathBuf> {
+    if let Some(path) = packaged_plugins_dir() {
+        return Some(path);
+    }
+
     if let Ok(exe_path) = std::env::current_exe()
         && let Some(exe_dir) = exe_path.parent()
     {
@@ -901,7 +930,12 @@ fn find_source_plugins() -> Option<PathBuf> {
         }
     }
 
-    // Priority 4: System-wide location
+    // Priority 4: XDG data directories (needed for wrapped packages such as Nix)
+    if let Some(path) = xdg_data_plugins_dir() {
+        return Some(path);
+    }
+
+    // Priority 5: System-wide location
     #[cfg(target_os = "macos")]
     let system_path = PathBuf::from("/Library/Application Support/hamr/plugins");
     #[cfg(not(target_os = "macos"))]

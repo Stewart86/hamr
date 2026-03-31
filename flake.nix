@@ -113,19 +113,27 @@
           postBuild = ''
             wrapProgram $out/bin/hamr \
               --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
+              --set HAMR_PLUGIN_DIR $out/share/hamr/plugins \
+              --prefix XDG_DATA_DIRS : $out/share \
               --prefix XDG_DATA_DIRS : ${pkgs.material-symbols}/share \
               --prefix XDG_DATA_DIRS : ${pkgs.nerd-fonts.jetbrains-mono}/share
             
             wrapProgram $out/bin/hamr-daemon \
-              --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps}
+              --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
+              --set HAMR_PLUGIN_DIR $out/share/hamr/plugins \
+              --prefix XDG_DATA_DIRS : $out/share
             
             wrapProgram $out/bin/hamr-gtk \
               --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
+              --set HAMR_PLUGIN_DIR $out/share/hamr/plugins \
+              --prefix XDG_DATA_DIRS : $out/share \
               --prefix XDG_DATA_DIRS : ${pkgs.material-symbols}/share \
               --prefix XDG_DATA_DIRS : ${pkgs.nerd-fonts.jetbrains-mono}/share
             
             wrapProgram $out/bin/hamr-tui \
-              --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps}
+              --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
+              --set HAMR_PLUGIN_DIR $out/share/hamr/plugins \
+              --prefix XDG_DATA_DIRS : $out/share
           '';
 
           meta = with pkgs.lib; {

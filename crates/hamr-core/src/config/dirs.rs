@@ -76,6 +76,10 @@ impl Directories {
     }
 
     fn find_builtin_plugins() -> PathBuf {
+        if let Some(path) = Self::packaged_plugins_path() {
+            return path;
+        }
+
         if let Ok(exe_path) = std::env::current_exe() {
             let exe_dir = exe_path.parent().unwrap_or(&exe_path);
 
@@ -101,7 +105,26 @@ impl Directories {
             }
         }
 
+        if let Some(path) = Self::xdg_data_plugins_path() {
+            return path;
+        }
+
         Self::system_plugins_path()
+    }
+
+    fn packaged_plugins_path() -> Option<PathBuf> {
+        let plugin_dir = std::env::var_os("HAMR_PLUGIN_DIR")?;
+        let path = PathBuf::from(plugin_dir);
+        path.exists().then(|| path.canonicalize().unwrap_or(path))
+    }
+
+    fn xdg_data_plugins_path() -> Option<PathBuf> {
+        let xdg_data_dirs = std::env::var_os("XDG_DATA_DIRS")?;
+
+        std::env::split_paths(&xdg_data_dirs)
+            .map(|dir| dir.join("hamr/plugins"))
+            .find(|path| path.exists())
+            .map(|path| path.canonicalize().unwrap_or(path))
     }
 
     /// Get the system-wide plugins path for the current platform
@@ -133,7 +156,60 @@ impl Directories {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::OsString;
     use std::fs;
+    use std::sync::{Mutex, OnceLock};
+
+    fn test_env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct ScopedCurrentDir {
+        original: PathBuf,
+    }
+
+    impl ScopedCurrentDir {
+        fn set(path: &std::path::Path) -> Self {
+            let original = std::env::current_dir().unwrap();
+            std::env::set_current_dir(path).unwrap();
+            Self { original }
+        }
+    }
+
+    impl Drop for ScopedCurrentDir {
+        fn drop(&mut self) {
+            std::env::set_current_dir(&self.original).unwrap();
+        }
+    }
+
+    struct ScopedEnvVar {
+        key: &'static str,
+        original: Option<OsString>,
+    }
+
+    impl ScopedEnvVar {
+        fn set(key: &'static str, value: &std::path::Path) -> Self {
+            let original = std::env::var_os(key);
+            unsafe {
+                std::env::set_var(key, value);
+            }
+            Self { key, original }
+        }
+    }
+
+    impl Drop for ScopedEnvVar {
+        fn drop(&mut self) {
+            match &self.original {
+                Some(value) => unsafe {
+                    std::env::set_var(self.key, value);
+                },
+                None => unsafe {
+                    std::env::remove_var(self.key);
+                },
+            }
+        }
+    }
 
     #[test]
     fn test_with_base_sets_all_paths() {
@@ -203,17 +279,50 @@ mod tests {
 
     #[test]
     fn test_find_builtin_plugins_uses_dev_paths() {
+        let _lock = test_env_lock().lock().unwrap();
         let temp_dir = tempfile::tempdir().unwrap();
         let plugins_dir = temp_dir.path().join("plugins");
         fs::create_dir_all(&plugins_dir).unwrap();
 
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp_dir.path()).unwrap();
+        let _cwd = ScopedCurrentDir::set(temp_dir.path());
 
         let found = Directories::find_builtin_plugins();
         assert!(found.to_string_lossy().contains("plugins"));
+    }
 
-        std::env::set_current_dir(original_dir).unwrap();
+    #[test]
+    fn test_find_builtin_plugins_uses_xdg_data_dirs() {
+        let _lock = test_env_lock().lock().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let share_dir = temp_dir.path().join("share");
+        let plugins_dir = share_dir.join("hamr/plugins");
+        fs::create_dir_all(&plugins_dir).unwrap();
+
+        let isolated_cwd = temp_dir.path().join("cwd");
+        fs::create_dir_all(&isolated_cwd).unwrap();
+
+        let _cwd = ScopedCurrentDir::set(&isolated_cwd);
+        let _xdg = ScopedEnvVar::set("XDG_DATA_DIRS", &share_dir);
+
+        let found = Directories::find_builtin_plugins();
+        assert_eq!(found, plugins_dir.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_find_builtin_plugins_uses_packaged_plugin_dir_env() {
+        let _lock = test_env_lock().lock().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let plugins_dir = temp_dir.path().join("hamr/plugins");
+        fs::create_dir_all(&plugins_dir).unwrap();
+
+        let isolated_cwd = temp_dir.path().join("cwd");
+        fs::create_dir_all(&isolated_cwd).unwrap();
+
+        let _cwd = ScopedCurrentDir::set(&isolated_cwd);
+        let _plugin_dir = ScopedEnvVar::set("HAMR_PLUGIN_DIR", &plugins_dir);
+
+        let found = Directories::find_builtin_plugins();
+        assert_eq!(found, plugins_dir.canonicalize().unwrap());
     }
 
     #[test]
