@@ -258,20 +258,76 @@ If you encounter issues, see the [Troubleshooting Guide](troubleshooting.md) for
 
 ## Updating
 
-Arch Linux (AUR):
+You do not need to uninstall Hamr to move between releases. Update it in place using the same method you used to install it.
+
+By default, updates:
+
+- Replace the Hamr binaries with the newer release
+- Update bundled built-in plugins
+- Preserve `~/.config/hamr/` and user-created plugins
+
+Use `--reset-user-data` only if you want a clean reset of your user configuration and plugins.
+
+After upgrading, restart Hamr so the new binaries are running:
+
+```bash
+hamr restart
+```
+
+If you are not using systemd, `hamr restart` restarts the daemon. Start the GTK UI again with `hamr` if needed.
+
+### Arch Linux (AUR)
 
 ```bash
 paru -Syu hamr
 # or
 paru -Syu hamr-bin
+
+# Restart the running instance after the package update
+hamr restart
 ```
 
-Other distributions:
+### Quick Install Script Or Manual Download
+
+Re-run the installer to update your existing install in place:
 
 ```bash
-# Re-run the installer to update
 curl -fsSL https://hamr.run/install.sh | bash
+
+# Optional: install a specific release instead of latest
+HAMR_VERSION=vX.Y.Z curl -fsSL https://hamr.run/install.sh | bash
+
+# Restart the running instance after the update
+hamr restart
 ```
+
+If you originally used `--systemd`, you can pass it again during the update, but it is not required for existing systemd users.
+
+### Build From Source
+
+If you installed from a local clone, pull the new version and re-run the install step you used originally:
+
+```bash
+git pull
+
+# If you use the repo installer
+./install.sh
+
+# Or rebuild manually
+cargo build --release
+cp target/release/{hamr,hamr-daemon,hamr-gtk,hamr-tui} ~/.local/bin/
+hamr restart
+```
+
+### NixOS / Nix
+
+For profile installs, upgrade the flake reference:
+
+```bash
+nix profile upgrade github:stewart86/hamr
+```
+
+For NixOS or Home Manager setups, update the `hamr` flake input and rebuild your system or home configuration.
 
 ## Uninstall
 

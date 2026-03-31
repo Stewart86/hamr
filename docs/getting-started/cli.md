@@ -10,6 +10,7 @@ Hamr provides a unified CLI (`hamr`) for controlling the launcher.
 | `hamr toggle` | Toggle launcher visibility |
 | `hamr plugin <id>` | Open a specific plugin |
 | `hamr status` | Check daemon status |
+| `hamr restart` | Restart the daemon or systemd services |
 | `hamr install` | Optional: set up systemd services and user directories |
 | `hamr uninstall` | Remove binaries and services (preserves config) |
 | `hamr uninstall --purge` | Remove everything including user config |
@@ -40,6 +41,7 @@ hamr plugin apps         # Open apps plugin
 
 ```bash
 hamr status          # Check if daemon is running
+hamr restart         # Restart daemon or systemd services after an update
 hamr shutdown        # Stop the daemon
 hamr reload-plugins  # Reload plugins without restart
 ```

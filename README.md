@@ -157,6 +157,24 @@ systemctl --user start hamr-gtk
 
 Note: AUR packages do not auto-enable systemd services; `hamr install` is the opt-in step.
 
+### Updating
+
+Do not uninstall Hamr before upgrading. Re-run your original install method to update in place.
+Existing config in `~/.config/hamr/` and user-created plugins are preserved by default.
+
+```bash
+# AUR
+paru -Syu hamr-bin   # or hamr
+
+# Installer / manual download users
+curl -fsSL https://hamr.run/install.sh | bash
+
+# Restart the running instance after upgrading
+hamr restart
+```
+
+Full upgrade instructions: [docs/getting-started/installation.md#updating](docs/getting-started/installation.md#updating)
+
 ## Quick Start
 
 ```bash
