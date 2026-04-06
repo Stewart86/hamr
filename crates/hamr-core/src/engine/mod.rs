@@ -698,7 +698,7 @@ impl HamrCore {
         let context = self.build_execution_context();
         let frecency_mode = self.get_frecency_mode(&plugin_id);
         let mut fallback_item = result.clone();
-        fallback_item.id = execution_item_id.clone();
+        fallback_item.id.clone_from(&execution_item_id);
         self.index.record_execution_with_item(
             &plugin_id,
             &execution_item_id,
@@ -1296,7 +1296,7 @@ impl HamrCore {
                 let has_immediate_action =
                     result.open_url.is_some() || result.copy.is_some() || result.notify.is_some();
 
-                result.id = format!("{PREFIX_MATCH_PREVIEW}{}:{}", plugin_id, original_id);
+                result.id = format!("{PREFIX_MATCH_PREVIEW}{plugin_id}:{original_id}");
                 result.plugin_id = Some(plugin_id.to_string());
                 result.result_type = ResultType::Plugin;
 
