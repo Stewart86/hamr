@@ -118,6 +118,7 @@ Result item fields:
 | `badges`    | array  | Badge indicators                         |
 | `chips`     | array  | Pill-shaped tags                         |
 | `actions`   | array  | Action buttons                           |
+| `entryPoint` | object | Explicit execution payload for selecting the result |
 | `gauge`     | object | Circular progress (replaces icon)        |
 | `graph`     | object | Line graph (replaces icon)               |
 | `progress`  | object | Progress bar (replaces description)      |
@@ -156,6 +157,9 @@ Result item fields:
 ```
 
 Return `{"type": "match", "result": null}` to hide the match result.
+
+When a match result is selected from main search, hamr replays `entryPoint` when provided.
+If no `entryPoint` is present, hamr falls back to immediate execute fields like `copy` and `openUrl`.
 
 ### form
 

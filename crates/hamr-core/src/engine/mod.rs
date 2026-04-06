@@ -577,6 +577,13 @@ impl HamrCore {
         }
 
         if self
+            .handle_match_preview_selected(&id, action.clone())
+            .await
+        {
+            return;
+        }
+
+        if self
             .handle_indexed_item_selected(&id, action, event_plugin_id.as_deref())
             .await
         {
@@ -647,7 +654,7 @@ impl HamrCore {
 
         if let Some(entry_point) = entry_point {
             let replayed = self
-                .replay_from_entry_point(&plugin_id, &entry_point, action.clone())
+                .replay_from_entry_point(&plugin_id, &entry_point, action.clone(), None)
                 .await;
             if replayed {
                 return true;
@@ -662,8 +669,63 @@ impl HamrCore {
             "No entry_point for indexed item {}, using item id as fallback",
             id
         );
-        self.send_replay_action(&plugin_id, id, action).await;
+        self.send_replay_action(&plugin_id, id, action, None).await;
         true
+    }
+
+    async fn handle_match_preview_selected(&mut self, id: &str, action: Option<String>) -> bool {
+        if !id.starts_with(PREFIX_MATCH_PREVIEW) {
+            return false;
+        }
+
+        let Some(result) = self.state.last_results.iter().find(|r| r.id == id).cloned() else {
+            debug!("Match preview result missing from cached results: {}", id);
+            return false;
+        };
+
+        let Some(plugin_id) = result.plugin_id.clone() else {
+            debug!("Match preview result missing plugin_id: {}", id);
+            return false;
+        };
+
+        let execution_item_id = result
+            .entry_point
+            .as_ref()
+            .and_then(Self::entry_point_selected_id)
+            .unwrap_or(id)
+            .to_string();
+
+        let context = self.build_execution_context();
+        let frecency_mode = self.get_frecency_mode(&plugin_id);
+        let mut fallback_item = result.clone();
+        fallback_item.id = execution_item_id.clone();
+        self.index.record_execution_with_item(
+            &plugin_id,
+            &execution_item_id,
+            &context,
+            frecency_mode.as_ref(),
+            Some(&fallback_item),
+        );
+        self.invalidate_recent_cache();
+
+        if let Some(entry_point) = result.entry_point.as_ref()
+            && self
+                .replay_from_entry_point(
+                    &plugin_id,
+                    entry_point,
+                    action.clone(),
+                    Some(self.state.query.clone()),
+                )
+                .await
+        {
+            return true;
+        }
+
+        if action.is_none() {
+            return self.execute_immediate_result_actions(&result);
+        }
+
+        false
     }
 
     /// Find an indexed item by searching all plugins.
@@ -683,6 +745,7 @@ impl HamrCore {
         plugin_id: &str,
         entry_point: &serde_json::Value,
         action: Option<String>,
+        query: Option<String>,
     ) -> bool {
         let Some(obj) = entry_point.as_object() else {
             return false;
@@ -701,12 +764,55 @@ impl HamrCore {
                 plugin_id,
                 sel_id,
                 effective_action.map(std::string::ToString::to_string),
+                query,
             )
             .await;
             return true;
         }
 
         false
+    }
+
+    fn entry_point_selected_id(entry_point: &serde_json::Value) -> Option<&str> {
+        entry_point
+            .as_object()
+            .and_then(|obj| obj.get("selected"))
+            .and_then(|selected| selected.get("id"))
+            .and_then(serde_json::Value::as_str)
+    }
+
+    fn execute_immediate_result_actions(&self, result: &SearchResult) -> bool {
+        let mut executed = false;
+        let closes_via_execute = result.open_url.is_some() || result.copy.is_some();
+
+        if let Some(url) = &result.open_url {
+            self.send_update(CoreUpdate::Execute {
+                action: hamr_types::ExecuteAction::OpenUrl { url: url.clone() },
+            });
+            executed = true;
+        }
+
+        if let Some(text) = &result.copy {
+            self.send_update(CoreUpdate::Execute {
+                action: hamr_types::ExecuteAction::Copy { text: text.clone() },
+            });
+            executed = true;
+        }
+
+        if let Some(message) = &result.notify {
+            self.send_update(CoreUpdate::Execute {
+                action: hamr_types::ExecuteAction::Notify {
+                    message: message.clone(),
+                },
+            });
+            executed = true;
+        }
+
+        if executed && result.should_close == Some(true) && !closes_via_execute {
+            self.send_update(CoreUpdate::Close);
+        }
+
+        executed
     }
 
     async fn handle_slider_changed(&mut self, id: String, value: f64, plugin_id: Option<String>) {
@@ -1185,23 +1291,21 @@ impl HamrCore {
 
         match response {
             PluginResponse::Match { result: Some(item) } => {
-                // Convert ResultItem to SearchResult with plugin context
-                let mut result = SearchResult {
-                    id: format!("{PREFIX_MATCH_PREVIEW}{}:{}", plugin_id, item.id),
-                    name: item.name,
-                    description: item.description,
-                    icon: item.icon,
-                    icon_type: item.icon_type,
-                    verb: item.verb,
-                    result_type: ResultType::Plugin,
-                    plugin_id: Some(plugin_id.to_string()),
-                    actions: item.actions,
-                    open_url: item.open_url,
-                    copy: item.copy,
-                    notify: item.notify,
-                    should_close: item.should_close,
-                    ..Default::default()
-                };
+                let mut result = item;
+                let original_id = result.id.clone();
+                let has_immediate_action =
+                    result.open_url.is_some() || result.copy.is_some() || result.notify.is_some();
+
+                result.id = format!("{PREFIX_MATCH_PREVIEW}{}:{}", plugin_id, original_id);
+                result.plugin_id = Some(plugin_id.to_string());
+                result.result_type = ResultType::Plugin;
+
+                if result.entry_point.is_none() && !has_immediate_action {
+                    result.entry_point = Some(serde_json::json!({
+                        "step": "action",
+                        "selected": { "id": original_id },
+                    }));
+                }
 
                 // Use plugin icon if item doesn't specify one
                 if result.icon.is_none()
@@ -1555,4 +1659,236 @@ fn generate_session_id() -> String {
 
     let id = SESSION_COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("session_{id}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::index::IndexStore;
+    use std::collections::HashMap;
+    use std::fs;
+    use std::path::Path;
+    use std::time::Duration;
+    use tempfile::tempdir;
+
+    fn write_test_plugin(base: &Path, plugin_id: &str, manifest: &str, handler: &str) {
+        let plugin_dir = base.join("builtin-plugins").join(plugin_id);
+        fs::create_dir_all(&plugin_dir).unwrap();
+        fs::write(plugin_dir.join("manifest.json"), manifest).unwrap();
+        let handler_path = plugin_dir.join("handler.py");
+        fs::write(&handler_path, handler).unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mut permissions = fs::metadata(&handler_path).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&handler_path, permissions).unwrap();
+        }
+    }
+
+    fn test_core(base: &Path) -> (HamrCore, UnboundedReceiver<CoreUpdate>) {
+        let dirs = Directories::with_base(base.to_path_buf());
+        dirs.ensure_exists().unwrap();
+
+        let mut plugins = PluginManager::new(&dirs);
+        plugins.discover().unwrap();
+
+        let (update_tx, update_rx) = mpsc::unbounded_channel();
+
+        (
+            HamrCore {
+                dirs,
+                config: Config::default(),
+                plugins,
+                index: IndexStore::default(),
+                search: SearchEngine::new(),
+                state: LauncherState::default(),
+                daemons: HashMap::new(),
+                active_process: None,
+                update_tx,
+                control_throttle: ControlThrottle::default(),
+            },
+            update_rx,
+        )
+    }
+
+    fn test_platform(base: &Path) -> String {
+        let dirs = Directories::with_base(base.to_path_buf());
+        PluginManager::new(&dirs).platform().as_str().to_string()
+    }
+
+    async fn drain_updates(update_rx: &mut UnboundedReceiver<CoreUpdate>) -> Vec<CoreUpdate> {
+        let mut updates = Vec::new();
+
+        while let Ok(Some(update)) =
+            tokio::time::timeout(Duration::from_millis(200), update_rx.recv()).await
+        {
+            let done = matches!(update, CoreUpdate::Close);
+            updates.push(update);
+            if done {
+                break;
+            }
+        }
+
+        updates
+    }
+
+    #[tokio::test]
+    async fn match_preview_selection_replays_entry_point_with_action_override() {
+        let temp = tempdir().unwrap();
+        let platform = test_platform(temp.path());
+        let manifest = r#"{
+  "name": "Replay Preview",
+  "icon": "link",
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
+  },
+  "match": {
+    "patterns": ["^preview$"],
+    "priority": 100
+  },
+  "supportedPlatforms": ["__PLATFORM__"]
+}"#
+        .replace("__PLATFORM__", &platform);
+        write_test_plugin(
+            temp.path(),
+            "replay-preview",
+            &manifest,
+            r#"#!/usr/bin/env python3
+import json
+import sys
+
+input_data = json.load(sys.stdin)
+step = input_data.get("step")
+
+if step == "match":
+    print(json.dumps({
+        "type": "match",
+        "result": {
+            "id": "preview_result",
+            "name": "https://example.com",
+            "entryPoint": {
+                "step": "action",
+                "selected": {"id": "https://example.com"}
+            }
+        }
+    }))
+elif step == "action":
+    selected = input_data.get("selected", {})
+    if input_data.get("action") == "copy":
+        print(json.dumps({
+            "type": "execute",
+            "copy": selected.get("id", ""),
+            "close": True
+        }))
+    else:
+        print(json.dumps({
+            "type": "execute",
+            "openUrl": selected.get("id", ""),
+            "close": True
+        }))
+else:
+    print(json.dumps({"type": "noop"}))
+"#,
+        );
+
+        let (mut core, mut update_rx) = test_core(temp.path());
+        core.process(CoreEvent::QueryChanged {
+            query: "preview".to_string(),
+        })
+        .await;
+
+        let preview = core.state.last_results.first().cloned().unwrap();
+        assert_eq!(preview.plugin_id.as_deref(), Some("replay-preview"));
+        assert!(preview.entry_point.is_some());
+
+        let _ = drain_updates(&mut update_rx).await;
+
+        core.handle_item_selected(preview.id.clone(), Some("copy".to_string()), None)
+            .await;
+
+        let updates = drain_updates(&mut update_rx).await;
+        assert!(updates.iter().any(|update| matches!(
+            update,
+            CoreUpdate::Execute {
+                action: hamr_types::ExecuteAction::Copy { text }
+            } if text == "https://example.com"
+        )));
+    }
+
+    #[tokio::test]
+    async fn match_preview_selection_falls_back_to_immediate_actions() {
+        let temp = tempdir().unwrap();
+        let platform = test_platform(temp.path());
+        let manifest = r#"{
+  "name": "Immediate Preview",
+  "icon": "calculate",
+  "handler": {
+    "type": "stdio",
+    "command": "python3 handler.py"
+  },
+  "match": {
+    "patterns": ["^copyme$"],
+    "priority": 100
+  },
+  "supportedPlatforms": ["__PLATFORM__"]
+}"#
+        .replace("__PLATFORM__", &platform);
+        write_test_plugin(
+            temp.path(),
+            "immediate-preview",
+            &manifest,
+            r#"#!/usr/bin/env python3
+import json
+import sys
+
+input_data = json.load(sys.stdin)
+
+if input_data.get("step") == "match":
+    print(json.dumps({
+        "type": "match",
+        "result": {
+            "id": "copy_result",
+            "name": "42",
+            "copy": "42",
+            "notify": "Copied: 42"
+        }
+    }))
+else:
+    print(json.dumps({"type": "noop"}))
+"#,
+        );
+
+        let (mut core, mut update_rx) = test_core(temp.path());
+        core.process(CoreEvent::QueryChanged {
+            query: "copyme".to_string(),
+        })
+        .await;
+
+        let preview = core.state.last_results.first().cloned().unwrap();
+        assert!(preview.entry_point.is_none());
+        assert_eq!(preview.copy.as_deref(), Some("42"));
+
+        let _ = drain_updates(&mut update_rx).await;
+
+        core.handle_item_selected(preview.id.clone(), None, None)
+            .await;
+
+        let updates = drain_updates(&mut update_rx).await;
+        assert!(updates.iter().any(|update| matches!(
+            update,
+            CoreUpdate::Execute {
+                action: hamr_types::ExecuteAction::Copy { text }
+            } if text == "42"
+        )));
+        assert!(updates.iter().any(|update| matches!(
+            update,
+            CoreUpdate::Execute {
+                action: hamr_types::ExecuteAction::Notify { message }
+            } if message == "Copied: 42"
+        )));
+    }
 }

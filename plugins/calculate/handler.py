@@ -398,6 +398,10 @@ def main():
                             "description": query,
                             "icon": "calculate",
                             "verb": "Copy",
+                            "entryPoint": {
+                                "step": "action",
+                                "selected": {"id": "calc_result"},
+                            },
                             "copy": result,
                             "notify": f"Copied: {result}",
                             "priority": 100,

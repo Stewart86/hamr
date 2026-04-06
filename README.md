@@ -40,6 +40,25 @@ Systemd setup is optional (opt-in) via `--systemd` or by running `hamr install` 
 
 **Dependencies:** GTK4 4.20+, gtk4-layer-shell, Python 3.9+
 
+### Plugin Runtime Dependencies
+
+Some bundled plugins depend on extra system tools. Hamr will still install without them, but those plugins may show errors or reduced functionality until the tools are installed.
+
+| Plugin | Required tool(s) | Notes |
+|------|------|------|
+| `calculate` | `qalc` | Calculator expressions, units, currency, and temperature conversion |
+| `clipboard` | `cliphist` | Clipboard history browsing and management |
+| `player` | `playerctl` | Media player controls |
+| `files` | `fd`, `fzf` | File search and fuzzy matching |
+| `bitwarden` | `bw` | Bitwarden vault access |
+| `zoxide` | `zoxide` | Directory jumping from zoxide history |
+| `screenrecord` | `wf-recorder`, `slurp` | Screen and region recording |
+| `snip` | `grim`, `slurp`, `satty`, `wl-copy` | Screenshot capture, annotation, and clipboard copy |
+| `screenshot` | `tesseract` | OCR search over screenshots |
+| `snippet`, `emoji` | `ydotool` or `wtype` | Optional direct text typing; clipboard copy still works with `wl-copy` |
+
+On Arch Linux, common packages are `libqalculate`, `cliphist`, `playerctl`, `fd`, `fzf`, `bitwarden-cli`, `zoxide`, `wf-recorder`, `slurp`, `grim`, `satty`, `wl-clipboard`, `tesseract`, and `ydotool`.
+
 ### Manual Download
 
 ```bash

@@ -303,12 +303,13 @@ impl HamrCore {
         plugin_id: &str,
         item_id: &str,
         action: Option<String>,
+        query: Option<String>,
     ) {
         let session = generate_session_id();
 
         let input = PluginInput {
             step: Step::Action,
-            query: None,
+            query,
             selected: Some(SelectedItem {
                 id: item_id.to_string(),
                 extra: None,
