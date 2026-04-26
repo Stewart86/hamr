@@ -65,20 +65,20 @@ fn watch_config_file(config_path: &Path, tx: &mpsc::Sender<()>) -> Result<()> {
     let mut watcher =
         notify::recommended_watcher(move |result: notify::Result<notify::Event>| match result {
             Ok(event) => match event.kind {
-                notify::EventKind::Modify(_) | notify::EventKind::Create(_) => {
+                notify::EventKind::Modify(_) | notify::EventKind::Create(_)
                     if event.paths.iter().any(|p| {
                         p.file_name() == config_path_for_closure.file_name()
                             || p.ends_with(CONFIG_FILENAME)
-                    }) {
-                        let Ok(mut last_event) = debounce.lock() else {
-                            error!("[config_watcher] Debounce mutex poisoned, skipping event");
-                            return;
-                        };
-                        let now = std::time::Instant::now();
-                        if now.duration_since(*last_event) > CONFIG_DEBOUNCE_DURATION {
-                            *last_event = now;
-                            let _ = watcher_tx.send(());
-                        }
+                    }) =>
+                {
+                    let Ok(mut last_event) = debounce.lock() else {
+                        error!("[config_watcher] Debounce mutex poisoned, skipping event");
+                        return;
+                    };
+                    let now = std::time::Instant::now();
+                    if now.duration_since(*last_event) > CONFIG_DEBOUNCE_DURATION {
+                        *last_event = now;
+                        let _ = watcher_tx.send(());
                     }
                 }
                 _ => {}

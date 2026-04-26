@@ -387,8 +387,7 @@ async fn index_saver(state: Arc<RwLock<DaemonState>>) {
                 let last_dirty = state_guard.core.last_index_dirty_at();
                 let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_millis() as u64)
-                    .unwrap_or(0);
+                    .map_or(0, |d| d.as_millis() as u64);
 
                 if now.saturating_sub(last_dirty) >= DEBOUNCE_MS {
                     if let Err(e) = state_guard.core.save_index() {

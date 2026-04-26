@@ -392,20 +392,14 @@ impl FormState {
             }
 
             match field.field_type {
-                FormFieldType::Email => {
-                    if !is_valid_email(&val) {
-                        errors.push(format!("{}: invalid email format", field.label));
-                    }
+                FormFieldType::Email if !is_valid_email(&val) => {
+                    errors.push(format!("{}: invalid email format", field.label));
                 }
-                FormFieldType::Url => {
-                    if !is_valid_url(&val) {
-                        errors.push(format!("{}: invalid URL format", field.label));
-                    }
+                FormFieldType::Url if !is_valid_url(&val) => {
+                    errors.push(format!("{}: invalid URL format", field.label));
                 }
-                FormFieldType::Phone => {
-                    if !is_valid_phone(&val) {
-                        errors.push(format!("{}: invalid phone format", field.label));
-                    }
+                FormFieldType::Phone if !is_valid_phone(&val) => {
+                    errors.push(format!("{}: invalid phone format", field.label));
                 }
                 _ => {}
             }

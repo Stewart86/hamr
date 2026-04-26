@@ -84,8 +84,7 @@ fn has_systemd_service() -> bool {
     Command::new("systemctl")
         .args(["--user", "is-enabled", "hamr-daemon", "--quiet"])
         .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+        .is_ok_and(|s| s.success())
 }
 
 /// Start daemon via systemd
@@ -1058,8 +1057,7 @@ fn is_systemctl_available() -> bool {
     Command::new("systemctl")
         .arg("--version")
         .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+        .is_ok_and(|o| o.status.success())
 }
 
 /// Check if a systemd user service is enabled
@@ -1067,8 +1065,7 @@ fn is_service_enabled(name: &str) -> bool {
     Command::new("systemctl")
         .args(["--user", "is-enabled", name, "--quiet"])
         .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+        .is_ok_and(|s| s.success())
 }
 
 /// Enable a systemd user service
@@ -1076,7 +1073,7 @@ fn enable_service(name: &str) {
     let result = Command::new("systemctl")
         .args(["--user", "enable", name])
         .status();
-    if result.map(|s| s.success()).unwrap_or(false) {
+    if result.is_ok_and(|s| s.success()) {
         println!("  Enabled {name}.service");
     } else {
         println!("  Warning: Failed to enable {name} service");
@@ -1155,7 +1152,7 @@ fn configure_systemd(check: bool) {
     let reload = Command::new("systemctl")
         .args(["--user", "daemon-reload"])
         .status();
-    if reload.map(|s| s.success()).unwrap_or(false) {
+    if reload.is_ok_and(|s| s.success()) {
         println!("  Reloaded systemd user daemon");
     } else {
         println!("  Warning: Failed to reload systemd daemon");

@@ -391,7 +391,7 @@ impl IndexStore {
 
         let now_dt = chrono_lite_now();
         frec.hour_slot_counts[now_dt.hour as usize] += 1;
-        frec.day_of_week_counts[now_dt.weekday as usize] += 1;
+        frec.day_of_week_counts[now_dt.weekday] += 1;
 
         if context.launch_from_empty {
             frec.launch_from_empty_count += 1;
@@ -417,7 +417,7 @@ impl IndexStore {
             *frec.launched_after.entry(last_app.clone()).or_insert(0) += 1;
             if frec.launched_after.len() > 5 {
                 let mut entries: Vec<_> = frec.launched_after.drain().collect();
-                entries.sort_by(|a, b| b.1.cmp(&a.1));
+                entries.sort_by_key(|entry| std::cmp::Reverse(entry.1));
                 entries.truncate(5);
                 frec.launched_after = entries.into_iter().collect();
             }
@@ -504,7 +504,7 @@ impl IndexStore {
             .map(|(id, index)| (id.clone(), index.items.len()))
             .collect();
 
-        items_per_plugin.sort_by(|a, b| b.1.cmp(&a.1));
+        items_per_plugin.sort_by_key(|item| std::cmp::Reverse(item.1));
 
         crate::engine::IndexStats {
             plugin_count: self.indexes.len(),

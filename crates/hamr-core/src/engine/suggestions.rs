@@ -56,7 +56,7 @@ impl HamrCore {
             })
             .collect();
 
-        plugin_results.sort_by(|a, b| b.1.cmp(&a.1));
+        plugin_results.sort_by_key(|plugin| std::cmp::Reverse(plugin.1));
 
         plugin_results.into_iter().map(|(r, _)| r).collect()
     }

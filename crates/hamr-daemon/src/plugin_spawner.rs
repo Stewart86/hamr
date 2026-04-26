@@ -15,6 +15,8 @@ use tracing::{debug, error, info, warn};
 
 use crate::registry::DiscoveredPlugin;
 
+const MAX_RESTART_DELAY_SECS: u64 = 60;
+
 fn spawn_stderr_logger(plugin_id: String, stderr: ChildStderr) {
     tokio::spawn(async move {
         let reader = BufReader::new(stderr);
@@ -57,7 +59,7 @@ impl Default for SpawnConfig {
         Self {
             max_restarts: 5,
             restart_delay: Duration::from_secs(1),
-            max_restart_delay: Duration::from_secs(60),
+            max_restart_delay: Duration::from_secs(MAX_RESTART_DELAY_SECS),
         }
     }
 }

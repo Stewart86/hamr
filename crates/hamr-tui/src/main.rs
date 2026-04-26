@@ -538,15 +538,13 @@ async fn handle_image_browser_key(
         KeyCode::Esc => {
             app.view_mode = ViewMode::Results;
         }
-        KeyCode::Up | KeyCode::Char('k') if !ctrl => {
-            if state.selected > 0 {
-                state.selected -= 1;
-            }
+        KeyCode::Up | KeyCode::Char('k') if !ctrl && state.selected > 0 => {
+            state.selected -= 1;
         }
-        KeyCode::Down | KeyCode::Char('j') if !ctrl => {
-            if state.selected < state.data.images.len().saturating_sub(1) {
-                state.selected += 1;
-            }
+        KeyCode::Down | KeyCode::Char('j')
+            if !ctrl && state.selected < state.data.images.len().saturating_sub(1) =>
+        {
+            state.selected += 1;
         }
         KeyCode::Enter => {
             if let Some(img) = state.get_selected_image() {
@@ -919,10 +917,8 @@ async fn handle_results_mode_key(
                 app.move_cursor_right();
             }
         }
-        KeyCode::Backspace if ctrl => {
-            if app.active_plugin.is_some() {
-                send_event(client, CoreEvent::ClosePlugin).await?;
-            }
+        KeyCode::Backspace if ctrl && app.active_plugin.is_some() => {
+            send_event(client, CoreEvent::ClosePlugin).await?;
         }
         KeyCode::Backspace => {
             if app.input.is_empty() && app.active_plugin.is_some() {
@@ -942,13 +938,15 @@ async fn handle_results_mode_key(
         }
         KeyCode::Left => {
             // For sliders, Left arrow adjusts value; otherwise move cursor
-            if !adjust_slider(client, app, false).await? {
+            let adjusted = adjust_slider(client, app, false).await?;
+            if !adjusted {
                 app.move_cursor_left();
             }
         }
         KeyCode::Right => {
             // For sliders, Right arrow adjusts value; otherwise move cursor
-            if !adjust_slider(client, app, true).await? {
+            let adjusted = adjust_slider(client, app, true).await?;
+            if !adjusted {
                 app.move_cursor_right();
             }
         }
@@ -1047,11 +1045,11 @@ async fn handle_results_mode_key(
                 .await?;
             }
         }
-        KeyCode::Char('p') if !ctrl && app.input.is_empty() => {
-            if app.get_selected_preview().is_some() {
-                app.show_preview = !app.show_preview;
-                app.preview_scroll = 0;
-            }
+        KeyCode::Char('p')
+            if !ctrl && app.input.is_empty() && app.get_selected_preview().is_some() =>
+        {
+            app.show_preview = !app.show_preview;
+            app.preview_scroll = 0;
         }
         KeyCode::Char('J') if shift && app.show_preview => {
             app.preview_scroll = app.preview_scroll.saturating_add(1);

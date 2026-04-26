@@ -90,8 +90,7 @@ impl Compositor {
 
         if std::env::var("GNOME_DESKTOP_SESSION_ID").is_ok()
             || std::env::var("XDG_CURRENT_DESKTOP")
-                .map(|d| d.to_lowercase().contains("gnome"))
-                .unwrap_or(false)
+                .is_ok_and(|d| d.to_lowercase().contains("gnome"))
         {
             debug!("Detected GNOME desktop");
             return CompositorType::Gnome;

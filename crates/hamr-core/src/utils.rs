@@ -21,8 +21,7 @@ pub(crate) fn now_secs() -> u64 {
 pub(crate) fn now_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
+        .map_or(0, |d| d.as_millis() as u64)
 }
 
 /// Extract hour (0-23) and weekday (0=Mon, 6=Sun) from epoch seconds.
