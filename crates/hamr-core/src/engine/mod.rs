@@ -1676,6 +1676,9 @@ mod tests {
         fs::create_dir_all(&plugin_dir).unwrap();
         fs::write(plugin_dir.join("manifest.json"), manifest).unwrap();
         let handler_path = plugin_dir.join("handler.py");
+        let handler = handler
+            .strip_prefix("#!/usr/bin/env python3\n")
+            .map_or_else(|| handler.to_string(), test_python_handler);
         fs::write(&handler_path, handler).unwrap();
 
         #[cfg(unix)]
@@ -1686,6 +1689,18 @@ mod tests {
             permissions.set_mode(0o755);
             fs::set_permissions(&handler_path, permissions).unwrap();
         }
+    }
+
+    fn test_python_handler(body: &str) -> String {
+        let python = std::env::var_os("PATH")
+            .and_then(|path| {
+                std::env::split_paths(&path)
+                    .map(|dir| dir.join("python3"))
+                    .find(|candidate| candidate.is_file())
+            })
+            .expect("python3 must be available on PATH for Python plugin tests");
+
+        format!("#!{}\n{body}", python.display())
     }
 
     fn test_core(base: &Path) -> (HamrCore, UnboundedReceiver<CoreUpdate>) {
