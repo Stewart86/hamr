@@ -51,6 +51,7 @@
         # Native build inputs (tools needed during build)
         nativeBuildInputs = with pkgs; [
           pkg-config
+          python3  # Test plugins execute generated Python handlers during cargo test
           wrapGAppsHook4
         ];
 
