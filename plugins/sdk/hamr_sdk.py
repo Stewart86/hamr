@@ -334,8 +334,10 @@ class HamrPlugin:
     def execute(
         *,
         launch: Optional[str] = None,
+        open: Optional[str] = None,
         copy: Optional[str] = None,
         url: Optional[str] = None,
+        notify: Optional[str] = None,
         close: bool = False,
         hide: bool = False,
         type_text: Optional[str] = None,
@@ -349,10 +351,14 @@ class HamrPlugin:
         response: dict[str, Any] = {"type": "execute"}
         if launch:
             response["launch"] = launch
+        if open:
+            response["open"] = open
         if copy:
             response["copy"] = copy
         if url:
             response["openUrl"] = url
+        if notify:
+            response["notify"] = notify
         if close:
             response["close"] = close
         if hide:

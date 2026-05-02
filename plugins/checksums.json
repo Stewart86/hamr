@@ -16,7 +16,7 @@
     },
     "bitwarden": {
       "manifest.json": "b25e64e6b231c3a067bb1bc0f5a3beda468f01ae9a35f0e9b0ba5ec2698bf8b5",
-      "handler.py": "4f67e604cbacbb5d3c09764078c0a3713f6f7c5c8f358cd973d9a9bb2108906f"
+      "handler.py": "83fdebae1750c70683d10dd03c51a80cf6994e7f9b3a4fc867974b6fe4d9f74e"
     },
     "calculate": {
       "manifest.json": "1a38bd8f36ba295f923788b6594c1f68643eec8ecb03cc6e165c96e74e5b59ea",
@@ -146,7 +146,7 @@
     },
     "zoxide": {
       "manifest.json": "0801376be84a7c2a452803a438e10316c0f7aea83dd353c7dae0b6112af85222",
-      "handler.py": "156ee54fcf4049f775eb92b28036ee6de5c40f7aec82532acacd571a3a29c268"
+      "handler.py": "f8fd7c80d06bcbf799187d362a821a0fcb7234d139898b316c23ad4343c0e76e"
     }
   }
 }

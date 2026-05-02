@@ -171,6 +171,34 @@ plugin = HamrPlugin(
 )
 
 
+def format_results(query: str = "") -> list[dict]:
+    dirs = get_zoxide_dirs()
+    if query:
+        query_lower = query.lower()
+        dirs = [d for d in dirs if query_lower in d["path"].lower()]
+    return [dir_to_index_item(d) for d in dirs]
+
+
+@plugin.on_initial
+async def handle_initial(params=None):
+    """Show zoxide directories when the plugin is opened directly."""
+    return HamrPlugin.results(
+        format_results(),
+        input_mode="realtime",
+        placeholder="Search frequent directories...",
+    )
+
+
+@plugin.on_search
+async def handle_search(query: str, context=None):
+    """Search zoxide directories inside the plugin view."""
+    return HamrPlugin.results(
+        format_results(query),
+        input_mode="realtime",
+        placeholder="Search frequent directories...",
+    )
+
+
 @plugin.on_action
 async def handle_action(item_id: str, action=None, context=None):
     """Handle action request."""
@@ -190,15 +218,7 @@ async def handle_action(item_id: str, action=None, context=None):
             return HamrPlugin.error(str(e))
 
     if action == "copy":
-        try:
-            subprocess.run(
-                ["wl-copy"],
-                input=path.encode(),
-                timeout=5,
-            )
-            return HamrPlugin.close()
-        except Exception as e:
-            return HamrPlugin.error(str(e))
+        return HamrPlugin.copy_and_close(path)
 
     # Default action: open terminal at directory
     try:

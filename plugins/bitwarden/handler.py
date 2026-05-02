@@ -129,8 +129,8 @@ def clear_session_from_keyring() -> bool:
 
 
 def get_session() -> str | None:
-    """Get session from keyring"""
-    return get_session_from_keyring()
+    """Get session from the daemon environment or keyring."""
+    return os.environ.get("BW_SESSION") or get_session_from_keyring()
 
 
 def get_bw_status(session: str | None = None) -> dict:
@@ -535,25 +535,51 @@ async def handle_initial(params=None):
             ),
         )
 
-        if bw_status == "locked":
-            user_email = status.get("userEmail", "")
-            return HamrPlugin.form(
-                {
-                    "id": "unlock",
-                    "title": f"Unlock Vault ({user_email})"
-                    if user_email
-                    else "Unlock Vault",
-                    "fields": [
-                        {
-                            "id": "password",
-                            "label": "Master Password",
-                            "type": "password",
-                            "placeholder": "Enter your master password",
-                        },
-                    ],
-                    "submitLabel": "Unlock",
-                },
-            )
+    session = get_session()
+    status = get_bw_status(session)
+    bw_status = status.get("status", "unauthenticated")
+
+    if bw_status == "locked":
+        user_email = status.get("userEmail", "")
+        return HamrPlugin.form(
+            {
+                "id": "unlock",
+                "title": f"Unlock Vault ({user_email})" if user_email else "Unlock Vault",
+                "fields": [
+                    {
+                        "id": "password",
+                        "label": "Master Password",
+                        "type": "password",
+                        "placeholder": "Enter your master password",
+                    },
+                ],
+                "submitLabel": "Unlock",
+            },
+            context="unlock",
+        )
+
+    if bw_status == "unauthenticated":
+        return HamrPlugin.form(
+            {
+                "id": "login",
+                "title": "Log In to Bitwarden",
+                "fields": [
+                    {
+                        "id": "email",
+                        "label": "Email",
+                        "type": "text",
+                        "value": get_last_email(),
+                    },
+                    {
+                        "id": "password",
+                        "label": "Master Password",
+                        "type": "password",
+                    },
+                ],
+                "submitLabel": "Log In",
+            },
+            context="login",
+        )
 
     items = search_items("", session)
     if not items:
