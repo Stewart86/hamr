@@ -33,13 +33,15 @@ Hamr learns from your usage patterns to surface what you need, when you need it.
 
 ## Installation
 
+[Documentation](https://stewart86.github.io/hamr/) · [GitHub Releases](https://github.com/Stewart86/hamr/releases)
+
 ### Quick Install (Linux)
 
 ```bash
-curl -fsSL https://hamr.run/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/install.sh | bash
 
 # Or opt-in to systemd setup during install
-curl -fsSL https://hamr.run/install.sh | bash -s -- --systemd
+curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/install.sh | bash -s -- --systemd
 ```
 
 This downloads the latest release binaries (x86_64/aarch64), installs to `~/.local/bin`, and copies bundled plugins next to the binaries.
@@ -193,7 +195,7 @@ Existing config in `~/.config/hamr/` and user-created plugins are preserved by d
 paru -Syu hamr-bin   # or hamr
 
 # Installer / manual download users
-curl -fsSL https://hamr.run/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/install.sh | bash
 
 # Restart the running instance after upgrading
 hamr restart

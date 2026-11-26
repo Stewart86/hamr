@@ -792,7 +792,7 @@ fn generate_daemon_service() -> Result<String> {
     Ok(format!(
         r#"[Unit]
 Description=Hamr Launcher Daemon
-Documentation=https://hamr.run
+Documentation=https://stewart86.github.io/hamr/
 PartOf=graphical-session.target
 
 [Service]
@@ -815,7 +815,7 @@ fn generate_gtk_service() -> Result<String> {
     let service_content = format!(
         r#"[Unit]
 Description=Hamr Launcher GTK UI
-Documentation=https://hamr.run
+Documentation=https://stewart86.github.io/hamr/
 PartOf=graphical-session.target
 After=hamr-daemon.service
 Wants=hamr-daemon.service

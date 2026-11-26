@@ -72,7 +72,7 @@ hamr uninstall --purge  # Remove everything including ~/.config/hamr
 If the `hamr` binary is already gone, use the standalone script:
 
 ```bash
-curl -fsSL https://hamr.run/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/uninstall.sh | bash
 ```
 
 ## Systemd Integration

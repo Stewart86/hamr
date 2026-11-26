@@ -45,10 +45,10 @@ systemctl --user start hamr-gtk
 Or use the quick install script:
 
 ```bash
-curl -fsSL https://hamr.run/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/install.sh | bash
 
 # Or opt-in to systemd setup during install
-curl -fsSL https://hamr.run/install.sh | bash -s -- --systemd
+curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/install.sh | bash -s -- --systemd
 ```
 
 Toggle the launcher with `hamr toggle` (bind this to a key in your compositor).

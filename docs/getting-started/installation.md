@@ -125,10 +125,10 @@ Add the flake input to your configuration:
 ## Quick Install (All Distributions)
 
 ```bash
-curl -fsSL https://hamr.run/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/install.sh | bash
 
 # Or opt-in to systemd setup during install
-curl -fsSL https://hamr.run/install.sh | bash -s -- --systemd
+curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/install.sh | bash -s -- --systemd
 ```
 
 The install script will:
@@ -292,10 +292,10 @@ hamr restart
 Re-run the installer to update your existing install in place:
 
 ```bash
-curl -fsSL https://hamr.run/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/install.sh | bash
 
 # Optional: install a specific release instead of latest
-HAMR_VERSION=vX.Y.Z curl -fsSL https://hamr.run/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/install.sh | HAMR_VERSION=vX.Y.Z bash
 
 # Restart the running instance after the update
 hamr restart
@@ -355,13 +355,13 @@ This will:
 If the `hamr` binary is already removed or broken:
 
 ```bash
-curl -fsSL https://hamr.run/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/uninstall.sh | bash
 
 # Or remove everything including config
-curl -fsSL https://hamr.run/uninstall.sh | bash -s -- --purge
+curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/uninstall.sh | bash -s -- --purge
 
 # Non-interactive mode
-curl -fsSL https://hamr.run/uninstall.sh | bash -s -- --yes
+curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/uninstall.sh | bash -s -- --yes
 ```
 
 ### Arch Linux (AUR)
