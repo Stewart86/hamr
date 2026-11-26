@@ -51,6 +51,10 @@
       "manifest.json": "a2afec47ecb83ef1c5911fca4ba3ec87771acff461c19d279952a5da875d5a13",
       "handler.py": "49fd90866e5aca956a42cab5071aa4cd4b1f486ab7c87fafd060be23068d0df9"
     },
+    "livetennis": {
+      "manifest.json": "20e892d3f7a754fa4fbec7f4406367d0b7b24674c0bf344ff411df3c41e067a1",
+      "handler.py": "d359ededc94cce0e09758c2446f0d91d41e93d9643a63668a789741c0ac85f96"
+    },
     "niri": {
       "manifest.json": "670bc48d93367c0c2f569650abcb1b8d7a81e7c74e1f332c423f759e8c7921ff",
       "handler.py": "ce962145365dcc850af3a10e2adebe2d0fadc4acf104390a4c24c1edf9aca9c3"

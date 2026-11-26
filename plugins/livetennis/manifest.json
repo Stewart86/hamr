@@ -1,0 +1,11 @@
+{
+  "name": "Live tennis",
+  "description": "Tennis score snapshots with local search",
+  "icon": "sports_tennis",
+  "handler": {
+    "type": "stdio",
+    "path": "handler.py"
+  },
+  "frecency": "plugin",
+  "supportedPlatforms": ["niri", "hyprland"]
+}
