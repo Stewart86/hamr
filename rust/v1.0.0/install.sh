@@ -3,7 +3,7 @@
 # Hamr Launcher Installer
 #
 # Usage:
-#   curl -fsSL https://hamr.run/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/install.sh | bash
 #   ./install.sh  # If running from cloned repository
 #
 # Options:
@@ -15,7 +15,7 @@
 # Uninstall:
 #   hamr uninstall            Remove binaries, services (preserves config)
 #   hamr uninstall --purge    Remove everything including config
-#   curl -fsSL https://hamr.run/uninstall.sh | bash   # If hamr binary is gone
+#   curl -fsSL https://raw.githubusercontent.com/Stewart86/hamr/3a49c02a0aee39185686b33e6d0b645cb3d632c9/uninstall.sh | bash   # If hamr binary is gone
 #
 # Environment variables:
 #   HAMR_VERSION=v0.1.0    Install specific version (default: latest)
