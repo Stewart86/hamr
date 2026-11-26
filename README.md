@@ -33,7 +33,7 @@ Hamr learns from your usage patterns to surface what you need, when you need it.
 
 ## Installation
 
-[Documentation](https://stewart86.github.io/hamr/) · [GitHub Releases](https://github.com/Stewart86/hamr/releases)
+[Documentation](https://github.com/Stewart86/hamr/tree/main/docs) · [GitHub Releases](https://github.com/Stewart86/hamr/releases)
 
 ### Quick Install (Linux)
 
